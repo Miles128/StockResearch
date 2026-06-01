@@ -1,0 +1,45 @@
+"""Sina batch quote tests."""
+
+import pytest
+
+from invesbao.core.config import Settings
+from invesbao.data.providers import market as market_mod
+from invesbao.data.providers.market import QuoteProvider
+
+
+@pytest.fixture
+def live_market_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        market_mod,
+        "get_settings",
+        lambda: Settings(use_mock_market_data=False),
+    )
+
+
+@pytest.mark.asyncio
+async def test_batch_quotes_use_sina_only(
+    monkeypatch: pytest.MonkeyPatch,
+    live_market_settings: None,
+) -> None:
+    def fake_sina(symbols: list[str]) -> dict[str, dict[str, float | str]]:
+        from datetime import UTC, datetime
+
+        return {
+            sym: {
+                "symbol": sym,
+                "name": f"N{sym}",
+                "price": 10.0,
+                "change_pct": 1.0,
+                "high": 11.0,
+                "low": 9.0,
+                "volume": 100.0,
+                "updated_at": datetime.now(UTC),
+            }
+            for sym in symbols
+        }
+
+    monkeypatch.setattr(market_mod, "fetch_sina_quotes", fake_sina)
+
+    quotes = await QuoteProvider().get_quotes(["600519", "300750", "600519"])
+    assert set(quotes) == {"600519", "300750"}
+    assert quotes["600519"].price == 10.0

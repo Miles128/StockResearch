@@ -1,0 +1,57 @@
+[project]
+name = "invesbao"
+version = "0.1.0"
+description = "A-share AI investment research assistant with Multi-Agent architecture"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "sqlalchemy>=2.0.36",
+    "alembic>=1.14.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+    "python-jose[cryptography]>=3.3.0",
+    "bcrypt>=4.2.0",
+    "httpx>=0.28.0",
+    "akshare>=1.16.0",
+    "langgraph>=0.2.60",
+    "langchain-core>=0.3.28",
+    "redis>=5.2.0",
+    "pyyaml>=6.0.2",
+    "python-multipart>=0.0.18",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "types-PyYAML",
+    "types-python-jose",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/invesbao"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["invesbao"]
+mypy_path = "src"
