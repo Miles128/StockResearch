@@ -60,6 +60,27 @@ SYMBOL_SECTORS: dict[str, str] = {
 
 NEWS_BLACKLIST_KEYWORDS = ("暴涨", "惊爆", "疯涨", "血洗", "崩盘")
 
+# Layer-2 source authority (prefix match on NewsItem.source)
+NEWS_SOURCE_AUTHORITY: dict[str, float] = {
+    "新华社": 1.0,
+    "人民日报": 1.0,
+    "财联社": 0.95,
+    "证券时报": 0.92,
+    "上海证券报": 0.92,
+    "中国证券报": 0.92,
+    "巨潮": 0.9,
+    "交易所": 0.9,
+    "证监会": 0.9,
+    "华尔街见闻": 0.88,
+    "第一财经": 0.85,
+    "东方财富": 0.78,
+    "同花顺": 0.75,
+    "雪球": 0.7,
+    "新浪": 0.68,
+    "腾讯": 0.68,
+    "default": 0.55,
+}
+
 AVAILABLE_SECTORS: tuple[str, ...] = (
     "白酒",
     "新能源",

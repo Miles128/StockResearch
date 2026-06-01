@@ -76,6 +76,26 @@ export default function App() {
     candidates: { symbol: string; name: string }[];
   } | null>(null);
   const [successMsg, setSuccessMsg] = useState("");
+  const [terminalClock, setTerminalClock] = useState("");
+
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      setTerminalClock(
+        now.toLocaleString("zh-CN", {
+          hour12: false,
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }),
+      );
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const showError = useCallback((msg: string) => {
     setError(msg);
@@ -510,18 +530,33 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">投小宝</div>
-        <div className="brand-sub">Multi-Agent 投研</div>
-        <div className="stat-pill" style={{ marginBottom: 16, width: "100%" }}>
-          持仓 {holdingCount} 只
+      <header className="terminal-header">
+        <div className="terminal-brand">
+          <span className="bbg-logo">INVESBAO</span>
+          <span className="bbg-tag">投小宝 · Multi-Agent Terminal</span>
         </div>
-        {TABS.map((t) => (
+        <div className="terminal-meta">
+          <span className="terminal-clock">{terminalClock}</span>
+          <span className="terminal-source">
+            {market?.source ?? "—"} · {market?.data_status === "live" ? "LIVE" : market?.data_status === "mock" ? "DEMO" : "…"}
+          </span>
+        </div>
+      </header>
+
+      <div className="app-body">
+      <aside className="sidebar">
+        <div className="brand">FUNCTION</div>
+        <div className="brand-sub">Select module</div>
+        <div className="stat-pill holdings-pill">
+          PORT · {holdingCount} NAMES
+        </div>
+        {TABS.map((t, i) => (
           <button
             key={t.id}
             className={`nav-btn ${tab === t.id ? "active" : ""}`}
             onClick={() => setTab(t.id)}
           >
+            <span className="fn-key">F{i + 1}</span>
             {t.label}
           </button>
         ))}
@@ -530,10 +565,10 @@ export default function App() {
       <main className="main">
         <div className="topbar">
           <div>
-            <h2 style={{ margin: 0, fontSize: "1.35rem" }}>{TABS.find((t) => t.id === tab)?.label}</h2>
-            <p className="muted" style={{ margin: "4px 0 0" }}>
-              行情源：{market?.source ?? "加载中…"}
-              {market?.data_status === "live" ? " · 实时" : market?.data_status === "mock" ? " · 演示数据" : ""}
+            <h2 className="page-title">{TABS.find((t) => t.id === tab)?.label}</h2>
+            <p className="muted page-sub">
+              SRC {market?.source ?? "LOADING"}
+              {market?.data_status === "live" ? " · LIVE" : market?.data_status === "mock" ? " · DEMO" : ""}
             </p>
           </div>
           <button
@@ -995,6 +1030,7 @@ export default function App() {
           </div>
         )}
       </main>
+      </div>
     </div>
   );
 }

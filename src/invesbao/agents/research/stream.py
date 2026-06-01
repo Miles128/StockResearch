@@ -15,8 +15,8 @@ from invesbao.agents.research.debate import (
     summarize_situation,
     transcript_from_rounds,
 )
+from invesbao.agents.research.context import ResearchContext
 from invesbao.agents.research.runner import (
-    ResearchContext,
     build_chips,
     build_fundamental,
     build_sentiment,

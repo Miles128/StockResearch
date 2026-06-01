@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
+from invesbao.agents.news.filter import filter_and_rank, layer1_blacklist_reject
 from invesbao.core.constants import (
     AVAILABLE_SECTORS,
     IMPACT_MAJOR,
@@ -72,10 +73,6 @@ def score_impact(title: str, entities: list[str]) -> str:
     return IMPACT_NOISE
 
 
-def downgrade_noise(title: str) -> bool:
-    return any(kw in title for kw in NEWS_BLACKLIST_KEYWORDS)
-
-
 def quick_summary(title: str, content: str) -> str:
     text = content.strip()
     if text:
@@ -104,7 +101,7 @@ class NewsPipeline:
         scanned = 0
         for raw in raw_items:
             scanned += 1
-            if downgrade_noise(raw.title):
+            if layer1_blacklist_reject(raw.title):
                 skipped += 1
                 continue
             h = content_hash(raw.title, raw.source)
@@ -154,17 +151,16 @@ class NewsPipeline:
         related_only: bool = False,
         limit: int = 20,
     ) -> list[tuple[NewsItem, bool, str]]:
-        query = db.query(NewsItem).order_by(NewsItem.published_at.desc())
-        items = query.limit(limit * 8).all()
-        result: list[tuple[NewsItem, bool, str]] = []
-        for item in items:
-            category = classify_news(item, interests)
-            if category is None:
-                continue
-            related = category in ("holding", "sector")
-            if related_only and not related:
-                continue
-            result.append((item, related, category))
-            if len(result) >= limit:
-                break
-        return result
+        candidates = (
+            db.query(NewsItem)
+            .order_by(NewsItem.published_at.desc())
+            .limit(limit * 8)
+            .all()
+        )
+        ranked = filter_and_rank(
+            candidates,
+            interests,
+            related_only=related_only,
+            limit=limit,
+        )
+        return [(row.item, row.related, row.category) for row in ranked]
