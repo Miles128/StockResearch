@@ -201,6 +201,14 @@ body {
   width: calc(100% - 20px);
 }
 
+.tab-nav-mobile {
+  display: none;
+}
+
+.tab-nav-desktop {
+  display: block;
+}
+
 .nav-btn {
   width: 100%;
   text-align: left;
@@ -217,6 +225,10 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.nav-label {
+  line-height: 1.2;
 }
 
 .fn-key {
@@ -340,19 +352,61 @@ body {
 }
 
 @media (max-width: 960px) {
-  .app-body { grid-template-columns: 1fr; }
-  .sidebar {
-    display: flex;
+  .tab-nav-mobile {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
     gap: 0;
-    overflow-x: auto;
-    border-right: none;
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    background: var(--bbg-panel);
     border-bottom: 1px solid var(--bbg-border);
+    padding-top: env(safe-area-inset-top, 0);
   }
-  .brand, .brand-sub, .holdings-pill { display: none; }
-  .nav-btn { width: auto; white-space: nowrap; border-left: none; border-bottom: 2px solid transparent; }
-  .nav-btn.active { border-left: none; border-bottom-color: var(--bbg-orange); }
-  .grid-2 { grid-template-columns: 1fr; }
-  .bbg-tag { display: none; }
+
+  .tab-nav-mobile .nav-btn {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    width: 100%;
+    padding: 8px 4px;
+    text-align: center;
+    border-left: none;
+    border-bottom: 2px solid transparent;
+    font-size: 13px;
+  }
+
+  .tab-nav-mobile .fn-key {
+    min-width: 0;
+    font-size: 11px;
+  }
+
+  .tab-nav-mobile .nav-label {
+    font-size: 12px;
+  }
+
+  .tab-nav-mobile .nav-btn.active {
+    border-left: none;
+    border-bottom-color: var(--bbg-orange);
+  }
+
+  .tab-nav-desktop,
+  .sidebar {
+    display: none;
+  }
+
+  .app-body {
+    grid-template-columns: 1fr;
+  }
+
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .bbg-tag {
+    display: none;
+  }
 }
 
 input, textarea {

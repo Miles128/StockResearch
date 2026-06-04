@@ -27,6 +27,32 @@ const NAV: { key: Tab; label: string; fn: string }[] = [
   { key: "risk", label: "风控", fn: "F4" },
 ];
 
+function TabNav({
+  className,
+  tab,
+  onTab,
+}: {
+  className: string;
+  tab: Tab;
+  onTab: (key: Tab) => void;
+}) {
+  return (
+    <nav className={className} aria-label="功能导航">
+      {NAV.map((n) => (
+        <button
+          key={n.key}
+          type="button"
+          className={`nav-btn${tab === n.key ? " active" : ""}`}
+          onClick={() => onTab(n.key)}
+        >
+          <span className="fn-key">{n.fn}</span>
+          <span className="nav-label">{n.label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 export default function App() {
   const [tab, setTab] = useState<Tab>("chat");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -255,6 +281,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      <TabNav className="tab-nav-mobile" tab={tab} onTab={setTab} />
       <div className="terminal-header">
         <div className="terminal-brand">
           <span className="bbg-logo">StockResearch</span>
@@ -291,15 +318,11 @@ export default function App() {
       />
 
       <div className={`app-body${settingsRequired ? " app-locked" : ""}`}>
-        <div className="sidebar">
+        <aside className="sidebar">
           <div className="brand">StockResearch</div>
           <div className="brand-sub">AI 投研终端</div>
-          {NAV.map((n) => (
-            <button key={n.key} className={`nav-btn${tab === n.key ? " active" : ""}`} onClick={() => setTab(n.key)}>
-              <span className="fn-key">{n.fn}</span> {n.label}
-            </button>
-          ))}
-        </div>
+          <TabNav className="tab-nav-desktop" tab={tab} onTab={setTab} />
+        </aside>
 
         <div className="main">
           {error && <div className="error">{error}</div>}
