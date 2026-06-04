@@ -1,5 +1,5 @@
 import type { AgentStreamEvent } from "./api";
-import type { AgentStep, DebateRound, JudgeVerdict } from "./StreamFeed";
+import type { AgentStep, DebateRound, JudgeVerdict, HoldingAction } from "./StreamFeed";
 
 export interface VoteTally {
   bullish: number;
@@ -34,6 +34,9 @@ function activateStream(active: string[], streamId: string): string[] {
 }
 
 function deactivateAgentStream(active: string[], agentId: string, role?: string): string[] {
+  if (role === "vote") {
+    return active.filter((id) => id !== `vote-${agentId}` && id !== agentId);
+  }
   const side = role ? DEBATE_AGENT_SIDES[role] : undefined;
   if (side) {
     return active.filter((id) => !id.endsWith(`-${side}`));
@@ -49,11 +52,17 @@ const DEBATE_SIDE_KEYS: Record<string, keyof DebateRound> = {
   conservative: "conservative",
 };
 
-function upsertAgentContent(steps: AgentStep[], streamId: string, delta: string): AgentStep[] {
-  const existing = steps.find((s) => s.agent_id === streamId);
+function upsertAgentContent(
+  steps: AgentStep[],
+  streamId: string,
+  delta: string,
+  meta?: { agent_id?: string; agent_name?: string; role?: string },
+): AgentStep[] {
+  const agentId = meta?.agent_id ?? streamId;
+  const existing = steps.find((s) => s.agent_id === agentId);
   if (existing) {
     return steps.map((s) =>
-      s.agent_id === streamId
+      s.agent_id === agentId
         ? { ...s, content: `${s.content ?? ""}${delta}`, status: "running" }
         : s,
     );
@@ -61,9 +70,9 @@ function upsertAgentContent(steps: AgentStep[], streamId: string, delta: string)
   return [
     ...steps,
     {
-      agent_id: streamId,
-      agent_name: streamId,
-      role: "analyst",
+      agent_id: agentId,
+      agent_name: meta?.agent_name ?? streamId,
+      role: meta?.role ?? "analyst",
       content: delta,
       status: "running",
     },
@@ -90,6 +99,7 @@ function applyTextDelta(
   prev: StreamState,
   streamId: string,
   delta: string,
+  meta?: { agent_id?: string; agent_name?: string; role?: string },
 ): Pick<StreamState, "agentSteps" | "debateRounds" | "judgeVerdict"> {
   const roundMatch = streamId.match(/^r(\d+)-(\w+)$/);
   if (roundMatch) {
@@ -118,7 +128,7 @@ function applyTextDelta(
   }
 
   return {
-    agentSteps: upsertAgentContent(prev.agentSteps, streamId, delta),
+    agentSteps: upsertAgentContent(prev.agentSteps, streamId, delta, meta),
     debateRounds: prev.debateRounds,
     judgeVerdict: prev.judgeVerdict,
   };
@@ -155,14 +165,33 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent): St
   }
 
   if (event.type === "text_delta" && event.stream_id && event.delta) {
-    const updated = applyTextDelta(prev, event.stream_id, event.delta);
+    const meta = event.agent_id
+      ? {
+          agent_id: event.agent_id,
+          agent_name: event.agent_name,
+          role: event.role,
+        }
+      : undefined;
+    const updated = applyTextDelta(prev, event.stream_id, event.delta, meta);
     agentSteps = updated.agentSteps;
     debateRounds = updated.debateRounds;
     judgeVerdict = updated.judgeVerdict;
     activeStreamIds = activateStream(activeStreamIds, event.stream_id);
   }
 
+  if (event.type === "manager" && event.content) {
+    agentSteps = agentSteps.map((s) =>
+      s.agent_id === "research_manager"
+        ? { ...s, content: event.content, status: "done" as const }
+        : s,
+    );
+  }
+
   if (event.type === "agent_start" && event.agent_id && event.agent_name && event.role) {
+    const startLine = `▶ ${event.agent_name} 开始`;
+    if (streamLog[streamLog.length - 1] !== startLine) {
+      streamLog = [...streamLog, startLine];
+    }
     agentSteps = [
       ...agentSteps.filter((s) => s.agent_id !== event.agent_id),
       {
@@ -176,6 +205,12 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent): St
   }
 
   if (event.type === "agent_done" && event.agent_id) {
+    const doneName =
+      agentSteps.find((s) => s.agent_id === event.agent_id)?.agent_name ?? event.agent_id;
+    const doneLine = `✓ ${doneName} 完成`;
+    if (streamLog[streamLog.length - 1] !== doneLine) {
+      streamLog = [...streamLog, doneLine];
+    }
     agentSteps = agentSteps.map((s) =>
       s.agent_id === event.agent_id
         ? { ...s, status: "done", content: event.content ?? s.content ?? "" }
@@ -185,6 +220,10 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent): St
   }
 
   if (event.type === "debate_round" && event.round != null) {
+    const roundLine = `◆ 第 ${event.round} 轮多空交锋完成`;
+    if (streamLog[streamLog.length - 1] !== roundLine) {
+      streamLog = [...streamLog, roundLine];
+    }
     debateRounds = [
       ...debateRounds.filter((r) => r.round !== event.round),
       {
@@ -236,7 +275,7 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent): St
       verdict: event.verdict,
       content: event.content,
       analysis_process: event.analysis_process,
-      holding_actions: event.holding_actions,
+      holding_actions: event.holding_actions as HoldingAction[] | undefined,
     };
   }
 

@@ -2,8 +2,8 @@
 
 import pytest
 
-from invesbao.core.config import get_settings
-from invesbao.data.providers.market import ChipsDataProvider, SentimentDataProvider
+from stockresearch.core.config import get_settings
+from stockresearch.data.providers.market import ChipsDataProvider, SentimentDataProvider
 
 
 @pytest.mark.asyncio

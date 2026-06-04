@@ -1,6 +1,6 @@
-# 投小宝 InvesBao
+# StockResearch
 
-面向 A 股个人投资者的 **Multi-Agent AI 投研终端**（Phase 1 MVP）。界面采用 Bloomberg 风格终端布局，后端以 LangGraph 编排多个独立 Agent，支持 SSE 流式输出。
+面向 A 股个人投资者的 **Multi-Agent AI 投研终端**（Phase 1 MVP，原 InvesBao / StockBuddy / 投小宝）。界面采用 Bloomberg 风格终端布局，后端以 LangGraph 编排多个独立 Agent，支持 SSE 流式输出。
 
 ![AI 对话](docs/screenshots/chat.png)
 
@@ -52,7 +52,7 @@ Data Layer (AkShare / 新浪行情 / SQLite)
 | 情绪面 | `xueqiu_hot`, `akshare_news` |
 | 筹码面 | `akshare_lhb`, `akshare_fund_flow`, `akshare_gdhs`, `akshare_lockup` |
 
-代码入口：`src/invesbao/agents/research/agents/` + `react.py`
+代码入口：`src/stockresearch/agents/research/agents/` + `react.py`
 
 ### 新闻：三层过滤 + 3 秒 SLA
 
@@ -62,18 +62,18 @@ Data Layer (AkShare / 新浪行情 / SQLite)
 
 `get_news_for_user` 使用 `asyncio.wait_for(..., 3.0)`，仅读库 + 规则，**不调用 LLM**。
 
-代码入口：`src/invesbao/agents/news/filter.py`
+代码入口：`src/stockresearch/agents/news/filter.py`
 
 ## 快速开始
 
 ### 后端
 
 ```bash
-cd "/Users/sihai/Documents/My Projects/InvesBao"
+cd "/Users/sihai/Documents/My Projects/StockResearch"
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env
-uvicorn invesbao.api.app:app --reload --host 127.0.0.1 --port 8000 --app-dir src
+uvicorn stockresearch.api.app:app --reload --host 127.0.0.1 --port 8000 --app-dir src
 ```
 
 API 文档：http://127.0.0.1:8000/docs
@@ -86,6 +86,12 @@ cd web && npm install && npm run dev
 
 **请访问 http://127.0.0.1:5174**（不是 8000）。Vite 代理指向 `127.0.0.1:8000`，避免 `localhost` IPv6 冲突。
 
+首次打开需在本机浏览器完成**大模型设置**（API Key 不会上传仓库或 Cloudflare）。
+
+### Cloudflare Pages
+
+见 [docs/deploy-cloudflare.md](docs/deploy-cloudflare.md)。**自动部署（Pages 连 Git + Fly 香港 Actions）**见 [docs/deploy-auto.md](docs/deploy-auto.md)。**勿在 Cloudflare / Fly 配置 `LLM_API_KEY`**。
+
 ### Docker
 
 ```bash
@@ -97,7 +103,7 @@ docker compose up --build
 ```bash
 pytest
 ruff check src tests
-mypy src/invesbao --strict
+mypy src/stockresearch --strict
 ```
 
 ## 环境变量

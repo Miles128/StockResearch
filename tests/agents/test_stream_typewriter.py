@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from invesbao.agents.stream_typewriter import AgentStreamItem, iter_merged_agent_streams_from_tasks
+from stockresearch.agents.stream_typewriter import AgentStreamItem, iter_merged_agent_streams_from_tasks
 
 
 async def _collect(events_iter) -> list[dict[str, object]]:
@@ -19,7 +19,7 @@ async def test_merged_streams_start_when_each_task_finishes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "invesbao.agents.stream_typewriter._stream_params",
+        "stockresearch.agents.stream_typewriter._stream_params",
         lambda: (1, 0.0),
     )
 

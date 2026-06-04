@@ -1,7 +1,7 @@
 # 投小宝 PRD（Product Requirement Document）
 
 > 版本：**V1.1** | 日期：2026-05-27 | 状态：**Phase 1 MVP 已实现**  
-> 仓库：https://github.com/Miles128/InvesBao
+> 仓库：https://github.com/Miles128/StockResearch
 
 ---
 
@@ -9,7 +9,7 @@
 
 ### 1.1 产品定位
 
-**投小宝（InvesBao）** 是一款面向 A 股个人投资者的 Multi-Agent AI 投研助手。以 **Bloomberg 风格 Web 终端** 为交互载体，整合快讯过滤、四维投研、智能风控与自然语言对话，帮助用户在信息过载中快速获得结构化参考。
+**投小宝（StockResearch）** 是一款面向 A 股个人投资者的 Multi-Agent AI 投研助手。以 **Bloomberg 风格 Web 终端** 为交互载体，整合快讯过滤、四维投研、智能风控与自然语言对话，帮助用户在信息过载中快速获得结构化参考。
 
 ### 1.2 当前交付范围（MVP）
 
@@ -208,11 +208,11 @@ return agent.build(observations, analysis)
 
 | 模块 | 路径 |
 |------|------|
-| 新闻过滤 | `src/invesbao/agents/news/filter.py` |
-| 新闻 Agent | `src/invesbao/agents/news/agent.py` |
-| ReAct 引擎 | `src/invesbao/agents/research/react.py` |
-| 四维 Agent | `src/invesbao/agents/research/agents/` |
-| 投研编排 | `src/invesbao/agents/research/runner.py` |
-| 投研 SSE | `src/invesbao/agents/research/stream.py` |
-| 编排图 | `src/invesbao/agents/orchestrator/graph.py` |
+| 新闻过滤 | `src/stockresearch/agents/news/filter.py` |
+| 新闻 Agent | `src/stockresearch/agents/news/agent.py` |
+| ReAct 引擎 | `src/stockresearch/agents/research/react.py` |
+| 四维 Agent | `src/stockresearch/agents/research/agents/` |
+| 投研编排 | `src/stockresearch/agents/research/runner.py` |
+| 投研 SSE | `src/stockresearch/agents/research/stream.py` |
+| 编排图 | `src/stockresearch/agents/orchestrator/graph.py` |
 | 前端 | `web/src/App.tsx` |

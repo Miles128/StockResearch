@@ -1,33 +1,30 @@
-import { useCallback, useEffect, useState } from "react";
-import {
-  api,
-  ChatResponse,
-  Holding,
-  MarketOverview,
-  NewsItem,
-  ResearchReport,
-  RiskCheckup,
-  StockQuote,
-} from "./api";
-import { MarkdownContent } from "./MarkdownContent";
+import { useEffect, useState } from "react";
+import { api, AgentStreamEvent, AnalysisMode, ChatResponse, HoldingEnriched, NewsItem, ResearchReport, RiskCheckup, StockLookupOut } from "./api";
+import { formatPrice, formatSignedMoney, formatSignedPct, signedClass } from "./holdingDisplay";
+import { analysisModeLabel, shouldAskAnalysisMode } from "./chatAnalysis";
+import { AboutPanel } from "./AboutPanel";
+import { SettingsPanel } from "./SettingsPanel";
 import { StreamFeed } from "./StreamFeed";
-import { applyStreamEvent, emptyStreamState } from "./streamEvents";
+import { isLlmConfigured } from "./llmSettings";
+import { applyStreamEvent, emptyStreamState, type StreamState } from "./streamEvents";
 
-type Tab = "chat" | "market" | "news" | "portfolio" | "research" | "risk";
+type Tab = "chat" | "news" | "portfolio" | "risk";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
   cards?: ChatResponse["cards"];
+  /** 完整 Multi-Agent 思考过程（SSE 过程快照，完成后保留） */
+  process?: StreamState;
+  /** 等待用户选择简单 / 复杂分析 */
+  pendingChoice?: { query: string };
 }
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: "chat", label: "AI 对话" },
-  { id: "market", label: "市场行情" },
-  { id: "news", label: "快讯" },
-  { id: "portfolio", label: "持仓" },
-  { id: "research", label: "投研" },
-  { id: "risk", label: "风控" },
+const NAV: { key: Tab; label: string; fn: string }[] = [
+  { key: "chat", label: "对话", fn: "F1" },
+  { key: "news", label: "新闻", fn: "F2" },
+  { key: "portfolio", label: "持仓", fn: "F3" },
+  { key: "risk", label: "风控", fn: "F4" },
 ];
 
 export default function App() {
@@ -36,1123 +33,820 @@ export default function App() {
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string>();
   const [loading, setLoading] = useState(false);
-  const [news, setNews] = useState<NewsItem[]>([]);
-  const [availableSectors, setAvailableSectors] = useState<string[]>([]);
-  const [selectedSectors, setSelectedSectors] = useState<string[]>([]);
-  const [holdings, setHoldings] = useState<Holding[]>([]);
-  const [risk, setRisk] = useState<RiskCheckup | null>(null);
-  const [market, setMarket] = useState<MarketOverview | null>(null);
-  const [quotes, setQuotes] = useState<StockQuote[]>([]);
-  const [error, setError] = useState("");
-  const [stockQuery, setStockQuery] = useState("");
-  const [costPrice, setCostPrice] = useState(0);
-  const [lots, setLots] = useState(1);
-  const [addingHolding, setAddingHolding] = useState(false);
-  const [loadingQuote, setLoadingQuote] = useState(false);
-  const [backfillingSectors, setBackfillingSectors] = useState(false);
-  const [researchQuery, setResearchQuery] = useState("");
-  const [researchTarget, setResearchTarget] = useState<{ symbol: string; name: string } | null>(null);
-  const [researchReport, setResearchReport] = useState<ResearchReport | null>(null);
-  const [loadingResearch, setLoadingResearch] = useState(false);
-  const [lookingUpResearch, setLookingUpResearch] = useState(false);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [loadingNews, setLoadingNews] = useState(false);
-  const [newsProgress, setNewsProgress] = useState<{ pct: number; label: string } | null>(null);
-  const [refreshingMarket, setRefreshingMarket] = useState(false);
-  const [savingSector, setSavingSector] = useState(false);
-  const [loadingRisk, setLoadingRisk] = useState(false);
+  const [statusMsg, setStatusMsg] = useState("");
   const [chatStream, setChatStream] = useState(emptyStreamState());
-  const [researchStream, setResearchStream] = useState(emptyStreamState());
-  const [riskStream, setRiskStream] = useState(emptyStreamState());
-  const [chatDraftReply, setChatDraftReply] = useState("");
-  const [pendingAdd, setPendingAdd] = useState<{
-    status: "ambiguous" | "confirmed";
-    message: string;
-    symbol?: string;
-    name?: string;
-    marketPrice?: number | null;
-    changePct?: number | null;
-    sector?: string | null;
-    candidates: { symbol: string; name: string }[];
-  } | null>(null);
-  const [successMsg, setSuccessMsg] = useState("");
-  const [terminalClock, setTerminalClock] = useState("");
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [holdings, setHoldings] = useState<HoldingEnriched[]>([]);
+  const [holdingsLoading, setHoldingsLoading] = useState(false);
+  const [risk, setRisk] = useState<RiskCheckup | null>(null);
+  const [error, setError] = useState("");
+  const [holdingInput, setHoldingInput] = useState("");
+  const [holdingCost, setHoldingCost] = useState("");
+  const [holdingLots, setHoldingLots] = useState("");
+  const [holdingDate, setHoldingDate] = useState("");
+  const [lookupResult, setLookupResult] = useState<StockLookupOut | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [clock, setClock] = useState("");
+  const [llmConfigured, setLlmConfigured] = useState(isLlmConfigured);
+  const [settingsOpen, setSettingsOpen] = useState(!isLlmConfigured());
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const settingsRequired = !llmConfigured;
+
+  function closeSettings() {
+    if (settingsRequired) return;
+    setSettingsOpen(false);
+  }
+
+  function handleLlmConfigured() {
+    setLlmConfigured(true);
+    setSettingsOpen(false);
+  }
 
   useEffect(() => {
-    const tick = () => {
+    const id = setInterval(() => {
       const now = new Date();
-      setTerminalClock(
-        now.toLocaleString("zh-CN", {
-          hour12: false,
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        }),
-      );
-    };
-    tick();
-    const timer = setInterval(tick, 1000);
-    return () => clearInterval(timer);
+      setClock(now.toLocaleTimeString("zh-CN", { hour12: false }));
+    }, 1000);
+    return () => clearInterval(id);
   }, []);
-
-  const showError = useCallback((msg: string) => {
-    setError(msg);
-    setTimeout(() => setError(""), 6000);
-  }, []);
-
-  const showSuccess = useCallback((msg: string) => {
-    setSuccessMsg(msg);
-    setTimeout(() => setSuccessMsg(""), 4000);
-  }, []);
-
-  const loadOverview = useCallback(async () => {
-    try {
-      setError("");
-      const overview = await api.marketOverview();
-      setMarket(overview);
-    } catch (e) {
-      showError(String(e));
-    }
-  }, [showError]);
-
-  const loadQuotes = useCallback(async (symbols?: string) => {
-    const stockQuotes = await api.stockQuotes(symbols);
-    setQuotes(stockQuotes);
-  }, []);
-
-  const refreshMarket = useCallback(async () => {
-    if (refreshingMarket) return;
-    setRefreshingMarket(true);
-    try {
-      setError("");
-      const overview = await api.marketOverview();
-      setMarket(overview);
-      const symbols =
-        holdings.length > 0
-          ? [...new Set(holdings.map((h) => h.symbol))].join(",")
-          : undefined;
-      try {
-        await loadQuotes(symbols);
-      } catch (e) {
-        showError(`指数已更新，个股行情失败：${String(e)}`);
-      }
-      const sh = overview.indices.find((i) => i.name === "上证指数");
-      if (overview.data_status === "unavailable") {
-        showError(overview.message || "行情源暂时不可用");
-      } else {
-        showSuccess(
-          sh
-            ? `行情已刷新 · 上证 ${sh.price.toFixed(2)} (${sh.change_pct >= 0 ? "+" : ""}${sh.change_pct.toFixed(2)}%)`
-            : "行情已刷新",
-        );
-      }
-    } catch (e) {
-      showError(String(e));
-    } finally {
-      setRefreshingMarket(false);
-    }
-  }, [refreshingMarket, holdings, loadQuotes, showError, showSuccess]);
-
-  const loadHoldings = useCallback(async () => {
-    try {
-      const list = await api.holdings();
-      setHoldings(list);
-    } catch (e) {
-      showError(String(e));
-    }
-  }, [showError]);
 
   useEffect(() => {
+    if (tab !== "portfolio") return;
     void loadHoldings();
-    void loadOverview();
-  }, [loadHoldings, loadOverview]);
-
-  useEffect(() => {
-    if (tab === "market" || tab === "portfolio") {
-      const symbols =
-        tab === "portfolio" && holdings.length > 0
-          ? [...new Set(holdings.map((h) => h.symbol))].join(",")
-          : undefined;
-      void loadQuotes(symbols).catch(() => {
-        // 初次进入 tab 时行情失败不弹窗，点「刷新行情」会有明确反馈
-      });
-    }
-  }, [tab, holdings, loadQuotes]);
-
-  useEffect(() => {
-    const timer = setInterval(loadOverview, 60000);
-    return () => clearInterval(timer);
-  }, [loadOverview]);
-
-  useEffect(() => {
-    if (tab === "news") {
-      void loadSectorPrefs();
-      void refreshNewsFeed();
-    }
+    const id = setInterval(() => void loadHoldings(), 30_000);
+    return () => clearInterval(id);
   }, [tab]);
 
-  useEffect(() => {
-    if (tab === "portfolio") loadHoldings();
-  }, [tab, loadHoldings]);
-
-  async function refreshNewsFeed() {
-    try {
-      setNews(await api.newsFeed());
-    } catch (e) {
-      showError(String(e));
-    }
+  function showError(msg: string) {
+    setError(msg);
+    setTimeout(() => setError(""), 4000);
   }
 
-  async function loadSectorPrefs() {
+  async function loadHoldings() {
     try {
-      const prefs = await api.sectorPrefs();
-      setAvailableSectors(prefs.available);
-      setSelectedSectors(prefs.selected);
-    } catch (e) {
-      showError(String(e));
-    }
-  }
-
-  async function toggleSector(sector: string) {
-    if (savingSector || loadingNews) return;
-    const next = selectedSectors.includes(sector)
-      ? selectedSectors.filter((s) => s !== sector)
-      : [...selectedSectors, sector];
-    setSavingSector(true);
-    try {
-      const prefs = await api.updateSectorPrefs(next);
-      setSelectedSectors(prefs.selected);
-      await refreshNewsFeed();
-      showSuccess(`板块偏好已更新${prefs.selected.length ? `：${prefs.selected.join("、")}` : ""}`);
+      setHoldingsLoading(true);
+      setHoldings(await api.holdingsEnriched());
     } catch (e) {
       showError(String(e));
     } finally {
-      setSavingSector(false);
+      setHoldingsLoading(false);
     }
   }
 
-  async function sendChat() {
-    if (!input.trim() || loading) return;
+  async function executeChat(query: string, analysisMode?: AnalysisMode, replaceIndex?: number) {
     setLoading(true);
-    const userMsg = input;
-    setInput("");
-    setChatDraftReply("");
+    setStatusMsg("正在连接…");
     setChatStream(emptyStreamState());
-    setMessages((m) => [...m, { role: "user", content: userMsg }]);
-    let draftReply = "";
+    let processSnapshot = emptyStreamState();
     try {
-      const done = await api.chatStream(userMsg, sessionId, (event) => {
-        setChatStream((s) => applyStreamEvent(s, event));
-        if (event.type === "reply" && event.content) {
-          draftReply = event.content;
-          setChatDraftReply(event.content);
+      const resp = await api.chatStream(query, sessionId, (event: AgentStreamEvent) => {
+        if (event.type === "analysis_choice") return;
+        setChatStream((prev) => {
+          const next = applyStreamEvent(prev, event);
+          processSnapshot = next;
+          return next;
+        });
+        if (event.type === "status" && event.message) {
+          setStatusMsg(event.message);
         }
-      });
-      const resp = done?.response;
+      }, analysisMode);
       if (resp) {
         setSessionId(resp.session_id);
-        setMessages((m) => [
-          ...m,
-          { role: "assistant", content: resp.reply, cards: resp.cards },
-        ]);
-      } else if (draftReply) {
-        setMessages((m) => [...m, { role: "assistant", content: draftReply }]);
+        processSnapshot = {
+          ...processSnapshot,
+          streamStatus: processSnapshot.streamStatus || statusMsg || "分析完成",
+        };
+        const assistantMsg: Message = {
+          role: "assistant",
+          content: resp.reply,
+          cards: resp.cards,
+          process:
+            processSnapshot.streamLog.length > 0 ||
+            processSnapshot.agentSteps.length > 0 ||
+            processSnapshot.debateRounds.length > 0 ||
+            processSnapshot.judgeVerdict
+              ? processSnapshot
+              : undefined,
+        };
+        if (replaceIndex !== undefined) {
+          setMessages((m) => m.map((msg, i) => (i === replaceIndex ? assistantMsg : msg)));
+        } else {
+          setMessages((m) => [...m, assistantMsg]);
+        }
       }
-    } catch (e) {
-      setMessages((m) => [...m, { role: "assistant", content: `❌ ${String(e)}` }]);
+    } catch {
+      try {
+        setStatusMsg("流式连接失败，切换同步模式…");
+        const resp = await api.chat(query, sessionId, analysisMode);
+        setSessionId(resp.session_id);
+        const assistantMsg: Message = {
+          role: "assistant",
+          content: resp.reply,
+          cards: resp.cards,
+        };
+        if (replaceIndex !== undefined) {
+          setMessages((m) => m.map((msg, i) => (i === replaceIndex ? assistantMsg : msg)));
+        } else {
+          setMessages((m) => [...m, assistantMsg]);
+        }
+      } catch (e) {
+        const errMsg: Message = { role: "assistant", content: `Error: ${String(e)}` };
+        if (replaceIndex !== undefined) {
+          setMessages((m) => m.map((msg, i) => (i === replaceIndex ? errMsg : msg)));
+        } else {
+          setMessages((m) => [...m, errMsg]);
+        }
+      }
     } finally {
       setLoading(false);
-      setChatStream(emptyStreamState());
-      setChatDraftReply("");
+      setStatusMsg("");
     }
   }
 
-  async function ingestNews() {
-    if (loadingNews) return;
-    setLoadingNews(true);
-    setNewsProgress({ pct: 8, label: "正在拉取持仓、板块与大盘快讯…" });
-    const timer = window.setInterval(() => {
-      setNewsProgress((prev) => {
-        if (!prev || prev.pct >= 88) return prev;
-        return { ...prev, pct: prev.pct + 4 };
-      });
-    }, 500);
+  function sendChat() {
+    if (!input.trim() || loading) return;
+    const userMsg = input.trim();
+    setInput("");
+    if (shouldAskAnalysisMode(userMsg)) {
+      setMessages((m) => [
+        ...m,
+        { role: "user", content: userMsg },
+        { role: "assistant", content: "", pendingChoice: { query: userMsg } },
+      ]);
+      return;
+    }
+    void executeChat(userMsg);
+  }
+
+  function chooseAnalysisMode(query: string, mode: AnalysisMode, msgIndex: number) {
+    if (loading) return;
+    setMessages((m) =>
+      m.map((msg, i) =>
+        i === msgIndex
+          ? {
+              role: "assistant",
+              content: `已选择：${analysisModeLabel(mode)}，正在分析…`,
+              pendingChoice: undefined,
+            }
+          : msg,
+      ),
+    );
+    void executeChat(query, mode, msgIndex);
+  }
+
+  async function loadNews() {
     try {
-      const result = await api.ingestNews();
-      setNewsProgress({
-        pct: 92,
-        label: `${result.message}（扫描 ${result.scanned} 条，跳过 ${result.skipped} 条无关${result.purged ? `，清理 ${result.purged} 条旧快讯` : ""}）`,
-      });
+      setError("");
+      setNewsLoading(true);
+      await api.ingestNews();
       setNews(await api.newsFeed());
-      setNewsProgress({ pct: 100, label: "快讯已更新" });
     } catch (e) {
       showError(String(e));
-      setNewsProgress(null);
     } finally {
-      window.clearInterval(timer);
-      setLoadingNews(false);
-      window.setTimeout(() => setNewsProgress(null), 1200);
+      setNewsLoading(false);
     }
   }
 
   async function runRisk() {
-    if (loadingRisk) return;
-    setLoadingRisk(true);
-    setRisk(null);
-    setRiskStream(emptyStreamState());
     try {
-      const result = await api.riskCheckupStream((event) => {
-        setRiskStream((s) => applyStreamEvent(s, event));
-      });
-      if (result) setRisk(result);
-      showSuccess("多 Agent 风控会诊完成");
+      setError("");
+      setLoading(true);
+      setRisk(await api.riskCheckup());
     } catch (e) {
       showError(String(e));
     } finally {
-      setLoadingRisk(false);
+      setLoading(false);
     }
   }
 
-  async function removeHolding(id: number) {
-    setDeletingId(id);
+  async function lookupAndAdd() {
+    if (!holdingInput.trim()) return;
+    setLookupLoading(true);
+    setLookupResult(null);
     try {
-      await api.deleteHolding(id);
-      setHoldings((prev) => prev.filter((h) => h.id !== id));
-    } catch (e) {
-      showError(String(e));
-    } finally {
-      setDeletingId(null);
-    }
+      const result = await api.lookupStock(holdingInput.trim());
+      setLookupResult(result);
+      if (result.status === "confirmed" && result.symbol && result.name) {
+        const cost = holdingCost ? parseFloat(holdingCost) : 0;
+        const lots = holdingLots ? parseInt(holdingLots) : 1;
+        if (cost <= 0) { showError("请输入有效的成本价"); return; }
+        await api.addHolding({ symbol: result.symbol, name: result.name, cost_price: cost, lots, sector: result.sector || undefined, buy_date: holdingDate || undefined });
+        await loadHoldings();
+        setHoldingInput(""); setHoldingCost(""); setHoldingLots(""); setHoldingDate(""); setLookupResult(null);
+      }
+    } catch (e) { showError(String(e)); } finally { setLookupLoading(false); }
   }
 
-  async function presentPendingStock(
-    symbol: string,
-    name: string,
-    message: string,
-    sectorHint?: string | null,
-  ) {
-    setLoadingQuote(true);
+  async function confirmCandidate(symbol: string, name: string) {
+    const cost = holdingCost ? parseFloat(holdingCost) : 0;
+    const lots = holdingLots ? parseInt(holdingLots) : 1;
+    if (cost <= 0) { showError("请输入有效的成本价"); return; }
     try {
-      const rows = await api.stockQuotes(symbol);
-      const quote = rows[0];
-      const marketPrice = quote?.price ?? null;
-      const sector = quote?.sector ?? sectorHint ?? null;
-      if (marketPrice && marketPrice > 0) {
-        setCostPrice(Number(marketPrice.toFixed(2)));
-      }
-      setPendingAdd({
-        status: "confirmed",
-        message,
-        symbol,
-        name,
-        marketPrice,
-        changePct: quote?.change_pct ?? null,
-        sector,
-        candidates: [],
-      });
-    } catch {
-      setPendingAdd({
-        status: "confirmed",
-        message,
-        symbol,
-        name,
-        marketPrice: null,
-        changePct: null,
-        sector: sectorHint ?? null,
-        candidates: [],
-      });
-      showError("现价获取失败，请手动填写成本价");
-    } finally {
-      setLoadingQuote(false);
-    }
-  }
-
-  async function saveHolding(symbol: string, name: string, sector?: string | null) {
-    const saved = await api.confirmHolding({
-      symbol,
-      name,
-      cost_price: costPrice,
-      lots,
-      sector: sector && sector !== "未知" ? sector : undefined,
-    });
-    setPendingAdd(null);
-    setStockQuery("");
-    await loadHoldings();
-    const totalLots = Math.round(saved.quantity / 100);
-    showSuccess(`已保存 ${saved.name}（${saved.symbol}），共 ${totalLots} 手`);
-  }
-
-  async function confirmAddHolding() {
-    if (!pendingAdd?.symbol || !pendingAdd.name || addingHolding) return;
-    if (costPrice <= 0) {
-      showError("成本价必须大于 0");
-      return;
-    }
-    if (lots <= 0 || !Number.isInteger(lots)) {
-      showError("持仓手数必须是大于 0 的整数");
-      return;
-    }
-    setAddingHolding(true);
-    try {
-      await saveHolding(pendingAdd.symbol, pendingAdd.name, pendingAdd.sector);
-    } catch (e) {
-      showError(String(e));
-    } finally {
-      setAddingHolding(false);
-    }
-  }
-
-  async function selectCandidate(symbol: string, name: string) {
-    if (addingHolding || loadingQuote) return;
-    setAddingHolding(true);
-    try {
-      await presentPendingStock(symbol, name, `已识别：${name}（${symbol}）`);
-    } finally {
-      setAddingHolding(false);
-    }
-  }
-
-  async function lookupStockForAdd() {
-    const query = stockQuery.trim();
-    if (!query) {
-      showError("请输入股票代码或名称");
-      return;
-    }
-    setAddingHolding(true);
-    setPendingAdd(null);
-    setCostPrice(0);
-    try {
-      const lookup = await api.lookupStock(query);
-      if (lookup.status === "not_found") {
-        showError(lookup.message);
-        return;
-      }
-      if (lookup.status === "confirmed" && lookup.symbol && lookup.name) {
-        await presentPendingStock(
-          lookup.symbol,
-          lookup.name,
-          lookup.message,
-          lookup.sector,
-        );
-        return;
-      }
-      if (lookup.candidates.length > 0) {
-        setPendingAdd({
-          status: "ambiguous",
-          message: lookup.message,
-          candidates: lookup.candidates,
-        });
-        return;
-      }
-      showError(lookup.message);
-    } catch (e) {
-      showError(String(e));
-    } finally {
-      setAddingHolding(false);
-    }
-  }
-
-  async function lookupResearchStock() {
-    const query = researchQuery.trim();
-    if (!query) {
-      showError("请输入股票代码或名称");
-      return;
-    }
-    setLookingUpResearch(true);
-    setResearchReport(null);
-    try {
-      const lookup = await api.lookupStock(query);
-      if (lookup.status === "not_found") {
-        showError(lookup.message);
-        return;
-      }
-      if (lookup.status === "confirmed" && lookup.symbol && lookup.name) {
-        setResearchTarget({ symbol: lookup.symbol, name: lookup.name });
-        return;
-      }
-      if (lookup.candidates.length === 1) {
-        const c = lookup.candidates[0];
-        setResearchTarget({ symbol: c.symbol, name: c.name });
-        return;
-      }
-      if (lookup.candidates.length > 1) {
-        showError(`${lookup.message} 请输入更精确的名称或 6 位代码`);
-        return;
-      }
-      showError(lookup.message);
-    } catch (e) {
-      showError(String(e));
-    } finally {
-      setLookingUpResearch(false);
-    }
-  }
-
-  async function runResearch(symbol: string, name: string) {
-    if (loadingResearch) return;
-    setResearchTarget({ symbol, name });
-    setLoadingResearch(true);
-    setResearchReport(null);
-    setResearchStream(emptyStreamState());
-    try {
-      const done = await api.researchStream(symbol, (event) => {
-        setResearchStream((s) => applyStreamEvent(s, event));
-      });
-      const report = done?.result as ResearchReport | undefined;
-      if (report) {
-        setResearchReport(report);
-        showSuccess(`${report.name} 投研报告已生成`);
-      }
-    } catch (e) {
-      showError(String(e));
-    } finally {
-      setLoadingResearch(false);
-    }
-  }
-
-  async function backfillSectors() {
-    if (backfillingSectors) return;
-    setBackfillingSectors(true);
-    try {
-      const result = await api.backfillSectors();
+      await api.addHolding({ symbol, name, cost_price: cost, lots, buy_date: holdingDate || undefined });
       await loadHoldings();
-      showSuccess(result.message);
-    } catch (e) {
-      showError(String(e));
-    } finally {
-      setBackfillingSectors(false);
-    }
+      setHoldingInput(""); setHoldingCost(""); setHoldingLots(""); setHoldingDate(""); setLookupResult(null);
+    } catch (e) { showError(String(e)); }
   }
 
-  const holdingCount = new Set(holdings.map((h) => h.symbol)).size;
-  const unknownSectorCount = holdings.filter((h) => !h.sector || h.sector === "未知").length;
+  async function deleteHolding(id: number) {
+    try { await api.deleteHolding(id); await loadHoldings(); } catch (e) { showError(String(e)); }
+  }
 
   return (
     <div className="app-shell">
-      <header className="terminal-header">
+      <div className="terminal-header">
         <div className="terminal-brand">
-          <span className="bbg-logo">INVESBAO</span>
-          <span className="bbg-tag">投小宝 · Multi-Agent Terminal</span>
+          <span className="bbg-logo">StockResearch</span>
+          <span className="bbg-tag">AI 投研终端</span>
         </div>
         <div className="terminal-meta">
-          <span className="terminal-clock">{terminalClock}</span>
-          <span className="terminal-source">
-            {market?.source ?? "—"} · {market?.data_status === "live" ? "LIVE" : market?.data_status === "mock" ? "DEMO" : "…"}
-          </span>
-        </div>
-      </header>
-
-      <div className="app-body">
-      <aside className="sidebar">
-        <div className="brand">FUNCTION</div>
-        <div className="brand-sub">Select module</div>
-        <div className="stat-pill holdings-pill">
-          PORT · {holdingCount} NAMES
-        </div>
-        {TABS.map((t, i) => (
-          <button
-            key={t.id}
-            className={`nav-btn ${tab === t.id ? "active" : ""}`}
-            onClick={() => setTab(t.id)}
-          >
-            <span className="fn-key">F{i + 1}</span>
-            {t.label}
-          </button>
-        ))}
-      </aside>
-
-      <main className="main">
-        <div className="topbar">
-          <div>
-            <h2 className="page-title">{TABS.find((t) => t.id === tab)?.label}</h2>
-            <p className="muted page-sub">
-              SRC {market?.source ?? "LOADING"}
-              {market?.data_status === "live" ? " · LIVE" : market?.data_status === "mock" ? " · DEMO" : ""}
-            </p>
-          </div>
+          <span className="terminal-source">AKSHARE</span>
           <button
             type="button"
-            className="btn btn-ghost"
-            onClick={() => void refreshMarket()}
-            disabled={refreshingMarket}
+            className="terminal-settings-btn"
+            onClick={() => setAboutOpen(true)}
+            title="关于作者与参考项目"
           >
-            {refreshingMarket ? "刷新中…" : "刷新行情"}
+            关于
           </button>
+          <button
+            type="button"
+            className="terminal-settings-btn"
+            onClick={() => setSettingsOpen(true)}
+            disabled={settingsRequired}
+            title="大模型 API Key / 模型 / 温度"
+          >
+            设置
+          </button>
+          <span className="terminal-clock">{clock}</span>
+        </div>
+      </div>
+      <AboutPanel open={aboutOpen} onClose={() => setAboutOpen(false)} />
+      <SettingsPanel
+        open={settingsOpen}
+        onClose={closeSettings}
+        required={settingsRequired}
+        onConfigured={handleLlmConfigured}
+      />
+
+      <div className={`app-body${settingsRequired ? " app-locked" : ""}`}>
+        <div className="sidebar">
+          <div className="brand">StockResearch</div>
+          <div className="brand-sub">AI 投研终端</div>
+          {NAV.map((n) => (
+            <button key={n.key} className={`nav-btn${tab === n.key ? " active" : ""}`} onClick={() => setTab(n.key)}>
+              <span className="fn-key">{n.fn}</span> {n.label}
+            </button>
+          ))}
         </div>
 
-        {market?.data_status === "mock" && (
-          <div className="error">⚠️ 当前是写死的演示数据，不是真实行情。请设置 USE_MOCK_MARKET_DATA=false 并重启后端。</div>
-        )}
-        {market?.message && market.data_status !== "mock" && (
-          <div className="stat-pill" style={{ marginBottom: 12 }}>{market.message}</div>
-        )}
+        <div className="main">
+          {error && <div className="error">{error}</div>}
 
-        {market && (
-          <div className="ticker-strip">
-            {market.indices.map((idx) => (
-              <div className="ticker-card" key={idx.symbol}>
-                <div className="ticker-name">{idx.name}</div>
-                <div className="ticker-price">{idx.price.toFixed(2)}</div>
-                <div className={`ticker-change ${idx.change_pct >= 0 ? "up" : "down"}`}>
-                  {idx.change_pct >= 0 ? "+" : ""}{idx.change_pct.toFixed(2)}%
-                </div>
-              </div>
-            ))}
+          <div className="topbar">
+            <h2 className="page-title">{{ chat: "智能对话", news: "新闻快讯", portfolio: "持仓管理", risk: "风控体检" }[tab]}</h2>
+            <span className="page-sub">{tab.toUpperCase()}</span>
           </div>
-        )}
 
-        {error && <div className="error">{error}</div>}
-        {successMsg && <div className="success">{successMsg}</div>}
-
-        {tab === "chat" && (
-          <div className="panel">
-            <div className="chat-messages">
-              {messages.length === 0 && (
-                <>
-                  <p className="muted">试试：帮我分析一下贵州茅台 / 我的持仓风险大吗</p>
-                  <p className="muted">投研卡片会出现在 AI 回复下方；也可打开左侧「投研」Tab 直接分析。</p>
-                </>
-              )}
-              {messages.map((m, i) => (
-                <div key={i}>
-                  <div className={`message ${m.role}`}>
-                    {m.role === "assistant" ? (
-                      <MarkdownContent text={m.content} />
+          {tab === "chat" && (
+            <div className="panel">
+              <div className="chat-messages">
+                {messages.map((m, i) => (
+                  <div key={i} className="chat-turn">
+                    {m.role === "user" ? (
+                      <div className="message user">
+                        <div
+                          className="markdown-body"
+                          dangerouslySetInnerHTML={{ __html: simpleMarkdown(m.content) }}
+                        />
+                      </div>
+                    ) : m.pendingChoice ? (
+                      <div className="message assistant analysis-choice-panel">
+                        <p className="analysis-choice-title">请选择分析深度</p>
+                        <p className="analysis-choice-sub">针对：{m.pendingChoice.query}</p>
+                        <div className="analysis-choice-actions">
+                          <button
+                            type="button"
+                            className="btn btn-ghost analysis-choice-btn"
+                            disabled={loading}
+                            onClick={() => chooseAnalysisMode(m.pendingChoice!.query, "simple", i)}
+                          >
+                            简单分析
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-primary analysis-choice-btn"
+                            disabled={loading}
+                            onClick={() => chooseAnalysisMode(m.pendingChoice!.query, "complex", i)}
+                          >
+                            复杂分析
+                          </button>
+                        </div>
+                        <p className="analysis-choice-hint">
+                          简单：快速直接回答；复杂：Multi-Agent 投研、多空辩论或规划执行
+                        </p>
+                      </div>
                     ) : (
-                      m.content
+                      <>
+                        {m.process && (
+                          <div className="message assistant process-panel">
+                            <p className="process-panel-title">Multi-Agent 思考过程</p>
+                            <StreamFeed
+                              streamStatus={m.process.streamStatus}
+                              streamLog={m.process.streamLog}
+                              agentSteps={m.process.agentSteps}
+                              debateRounds={m.process.debateRounds}
+                              judgeVerdict={m.process.judgeVerdict}
+                              voteTally={m.process.voteTally}
+                              activeStreamIds={[]}
+                            />
+                          </div>
+                        )}
+                        {m.content.trim() && (
+                          <div className="message assistant">
+                            <p className="process-panel-title">综合结论</p>
+                            <div
+                              className="markdown-body"
+                              dangerouslySetInnerHTML={{ __html: simpleMarkdown(m.content) }}
+                            />
+                          </div>
+                        )}
+                        {m.cards?.map((c, j) => (
+                          <CardView key={j} card={c} />
+                        ))}
+                      </>
                     )}
                   </div>
-                  {m.cards?.map((c, j) => <CardView key={j} card={c} />)}
-                </div>
-              ))}
-              {loading && (
-                <div className="message assistant">
-                  {chatDraftReply ? (
-                    <MarkdownContent text={chatDraftReply} />
-                  ) : (
-                    <p className="muted">正在为您分析，请稍候…</p>
-                  )}
-                  <StreamFeed {...chatStream} />
-                </div>
-              )}
-            </div>
-            <div className="chat-input-row">
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && sendChat()}
-                placeholder="输入问题，自动路由新闻/投研/风控 Agent..."
-              />
-              <button type="button" className="btn btn-primary" onClick={sendChat} disabled={loading}>
-                {loading ? "分析中" : "发送"}
-              </button>
-            </div>
-            <p className="disclaimer" style={{ marginTop: 12 }}>
-              以上内容由 AI 生成，仅供参考，不构成投资建议。
-            </p>
-          </div>
-        )}
-
-        {tab === "market" && (
-          <div className="grid-2">
-            <div className="panel">
-              <h3 className="panel-title">大盘概览</h3>
-              {market && (
-                <div className="stat-row">
-                  <span className="stat-pill">来源 {market.source}</span>
-                  {market.northbound_net_yi != null && (
-                    <span className="stat-pill">北向 {market.northbound_net_yi.toFixed(1)} 亿</span>
-                  )}
-                  {market.advancers != null && (
-                    <span className="stat-pill up">上涨 {market.advancers}</span>
-                  )}
-                  {market.decliners != null && (
-                    <span className="stat-pill down">下跌 {market.decliners}</span>
-                  )}
-                </div>
-              )}
-              <div className="quote-row" style={{ fontWeight: 600, color: "var(--muted)" }}>
-                <span>名称</span><span>现价</span><span>涨跌幅</span><span>成交量</span>
-              </div>
-              {quotes.length === 0 ? (
-                <p className="muted">暂无持仓，不展示样例股。录入持仓后可看个性化行情。</p>
-              ) : (
-                quotes.map((q) => (
-                <div className="quote-row" key={q.symbol}>
-                  <span>{q.name} ({q.symbol})</span>
-                  <span>{q.price.toFixed(2)}</span>
-                  <span className={q.change_pct >= 0 ? "up" : "down"}>
-                    {q.change_pct >= 0 ? "+" : ""}{q.change_pct.toFixed(2)}%
-                  </span>
-                  <span className="muted">{(q.volume / 1e4).toFixed(0)} 万</span>
-                </div>
-              )))}
-            </div>
-            <div className="panel">
-              <h3 className="panel-title">持仓实时行情</h3>
-              {holdings.length === 0 ? (
-                <p className="muted">录入持仓后此处显示个性化行情</p>
-              ) : (
-                holdings.map((h) => {
-                  const q = quotes.find((x) => x.symbol === h.symbol);
-                  const pnl = q ? ((q.price - h.cost_price) / h.cost_price) * 100 : 0;
-                  return (
-                    <div className="holding-row" key={h.id}>
-                      <div>
-                        <strong>{h.name}</strong>
-                        <div className="muted">{h.symbol} · 成本 {h.cost_price}</div>
-                      </div>
-                      <div className={pnl >= 0 ? "up" : "down"}>
-                        {q ? q.price.toFixed(2) : "--"} ({pnl >= 0 ? "+" : ""}{pnl.toFixed(1)}%)
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        )}
-
-        {tab === "news" && (
-          <div className="panel">
-            <h3 className="panel-title">关注板块</h3>
-            <p className="muted" style={{ marginTop: 0 }}>
-              快讯仅展示：市场要闻 + 你选的板块 + 持仓/自选股票相关
-            </p>
-            <div className="sector-grid">
-              {availableSectors.map((sector) => (
-                <button
-                  key={sector}
-                  type="button"
-                  className={`sector-chip ${selectedSectors.includes(sector) ? "active" : ""}`}
-                  disabled={savingSector || loadingNews}
-                  onClick={() => void toggleSector(sector)}
-                >
-                  {sector}
-                </button>
-              ))}
-            </div>
-            <div style={{ marginTop: 20, marginBottom: 16 }}>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => void ingestNews()}
-                disabled={loadingNews || savingSector}
-              >
-                {loadingNews ? "抓取中…" : "抓取并刷新快讯"}
-              </button>
-            </div>
-            {newsProgress && (
-              <div className="progress-block">
-                <div className="progress-label">{newsProgress.label}</div>
-                <div className="progress-track">
-                  <div className="progress-fill" style={{ width: `${newsProgress.pct}%` }} />
-                </div>
-              </div>
-            )}
-            {news.length === 0 && !loadingNews && (
-              <p className="muted">暂无快讯。请选择板块或添加持仓后点击抓取。</p>
-            )}
-            {(["market", "sector", "holding"] as const).map((group) => {
-              const items = news.filter((n) => n.category === group);
-              if (items.length === 0) return null;
-              const title =
-                group === "market" ? "市场快讯" : group === "sector" ? "板块快讯" : "持仓相关";
-              return (
-                <div key={group} style={{ marginTop: 20 }}>
-                  <h4 className="panel-title">{title}</h4>
-                  {items.map((n, i) => (
-                    <div className="card" key={`${group}-${i}`}>
-                      <h4>{n.title}</h4>
-                      <MarkdownContent text={n.summary} />
-                      <small className="muted">
-                        {n.sentiment} · {n.impact_level}
-                        {n.related_to_user ? " · 与你相关" : ""}
-                      </small>
-                    </div>
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {tab === "portfolio" && (
-          <div className="panel">
-            <h3 className="panel-title">添加持仓</h3>
-            <p className="muted" style={{ marginTop: 0 }}>
-              先识别股票，确认后会显示现价，再填写你的买入成本。
-            </p>
-            <div className="holding-form holding-form-lookup">
-              <label className="field">
-                <span className="field-label">股票代码或名称</span>
-                <input
-                  placeholder="如 600519、贵州茅台、茅台"
-                  value={stockQuery}
-                  onChange={(e) => setStockQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void lookupStockForAdd();
-                  }}
-                />
-              </label>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => void lookupStockForAdd()}
-                disabled={addingHolding || loadingQuote}
-              >
-                {addingHolding ? "大模型识别中…" : "识别股票"}
-              </button>
-            </div>
-
-            {pendingAdd && (
-              <div className="confirm-card">
-                <p>{pendingAdd.message}</p>
-                {pendingAdd.status === "ambiguous" && (
-                  <>
-                    <div className="candidate-list">
-                      {pendingAdd.candidates.map((c) => (
-                        <button
-                          key={c.symbol}
-                          type="button"
-                          className="btn btn-ghost"
-                          disabled={addingHolding || loadingQuote}
-                          onClick={() => void selectCandidate(c.symbol, c.name)}
-                        >
-                          是这只：{c.name}（{c.symbol}）
-                        </button>
-                      ))}
-                    </div>
-                    <button type="button" className="btn btn-ghost" onClick={() => setPendingAdd(null)}>
-                      取消
-                    </button>
-                  </>
+                ))}
+                {loading && (
+                  <div className="message assistant stream-live-panel">
+                    <p className="process-panel-title">Multi-Agent 思考过程（进行中）</p>
+                    <StreamFeed
+                      streamStatus={chatStream.streamStatus || statusMsg}
+                      streamLog={chatStream.streamLog}
+                      agentSteps={chatStream.agentSteps}
+                      debateRounds={chatStream.debateRounds}
+                      judgeVerdict={chatStream.judgeVerdict}
+                      voteTally={chatStream.voteTally}
+                      activeStreamIds={chatStream.activeStreamIds}
+                    />
+                  </div>
                 )}
-                {pendingAdd.status === "confirmed" && pendingAdd.symbol && pendingAdd.name && (
-                  <>
-                    <div className="market-price-row">
-                      <span className="field-label">行业</span>
-                      <span>{pendingAdd.sector && pendingAdd.sector !== "未知" ? pendingAdd.sector : "识别中…"}</span>
-                    </div>
-                    <div className="market-price-row">
-                      <span className="field-label">现价</span>
-                      {loadingQuote ? (
-                        <span className="muted">获取行情中…</span>
-                      ) : pendingAdd.marketPrice != null ? (
-                        <span>
-                          <strong>{pendingAdd.marketPrice.toFixed(2)}</strong> 元/股
-                          {pendingAdd.changePct != null && (
-                            <span className={pendingAdd.changePct >= 0 ? "up" : "down"}>
-                              {" "}
-                              {pendingAdd.changePct >= 0 ? "+" : ""}
-                              {pendingAdd.changePct.toFixed(2)}%
-                            </span>
-                          )}
-                        </span>
-                      ) : (
-                        <span className="muted">暂无行情，请手动填写成本价</span>
+              </div>
+              <div className="chat-input-row">
+                <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendChat()} placeholder="输入消息，如：帮我分析一下贵州茅台" />
+                <button className="btn btn-primary" onClick={sendChat} disabled={loading}>{loading ? "分析中..." : "发送"}</button>
+              </div>
+              <p className="disclaimer">以上内容由 AI 生成，仅供参考，不构成投资建议。</p>
+            </div>
+          )}
+
+          {tab === "news" && (
+            <div className="panel">
+              <button className="btn btn-primary" onClick={loadNews} disabled={newsLoading}>
+                {newsLoading ? "加载中..." : "刷新快讯"}
+              </button>
+              {news.map((n, i) => (
+                <div className="card" key={i}>
+                  <h4>{n.title}</h4>
+                  <p>{n.summary}</p>
+                  <span className={`stat-pill ${n.sentiment === "bullish" ? "up" : n.sentiment === "bearish" ? "down" : ""}`}>
+                    {n.sentiment} · {n.impact_level} {n.related_to_user ? "· 与你相关" : ""}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {tab === "portfolio" && (
+            <div className="panel">
+              <div className="holding-form">
+                <div className="field">
+                  <span className="field-label">代码/名称</span>
+                  <input placeholder="如 600519 或 贵州茅台" value={holdingInput} onChange={(e) => { setHoldingInput(e.target.value); setLookupResult(null); }} onKeyDown={(e) => e.key === "Enter" && lookupAndAdd()} />
+                </div>
+                <div className="field">
+                  <span className="field-label">成本价</span>
+                  <input type="number" placeholder="0.00" value={holdingCost} onChange={(e) => setHoldingCost(e.target.value)} />
+                </div>
+                <div className="field">
+                  <span className="field-label">手数</span>
+                  <input type="number" placeholder="1" value={holdingLots} onChange={(e) => setHoldingLots(e.target.value)} />
+                </div>
+                <div className="field">
+                  <span className="field-label">买入日期</span>
+                  <input
+                    type="date"
+                    value={holdingDate}
+                    max={new Date().toISOString().slice(0, 10)}
+                    title="须为 A 股交易日（有开盘的日期）"
+                    onChange={(e) => setHoldingDate(e.target.value)}
+                  />
+                </div>
+                <button className="btn btn-primary" onClick={lookupAndAdd} disabled={lookupLoading} style={{ alignSelf: "end" }}>
+                  {lookupLoading ? "查询中..." : "添加"}
+                </button>
+              </div>
+              {lookupResult && lookupResult.status === "ambiguous" && (
+                <div className="confirm-card">
+                  <span className="field-label">请选择股票</span>
+                  <div className="candidate-list">
+                    {lookupResult.candidates.map((c) => (
+                      <button key={c.symbol} className="btn btn-ghost" onClick={() => confirmCandidate(c.symbol, c.name)}>
+                        {c.name} ({c.symbol})
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="holding-toolbar">
+                <span className="muted">
+                  {holdingsLoading
+                    ? "行情更新中…"
+                    : holdings[0]?.market_session === "trading"
+                      ? "盘中 · 显示现价（每 30 秒刷新）"
+                      : "已收盘 · 显示收盘价"}
+                </span>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => void loadHoldings()} disabled={holdingsLoading}>
+                  刷新
+                </button>
+              </div>
+              {holdings.length === 0 ? (
+                <p className="muted holdings-empty">暂无持仓，请在上方添加</p>
+              ) : (
+                <div className="holdings-table-wrap">
+                  <table className="holdings-table">
+                    <thead>
+                      <tr>
+                        <th>股票</th>
+                        <th>价格</th>
+                        <th>涨跌</th>
+                        <th>成本</th>
+                        <th>数量</th>
+                        <th>盈亏</th>
+                        <th>年化</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {holdings.map((h) => (
+                        <tr key={h.id}>
+                          <td>
+                            <div className="holding-name">{h.name}</div>
+                            <div className="holding-meta muted">
+                              {h.symbol} · {h.sector}
+                              {h.buy_date ? ` · ${h.buy_date}` : ""}
+                            </div>
+                          </td>
+                          <td className="mono">
+                            {h.quote_available ? (
+                              <>
+                                <span className="holding-price-label muted">{h.price_label}</span>{" "}
+                                {formatPrice(h.price ?? null)}
+                              </>
+                            ) : (
+                              <span className="muted">—</span>
+                            )}
+                          </td>
+                          <td className={`mono ${signedClass(h.change_pct)}`}>
+                            {h.quote_available ? formatSignedPct(h.change_pct ?? null) : "—"}
+                          </td>
+                          <td className="mono">{h.cost_price.toFixed(2)}</td>
+                          <td className="mono">{h.quantity}</td>
+                          <td className={signedClass(h.profit_pct)}>
+                            {h.quote_available ? (
+                              <>
+                                <div className="mono">{formatSignedMoney(h.profit_amount ?? null)}</div>
+                                <div className="mono holdings-sub">{formatSignedPct(h.profit_pct ?? null)}</div>
+                              </>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          <td className={`mono ${signedClass(h.annualized_pct)}`}>
+                            {h.annualized_pct != null ? formatSignedPct(h.annualized_pct) : "—"}
+                          </td>
+                          <td>
+                            <button type="button" className="delete-btn" onClick={() => h.id && deleteHolding(h.id)}>
+                              DEL
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === "risk" && (
+            <div className="panel">
+              <button className="btn btn-primary" onClick={runRisk} disabled={loading}>
+                {loading ? "体检中..." : "持仓体检"}
+              </button>
+              {risk && (
+                <>
+                  <p style={{ margin: "8px 0" }}>{risk.portfolio_summary}</p>
+
+                  {/* Risk Metrics Table */}
+                  {risk.metrics && (
+                    <div className="card">
+                      <h4>风险指标</h4>
+                      <table className="metrics-table">
+                        <tbody>
+                          <tr><td>夏普比率</td><td className="mono">{risk.metrics.sharpe_ratio.toFixed(2)}</td><td className="muted">{risk.metrics.sharpe_ratio > 2 ? "优" : risk.metrics.sharpe_ratio > 1 ? "良" : risk.metrics.sharpe_ratio > 0 ? "中" : "差"}</td></tr>
+                          <tr><td>索提诺比率</td><td className="mono">{risk.metrics.sortino_ratio.toFixed(2)}</td><td className="muted">{risk.metrics.sortino_ratio > 2 ? "优" : risk.metrics.sortino_ratio > 1 ? "良" : risk.metrics.sortino_ratio > 0 ? "中" : "差"}</td></tr>
+                          <tr><td>Calmar 比率</td><td className="mono">{risk.metrics.calmar_ratio.toFixed(2)}</td><td className="muted">{risk.metrics.calmar_ratio > 3 ? "优" : risk.metrics.calmar_ratio > 1 ? "良" : risk.metrics.calmar_ratio > 0 ? "中" : "差"}</td></tr>
+                          <tr><td>信息比率</td><td className="mono">{risk.metrics.information_ratio.toFixed(2)}</td><td className="muted">{risk.metrics.information_ratio > 1 ? "优" : risk.metrics.information_ratio > 0.5 ? "良" : risk.metrics.information_ratio > 0 ? "中" : "差"}</td></tr>
+                          <tr><td>最大回撤</td><td className={`mono ${risk.metrics.max_drawdown < -0.1 ? "down" : risk.metrics.max_drawdown < 0 ? "warn" : ""}`}>{(risk.metrics.max_drawdown * 100).toFixed(2)}%</td><td className="muted">{Math.abs(risk.metrics.max_drawdown) > 0.15 ? "高危" : Math.abs(risk.metrics.max_drawdown) > 0.08 ? "关注" : "可控"}</td></tr>
+                          <tr><td>年化波动率</td><td className="mono">{(risk.metrics.volatility * 100).toFixed(2)}%</td><td className="muted">{risk.metrics.volatility > 0.3 ? "高" : risk.metrics.volatility > 0.2 ? "中" : "低"}</td></tr>
+                          <tr><td>行业集中度</td><td className="mono">{(risk.metrics.concentration_ratio * 100).toFixed(1)}%</td><td className="muted">{risk.metrics.concentration_sector || "-"} {risk.metrics.concentration_ratio > 0.4 ? "偏高" : "分散"}</td></tr>
+                          <tr><td>单日最大可能损失</td><td className="mono down">¥{risk.metrics.max_loss_1d.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</td><td className="muted">{(risk.metrics.max_loss_1d_pct * 100).toFixed(2)}% (3σ)</td></tr>
+                          <tr><td>期望损失 EL</td><td className="mono down">¥{risk.metrics.expected_loss.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</td><td className="muted">{(risk.metrics.expected_loss_pct * 100).toFixed(2)}% (PD×LGD×EAD)</td></tr>
+                        </tbody>
+                      </table>
+                      {risk.metrics.individual_drawdowns.length > 0 && (
+                        <>
+                          <h4 style={{ marginTop: 10 }}>个股回撤</h4>
+                          <table className="metrics-table">
+                            <thead><tr><th>股票</th><th>成本</th><th>现价</th><th>回撤</th></tr></thead>
+                            <tbody>
+                              {risk.metrics.individual_drawdowns.map((d: any, i: number) => (
+                                <tr key={i}>
+                                  <td>{d.name}</td>
+                                  <td className="mono">{d.cost_price?.toFixed(2)}</td>
+                                  <td className="mono">{d.current_price?.toFixed(2)}</td>
+                                  <td className={`mono ${d.drawdown_pct < -0.08 ? "down" : d.drawdown_pct < 0 ? "warn" : ""}`}>{((d.drawdown_pct ?? 0) * 100).toFixed(2)}%</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </>
                       )}
                     </div>
-                    <div className="holding-form holding-form-confirm">
-                      <label className="field">
-                        <span className="field-label">成本价（元/股）</span>
-                        <input
-                          type="number"
-                          min={0.01}
-                          step={0.01}
-                          placeholder="你的买入价，可参考现价"
-                          value={costPrice > 0 ? costPrice : ""}
-                          onChange={(e) =>
-                            setCostPrice(e.target.value === "" ? 0 : Number(e.target.value))
-                          }
-                        />
-                      </label>
-                      <label className="field">
-                        <span className="field-label">持仓手数</span>
-                        <input
-                          type="number"
-                          min={1}
-                          step={1}
-                          placeholder="几手"
-                          value={lots}
-                          onChange={(e) => setLots(Number(e.target.value))}
-                        />
-                      </label>
-                    </div>
-                    <div className="confirm-actions">
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        onClick={() => void confirmAddHolding()}
-                        disabled={addingHolding || loadingQuote}
-                      >
-                        {addingHolding ? "保存中…" : "确认添加"}
-                      </button>
-                      <button type="button" className="btn btn-ghost" onClick={() => setPendingAdd(null)}>
-                        取消
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+                  )}
 
-            {holdings.length === 0 && !pendingAdd && (
-              <p className="muted">暂无持仓，添加后会显示在下方。</p>
-            )}
-            {unknownSectorCount > 0 && (
-              <div className="holding-toolbar">
-                <p className="muted" style={{ margin: 0 }}>
-                  有 {unknownSectorCount} 只持仓行业为「未知」
-                </p>
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => void backfillSectors()}
-                  disabled={backfillingSectors}
-                >
-                  {backfillingSectors ? "补全中…" : "一键补全行业"}
-                </button>
-              </div>
-            )}
-            {holdings.map((h) => (
-              <div className="holding-row" key={h.id ?? h.symbol}>
-                <div>
-                  <strong>{h.name}</strong>
-                  <div className="muted">
-                    {h.symbol} · 成本 {h.cost_price} 元/股 · {Math.round(h.quantity / 100)} 手 · {h.sector}
-                  </div>
-                </div>
-                {h.id != null && (
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    disabled={deletingId === h.id}
-                    onClick={() => removeHolding(h.id!)}
-                  >
-                    {deletingId === h.id ? "删除中…" : "删除"}
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+                  {/* VaR Display */}
+                  {risk.var_result && (
+                    <div className="card">
+                      <h4>在险价值 VaR</h4>
+                      <div className="stat-row">
+                        <span className="stat-pill">置信水平 {(risk.var_result.confidence_level * 100).toFixed(0)}%</span>
+                        <span className="stat-pill">时间跨度 {risk.var_result.time_horizon_days}天</span>
+                        <span className="stat-pill">方法 {risk.var_result.method}</span>
+                      </div>
+                      <div className="var-display">
+                        <div className="var-main">
+                          <span className="var-label">VaR 绝对值</span>
+                          <span className="var-value down">¥{risk.var_result.var_value.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="var-main">
+                          <span className="var-label">VaR 占比</span>
+                          <span className="var-value">{(risk.var_result.var_pct * 100).toFixed(2)}%</span>
+                        </div>
+                        <div className="var-main">
+                          <span className="var-label">CVaR (Expected Shortfall)</span>
+                          <span className="var-value down">¥{risk.var_result.cvar_value.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="var-main">
+                          <span className="var-label">CVaR 占比</span>
+                          <span className="var-value">{(risk.var_result.cvar_pct * 100).toFixed(2)}%</span>
+                        </div>
+                      </div>
+                      {/* VaR bar visualization */}
+                      <div className="var-bar-container">
+                        <div className="var-bar-track">
+                          <div className="var-bar-fill" style={{ width: `${Math.min(risk.var_result.var_pct * 100 * 2, 100)}%` }} />
+                        </div>
+                        <div className="var-bar-labels">
+                          <span>0%</span>
+                          <span>{(risk.var_result.var_pct * 100).toFixed(1)}%</span>
+                          <span>50%</span>
+                        </div>
+                      </div>
+                      {risk.var_result.holdings_var.length > 0 && (
+                        <table className="metrics-table" style={{ marginTop: 8 }}>
+                          <thead><tr><th>股票</th><th>权重</th><th>VaR</th></tr></thead>
+                          <tbody>
+                            {risk.var_result.holdings_var.map((h: any, i: number) => (
+                              <tr key={i}>
+                                <td>{h.name}</td>
+                                <td className="mono">{((h.weight ?? 0) * 100).toFixed(1)}%</td>
+                                <td className="mono down">¥{(h.var_value ?? 0).toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  )}
 
-        {tab === "research" && (
-          <div className="panel">
-            <p className="muted" style={{ marginTop: 0 }}>
-              基本面 / 技术面 / 情绪面 / 筹码面四维分析 + 多空辩论 + 裁判判定
-            </p>
-            <div className="holding-form holding-form-lookup">
-              <label className="field">
-                <span className="field-label">股票代码或名称</span>
-                <input
-                  placeholder="如 600519、贵州茅台"
-                  value={researchQuery}
-                  onChange={(e) => setResearchQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void lookupResearchStock();
-                  }}
-                />
-              </label>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => void lookupResearchStock()}
-                disabled={lookingUpResearch || loadingResearch}
-              >
-                {lookingUpResearch ? "识别中…" : "识别股票"}
-              </button>
+                  {/* Alerts */}
+                  {risk.alerts.map((a, i) => (
+                    <div className={`card alert-${a.severity}`} key={i}>
+                      <h4>{a.rule_id}</h4>
+                      <p>{a.human_message}</p>
+                    </div>
+                  ))}
+                  {risk.llm_analysis && (
+                    <div className="card">
+                      <h4>AI 深度分析</h4>
+                      <p><strong>市场环境：</strong>{risk.llm_analysis.market_assessment}</p>
+                      <p><strong>相关性风险：</strong>{risk.llm_analysis.correlation_analysis}</p>
+                      <p><strong>风险综述：</strong>{risk.llm_analysis.risk_narrative}</p>
+                      {risk.llm_analysis.scenario_analysis.length > 0 && (
+                        <>
+                          <span className="field-label">风险情景</span>
+                          <ul>{risk.llm_analysis.scenario_analysis.map((s, i) => <li key={i}>{s}</li>)}</ul>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-            {researchTarget && (
-              <div className="confirm-card">
-                <p>已选：{researchTarget.name}（{researchTarget.symbol}）</p>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => void runResearch(researchTarget.symbol, researchTarget.name)}
-                  disabled={loadingResearch}
-                >
-                  {loadingResearch ? "多 Agent 投研中…" : "生成投研报告"}
-                </button>
-              </div>
-            )}
-            {holdings.length > 0 && (
-              <div className="research-quick-picks">
-                <span className="muted">从持仓快捷分析：</span>
-                {holdings.map((h) => (
-                  <button
-                    key={h.symbol}
-                    type="button"
-                    className="btn btn-ghost"
-                    disabled={loadingResearch}
-                    onClick={() => void runResearch(h.symbol, h.name)}
-                  >
-                    {h.name}
-                  </button>
-                ))}
-              </div>
-            )}
-            {loadingResearch && (
-              <StreamFeed {...researchStream} />
-            )}
-            {researchReport && <ResearchReportView report={researchReport} />}
-          </div>
-        )}
-
-        {tab === "risk" && (
-          <div className="panel">
-            <p className="muted" style={{ marginTop: 0 }}>
-              简明风控摘要：规则扫描 → 快辩 → 裁判给出等级与仓位建议
-            </p>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => void runRisk()}
-              disabled={loadingRisk}
-            >
-              {loadingRisk ? "多 Agent 会诊中…" : "一键持仓体检"}
-            </button>
-            {(loadingRisk || riskStream.streamLog.length > 0) && (
-              <StreamFeed {...riskStream} />
-            )}
-            {risk && risk.alerts.length > 0 && (
-              <>
-                {risk.alerts.map((a, i) => (
-                  <div className={`card alert-${a.severity}`} key={i}>
-                    <strong>{a.rule_id}</strong>
-                    <MarkdownContent text={a.human_message || a.message} />
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        )}
-      </main>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
 function CardView({ card }: { card: ChatResponse["cards"][0] }) {
-  if (card.type === "research") {
-    return <ResearchReportView report={card.data as unknown as ResearchReport} />;
-  }
-  if (card.type === "risk") {
-    const d = card.data as unknown as RiskCheckup;
-    return (
-      <div className="card">
-        <h4>风控体检</h4>
-        <div><MarkdownContent text={d.portfolio_summary} /></div>
-        {d.alerts.map((a, i) => (
-          <p key={i} className={`alert-${a.severity}`}>
-            <MarkdownContent text={a.human_message} />
-          </p>
-        ))}
-      </div>
-    );
-  }
-  if (card.type === "news") {
-    const items = (card.data as { items: NewsItem[] }).items || [];
-    return (
-      <div className="card">
-        <h4>相关快讯</h4>
-        {items.map((n, i) => (
-          <div key={i} className="news-card-item">
-            <strong>{n.title}</strong>
-            <MarkdownContent text={n.summary} />
+  try {
+    if (card.type === "research" && card.data && "composite_score" in card.data) {
+      const d = card.data as unknown as ResearchReport;
+      return (
+        <div className="card">
+          <h4>投研报告 · {d.name} ({d.symbol})</h4>
+          <div className="stat-row">
+            <span className="stat-pill">评分 {d.composite_score}/10</span>
+            <span className="stat-pill">倾向 {d.bias}</span>
           </div>
-        ))}
-      </div>
-    );
+          <p>{d.summary}</p>
+        </div>
+      );
+    }
+    if (card.type === "risk" && card.data && "portfolio_summary" in card.data) {
+      const d = card.data as unknown as RiskCheckup;
+      return (
+        <div className="card">
+          <h4>风控体检</h4>
+          <p>{d.portfolio_summary}</p>
+          {d.alerts?.slice(0, 3).map((a, i) => (
+            <p key={i} className={`alert-${a.severity}`}>{a.human_message}</p>
+          ))}
+          {d.llm_analysis && <p><strong>AI 分析：</strong>{d.llm_analysis.risk_narrative}</p>}
+        </div>
+      );
+    }
+    if (card.type === "news" && card.data && "items" in card.data) {
+      const items = (card.data as { items: NewsItem[] }).items || [];
+      return (
+        <div className="card">
+          <h4>相关快讯</h4>
+          {items.slice(0, 3).map((n, i) => <p key={i}>{n.title} — {n.summary}</p>)}
+        </div>
+      );
+    }
+    if (card.type === "debate" && card.data && "positions" in card.data) {
+      const d = card.data as { positions: { agent: string; stance: string; arguments: string }[]; vote_tally: Record<string, number>; final_bias: string; synthesis: string; symbol: string; name: string };
+      const biasLabel: Record<string, string> = { bullish: "偏多", bearish: "偏空", neutral: "中性" };
+      const stanceColor: Record<string, string> = { "看多": "up", "看空": "down", "中性": "" };
+      return (
+        <div className="card">
+          <h4>多Agent辩论 · {d.name}({d.symbol})</h4>
+          <div className="stat-row">
+            <span className="stat-pill">看多 {d.vote_tally["看多"] || 0}</span>
+            <span className="stat-pill">看空 {d.vote_tally["看空"] || 0}</span>
+            <span className="stat-pill">中性 {d.vote_tally["中性"] || 0}</span>
+            <span className={`stat-pill ${d.final_bias === "bullish" ? "up" : d.final_bias === "bearish" ? "down" : ""}`}>综合 {biasLabel[d.final_bias] || d.final_bias}</span>
+          </div>
+          {d.positions.map((p, i) => (
+            <div key={i} className={`debate-position ${stanceColor[p.stance] || ""}`}>
+              <strong>{p.agent}分析师</strong> <span className={`stat-pill ${stanceColor[p.stance]}`}>{p.stance}</span>
+              <p className="muted" style={{ marginTop: 2 }}>{p.arguments.slice(0, 200)}{p.arguments.length > 200 ? "..." : ""}</p>
+            </div>
+          ))}
+          {d.synthesis && (
+            <div style={{ marginTop: 8, borderTop: "1px solid var(--bbg-border)", paddingTop: 8 }}>
+              <strong>裁判综合</strong>
+              <div className="markdown-body" style={{ marginTop: 4 }} dangerouslySetInnerHTML={{ __html: simpleMarkdown(d.synthesis) }} />
+            </div>
+          )}
+        </div>
+      );
+    }
+    if (card.type === "financial" && card.data && "ratios" in card.data) {
+      const d = card.data as { symbol: string; name: string; ratios: { name: string; value: string; reference: string; assessment: string }[]; summary: string };
+      return (
+        <div className="card">
+          <h4>财报比率 · {d.name}({d.symbol})</h4>
+          <table className="metrics-table">
+            <thead><tr><th>指标</th><th>当前值</th><th>行业参考</th><th>评价</th></tr></thead>
+            <tbody>
+              {d.ratios.map((r, i) => (
+                <tr key={i}>
+                  <td>{r.name}</td>
+                  <td className="mono">{r.value}</td>
+                  <td className="muted">{r.reference}</td>
+                  <td className={r.assessment.includes("高") || r.assessment.includes("过") ? "down" : r.assessment.includes("优") || r.assessment.includes("良") ? "up" : ""}>{r.assessment}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {d.summary && <div className="markdown-body" style={{ marginTop: 8 }} dangerouslySetInnerHTML={{ __html: simpleMarkdown(d.summary) }} />}
+        </div>
+      );
+    }
+    if (card.type === "plan" && card.data) {
+      const d = card.data as { phase: string; reasoning?: string; steps?: { id: number; description: string }[]; step_id?: number; step?: string; result_preview?: string };
+      if (d.phase === "plan") {
+        return (
+          <div className="card">
+            <h4>研究计划</h4>
+            {d.reasoning && <p className="muted">{d.reasoning}</p>}
+            <ol style={{ margin: "4px 0", paddingLeft: 20 }}>
+              {d.steps?.map((s, i) => <li key={i}>{s.description}</li>)}
+            </ol>
+          </div>
+        );
+      }
+      if (d.phase === "execute") {
+        return (
+          <div className="card" style={{ borderLeft: "2px solid var(--bbg-amber)" }}>
+            <h4>步骤 {d.step_id}</h4>
+            <p className="muted">{d.step}</p>
+            {d.result_preview && <p style={{ marginTop: 4 }}>{d.result_preview}</p>}
+          </div>
+        );
+      }
+    }
+    if (card.type === "text" && card.data && "content" in card.data) {
+      const content = String((card.data as { content: string }).content || "");
+      if (!content) return null;
+      return (
+        <div className="card">
+          <div className="markdown-body" dangerouslySetInnerHTML={{ __html: simpleMarkdown(content) }} />
+        </div>
+      );
+    }
+  } catch {
+    return <div className="card"><p>卡片数据解析失败</p></div>;
   }
   return null;
 }
 
-function ResearchReportView({ report }: { report: ResearchReport }) {
-  return (
-    <div className="card research-report" style={{ marginTop: 16 }}>
-      <h4>投研报告 · {report.name} ({report.symbol})</h4>
-      <p className="research-meta">
-        综合 {report.composite_score}/10 · 倾向 {report.bias}
-      </p>
-      <MarkdownContent text={report.summary} />
-      <div className="stream-messages report-messages">
-        {Object.entries(report.dimensions).map(([name, dim]) => (
-          <div className="message assistant stream-msg" key={name}>
-            <div className="stream-msg-head">
-              <strong>{name} · {dim.score}/10</strong>
-            </div>
-            {dim.highlights.length > 0 && (
-              <div className="stream-msg-body muted">
-                <strong>亮点</strong>
-                <MarkdownContent text={dim.highlights.join("\n\n")} />
-              </div>
-            )}
-            {dim.risks.length > 0 && (
-              <div className="stream-msg-body muted">
-                <strong>风险</strong>
-                <MarkdownContent text={dim.risks.join("\n\n")} />
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-      {report.debate && <DebateView debate={report.debate} />}
-    </div>
-  );
-}
+function simpleMarkdown(text: string): string {
+  let html = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 
-function DebateView({ debate }: { debate: ResearchReport["debate"] }) {
-  if (!debate) return null;
-  return (
-    <div className="stream-messages report-messages">
-      {debate.rounds.map((round) => (
-        <div key={round.round}>
-          {round.bull_argument && (
-            <div className="message assistant stream-msg stream-role-bull">
-              <div className="stream-msg-head"><strong>第 {round.round} 轮 · 看多</strong></div>
-              <div className="stream-msg-body markdown-body">
-                <MarkdownContent text={round.bull_argument} />
-              </div>
-            </div>
-          )}
-          {round.bear_rebuttal && (
-            <div className="message assistant stream-msg stream-role-bear">
-              <div className="stream-msg-head"><strong>第 {round.round} 轮 · 看空</strong></div>
-              <div className="stream-msg-body markdown-body">
-                <MarkdownContent text={round.bear_rebuttal} />
-              </div>
-            </div>
-          )}
-        </div>
-      ))}
-      <div className="message assistant stream-msg stream-judge">
-        <div className="stream-msg-head">
-          <strong>裁判 · {debate.final_bias} · 置信 {debate.confidence}</strong>
-        </div>
-        {debate.vote_tally && (
-          <p className="stream-msg-body muted">
-            Battle 投票 · 偏多 {debate.vote_tally["偏多"] ?? 0} · 偏空 {debate.vote_tally["偏空"] ?? 0} · 中性 {debate.vote_tally["中性"] ?? 0}
-          </p>
-        )}
-        {debate.manager_thesis && (
-          <div className="stream-msg-body muted">
-            <strong>Research Manager</strong>
-            <MarkdownContent text={debate.manager_thesis} />
-          </div>
-        )}
-        <div className="stream-msg-body markdown-body">
-          <MarkdownContent text={debate.judge_verdict} />
-        </div>
-        <div className="stream-msg-body muted">
-          <MarkdownContent text={`共识：${debate.consensus}`} />
-        </div>
-        <div className="stream-msg-body muted">
-          <MarkdownContent text={`分歧：${debate.core_divergence}`} />
-        </div>
-      </div>
-    </div>
+  // Code blocks (```lang ... ```)
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, lang: string, code: string) =>
+    `<pre class="code-block"><code>${code.trim()}</code></pre>`
   );
+
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+
+  // Headers
+  html = html.replace(/^#### (.+)$/gm, "<h4>$1</h4>");
+  html = html.replace(/^### (.+)$/gm, "<h4>$1</h4>");
+  html = html.replace(/^## (.+)$/gm, "<h3>$1</h3>");
+  html = html.replace(/^# (.+)$/gm, "<h3>$1</h3>");
+
+  // Bold & italic
+  html = html.replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>");
+  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
+
+  // Tables
+  html = html.replace(/^(\|.+\|)\n(\|[-| :]+\|)\n((?:\|.+\|\n?)*)/gm, (_m, header: string, _sep: string, body: string) => {
+    const thCells = header.split("|").filter((c: string) => c.trim()).map((c: string) => `<th>${c.trim()}</th>`).join("");
+    const rows = body.trim().split("\n").map((row: string) => {
+      const cells = row.split("|").filter((c: string) => c.trim()).map((c: string) => `<td>${c.trim()}</td>`).join("");
+      return `<tr>${cells}</tr>`;
+    }).join("");
+    return `<table class="metrics-table"><thead><tr>${thCells}</tr></thead><tbody>${rows}</tbody></table>`;
+  });
+
+  // Unordered lists
+  html = html.replace(/^[-•*] (.+)$/gm, "<li>$1</li>");
+  html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, "<ul>$1</ul>");
+
+  // Ordered lists
+  html = html.replace(/^\d+\. (.+)$/gm, "<li>$1</li>");
+
+  // Horizontal rule
+  html = html.replace(/^---+$/gm, "<hr/>");
+
+  // Paragraphs
+  html = html.replace(/\n{2,}/g, "</p><p>");
+  html = html.replace(/\n/g, "<br>");
+
+  return `<p>${html}</p>`;
 }

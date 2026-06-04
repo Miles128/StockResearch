@@ -4,8 +4,8 @@ import time
 
 import pytest
 
-from invesbao.core.exceptions import ValidationError
-from invesbao.services.stock_lookup import clean_stock_query, lookup_stock
+from stockresearch.core.exceptions import ValidationError
+from stockresearch.services.stock_lookup import clean_stock_query, lookup_stock
 
 
 def test_clean_stock_query_strips_punctuation() -> None:

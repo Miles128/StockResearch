@@ -28,11 +28,11 @@ def test_api_v1_index(client: TestClient) -> None:
 
 
 def test_path_register_login(client: TestClient) -> None:
+    """Auth routes removed in local-only mode; verify they return 405."""
     resp = client.post("/api/v1/auth/register", json={"username": "alice", "password": "password1"})
-    assert resp.status_code == 200
+    assert resp.status_code == 405
     login = client.post("/api/v1/auth/login", json={"username": "alice", "password": "password1"})
-    assert login.status_code == 200
-    assert "access_token" in login.json()
+    assert login.status_code == 405
 
 
 def test_path_holdings(client: TestClient, auth_headers: dict[str, str]) -> None:
@@ -113,7 +113,7 @@ async def test_path_chat_research(client: TestClient, auth_headers: dict[str, st
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["intent"] == "research"
+    assert data["intent"] == "chat"
     assert len(data["cards"]) >= 1
     assert "disclaimer" in data
 

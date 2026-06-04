@@ -2,11 +2,11 @@
 
 from datetime import UTC, datetime
 
-from invesbao.core.constants import IMPACT_MAJOR, IMPACT_NORMAL
-from invesbao.data.pipeline.news import NewsPipeline
-from invesbao.db.models import NewsItem, User, UserSectorPreference
-from invesbao.services.auth import hash_password
-from invesbao.services.news_interests import (
+from stockresearch.core.constants import IMPACT_MAJOR, IMPACT_NORMAL
+from stockresearch.data.pipeline.news import NewsPipeline
+from stockresearch.db.models import NewsItem, User, UserSectorPreference
+from stockresearch.services.auth import hash_password
+from stockresearch.services.news_interests import (
     UserNewsInterests,
     classify_news,
     load_user_news_interests,

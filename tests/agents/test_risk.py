@@ -2,9 +2,9 @@
 
 import pytest
 
-from invesbao.agents.risk.engine import run_risk_checkup
-from invesbao.db.models import Holding
-from invesbao.utils.llm import MockLLMClient
+from stockresearch.agents.risk.engine import run_risk_checkup
+from stockresearch.db.models import Holding
+from stockresearch.utils.llm import MockLLMClient
 
 
 @pytest.mark.asyncio

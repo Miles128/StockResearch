@@ -2,8 +2,8 @@
 
 import pytest
 
-from invesbao.agents.research.stream import run_research_stream
-from invesbao.utils.llm import MockLLMClient
+from stockresearch.agents.research.stream import run_research_stream
+from stockresearch.utils.llm import MockLLMClient
 
 
 @pytest.mark.asyncio

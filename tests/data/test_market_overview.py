@@ -5,11 +5,11 @@ from datetime import UTC, datetime
 
 import pytest
 
-from invesbao.core.config import Settings
-from invesbao.core.schemas import IndexQuoteOut, MarketOverviewOut
-from invesbao.data.providers import market_overview as mod
-from invesbao.data.providers.market_overview import MarketOverviewProvider
-from invesbao.data.providers.sina_index import SinaIndexQuote
+from stockresearch.core.config import Settings
+from stockresearch.core.schemas import IndexQuoteOut, MarketOverviewOut
+from stockresearch.data.providers import market_overview as mod
+from stockresearch.data.providers.market_overview import MarketOverviewProvider
+from stockresearch.data.providers.sina_index import SinaIndexQuote
 
 
 @pytest.fixture

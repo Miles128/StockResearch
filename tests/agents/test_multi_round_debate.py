@@ -2,8 +2,8 @@
 
 import pytest
 
-from invesbao.agents.research.debate import run_multi_round_debate
-from invesbao.utils.llm import MockLLMClient
+from stockresearch.agents.research.debate import run_multi_round_debate
+from stockresearch.utils.llm import MockLLMClient
 
 
 @pytest.mark.asyncio

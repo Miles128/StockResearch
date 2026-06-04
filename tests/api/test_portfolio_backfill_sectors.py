@@ -2,8 +2,8 @@
 
 from fastapi.testclient import TestClient
 
-from invesbao.db.models import Holding
-from invesbao.services.auth import get_or_create_mvp_user
+from stockresearch.db.models import Holding
+from stockresearch.services.auth import get_or_create_mvp_user
 
 
 def test_backfill_sectors_api(client: TestClient, db_session: object) -> None:

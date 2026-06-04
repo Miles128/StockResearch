@@ -13,10 +13,10 @@ os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["USE_MOCK_LLM"] = "true"
 os.environ["USE_MOCK_MARKET_DATA"] = "true"
 
-from invesbao.api.app import create_app  # noqa: E402
-from invesbao.db.models import Base  # noqa: E402
-from invesbao.db.session import get_db  # noqa: E402
-from invesbao.services.cache import CacheService  # noqa: E402
+from stockresearch.api.app import create_app  # noqa: E402
+from stockresearch.db.models import Base  # noqa: E402
+from stockresearch.db.session import get_db  # noqa: E402
+from stockresearch.services.cache import CacheService  # noqa: E402
 
 
 @pytest.fixture()

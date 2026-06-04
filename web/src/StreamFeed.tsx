@@ -30,7 +30,7 @@ interface JudgeVerdict {
   holding_actions?: HoldingAction[];
 }
 
-interface HoldingAction {
+export interface HoldingAction {
   symbol: string;
   name: string;
   action: string;
@@ -122,12 +122,27 @@ export function StreamFeed({
   activeStreamIds = [],
 }: StreamFeedProps) {
   const pipeline = earlyPipelineSteps(agentSteps);
+  const debateAgents = agentSteps.filter((step) => DEBATE_ROLES.has(step.role));
   const manager = managerStep(agentSteps);
   const sortedRounds = debateRounds.slice().sort((a, b) => a.round - b.round);
   const isTyping = (streamId: string) => activeStreamIds.includes(streamId);
+  const hasBody =
+    streamLog.length > 0 ||
+    pipeline.length > 0 ||
+    debateAgents.length > 0 ||
+    sortedRounds.length > 0 ||
+    voteTally != null ||
+    manager != null ||
+    judgeVerdict != null;
 
   return (
     <div className="stream-messages">
+      {!hasBody && streamStatus && (
+        <p className="stream-status stream-status-active">{streamStatus}</p>
+      )}
+      {!hasBody && !streamStatus && (
+        <p className="stream-status muted">等待 Agent 输出…</p>
+      )}
       {streamLog.map((line, i) => (
         <p className="stream-status muted" key={`${i}-${line.slice(0, 12)}`}>
           {line}
@@ -143,7 +158,26 @@ export function StreamFeed({
           title={step.agent_name}
           body={step.content}
           running={step.status === "running"}
-          streaming={isTyping(step.agent_id)}
+          streaming={
+            isTyping(step.agent_id) ||
+            activeStreamIds.some(
+              (id) => id === `vote-${step.agent_id}` || id.endsWith(`-${step.agent_id}`),
+            )
+          }
+          className={`stream-role-${step.role}`}
+        />
+      ))}
+
+      {debateAgents.map((step) => (
+        <StreamMessage
+          key={`debate-agent-${step.agent_id}`}
+          title={step.agent_name}
+          body={step.content}
+          running={step.status === "running"}
+          streaming={
+            isTyping(step.agent_id) ||
+            activeStreamIds.some((id) => id.match(new RegExp(`-${step.role}$`)))
+          }
           className={`stream-role-${step.role}`}
         />
       ))}

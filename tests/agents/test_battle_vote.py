@@ -2,9 +2,9 @@
 
 import pytest
 
-from invesbao.agents.research.debate import iter_battle_vote_events
-from invesbao.core.schemas import DimensionResult
-from invesbao.utils.llm import MockLLMClient
+from stockresearch.agents.research.debate import iter_battle_vote_events
+from stockresearch.core.schemas import DimensionResult
+from stockresearch.utils.llm import MockLLMClient
 
 
 @pytest.mark.asyncio

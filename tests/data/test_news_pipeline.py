@@ -1,7 +1,7 @@
 """News pipeline tests."""
 
-from invesbao.core.constants import IMPACT_NOISE, SENTIMENT_BULLISH
-from invesbao.data.pipeline.news import (
+from stockresearch.core.constants import IMPACT_NOISE, SENTIMENT_BULLISH
+from stockresearch.data.pipeline.news import (
     content_hash,
     extract_entities,
     score_impact,

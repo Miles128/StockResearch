@@ -2,9 +2,9 @@
 
 import pytest
 
-from invesbao.agents.risk.stream import run_risk_checkup_stream
-from invesbao.db.models import Holding
-from invesbao.utils.llm import MockLLMClient
+from stockresearch.agents.risk.stream import run_risk_checkup_stream
+from stockresearch.db.models import Holding
+from stockresearch.utils.llm import MockLLMClient
 
 
 async def _collect_events(holdings: list[Holding]) -> list[dict[str, object]]:

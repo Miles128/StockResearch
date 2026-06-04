@@ -1,6 +1,6 @@
 """Sina index provider tests."""
 
-from invesbao.data.providers.sina_index import fetch_sina_indices
+from stockresearch.data.providers.sina_index import fetch_sina_indices
 
 
 def test_fetch_sina_indices_realistic_shanghai() -> None:

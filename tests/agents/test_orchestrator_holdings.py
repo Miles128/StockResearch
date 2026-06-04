@@ -3,9 +3,9 @@
 import pytest
 from sqlalchemy.orm import Session
 
-from invesbao.agents.orchestrator.graph import Orchestrator
-from invesbao.db.models import Holding, User
-from invesbao.services.auth import hash_password
+from stockresearch.agents.orchestrator.graph import Orchestrator
+from stockresearch.db.models import Holding, User
+from stockresearch.services.auth import hash_password
 
 
 @pytest.mark.asyncio

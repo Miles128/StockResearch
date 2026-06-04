@@ -9,6 +9,10 @@ __pycache__/
 .DS_Store
 web/node_modules/
 web/dist/
+.wrangler/
+.dev.vars
+web/.env.production
+web/.env.production.local
 *.egg-info/
 dist/
 build/

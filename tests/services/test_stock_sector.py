@@ -2,15 +2,15 @@
 
 import pytest
 
-from invesbao.services import stock_sector as sector_mod
-from invesbao.services.stock_sector import (
+from stockresearch.services import stock_sector as sector_mod
+from stockresearch.services.stock_sector import (
     backfill_holding_sectors,
     fetch_eastmoney_sector,
     normalize_sector,
     resolve_stock_sector,
     sector_from_name,
 )
-from invesbao.db.models import Holding
+from stockresearch.db.models import Holding
 
 
 def test_normalize_sector_maps_baijiu() -> None:

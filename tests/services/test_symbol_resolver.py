@@ -2,8 +2,8 @@
 
 import pytest
 
-from invesbao.core.exceptions import ValidationError
-from invesbao.services.symbol_resolver import resolve_stock_query
+from stockresearch.core.exceptions import ValidationError
+from stockresearch.services.symbol_resolver import resolve_stock_query
 
 
 def test_resolve_by_code() -> None:

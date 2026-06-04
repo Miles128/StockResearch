@@ -1,10 +1,10 @@
 """Judge verdict parsing tests."""
 
-from invesbao.agents.risk.judge import ensure_all_holdings_covered, parse_judge
-from invesbao.agents.risk.stream import _parse_judge
-from invesbao.core.constants import SEVERITY_RED
-from invesbao.core.schemas import RiskAlertOut
-from invesbao.db.models import Holding
+from stockresearch.agents.risk.judge import ensure_all_holdings_covered, parse_judge
+from stockresearch.agents.risk.stream import _parse_judge
+from stockresearch.core.constants import SEVERITY_RED
+from stockresearch.core.schemas import RiskAlertOut
+from stockresearch.db.models import Holding
 
 
 def _holding(symbol: str, name: str) -> Holding:
