@@ -13,6 +13,12 @@ web/dist/
 .dev.vars
 web/.env.production
 web/.env.production.local
+web/.env.production.example
+web/functions/
+web/public/_redirects
+fly.toml
+scripts/deploy-fly-hkg.sh
+.github/workflows/deploy-fly.yml
 *.egg-info/
 dist/
 build/

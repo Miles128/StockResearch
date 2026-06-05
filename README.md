@@ -10,7 +10,6 @@
 
 | 链接 | 地址 |
 |------|------|
-| 在线演示（前端） | [stockresearch-4kx.pages.dev](https://stockresearch-4kx.pages.dev) |
 | 源码仓库 | [github.com/Miles128/StockResearch](https://github.com/Miles128/StockResearch) |
 | 产品 PRD | [docs/PRD.md](docs/PRD.md) |
 
@@ -146,17 +145,6 @@ ruff check src tests
 
 ---
 
-## 部署
-
-| 组件 | 说明 | 文档 |
-|------|------|------|
-| 前端 | Cloudflare Pages | [docs/deploy-cloudflare.md](docs/deploy-cloudflare.md) |
-| 全栈 | Pages + Fly.io 自动部署 | [docs/deploy-auto.md](docs/deploy-auto.md) |
-
-> 请勿在 Cloudflare / Fly 等平台的环境变量中写入 `LLM_API_KEY`。生产环境由用户浏览器 BYOK 传入。
-
----
-
 ## 环境变量
 
 详见 [.env.example](.env.example)。
@@ -166,7 +154,7 @@ ruff check src tests
 | `USE_MOCK_LLM` | `true` 时使用 Mock 回复，便于本地演示 |
 | `USE_MOCK_MARKET_DATA` | `true` 时使用模拟行情数据 |
 | `LLM_BASE_URL` | 服务端默认 Base URL（可为空，优先使用浏览器配置） |
-| `LLM_API_KEY` | 服务端 Key（可选，生产建议留空） |
+| `LLM_API_KEY` | 服务端 Key（可选，本地开发可留空，优先使用浏览器 BYOK） |
 | `LLM_HTTP_PROXY` | HTTP 代理，如 `http://127.0.0.1:7890` |
 
 ---
@@ -192,9 +180,8 @@ StockResearch 在架构与产品形态上参考了以下优秀开源项目，并
 
 ## 文档
 
-- [产品需求文档 PRD v2.1（含路线图）](docs/PRD.md)
-- [项目开发规划](docs/投小宝_项目开发规划.md)
-- [架构说明（旧版归档）](docs/投小宝_PRD_Multi_Agent架构.md)
+- [产品需求文档 PRD v2.2（现行）](docs/PRD.md)
+- [项目开发规划（初版基线）](docs/DEVELOPMENT_PLAN.md)
 
 ---
 

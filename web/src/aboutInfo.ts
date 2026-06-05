@@ -16,7 +16,7 @@ export const ABOUT_INFO = {
     {
       name: "TradingAgents",
       url: "https://github.com/TauricResearch/TradingAgents",
-      note: "多 Agent 辩论与 LangGraph 编排",
+      note: "多 Agent 辩论与分工协作",
     },
     {
       name: "TradingAgents-CN",
@@ -37,11 +37,6 @@ export const ABOUT_INFO = {
       name: "FinRobot",
       url: "https://github.com/AI4Finance-Foundation/FinRobot",
       note: "自动研报与分层架构",
-    },
-    {
-      name: "LangGraph",
-      url: "https://github.com/langchain-ai/langgraph",
-      note: "Agent 工作流编排",
     },
   ] as AboutReference[],
 };

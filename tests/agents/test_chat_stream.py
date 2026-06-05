@@ -54,3 +54,56 @@ async def test_chat_stream_returns_reply(db_session: Session) -> None:
     response = done.get("response")
     assert isinstance(response, dict)
     assert response.get("reply")
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_ambiguous_stock_choice(db_session: Session) -> None:
+    user = User(username="stream-ambig", password_hash=hash_password("password1"))
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    events: list[dict[str, object]] = []
+    async for event in run_chat_stream(
+        db_session,
+        user.id,
+        "帮我分析一下平安",
+        enable_debate=False,
+    ):
+        events.append(event)
+
+    assert events[-1].get("type") == "done"
+    done = events[-1]
+    response = done.get("response")
+    assert isinstance(response, dict)
+    cards = response.get("cards", [])
+    assert isinstance(cards, list)
+    assert any(c.get("type") == "stock_choice" for c in cards)
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_confirmed_symbol_proceeds(db_session: Session) -> None:
+    user = User(username="stream-confirm", password_hash=hash_password("password1"))
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    events: list[dict[str, object]] = []
+    async for event in run_chat_stream(
+        db_session,
+        user.id,
+        "帮我分析一下平安",
+        enable_debate=False,
+        confirmed_symbol="601318",
+        confirmed_name="中国平安",
+    ):
+        events.append(event)
+
+    types = [str(e.get("type")) for e in events]
+    assert types[-1] == "done"
+    done = events[-1]
+    response = done.get("response")
+    assert isinstance(response, dict)
+    cards = response.get("cards", [])
+    assert not any(c.get("type") == "stock_choice" for c in cards)
+    assert any(c.get("type") == "research" for c in cards)

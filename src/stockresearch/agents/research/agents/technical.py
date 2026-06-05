@@ -4,11 +4,11 @@ from stockresearch.agents.research.agents._scoring import as_confidence
 from stockresearch.agents.research.react import DimensionAgent, ResearchTool
 from stockresearch.agents.research.context import ResearchContext
 from stockresearch.agents.voice import AGENT_VOICE
-from stockresearch.core.constants import CONFIDENCE_MEDIUM, DISCLAIMER
+from stockresearch.core.constants import CONFIDENCE_MEDIUM
 from stockresearch.core.schemas import DimensionResult
 from stockresearch.data.providers.market import QuoteProvider, TechnicalDataProvider
 
-_SYSTEM = f"你是 A 股技术分析师。{AGENT_VOICE} 不要给出买入卖出建议。末尾标注：{DISCLAIMER}"
+_SYSTEM = f"你是 A 股技术分析师。{AGENT_VOICE} 不要给出买入卖出建议。"
 
 
 async def _tool_kline(ctx: ResearchContext) -> dict[str, object]:

@@ -11,7 +11,8 @@ from stockresearch.agents.orchestrator.graph import Orchestrator
 from stockresearch.agents.orchestrator.stream import run_chat_stream
 from stockresearch.api.deps import get_current_user
 from stockresearch.api.llm_deps import resolve_llm_client
-from stockresearch.core.schemas import ChatRequest, ChatResponse
+from stockresearch.api.routes.research import extract_reports_from_cards, persist_report
+from stockresearch.core.schemas import ChatRequest, ChatResponse, ResearchReportOut
 from stockresearch.db.models import User
 from stockresearch.db.session import get_db
 
@@ -44,6 +45,8 @@ async def chat(
         payload.session_id,
         payload.analysis_mode,
         enable_debate=payload.enable_debate,
+        confirmed_symbol=payload.confirmed_symbol,
+        confirmed_name=payload.confirmed_name,
     )
 
 
@@ -76,7 +79,16 @@ async def chat_stream(
             llm=llm,
             analysis_mode=payload.analysis_mode,
             enable_debate=payload.enable_debate,
+            confirmed_symbol=payload.confirmed_symbol,
+            confirmed_name=payload.confirmed_name,
         ):
+            if event.get("type") == "done":
+                response = event.get("response")
+                if isinstance(response, dict):
+                    cards = response.get("cards", [])
+                    if isinstance(cards, list):
+                        for report in extract_reports_from_cards(cards):
+                            persist_report(db, user.id, report)
             yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

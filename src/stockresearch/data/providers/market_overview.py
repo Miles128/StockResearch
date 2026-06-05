@@ -9,8 +9,10 @@ import akshare as ak
 from stockresearch.core.config import get_settings
 from stockresearch.core.schemas import IndexQuoteOut, MarketOverviewOut, StockQuoteOut
 from stockresearch.data.providers.market import QuoteProvider
+from stockresearch.data.registry import get_symbol_source
 from stockresearch.services.stock_sector import resolve_stock_sector
 from stockresearch.data.providers.sina_index import fetch_sina_indices
+from stockresearch.data.registry import record_overview_fetch
 from stockresearch.utils.symbols import resolve_name
 
 logger = logging.getLogger(__name__)
@@ -23,13 +25,17 @@ _OVERVIEW_TIMEOUT_SEC = 8.0
 class MarketOverviewProvider:
     async def get_overview(self) -> MarketOverviewOut:
         if get_settings().use_mock_market_data:
-            return self._mock_overview()
+            overview = self._mock_overview()
+            record_overview_fetch(source="mock", degraded=False, message=overview.message)
+            return overview
 
         try:
-            return await asyncio.wait_for(
+            overview = await asyncio.wait_for(
                 asyncio.to_thread(self._fetch_sina_overview),
                 timeout=_OVERVIEW_TIMEOUT_SEC,
             )
+            record_overview_fetch(source="sina", degraded=False)
+            return overview
         except TimeoutError:
             logger.warning("Sina market overview timed out")
         except Exception as exc:
@@ -41,7 +47,7 @@ class MarketOverviewProvider:
                 timeout=_AKSHARE_FALLBACK_TIMEOUT_SEC,
             )
             if overview.indices:
-                return MarketOverviewOut(
+                result = MarketOverviewOut(
                     indices=overview.indices,
                     northbound_net_yi=None,
                     advancers=None,
@@ -51,11 +57,22 @@ class MarketOverviewProvider:
                     message="新浪不可用，已切换 AkShare 指数",
                     updated_at=datetime.now(UTC),
                 )
+                record_overview_fetch(
+                    source="akshare",
+                    degraded=True,
+                    message=result.message,
+                )
+                return result
         except TimeoutError:
             logger.warning("AkShare market overview timed out")
         except Exception as exc:
             logger.warning("AkShare market overview failed: %s", exc)
 
+        record_overview_fetch(
+            source="unavailable",
+            degraded=True,
+            message="行情源暂时不可用，请稍后刷新",
+        )
         return MarketOverviewOut(
             indices=[],
             northbound_net_yi=None,
@@ -150,6 +167,7 @@ class BatchQuoteProvider:
 
         use_mock = get_settings().use_mock_market_data
         results: list[StockQuoteOut] = []
+        quote_source = "mock" if use_mock else "sina"
         sector_symbols = [symbol for symbol in unique if symbol in quote_map]
         sector_values = await asyncio.gather(
             *[
@@ -162,6 +180,7 @@ class BatchQuoteProvider:
             q = quote_map.get(symbol)
             if q is None:
                 continue
+            sym_source = get_symbol_source(symbol) or quote_source
             results.append(
                 StockQuoteOut(
                     symbol=q.symbol,
@@ -172,7 +191,7 @@ class BatchQuoteProvider:
                     low=q.low,
                     volume=q.volume,
                     sector=sectors.get(symbol, "未知"),
-                    source="mock" if use_mock else "live",
+                    source=sym_source,
                 )
             )
         return results

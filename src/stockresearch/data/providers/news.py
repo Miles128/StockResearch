@@ -1,12 +1,16 @@
 """News provider — AkShare for real A-share news, parallel fetch with timeout."""
 
 import asyncio
+import json
 import logging
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from urllib.parse import quote
 
 import akshare as ak
 import httpx
+from curl_cffi import requests as curl_requests
 
 from stockresearch.core.config import get_settings
 from stockresearch.utils.llm import get_llm_client
@@ -90,8 +94,15 @@ class NewsProvider:
             return []
 
     def _fetch_akshare_sync(self, symbol: str, limit: int) -> list[RawNewsItem]:
-        df = ak.stock_news_em(symbol=symbol)
-        items: list[RawNewsItem] = []
+        items = _fetch_em_symbol_news_sync(symbol, limit)
+        if items:
+            return items
+        try:
+            df = ak.stock_news_em(symbol=symbol)
+        except Exception as exc:
+            logger.warning("AkShare stock_news_em failed for %s: %s", symbol, exc)
+            return _fetch_em_global_news_sync(symbol, limit)
+        result: list[RawNewsItem] = []
         for _, row in df.head(limit).iterrows():
             title = str(row.get("新闻标题", "")).strip()
             if not title:
@@ -101,7 +112,7 @@ class NewsProvider:
             url = str(row.get("新闻链接", ""))
             pub_time = row.get("发布时间", "")
             published_at = _parse_datetime(pub_time) if pub_time else datetime.now(UTC)
-            items.append(
+            result.append(
                 RawNewsItem(
                     title=title,
                     content=content[:500],
@@ -110,7 +121,9 @@ class NewsProvider:
                     url=url,
                 )
             )
-        return items
+        if result:
+            return result
+        return _fetch_em_global_news_sync(symbol, limit)
 
     async def _fetch_web_search(self, limit: int) -> list[RawNewsItem]:
         llm = get_llm_client()
@@ -158,6 +171,116 @@ class NewsProvider:
         except Exception as exc:
             logger.warning("Web search news failed: %s", exc)
             return []
+
+
+def _clean_em_news_text(value: object) -> str:
+    text = str(value or "")
+    text = re.sub(r"</?em>", "", text)
+    text = text.replace("\u3000", "").replace("\r\n", " ")
+    return text.strip()
+
+
+def _fetch_em_symbol_news_sync(keyword: str, limit: int) -> list[RawNewsItem]:
+    """Eastmoney search API — avoids broken akshare pyarrow replace on stock_news_em."""
+    if not keyword:
+        return []
+    inner_param = {
+        "uid": "",
+        "keyword": keyword,
+        "type": ["cmsArticleWebOld"],
+        "client": "web",
+        "clientType": "web",
+        "clientVersion": "curr",
+        "param": {
+            "cmsArticleWebOld": {
+                "searchScope": "default",
+                "sort": "default",
+                "pageIndex": 1,
+                "pageSize": max(limit, 10),
+                "preTag": "<em>",
+                "postTag": "</em>",
+            }
+        },
+    }
+    params = {
+        "cb": "jQuery_stockresearch",
+        "param": json.dumps(inner_param, ensure_ascii=False),
+        "_": str(int(datetime.now(UTC).timestamp() * 1000)),
+    }
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36"
+        ),
+        "Referer": f"https://so.eastmoney.com/news/s?keyword={quote(keyword)}",
+    }
+    try:
+        resp = curl_requests.get(
+            "https://search-api-web.eastmoney.com/search/jsonp",
+            params=params,
+            headers=headers,
+            timeout=8.0,
+        )
+        resp.raise_for_status()
+        payload = resp.text
+        start = payload.find("(")
+        end = payload.rfind(")")
+        if start < 0 or end <= start:
+            return []
+        data = json.loads(payload[start + 1 : end])
+        rows = data.get("result", {}).get("cmsArticleWebOld", [])
+    except Exception as exc:
+        logger.warning("Eastmoney symbol news failed for %s: %s", keyword, exc)
+        return []
+
+    items: list[RawNewsItem] = []
+    for row in rows[:limit]:
+        title = _clean_em_news_text(row.get("title"))
+        if not title:
+            continue
+        content = _clean_em_news_text(row.get("content"))
+        source = _clean_em_news_text(row.get("mediaName")) or "东方财富"
+        code = str(row.get("code", "")).strip()
+        url = f"http://finance.eastmoney.com/a/{code}.html" if code else ""
+        published_at = _parse_datetime(row.get("date"))
+        items.append(
+            RawNewsItem(
+                title=title,
+                content=content[:500] or title,
+                source=source,
+                published_at=published_at,
+                url=url,
+            )
+        )
+    return items
+
+
+def _fetch_em_global_news_sync(keyword: str, limit: int) -> list[RawNewsItem]:
+    try:
+        df = ak.stock_info_global_em()
+    except Exception as exc:
+        logger.warning("AkShare global news failed: %s", exc)
+        return []
+    items: list[RawNewsItem] = []
+    for _, row in df.iterrows():
+        title = str(row.get("标题", "")).strip()
+        if not title or keyword not in title:
+            continue
+        summary = str(row.get("摘要", "")).strip()
+        url = str(row.get("链接", "")).strip()
+        published_at = _parse_datetime(row.get("发布时间"))
+        items.append(
+            RawNewsItem(
+                title=title,
+                content=(summary or title)[:500],
+                source="东方财富全球",
+                published_at=published_at,
+                url=url,
+            )
+        )
+        if len(items) >= limit:
+            break
+    return items
 
 
 def _parse_datetime(value: object) -> datetime:

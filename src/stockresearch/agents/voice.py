@@ -6,8 +6,9 @@ AGENT_VOICE = (
 )
 
 DEBATE_VOICE = (
-    "每轮 4～6 句话，投研辩论口径：援引数据，回应对方论点，表述严谨。"
-    "禁止 markdown 与空泛表述。不要建议买卖。"
+    "每轮严格两段：先写一行【摘要】1～2 句核心论点；"
+    "再写【详述】2～4 句关键论据（援引数据、回应对方，禁止空话复述）。"
+    "禁止 markdown。不要建议买卖。"
 )
 
 JUDGE_VOICE = (
@@ -15,7 +16,7 @@ JUDGE_VOICE = (
     "不要建议买卖。"
 )
 
-DEBATE_UTTERANCE_MAX = 280
+DEBATE_UTTERANCE_MAX = 220
 JUDGE_FIELD_MAX = 180
 
 DEBATE_ROUNDS = 3

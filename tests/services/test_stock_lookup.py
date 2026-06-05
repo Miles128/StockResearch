@@ -67,3 +67,12 @@ async def test_lookup_empty_raises() -> None:
 async def test_lookup_not_found() -> None:
     result = await lookup_stock("不存在的企业集团")
     assert result.status == "not_found"
+
+
+@pytest.mark.asyncio
+async def test_lookup_pingan_ambiguous() -> None:
+    result = await lookup_stock("平安")
+    assert result.status == "ambiguous"
+    assert len(result.candidates) >= 2
+    symbols = {c.symbol for c in result.candidates}
+    assert "601318" in symbols or "000001" in symbols

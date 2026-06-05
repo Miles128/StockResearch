@@ -2,9 +2,22 @@
 
 import pytest
 
-from stockresearch.agents.research.debate import run_debate
+from stockresearch.agents.research.debate import _format_debate_utterance, run_debate
 from stockresearch.core.schemas import DimensionResult
 from stockresearch.utils.llm import MockLLMClient
+
+
+def test_format_debate_utterance_adds_summary_marker() -> None:
+    formatted = _format_debate_utterance("估值合理，盈利稳健。但增速放缓需关注。")
+    assert "【摘要】" in formatted
+    assert "【详述】" in formatted
+
+
+def test_format_debate_utterance_does_not_truncate_long_text() -> None:
+    long_body = "第一句论点。" + "补充论据。" * 80
+    formatted = _format_debate_utterance(long_body)
+    assert "…" not in formatted
+    assert len(formatted) > 220
 
 
 @pytest.mark.asyncio

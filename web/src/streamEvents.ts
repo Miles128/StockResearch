@@ -1,4 +1,10 @@
 import type { AgentStreamEvent } from "./api";
+import { stripDisclaimer } from "./disclaimerText";
+import {
+  detectDimensionSet,
+  isDimensionAgent,
+  seedDimensionSteps,
+} from "./dimensionStream";
 import type { AgentStep, DebateRound, JudgeVerdict, HoldingAction } from "./StreamFeed";
 
 export interface VoteTally {
@@ -159,7 +165,15 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent): St
 
   if (event.type === "status" && event.message) {
     streamStatus = event.message;
-    if (streamLog[streamLog.length - 1] !== event.message) {
+    if (event.message.includes("四维")) {
+      const defs = detectDimensionSet(agentSteps, event.message);
+      agentSteps = seedDimensionSteps(agentSteps, defs);
+    }
+    const skipLog =
+      event.message.includes("四维") ||
+      event.message.includes("作战情") ||
+      event.message.includes("Battle");
+    if (!skipLog && streamLog[streamLog.length - 1] !== event.message) {
       streamLog = [...streamLog, event.message];
     }
   }
@@ -188,10 +202,17 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent): St
   }
 
   if (event.type === "agent_start" && event.agent_id && event.agent_name && event.role) {
-    const startLine = `▶ ${event.agent_name} 开始`;
-    if (streamLog[streamLog.length - 1] !== startLine) {
-      streamLog = [...streamLog, startLine];
+    const dimensionAgent = isDimensionAgent(event.agent_id);
+    if (!dimensionAgent) {
+      const startLine = `▶ ${event.agent_name} 开始`;
+      if (streamLog[streamLog.length - 1] !== startLine) {
+        streamLog = [...streamLog, startLine];
+      }
+    } else {
+      const defs = detectDimensionSet(agentSteps, streamStatus);
+      agentSteps = seedDimensionSteps(agentSteps, defs);
     }
+    const existing = agentSteps.find((s) => s.agent_id === event.agent_id);
     agentSteps = [
       ...agentSteps.filter((s) => s.agent_id !== event.agent_id),
       {
@@ -199,21 +220,28 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent): St
         agent_name: event.agent_name,
         role: event.role,
         status: "running",
-        content: "",
+        content: existing?.content ?? "",
       },
     ];
   }
 
   if (event.type === "agent_done" && event.agent_id) {
-    const doneName =
-      agentSteps.find((s) => s.agent_id === event.agent_id)?.agent_name ?? event.agent_id;
-    const doneLine = `✓ ${doneName} 完成`;
-    if (streamLog[streamLog.length - 1] !== doneLine) {
-      streamLog = [...streamLog, doneLine];
+    const dimensionAgent = isDimensionAgent(event.agent_id);
+    if (!dimensionAgent) {
+      const doneName =
+        agentSteps.find((s) => s.agent_id === event.agent_id)?.agent_name ?? event.agent_id;
+      const doneLine = `✓ ${doneName} 完成`;
+      if (streamLog[streamLog.length - 1] !== doneLine) {
+        streamLog = [...streamLog, doneLine];
+      }
     }
     agentSteps = agentSteps.map((s) =>
       s.agent_id === event.agent_id
-        ? { ...s, status: "done", content: event.content ?? s.content ?? "" }
+        ? {
+            ...s,
+            status: "done",
+            content: stripDisclaimer(String(event.content ?? s.content ?? "")),
+          }
         : s,
     );
     activeStreamIds = deactivateAgentStream(activeStreamIds, event.agent_id, event.role);
@@ -228,11 +256,17 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent): St
       ...debateRounds.filter((r) => r.round !== event.round),
       {
         round: event.round,
-        bull: event.bull,
-        bear: event.bear,
-        aggressive: event.aggressive,
-        neutral: event.neutral_view,
-        conservative: event.conservative,
+        bull: event.bull ? stripDisclaimer(String(event.bull)) : event.bull,
+        bear: event.bear ? stripDisclaimer(String(event.bear)) : event.bear,
+        aggressive: event.aggressive
+          ? stripDisclaimer(String(event.aggressive))
+          : event.aggressive,
+        neutral: event.neutral_view
+          ? stripDisclaimer(String(event.neutral_view))
+          : event.neutral_view,
+        conservative: event.conservative
+          ? stripDisclaimer(String(event.conservative))
+          : event.conservative,
       },
     ];
   }
@@ -269,8 +303,12 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent): St
     judgeVerdict = {
       risk_level: event.risk_level ?? biasLabel,
       position_action: event.position_action,
-      summary: event.summary ?? event.content ?? judgeVerdict?.summary ?? "",
-      reason: event.reason ?? event.summary ?? judgeVerdict?.reason ?? "",
+      summary: stripDisclaimer(
+        String(event.summary ?? event.content ?? judgeVerdict?.summary ?? ""),
+      ),
+      reason: stripDisclaimer(
+        String(event.reason ?? event.summary ?? judgeVerdict?.reason ?? ""),
+      ),
       divergence: event.divergence,
       verdict: event.verdict,
       content: event.content,

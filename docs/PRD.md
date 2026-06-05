@@ -1,7 +1,7 @@
 # StockResearch 产品需求文档（PRD）
 
-> **版本 V2.1** · 2026-06-05  
-> **状态**：Phase 1 MVP 已交付 · Phase 1.5 规划中  
+> **版本 V2.3** · 2026-06-05  
+> **状态**：Phase 1 已交付 · Phase 1.5 进行中（部分项已落地）  
 > **仓库**：[github.com/Miles128/StockResearch](https://github.com/Miles128/StockResearch)
 
 ---
@@ -52,7 +52,13 @@
 | F-09 | BYOK 大模型 | ✅ | 浏览器配置；DashScope URL 自动补全 |
 | F-10 | 中英界面 + 主题 | ✅ | localStorage 持久化 |
 | F-11 | 移动端窄屏布局 | ✅ | 文字 Tab 横排；对话区满屏 |
-| F-12 | Cloudflare Pages | ✅ | 前端在线演示 |
+| F-12 | 生产部署 | ⏳ | 待定（短期仅本地/Docker 开发） |
+| F-13 | 投研历史 + Markdown 导出 | ✅ | 流式投研落库；设置页可导出 |
+| F-14 | 数据源降级可视化 | ✅ | `/market/data-status`；顶栏展示行情源 |
+| F-15 | 股票歧义确认 | ✅ | 低置信度时卡片点选后再分析 |
+| F-16 | Tushare Pro（可选） | ✅ | 设置 → 数据源；BYOT；AkShare 失败时补估值 |
+| F-17 | 设置页 F5 + 分页 | ✅ | 通用/数据源/大模型/分析/报告/关于 |
+| F-18 | 真实雪球/东财情绪 | ✅ | 替换伪热度；东财新闻 API 直连 |
 
 ### 2.1 分析模式（V2.0 起）
 
@@ -60,8 +66,14 @@
 
 | 多空辩论 | 股票/市场类问题 | 其他问题 |
 |----------|-----------------|----------|
-| 开启 | 四维投研 + 辩论 + 裁判 | 直接回答 / Plan-Execute |
+| 开启 | 四维投研 + 三轮多空 + 投票 + Research Manager + 裁判总结 | 直接回答 / Plan-Execute |
 | 关闭 | 四维投研（无辩论） | 直接回答 / Plan-Execute |
+
+### 2.2 投研流式呈现（V2.2）
+
+- 四维各一卡片（开始/完成/正文），辩论须等四维全部完成
+- 辩论轮次支持「展开详述」展示全文（不再 220 字截断）
+- 免责声明：顶栏小字常驻；研究轮次结束一次展示；子 Agent 正文内剥离
 
 ---
 
@@ -80,7 +92,7 @@ LangGraph Orchestrator
   ├── risk
   └── direct (ReAct chat)
         │
-Data Layer (行情 · 新闻 · 缓存)
+Data Layer (行情 · 新闻 · 情绪 · 可选 Tushare)
 ```
 
 ### 技术栈
@@ -91,8 +103,11 @@ Data Layer (行情 · 新闻 · 缓存)
 | 后端 | FastAPI, SQLAlchemy |
 | Agent | LangGraph, 自研 ReAct |
 | 存储 | SQLite |
+| 行情 | 新浪 → AkShare 降级 |
+| 新闻/情绪 | AkShare、东财搜索 API、雪球热榜 |
+| 可选数据 | Tushare Pro（用户 Token，BYOT） |
 | LLM | OpenAI 兼容 API（BYOK） |
-| 部署 | Cloudflare Pages + Fly.io（后端待稳定） |
+| 部署 | **待定**（短期不部署；本地 `uvicorn` + `npm run dev`） |
 
 ---
 
@@ -168,17 +183,20 @@ Data Layer (行情 · 新闻 · 缓存)
 
 ## 五、未来开发路线图
 
-### Phase 1.5 — 稳定性与可信度（预计 1–2 周）
+### Phase 1.5 — 稳定性与可信度（进行中）
 
-> 目标：降低生产环境失败率，提升投研输出可解析性。
+> 目标：降低生产环境失败率，提升投研输出可解析性与数据可信度。
 
-| ID | 需求 | 验收标准 | 参考项目 |
-|----|------|----------|----------|
-| P1.5-1 | 结构化 Agent 输出 | 辩论/裁判/维度评分使用 Pydantic Schema；消除正则抽立场 | TradingAgents v0.2.4 |
-| P1.5-2 | 数据 Provider 抽象 | 统一接口；新浪 → 备用源自动降级；前端展示当前数据源 | Vibe-Trading |
-| P1.5-3 | 后端生产部署 | Fly / 阿里云轻量等稳定 API；与 Pages 前端联调 | — |
-| P1.5-4 | Token 成本可见 | 单次投研估算 token/费用；可选预算上限 | TradingAgents `--budget-cap` |
-| P1.5-5 | E2E 冒烟测试 | 对话投研/辩论/风控核心路径 CI 覆盖 | — |
+| ID | 需求 | 状态 | 验收标准 |
+|----|------|------|----------|
+| P1.5-1 | 结构化 Agent 输出 | ✅ | 裁判/投票 Pydantic；`ResearchJudgeOut` 等 |
+| P1.5-2 | 数据 Provider 抽象 | ✅ | 行情降级链、`data-status` API、顶栏徽章 |
+| P1.5-3 | 情绪/新闻真实采集 | ✅ | 雪球热榜 + 东财新闻；去除伪热度下限 |
+| P1.5-4 | Tushare 可选接入 | ✅ | 设置页 Token；请求头透传；估值降级 |
+| P1.5-5 | 投研落库与导出 | ✅ | 历史列表 + Markdown 导出 |
+| P1.5-6 | 生产部署 | ⏳ | 待定 |
+| P1.5-7 | Token 成本可见 | ⏳ | 单次投研 token/费用估算 |
+| P1.5-8 | E2E 冒烟 CI | 🔄 | 核心路径自动化（当前 pytest 136） |
 
 ### Phase 2 — 体验深化（预计 1–2 月）
 
@@ -186,7 +204,7 @@ Data Layer (行情 · 新闻 · 缓存)
 
 | ID | 需求 | 验收标准 | 参考项目 |
 |----|------|----------|----------|
-| P2-1 | 投研报告导出 | 一键导出 Markdown/PDF（含辩论 transcript） | FinRobot |
+| P2-1 | 投研报告导出 | Markdown ✅；PDF 待做 | FinRobot |
 | P2-2 | LangGraph Checkpoint | 长任务中断后可从最近节点恢复 | TradingAgents |
 | P2-3 | 决策记忆 + Reflect | 历史投研日志；事后反思写入可检索记忆 | TradingAgents BM25 |
 | P2-4 | 信号回测摘要 | 裁判偏多/偏空信号 N 日 forward return 统计（非荐股） | Vibe-Trading |
@@ -220,7 +238,7 @@ Data Layer (行情 · 新闻 · 缓存)
 |------|------|------|
 | 性能 | 快讯 feed ≤ 3s | ✅ |
 | 性能 | 投研流式首字节 < 5s（依赖 LLM） | 待量化 |
-| 可靠性 | 核心 pytest 通过 | ✅ 113 cases |
+| 可靠性 | 核心 pytest 通过 | ✅ 136 cases |
 | 安全 | API Key 不落库 | ✅ |
 | 合规 | 全输出含免责声明 | ✅ |
 | 可用性 | 窄屏对话区可用 | ✅ |
@@ -230,7 +248,7 @@ Data Layer (行情 · 新闻 · 缓存)
 
 ## 七、合规与安全
 
-1. 所有面向用户的 AI 输出必须包含：**「以上内容由 AI 生成，仅供参考，不构成投资建议。」**
+1. 研究类对话轮次结束须展示：**「以下内容由 AI 生成，仅供参考，不构成投资建议。」**（顶栏小字常驻；子流程正文内不重复）
 2. 禁止输出「建议买入/卖出」「目标价」「建仓比例」等指令性表述。
 3. API Key 仅存用户浏览器 `localStorage`，经 HTTP 头传递，服务端不写入数据库。
 4. 日志与错误信息禁止打印完整 Key。
@@ -263,13 +281,24 @@ Data Layer (行情 · 新闻 · 缓存)
 | 大盘投研 | `src/stockresearch/agents/market/research_stream.py` |
 | 新闻过滤 | `src/stockresearch/agents/news/filter.py` |
 | LLM 配置 | `src/stockresearch/core/llm_config.py` |
-| 前端 | `web/src/App.tsx`、`analysisSettings.ts`、`i18n.tsx` |
+| 前端 | `web/src/App.tsx`、`SettingsPanel.tsx`、`streamEvents.ts` |
+| 数据源 | `data/providers/market.py`、`news.py`、`tushare_financial.py` |
+| 初版规划 | `docs/DEVELOPMENT_PLAN.md`（基线，不随迭代改写） |
 
-### 9.2 修订记录
+### 9.2 文档索引
+
+| 文档 | 用途 |
+|------|------|
+| [PRD.md](./PRD.md) | **现行**产品需求与路线图（本文档） |
+| [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md) | **初版**工程规划基线（2026-05-27） |
+
+### 9.3 修订记录
 
 | 版本 | 日期 | 摘要 |
 |------|------|------|
 | V1.0 | 2026-05-27 | 初版 PRD |
 | V1.1 | 2026-05-27 | 四维 ReAct 拆分 |
 | V2.0 | 2026-06-05 | 多空辩论设置、移动布局、路线图 |
-| V2.1 | 2026-06-05 | 扩充开源对标章节；路线图与验收标准细化；README 同步 |
+| V2.1 | 2026-06-05 | 开源对标与路线图细化 |
+| V2.2 | 2026-06-05 | 对齐现网：Phase 1.5 进展、Tushare、设置 F5、文档收敛为两份 |
+| V2.3 | 2026-06-05 | 部署待定；全局指数 Ticker、对话空状态、持仓摘要、新闻分组/板块、风控引导 |

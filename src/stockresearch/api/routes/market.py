@@ -4,7 +4,10 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from stockresearch.api.deps import get_current_user
-from stockresearch.core.schemas import MarketOverviewOut, StockQuoteOut
+from stockresearch.core.config import get_settings
+from stockresearch.core.data_source_config import get_tushare_token
+from stockresearch.core.schemas import DataSourceStatusOut, MarketOverviewOut, ProviderStatusOut, StockQuoteOut
+from stockresearch.data.registry import get_snapshots
 from stockresearch.data.providers.market_overview import BatchQuoteProvider, MarketOverviewProvider
 from stockresearch.db.models import Holding, User
 from stockresearch.db.session import get_db
@@ -32,3 +35,49 @@ async def stock_quotes(
     if not symbol_list:
         return []
     return await BatchQuoteProvider().get_quotes(symbol_list)
+
+
+@router.get("/data-status", response_model=DataSourceStatusOut)
+async def data_source_status(
+    _user: User = Depends(get_current_user),
+) -> DataSourceStatusOut:
+    snapshots = get_snapshots()
+    quotes = snapshots.get("quotes")
+    overview = snapshots.get("overview")
+    return DataSourceStatusOut(
+        quotes=ProviderStatusOut(
+            domain=quotes.domain,
+            primary=quotes.primary,
+            fallback=quotes.fallback,
+            primary_count=quotes.primary_count,
+            fallback_count=quotes.fallback_count,
+            degraded=quotes.degraded,
+            message=quotes.message,
+            updated_at=quotes.updated_at,
+        )
+        if quotes
+        else None,
+        overview=ProviderStatusOut(
+            domain=overview.domain,
+            primary=overview.primary,
+            fallback=overview.fallback,
+            primary_count=overview.primary_count,
+            fallback_count=overview.fallback_count,
+            degraded=overview.degraded,
+            message=overview.message,
+            updated_at=overview.updated_at,
+        )
+        if overview
+        else None,
+        use_mock=get_settings().use_mock_market_data,
+        tushare_configured=bool(get_tushare_token()),
+        tushare_available=_tushare_runtime_available(),
+    )
+
+
+def _tushare_runtime_available() -> bool:
+    try:
+        import tushare  # noqa: F401
+    except ImportError:
+        return False
+    return True

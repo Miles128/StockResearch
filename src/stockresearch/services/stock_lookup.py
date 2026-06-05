@@ -31,7 +31,10 @@ _LLM_LOOKUP_SYSTEM = """你是 A 股股票识别助手。根据用户输入匹�
 {"status":"confirmed","symbol":"600519","name":"贵州茅台"}
 或 {"status":"ambiguous","candidates":[{"symbol":"601318","name":"中国平安"},{"symbol":"000001","name":"平安银行"}]}
 或 {"status":"not_found"}
-规则：非常确定才 confirmed；多只合理可能必须 ambiguous；无法识别 not found。"""
+规则：
+- 只有非常确定才用 confirmed
+- 置信度不足、存在近义候选、或有两只以上合理可能 → 必须 ambiguous，在 candidates 列出 1–4 只（含你最倾向的）
+- 无法识别 → not_found"""
 
 
 @dataclass(frozen=True)
@@ -72,14 +75,6 @@ def _local_search(query: str) -> list[StockCandidate]:
     if re.fullmatch(r"\d{6}", cleaned):
         return [StockCandidate(cleaned, _name_for(cleaned, cleaned))]
 
-    if cleaned in NAME_TO_SYMBOL:
-        symbol = NAME_TO_SYMBOL[cleaned]
-        return [StockCandidate(symbol, _name_for(symbol, cleaned))]
-
-    if cleaned in STOCK_ALIASES:
-        symbol = STOCK_ALIASES[cleaned]
-        return [StockCandidate(symbol, _name_for(symbol, cleaned))]
-
     results: list[StockCandidate] = []
     seen: set[str] = set()
 
@@ -89,12 +84,16 @@ def _local_search(query: str) -> list[StockCandidate]:
         seen.add(symbol)
         results.append(StockCandidate(symbol, name))
 
+    if cleaned in NAME_TO_SYMBOL:
+        symbol = NAME_TO_SYMBOL[cleaned]
+        add(symbol, _name_for(symbol, cleaned))
+
     for name, symbol in NAME_TO_SYMBOL.items():
         if cleaned in name or name in cleaned:
             add(symbol, name)
 
     for alias, symbol in STOCK_ALIASES.items():
-        if cleaned in alias or alias in cleaned:
+        if cleaned == alias or cleaned in alias or alias in cleaned:
             add(symbol, _name_for(symbol, alias))
 
     return results

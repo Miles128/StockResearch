@@ -9,8 +9,12 @@ import akshare as ak
 
 from stockresearch.core.config import get_settings
 from stockresearch.core.exceptions import DataProviderError
+from stockresearch.data.cache import get_cached
 from stockresearch.data.providers.akshare_quote import fetch_akshare_hist_quotes
+from stockresearch.data.providers.news import _fetch_em_symbol_news_sync
 from stockresearch.data.providers.sina_quote import fetch_sina_quotes
+from stockresearch.data.providers.tushare_financial import fetch_daily_basic_sync
+from stockresearch.data.registry import record_quote_fetch, record_symbol_sources
 from stockresearch.utils.symbols import resolve_name
 
 logger = logging.getLogger(__name__)
@@ -66,10 +70,12 @@ class QuoteProvider:
         sina_error: str | None = None
 
         try:
-            raw = await asyncio.wait_for(
+            sina_rows = await asyncio.wait_for(
                 asyncio.to_thread(fetch_sina_quotes, symbols),
                 timeout=_QUOTE_TIMEOUT_SEC,
             )
+            for sym, row in sina_rows.items():
+                raw[sym] = {**row, "_source": "sina"}
         except TimeoutError:
             sina_error = "新浪行情请求超时"
             logger.warning(sina_error)
@@ -78,14 +84,17 @@ class QuoteProvider:
             logger.warning("Sina batch quote failed: %s", exc)
 
         missing = [sym for sym in symbols if sym not in raw]
+        ak_count = 0
         if missing:
             try:
                 ak_rows = await asyncio.wait_for(
                     asyncio.to_thread(fetch_akshare_hist_quotes, missing),
                     timeout=max(_QUOTE_TIMEOUT_SEC, 12.0),
                 )
-                raw.update(ak_rows)
-                logger.info("AkShare hist fallback filled %d symbols", len(ak_rows))
+                for sym, row in ak_rows.items():
+                    raw[sym] = {**row, "_source": "akshare"}
+                ak_count = len(ak_rows)
+                logger.info("AkShare hist fallback filled %d symbols", ak_count)
             except Exception as exc:
                 logger.warning("AkShare hist quote fallback failed: %s", exc)
                 if not raw:
@@ -96,6 +105,17 @@ class QuoteProvider:
 
         if not raw:
             raise DataProviderError(sina_error or "行情数据不可用")
+
+        sina_count = sum(1 for sym in symbols if sym in raw and raw[sym].get("_source") == "sina")
+        record_quote_fetch(
+            requested=len(symbols),
+            sina_count=sina_count,
+            akshare_count=ak_count,
+            message=sina_error,
+        )
+        record_symbol_sources(
+            {sym: str(raw[sym].get("_source", "sina")) for sym in symbols if sym in raw}
+        )
         return raw
 
     @staticmethod
@@ -189,6 +209,15 @@ class FinancialDataProvider:
             return {"pe_ttm": pe_ttm, "pe_percentile": 0.5}
         except Exception as exc:
             logger.warning("AkShare valuation failed for %s: %s", symbol, exc)
+            tushare = await asyncio.to_thread(fetch_daily_basic_sync, symbol)
+            if tushare:
+                pe = float(tushare.get("pe_ttm", 20.0))
+                return {
+                    "pe_ttm": pe,
+                    "pe_percentile": 0.5,
+                    "pb": float(tushare.get("pb", 0)),
+                    "source": str(tushare.get("source", "tushare")),
+                }
             return {"pe_ttm": 20.0, "pe_percentile": 0.5}
 
     async def get_industry_peers(self, symbol: str) -> list[str]:
@@ -259,6 +288,106 @@ class TechnicalDataProvider:
         return {"macd": round(macd, 4), "rsi": round(rsi, 2)}
 
 
+def _xueqiu_market_code(symbol: str) -> str:
+    if symbol.startswith(("4", "8")):
+        return f"BJ{symbol}"
+    if symbol.startswith("6"):
+        return f"SH{symbol}"
+    return f"SZ{symbol}"
+
+
+def _lookup_xueqiu_row(df, code: str, name: str):
+    if df is None or df.empty or "股票代码" not in df.columns:
+        return None
+    matches = df[df["股票代码"].astype(str) == code]
+    if matches.empty and name:
+        matches = df[df["股票简称"].astype(str) == name]
+    if matches.empty:
+        return None
+    return matches.iloc[0]
+
+
+def _fetch_xueqiu_hot_sync(symbol: str, name: str) -> dict[str, float | int | str | bool]:
+    """Real Xueqiu + Eastmoney sentiment metrics (no fake minimum heat)."""
+    result: dict[str, float | int | str | bool] = {
+        "heat_score": 0,
+        "post_count": 0,
+        "bull_ratio": 0.5,
+        "follow_count": 0,
+        "attention_index": 0.0,
+        "source": "unavailable",
+        "available": False,
+    }
+    sources: list[str] = []
+    code = _xueqiu_market_code(symbol)
+
+    try:
+        score_df = ak.stock_comment_detail_zhpj_lspf_em(symbol=symbol)
+        if not score_df.empty:
+            latest_score = float(score_df.iloc[-1]["评分"])
+            result["heat_score"] = min(100, max(1, round(latest_score)))
+            sources.append("em_score")
+    except Exception as exc:
+        logger.warning("EM sentiment score failed for %s: %s", symbol, exc)
+
+    try:
+        desire_df = ak.stock_comment_detail_scrd_desire_em(symbol=symbol)
+        if not desire_df.empty:
+            desire = float(desire_df.iloc[-1]["参与意愿"])
+            result["bull_ratio"] = round(max(0.15, min(0.85, desire / 100)), 2)
+            sources.append("em_desire")
+    except Exception as exc:
+        logger.warning("EM participation desire failed for %s: %s", symbol, exc)
+
+    try:
+        comment_df = ak.stock_comment_em()
+        row = comment_df[comment_df["代码"].astype(str) == symbol]
+        if not row.empty:
+            attention = float(row.iloc[0]["关注指数"])
+            result["attention_index"] = attention
+            if int(result["heat_score"]) == 0:
+                result["heat_score"] = min(100, max(1, round(attention)))
+            sources.append("em_attention")
+    except Exception as exc:
+        logger.warning("EM stock comment list failed for %s: %s", symbol, exc)
+
+    try:
+        df_deal = get_cached("xq_hot_deal", 900.0, ak.stock_hot_deal_xq)
+        deal_row = _lookup_xueqiu_row(df_deal, code, name)
+        if deal_row is not None:
+            result["post_count"] = int(float(deal_row["关注"]))
+            rank = int(deal_row.name) + 1
+            xq_heat = min(100, max(5, round(100 - (rank / max(len(df_deal), 1)) * 95)))
+            if int(result["heat_score"]) == 0:
+                result["heat_score"] = xq_heat
+            sources.append("xueqiu_deal")
+    except Exception as exc:
+        logger.warning("Xueqiu deal hot failed for %s: %s", symbol, exc)
+
+    try:
+        df_tweet = get_cached("xq_hot_tweet", 900.0, ak.stock_hot_tweet_xq)
+        tweet_row = _lookup_xueqiu_row(df_tweet, code, name)
+        if tweet_row is not None:
+            result["tweet_heat"] = int(float(tweet_row["关注"]))
+            sources.append("xueqiu_tweet")
+    except Exception as exc:
+        logger.warning("Xueqiu tweet hot failed for %s: %s", symbol, exc)
+
+    try:
+        df_follow = get_cached("xq_hot_follow", 900.0, ak.stock_hot_follow_xq)
+        follow_row = _lookup_xueqiu_row(df_follow, code, name)
+        if follow_row is not None:
+            result["follow_count"] = int(float(follow_row["关注"]))
+            sources.append("xueqiu_follow")
+    except Exception as exc:
+        logger.warning("Xueqiu follow hot failed for %s: %s", symbol, exc)
+
+    if sources:
+        result["source"] = "+".join(sources)
+        result["available"] = True
+    return result
+
+
 class SentimentDataProvider:
     async def get_symbol_news(self, symbol: str, name: str, limit: int = 8) -> list[dict[str, str]]:
         if get_settings().use_mock_market_data:
@@ -269,10 +398,25 @@ class SentimentDataProvider:
         from stockresearch.data.providers.news import NewsProvider
 
         provider = NewsProvider()
-        query = name or symbol
-        items = await provider._fetch_akshare_symbol(query, limit)
-        if not items and name != symbol:
-            items = await provider._fetch_akshare_symbol(symbol, limit)
+        queries: list[str] = []
+        for query in (name, symbol):
+            if query and query not in queries:
+                queries.append(query)
+        items = []
+        for query in queries:
+            batch = await provider._fetch_akshare_symbol(query, limit)
+            if batch:
+                items = batch
+                break
+        if not items:
+            try:
+                raw = await asyncio.wait_for(
+                    asyncio.to_thread(_fetch_em_symbol_news_sync, name or symbol, limit),
+                    timeout=_DATA_TIMEOUT_SEC,
+                )
+                items = raw
+            except Exception as exc:
+                logger.warning("Direct EM news failed for %s: %s", symbol, exc)
         return [{"title": item.title, "source": item.source} for item in items[:limit]]
 
     def score_titles(self, titles: list[str]) -> float:
@@ -286,16 +430,33 @@ class SentimentDataProvider:
                 score -= 1.0
         return max(-1.0, min(1.0, score / max(len(titles), 1)))
 
-    async def get_xueqiu_hot(self, symbol: str, name: str = "") -> dict[str, float | int]:
-        news = await self.get_symbol_news(symbol, name)
-        sentiment = self.score_titles([item["title"] for item in news])
-        heat = min(100, max(10, len(news) * 12))
-        bull_ratio = max(0.2, min(0.8, 0.5 + sentiment * 0.25))
-        return {
-            "heat_score": heat,
-            "post_count": len(news),
-            "bull_ratio": round(bull_ratio, 2),
-        }
+    async def get_xueqiu_hot(self, symbol: str, name: str = "") -> dict[str, float | int | str | bool]:
+        if get_settings().use_mock_market_data:
+            return {
+                "heat_score": 72,
+                "post_count": 128,
+                "bull_ratio": 0.58,
+                "follow_count": 101463,
+                "attention_index": 94.0,
+                "source": "mock",
+                "available": True,
+            }
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(_fetch_xueqiu_hot_sync, symbol, name or resolve_name(symbol)),
+                timeout=_DATA_TIMEOUT_SEC * 3,
+            )
+        except Exception as exc:
+            logger.warning("Xueqiu hot fetch failed for %s: %s", symbol, exc)
+            return {
+                "heat_score": 0,
+                "post_count": 0,
+                "bull_ratio": 0.5,
+                "follow_count": 0,
+                "attention_index": 0.0,
+                "source": "unavailable",
+                "available": False,
+            }
 
     async def get_news_sentiment_score(self, symbol: str, name: str = "") -> float:
         news = await self.get_symbol_news(symbol, name)

@@ -300,10 +300,24 @@ class ChatRequest(BaseModel):
     llm: LlmUserSettings | None = None
     analysis_mode: Literal["simple", "complex"] | None = None
     enable_debate: bool | None = None
+    confirmed_symbol: str | None = Field(
+        default=None, min_length=6, max_length=6, pattern=r"^\d{6}$"
+    )
+    confirmed_name: str | None = Field(default=None, min_length=1, max_length=50)
 
 
 class CardPayload(BaseModel):
-    type: Literal["news", "research", "risk", "text", "market", "debate", "plan", "financial"]
+    type: Literal[
+        "news",
+        "research",
+        "risk",
+        "text",
+        "market",
+        "debate",
+        "plan",
+        "financial",
+        "stock_choice",
+    ]
     data: dict[str, object]
 
 
@@ -335,6 +349,36 @@ class MarketOverviewOut(BaseModel):
     data_status: Literal["live", "mock", "unavailable"] = "live"
     message: str | None = None
     updated_at: datetime
+
+
+class ProviderStatusOut(BaseModel):
+    domain: str
+    primary: str
+    fallback: str | None = None
+    primary_count: int = 0
+    fallback_count: int = 0
+    degraded: bool = False
+    message: str | None = None
+    updated_at: datetime | None = None
+
+
+class DataSourceStatusOut(BaseModel):
+    quotes: ProviderStatusOut | None = None
+    overview: ProviderStatusOut | None = None
+    use_mock: bool = False
+    tushare_configured: bool = False
+    tushare_available: bool = False
+
+
+class ResearchReportListItem(BaseModel):
+    id: int
+    symbol: str
+    name: str
+    composite_score: float
+    bias: str
+    summary: str
+    has_debate: bool
+    created_at: datetime
 
 
 class ChatResponse(BaseModel):
