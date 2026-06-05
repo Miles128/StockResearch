@@ -4,7 +4,7 @@
 > **定位**：单用户、本机运行、长期开源 MVP  
 > **状态**：Phase 1 / 1.5 已交付 · Phase 2 待启动  
 > **仓库**：[github.com/Miles128/StockResearch](https://github.com/Miles128/StockResearch)  
-> **English README**：[README.en.md](../README.en.md)
+> **README**：中英双语 [README.md](../README.md)（[中文](../README.md#中文) · [English](../README.md#english)）
 
 ---
 
@@ -236,8 +236,8 @@ src/stockresearch/
 |------|------|
 | [PRD.md](./PRD.md) | 本文档（现行） |
 | [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md) | 初版工程基线（历史参考） |
-| [README.md](../README.md) | 中文说明 |
-| [README.en.md](../README.en.md) | English readme |
+| [README.md](../README.md) | 中英双语说明（GitHub 主页面） |
+| [README.en.md](../README.en.md) | 英文区跳转页 |
 
 ### 修订记录
 
