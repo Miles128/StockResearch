@@ -216,8 +216,16 @@ body {
   flex-shrink: 0;
 }
 
+.chrome-usage {
+  font-size: 11.5px;
+  color: var(--bbg-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .terminal-clock {
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .terminal-source {
@@ -453,7 +461,7 @@ body {
 
 .ticker-price {
   font-family: var(--font-mono);
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   margin-top: 2px;
   font-variant-numeric: tabular-nums;
@@ -1450,6 +1458,20 @@ input:focus {
 
 .disclaimer, .muted { color: var(--bbg-muted); font-size: 12.5px; letter-spacing: 0.02em; }
 
+.turn-usage {
+  margin: 4px 0 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.turn-usage {
+  margin: 4px 0 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .turn-disclaimer {
   margin: 8px 0 4px;
   padding-top: 8px;
@@ -1856,7 +1878,7 @@ input:focus {
   border: 1px solid var(--bbg-orange);
   background: var(--message-user-bg);
   color: var(--bbg-text);
-  font-size: 12px;
+  font-size: 16px;
   line-height: 1.45;
 }
 
@@ -1891,7 +1913,7 @@ input:focus {
   border: 1px solid var(--bbg-orange);
   padding: 14px 16px;
   font-family: var(--font-mono);
-  font-size: 15.4px;
+  font-size: 16px;
 }
 
 .settings-panel-inline {
@@ -1921,7 +1943,7 @@ input:focus {
   border: 1px solid var(--bbg-border);
   color: var(--bbg-muted);
   font-family: var(--font-mono);
-  font-size: 12.65px;
+  font-size: 16px;
   padding: 4px 10px;
   cursor: pointer;
 }
@@ -1958,14 +1980,14 @@ input:focus {
 .settings-header h3 {
   margin: 0;
   color: var(--bbg-orange);
-  font-size: 16.5px;
+  font-size: 16px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
 .settings-close {
   padding: 4px 10px;
-  font-size: 13.2px;
+  font-size: 16px;
 }
 
 .settings-hint,
@@ -1973,7 +1995,7 @@ input:focus {
 .settings-ok {
   margin: 0 0 10px;
   color: var(--bbg-muted);
-  font-size: 13.2px;
+  font-size: 16px;
   line-height: 1.45;
 }
 
@@ -1988,7 +2010,7 @@ input:focus {
 .settings-error {
   margin: 0 0 10px;
   color: var(--bbg-down);
-  font-size: 13.2px;
+  font-size: 16px;
   line-height: 1.45;
 }
 
@@ -2001,7 +2023,7 @@ input:focus {
 
 .settings-field > span {
   color: var(--bbg-amber);
-  font-size: 13.2px;
+  font-size: 16px;
   text-transform: uppercase;
 }
 
@@ -2023,13 +2045,13 @@ input:focus {
   background: var(--input-bg);
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: 15.4px;
+  font-size: 16px;
 }
 
 .settings-section-title {
   margin: 16px 0 8px;
   color: var(--bbg-orange);
-  font-size: 13.2px;
+  font-size: 16px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -2045,14 +2067,14 @@ input:focus {
   margin-bottom: 12px;
 }
 
-.locale-option {
+.settings-panel .locale-option {
   padding: 10px;
   border: 1px solid var(--bbg-border-bright);
   background: var(--input-bg);
   cursor: pointer;
   text-align: center;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--bbg-text);
   transition: border-color 0.15s ease;
@@ -2097,22 +2119,22 @@ input:focus {
   box-shadow: inset 0 0 0 1px var(--bbg-orange);
 }
 
-.theme-option-label {
+.settings-panel .theme-option-label {
   color: var(--bbg-text);
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
 }
 
-.theme-option-hint {
+.settings-panel .theme-option-hint {
   color: var(--bbg-dim);
-  font-size: 12.1px;
+  font-size: 16px;
   line-height: 1.35;
   text-transform: none;
 }
 
 .settings-field input,
 .settings-field textarea {
-  font-size: 15.4px;
+  font-size: 16px;
 }
 
 .settings-check {
@@ -2122,7 +2144,24 @@ input:focus {
   margin-bottom: 12px;
   cursor: pointer;
   color: var(--bbg-muted);
-  font-size: 13.2px;
+  font-size: 16px;
+}
+
+.settings-panel .btn,
+.settings-panel .btn-sm {
+  font-size: 16px;
+}
+
+.settings-panel .report-history-time {
+  font-size: 16px;
+}
+
+.settings-panel .about-product,
+.settings-panel .about-dl,
+.settings-panel .about-dl dt,
+.settings-panel .about-section-title,
+.settings-panel .about-ref-list {
+  font-size: 16px;
 }
 
 .settings-check input {

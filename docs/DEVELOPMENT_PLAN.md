@@ -2,7 +2,8 @@
 
 > **版本**：V1.0（初版基线） · **日期**：2026-05-27  
 > **说明**：本文档为项目启动时制订的工程规划，保留作架构与分阶段设计参考。**现行功能与交付状态以 [PRD.md](./PRD.md) 为准。**  
-> **依据**：初版 PRD 草案 + 金融 AI 产品行业对标分析
+> **依据**：初版 PRD 草案 + 金融 AI 产品行业对标分析  
+> **已明确不做（以 PRD 排除项为准）**：PostgreSQL、Redis、JWT 注册登录、商业化收费、公网多用户 SaaS。运行时以 **本机 Python venv + SQLite + 浏览器 BYOK** 为准。
 
 ---
 
@@ -139,7 +140,6 @@ StockResearch/
 │   └── utils/
 ├── tests/                    # 镜像 src 结构
 ├── web/                      # React Web 前端（MVP 优先）
-├── docker/
 ├── pyproject.toml
 └── .env.example
 ```
@@ -150,13 +150,12 @@ StockResearch/
 |------|------|------|
 | 后端 | Python 3.12 + FastAPI | 金融生态、Agent 框架成熟 |
 | Agent 编排 | **LangGraph** | 有状态多步、并行/串行、超时降级 |
-| 数据库 | PostgreSQL + Redis | 用户/持仓/对话持久化 + 缓存/会话 |
+| 数据库 | **SQLite**（现行） | 本机单用户；初版规划的 PostgreSQL 已不做 |
 | 向量库 | **Chroma**（MVP）→ Milvus（Phase 2） | MVP 轻量，后期规模化 |
-| 任务队列 | Celery + Redis Beat | 定时简报、风控轮询、新闻抓取 |
+| 任务队列 | 本机定时 / 手动触发（现行） | 初版 Celery + Redis 已不做 |
 | LLM | DeepSeek-V3 / Qwen（主）+ OpenAI 兼容（备） | 成本 + 合规 |
 | 情感/NLP | FinBERT-cn / 轻量分类模型 | 新闻 Agent 3 秒 SLA |
 | 前端 | **React + Vite**（MVP Web） | 迭代快；App/小程序 Phase 2 |
-| 部署 | Docker Compose（MVP）→ K8s（Phase 3） | 渐进式 |
 
 ### 3.4 Orchestrator 核心流程（LangGraph 状态机）
 
@@ -247,14 +246,13 @@ rules:
     severity: critical
 ```
 
-#### Sprint 3（W8）：集成 + 压测 + 上线
+#### Sprint 3（W8）：集成 + 压测
 
 | 任务 | 说明 |
 |------|------|
 | E2E 测试 | 5 条核心用户路径自动化 |
 | 成本监控 | 单用户日 LLM 调用上限 + Dashboard |
 | 免责声明 | 所有 API 响应强制 `disclaimer` 字段 |
-| 内测发布 | Docker Compose 一键部署 |
 
 **MVP 功能清单（PRD P0 对齐）**：
 
@@ -467,10 +465,9 @@ user_risk_rules    # 用户自定义规则（Phase 3）
 
 ### Epic 6：基础设施（W7–8, 3d）
 
-- [ ] Docker Compose（api + worker + redis + postgres）
 - [ ] 日志 + 成本 Dashboard
 - [ ] E2E 测试 5 条路径
-- [ ] `.env.example` + 部署文档
+- [ ] `.env.example`
 
 ---
 

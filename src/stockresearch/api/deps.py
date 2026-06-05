@@ -3,14 +3,14 @@
 from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from stockresearch.core.exceptions import AuthenticationError, StockResearchError, NotFoundError, ValidationError
+from stockresearch.core.exceptions import StockResearchError, NotFoundError, ValidationError
 from stockresearch.db.models import User
 from stockresearch.db.session import get_db
-from stockresearch.services.auth import get_or_create_mvp_user
+from stockresearch.services.local_user import get_or_create_mvp_user
 
 
 def get_current_user(db: Session = Depends(get_db)) -> User:
-    """MVP: single local user, no login required."""
+    """Single local user; no login."""
     return get_or_create_mvp_user(db)
 
 
@@ -19,6 +19,4 @@ def handle_stockresearch_error(exc: StockResearchError) -> HTTPException:
         return HTTPException(status_code=404, detail=str(exc))
     if isinstance(exc, ValidationError):
         return HTTPException(status_code=422, detail=str(exc))
-    if isinstance(exc, AuthenticationError):
-        return HTTPException(status_code=401, detail=str(exc))
     return HTTPException(status_code=400, detail=str(exc))

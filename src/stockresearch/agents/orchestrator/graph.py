@@ -26,6 +26,7 @@ from stockresearch.services.message_stock import resolve_message_stock, stock_ch
 from stockresearch.services.stock_lookup import StockLookupResult
 from stockresearch.utils.disclaimer import strip_disclaimer
 from stockresearch.utils.llm import LLMClient, get_llm_client
+from stockresearch.utils.llm_usage import get_usage, reset_usage, usage_to_out
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +174,7 @@ class Orchestrator:
             "partial": False,
         }
 
+        reset_usage(model=str(getattr(self._llm, "_model", "") or ""))
         final_state = await self._graph.ainvoke(initial_state)
 
         reply = strip_disclaimer(final_state["reply"])
@@ -187,6 +189,7 @@ class Orchestrator:
             cards=[CardPayload(type=c["type"], data=c["data"]) for c in final_state["cards"]],
             intent=final_state["intent"],
             partial=final_state["partial"],
+            llm_usage=usage_to_out(get_usage()),
         )
 
     def _save_conversation(self, user_id: int, session_id: str, user_msg: str, reply: str) -> None:

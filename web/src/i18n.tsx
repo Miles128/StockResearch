@@ -29,6 +29,7 @@ const zh: Dict = {
     dataLive: "行情 · {primary}",
     dataDegraded: "行情降级 · {primary}→{fallback}",
     dataUnknown: "行情未刷新",
+    usageShort: "{total} tok",
   },
   page: {
     chat: "智能对话",
@@ -66,6 +67,9 @@ const zh: Dict = {
     pickStock: "请确认要分析的股票",
     turnDisclaimer: "以下内容由 AI 生成，仅供参考，不构成投资建议。",
     holdingsQuick: "持仓",
+    usageLine: "Token {total}（输入 {prompt} / 输出 {completion}）",
+    usageCost: "约 ¥{cost}",
+    usageEstimate: "估算",
   },
   ticker: {
     refresh: "刷新指数",
@@ -198,7 +202,7 @@ const zh: Dict = {
     welcome: "欢迎使用 StockResearch",
     close: "关闭",
     requiredBanner:
-      "请先配置大模型。API Key 仅保存在您本机浏览器，不会上传到 Cloudflare 或服务器仓库。",
+      "请先配置大模型。API Key 仅保存在您本机浏览器，不会写入服务端数据库。",
     appearance: "外观风格",
     appearanceHint: "切换后立即生效，保存在本机浏览器。",
     language: "界面语言",
@@ -303,6 +307,7 @@ const en: Dict = {
     dataLive: "Quotes · {primary}",
     dataDegraded: "Degraded · {primary}→{fallback}",
     dataUnknown: "Quotes not loaded",
+    usageShort: "{total} tok",
   },
   page: {
     chat: "Smart Chat",
@@ -340,6 +345,9 @@ const en: Dict = {
     pickStock: "Confirm which stock to analyze",
     turnDisclaimer: "AI-generated content for reference only — not investment advice.",
     holdingsQuick: "Holdings",
+    usageLine: "Tokens {total} (in {prompt} / out {completion})",
+    usageCost: "~¥{cost}",
+    usageEstimate: "est.",
   },
   ticker: {
     refresh: "Refresh indices",
@@ -472,7 +480,7 @@ const en: Dict = {
     welcome: "Welcome to StockResearch",
     close: "Close",
     requiredBanner:
-      "Configure an LLM first. Your API key stays in this browser only — never uploaded to Cloudflare or the server repo.",
+      "Configure an LLM first. Your API key stays in this browser only — never stored in the server database.",
     appearance: "Appearance",
     appearanceHint: "Applies immediately and is saved in this browser.",
     language: "Language",

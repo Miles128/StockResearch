@@ -247,12 +247,23 @@ async function streamResearch(
   return report;
 }
 
+export interface LlmUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  model?: string | null;
+  estimated_cost_cny?: number | null;
+  is_estimate?: boolean;
+  llm_calls?: number;
+}
+
 export interface ChatResponse {
   session_id: string;
   reply: string;
   cards: Card[];
   intent: string;
   disclaimer: string;
+  llm_usage?: LlmUsage | null;
 }
 
 export interface StockChoiceCardData {

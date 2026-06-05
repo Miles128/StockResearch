@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview",
-    "deploy:pages": "npm run build && wrangler pages deploy dist --project-name stockresearch"
+    "preview": "vite preview"
   },
   "dependencies": {
     "react": "^18.3.1",

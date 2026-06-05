@@ -23,7 +23,7 @@ _WEB_DIST = _PROJECT_ROOT / "web" / "dist"
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     init_db()
     from stockresearch.db.session import SessionLocal
-    from stockresearch.services.auth import get_or_create_mvp_user
+    from stockresearch.services.local_user import get_or_create_mvp_user
 
     db = SessionLocal()
     try:
@@ -54,16 +54,9 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(StockResearchError)
     async def stockresearch_exception_handler(_request: Request, exc: StockResearchError) -> JSONResponse:
-        from stockresearch.core.exceptions import (
-            AuthenticationError,
-            AuthorizationError,
-            NotFoundError,
-            ValidationError,
-        )
+        from stockresearch.core.exceptions import NotFoundError, ValidationError
 
-        if isinstance(exc, (AuthenticationError, AuthorizationError)):
-            status = 401
-        elif isinstance(exc, NotFoundError):
+        if isinstance(exc, NotFoundError):
             status = 404
         elif isinstance(exc, ValidationError):
             status = 422

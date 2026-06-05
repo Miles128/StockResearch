@@ -9,9 +9,6 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     database_url: str = "sqlite:///./stockresearch.db"
-    redis_url: str = "redis://localhost:6379/0"
-    secret_key: str = "dev-secret-key-change-in-production"
-    access_token_expire_minutes: int = 60 * 24 * 7
     llm_api_key: str = ""
     llm_base_url: str = ""
     llm_model: str = ""

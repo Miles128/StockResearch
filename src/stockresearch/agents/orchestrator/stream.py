@@ -26,6 +26,11 @@ from stockresearch.services.message_stock import resolve_message_stock, stock_ch
 from stockresearch.services.stock_lookup import StockLookupResult
 from stockresearch.utils.disclaimer import strip_disclaimer
 from stockresearch.utils.llm import LLMClient, get_llm_client
+from stockresearch.utils.llm_usage import get_usage, reset_usage, usage_to_out
+
+
+def _llm_model_name(client: LLMClient) -> str:
+    return str(getattr(client, "_model", "") or "")
 
 
 async def run_chat_stream(
@@ -42,6 +47,7 @@ async def run_chat_stream(
     """Yield SSE events with real-time progress updates."""
     sid = session_id or str(uuid.uuid4())
     client = llm or get_llm_client()
+    reset_usage(model=_llm_model_name(client))
     holdings = db.query(Holding).filter(Holding.user_id == user_id).all()
 
     yield {"type": "status", "message": "正在理解您的问题…"}
@@ -163,6 +169,7 @@ async def run_chat_stream(
         cards=[CardPayload(type=c["type"], data=c["data"]) for c in cards],  # type: ignore[arg-type]
         intent=intent,
         partial=partial,
+        llm_usage=usage_to_out(get_usage()),
     )
     yield {"type": "done", "response": response.model_dump(mode="json")}
 

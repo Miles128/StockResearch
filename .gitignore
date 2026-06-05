@@ -1,24 +1,41 @@
 .env
+.env.local
+.env.*.local
 .venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage/
 *.db
+*.sqlite
+*.sqlite3
 .DS_Store
-web/node_modules/
-web/dist/
-.wrangler/
-.dev.vars
-web/.env.production
-web/.env.production.local
-web/.env.production.example
-web/functions/
-web/public/_redirects
-fly.toml
-scripts/deploy-fly-hkg.sh
-.github/workflows/deploy-fly.yml
+*.log
+logs/
+
+# Python build
 *.egg-info/
 dist/
 build/
+
+# Frontend
+web/node_modules/
+web/dist/
+web/.vite/
+web/.env.production
+web/.env.production.local
+web/.env.production.example
+
+# Playwright
+playwright-report/
+test-results/
+blob-report/
+
+# IDE (optional local)
+.cursor/
+.idea/
