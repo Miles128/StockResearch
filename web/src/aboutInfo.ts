@@ -33,10 +33,5 @@ export const ABOUT_INFO = {
       url: "https://github.com/langchain-ai/langgraph",
       note: "Agent 编排",
     },
-    {
-      name: "AkShare",
-      url: "https://github.com/akfamily/akshare",
-      note: "A 股数据",
-    },
   ] as AboutReference[],
 };

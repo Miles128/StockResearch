@@ -299,6 +299,7 @@ class ChatRequest(BaseModel):
     session_id: str | None = None
     llm: LlmUserSettings | None = None
     analysis_mode: Literal["simple", "complex"] | None = None
+    enable_debate: bool | None = None
 
 
 class CardPayload(BaseModel):

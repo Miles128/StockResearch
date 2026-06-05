@@ -12,7 +12,6 @@ from stockresearch.agents.orchestrator.complexity import (
     ANALYSIS_SIMPLE,
     ComplexityResult,
     is_risk_intent,
-    needs_analysis_choice,
     resolve_execution_mode,
 )
 from stockresearch.agents.orchestrator.plan_execute import PlanExecuteAgent
@@ -34,6 +33,7 @@ async def run_chat_stream(
     session_id: str | None = None,
     llm: LLMClient | None = None,
     analysis_mode: str | None = None,
+    enable_debate: bool | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     """Yield SSE events with real-time progress updates."""
     sid = session_id or str(uuid.uuid4())
@@ -45,21 +45,7 @@ async def run_chat_stream(
     msg = message.strip()
     is_risk = is_risk_intent(msg) and bool(holdings)
 
-    if not is_risk and analysis_mode is None and needs_analysis_choice(msg, has_holdings=bool(holdings)):
-        yield {
-            "type": "analysis_choice",
-            "message": "请选择分析深度",
-            "query": msg,
-            "options": [
-                {"id": ANALYSIS_SIMPLE, "label": "简单分析", "hint": "快速直接回答"},
-                {
-                    "id": ANALYSIS_COMPLEX,
-                    "label": "复杂分析",
-                    "hint": "Multi-Agent 投研 / 多空辩论 / 规划执行",
-                },
-            ],
-        }
-        return
+    debate_on = bool(enable_debate)
 
     cards: list[dict[str, object]] = []
     reply = ""
@@ -78,28 +64,32 @@ async def run_chat_stream(
             else:
                 yield event
     else:
-        mode = resolve_execution_mode(msg, analysis_mode)
-        depth_label = (
-            "简单分析"
-            if analysis_mode == ANALYSIS_SIMPLE
-            else "复杂分析"
-            if analysis_mode == ANALYSIS_COMPLEX
-            else "自动"
+        mode = resolve_execution_mode(
+            msg,
+            analysis_mode,
+            enable_debate=debate_on,
         )
         mode_labels = {
             ComplexityResult.DIRECT: "直接回答",
+            ComplexityResult.RESEARCH: "个股多维投研",
+            ComplexityResult.MARKET_RESEARCH: "大盘多维投研",
             ComplexityResult.DEBATE: "个股深度投研·多空辩论",
             ComplexityResult.MARKET_DEBATE: "大盘深度投研·多空辩论",
             ComplexityResult.PLAN_EXECUTE: "规划执行",
         }
+        debate_label = "多空辩论开" if debate_on else "多空辩论关"
         yield {
             "type": "status",
-            "message": f"分析深度：{depth_label} · {mode_labels.get(mode, mode)}",
+            "message": f"{debate_label} · {mode_labels.get(mode, mode)}",
         }
 
-        if mode == ComplexityResult.MARKET_DEBATE:
+        if mode in (ComplexityResult.MARKET_DEBATE, ComplexityResult.MARKET_RESEARCH):
             intent = INTENT_RESEARCH
-            async for event in _run_market_research_stream(client, msg):
+            async for event in _run_market_research_stream(
+                client,
+                msg,
+                with_debate=mode == ComplexityResult.MARKET_DEBATE,
+            ):
                 if event.get("type") == "done":
                     payload = event.get("result")
                     if isinstance(payload, dict):
@@ -108,9 +98,13 @@ async def run_chat_stream(
                         reply = report.summary
                 else:
                     yield event
-        elif mode == ComplexityResult.DEBATE:
+        elif mode in (ComplexityResult.DEBATE, ComplexityResult.RESEARCH):
             intent = INTENT_RESEARCH
-            async for event in _run_stock_research_stream(client, msg):
+            async for event in _run_stock_research_stream(
+                client,
+                msg,
+                with_debate=mode == ComplexityResult.DEBATE,
+            ):
                 if event.get("type") == "done":
                     cards = event.get("cards", [])
                     reply = event.get("reply", "")
@@ -168,17 +162,25 @@ async def run_chat_stream(
 async def _run_market_research_stream(
     llm: object,
     message: str,
+    *,
+    with_debate: bool = True,
 ) -> AsyncIterator[dict[str, object]]:
-    """大盘深度投研：宏观/行业/技术/情绪 + 多空辩论 + 裁判。"""
-    async for event in run_market_research_stream(message, llm=llm):  # type: ignore[arg-type]
+    """大盘深度投研：宏观/行业/技术/情绪，可选多空辩论 + 裁判。"""
+    async for event in run_market_research_stream(
+        message,
+        llm=llm,  # type: ignore[arg-type]
+        with_debate=with_debate,
+    ):
         yield event
 
 
 async def _run_stock_research_stream(
     llm: object,
     message: str,
+    *,
+    with_debate: bool = True,
 ) -> AsyncIterator[dict[str, object]]:
-    """个股深度投研：四维 ReAct + 多空辩论 + 裁判。"""
+    """个股深度投研：四维 ReAct，可选多空辩论 + 裁判。"""
     yield {"type": "status", "message": "正在识别股票…"}
     symbol, _name = await _extract_symbol(message)
     if not symbol:
@@ -188,7 +190,11 @@ async def _run_stock_research_stream(
 
     cards: list[dict[str, object]] = []
     reply = ""
-    async for event in run_research_stream(symbol, llm=llm):  # type: ignore[arg-type]
+    async for event in run_research_stream(
+        symbol,
+        llm=llm,  # type: ignore[arg-type]
+        with_debate=with_debate,
+    ):
         if event.get("type") == "done":
             payload = event.get("result")
             if isinstance(payload, dict):

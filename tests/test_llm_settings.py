@@ -5,7 +5,7 @@ from httpx import ASGITransport, AsyncClient
 
 from stockresearch.api.app import create_app
 from stockresearch.api.llm_deps import merge_llm_settings
-from stockresearch.core.llm_config import LlmOverrides
+from stockresearch.core.llm_config import LlmOverrides, resolve_chat_completions_url
 from stockresearch.core.schemas import LlmUserSettings
 from stockresearch.utils.llm import MockLLMClient, OpenAICompatibleClient, get_llm_client
 from stockresearch.utils.llm_test import verify_llm_connection
@@ -63,6 +63,17 @@ async def test_llm_test_endpoint_missing_fields() -> None:
 @pytest.mark.asyncio
 async def test_verify_llm_connection_mock() -> None:
     assert await verify_llm_connection(LlmOverrides(use_mock=True)) == ""
+
+
+def test_resolve_chat_completions_url() -> None:
+    base = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    assert (
+        resolve_chat_completions_url(base)
+        == "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+    )
+    full = f"{base}/chat/completions"
+    assert resolve_chat_completions_url(full) == full
+    assert resolve_chat_completions_url(f"{base}/") == resolve_chat_completions_url(base)
 
 
 def test_openai_client_uses_override_temperature(monkeypatch) -> None:

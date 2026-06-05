@@ -39,7 +39,11 @@ async def chat(
     )
     orchestrator = Orchestrator(db, llm=llm)
     return await orchestrator.run(
-        user.id, payload.message, payload.session_id, payload.analysis_mode
+        user.id,
+        payload.message,
+        payload.session_id,
+        payload.analysis_mode,
+        enable_debate=payload.enable_debate,
     )
 
 
@@ -71,6 +75,7 @@ async def chat_stream(
             payload.session_id,
             llm=llm,
             analysis_mode=payload.analysis_mode,
+            enable_debate=payload.enable_debate,
         ):
             yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
 

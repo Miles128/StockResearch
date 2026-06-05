@@ -58,6 +58,8 @@ _DIMENSION_JOBS: list[tuple[str, str, object, object]] = [
 async def run_market_research_stream(
     query: str,
     llm: LLMClient | None = None,
+    *,
+    with_debate: bool = True,
 ) -> AsyncIterator[dict[str, object]]:
     """Market deep research with the same bull/bear + judge flow as stock research."""
     client = llm or get_llm_client()
@@ -102,6 +104,12 @@ async def run_market_research_stream(
     await asyncio.gather(*pumps)
 
     yield {"type": "status", "message": "四维完成，汇总市场作战情…"}
+    if not with_debate:
+        report = _build_report(MARKET_SYMBOL, MARKET_NAME, dimensions, None)
+        yield {"type": "status", "message": "市场深度投研报告已生成"}
+        yield {"type": "done", "result": report.model_dump(mode="json")}
+        return
+
     situation = summarize_situation(dimensions)
     yield {"type": "status", "message": "进入大盘多空 Battle…"}
 

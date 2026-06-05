@@ -8,12 +8,13 @@ from typing import Annotated, TypedDict
 from langgraph.graph import END, StateGraph
 from sqlalchemy.orm import Session
 
-from stockresearch.agents.debate.agent import DebateAgent
+from stockresearch.agents.market.research_stream import run_market_research_stream
 from stockresearch.agents.orchestrator.complexity import (
     ComplexityResult,
     is_risk_intent,
     resolve_execution_mode,
 )
+from stockresearch.agents.research.runner import run_research
 from stockresearch.agents.orchestrator.plan_execute import PlanExecuteAgent
 from stockresearch.agents.orchestrator.react_agent import OrchestratorAgent
 from stockresearch.agents.risk.engine import run_risk_checkup
@@ -48,6 +49,7 @@ class OrchestratorState(TypedDict):
     intent: str
     mode: str  # direct / debate / plan_execute
     analysis_mode: str | None
+    enable_debate: bool | None
     holdings: list[_HoldingInfo]
     holding_objects: list[Holding]
     cards: Annotated[list[dict[str, object]], _append]
@@ -70,15 +72,25 @@ class Orchestrator:
             # Risk keywords → risk intent
             if is_risk_intent(msg) and state["holding_objects"]:
                 return {"intent": INTENT_RISK, "mode": "risk"}
-            mode = resolve_execution_mode(msg, state.get("analysis_mode"))
+            mode = resolve_execution_mode(
+                msg,
+                state.get("analysis_mode"),
+                enable_debate=bool(state.get("enable_debate")),
+            )
             return {"intent": INTENT_CHAT, "mode": mode}
 
         async def node_chat(state: OrchestratorState) -> dict:
             mode = state.get("mode", ComplexityResult.DIRECT)
             msg = state["message"]
 
-            if mode == ComplexityResult.DEBATE:
-                return await _run_debate(db, llm, state)
+            if mode in (ComplexityResult.DEBATE, ComplexityResult.RESEARCH):
+                return await _run_stock_research(db, llm, state, with_debate=mode == ComplexityResult.DEBATE)
+            if mode in (ComplexityResult.MARKET_DEBATE, ComplexityResult.MARKET_RESEARCH):
+                return await _run_market_research(
+                    llm,
+                    msg,
+                    with_debate=mode == ComplexityResult.MARKET_DEBATE,
+                )
             if mode == ComplexityResult.PLAN_EXECUTE:
                 return await _run_plan_execute(db, llm, state)
             # Default: direct ReAct
@@ -128,6 +140,7 @@ class Orchestrator:
         message: str,
         session_id: str | None = None,
         analysis_mode: str | None = None,
+        enable_debate: bool | None = None,
     ) -> ChatResponse:
         sid = session_id or str(uuid.uuid4())
         holdings = await asyncio.to_thread(
@@ -144,6 +157,7 @@ class Orchestrator:
             "intent": INTENT_CHAT,
             "mode": ComplexityResult.DIRECT,
             "analysis_mode": analysis_mode,
+            "enable_debate": enable_debate,
             "holdings": holdings_data,
             "holding_objects": holdings,
             "cards": [],
@@ -179,81 +193,47 @@ class Orchestrator:
         self._db.commit()
 
 
-# ── Debate mode ──────────────────────────────────────────
-async def _run_debate(db: Session, llm, state: OrchestratorState) -> dict:
-    """Run multi-agent debate for stock-specific queries."""
+# ── Research modes ───────────────────────────────────────
+async def _run_stock_research(
+    db: Session,
+    llm,
+    state: OrchestratorState,
+    *,
+    with_debate: bool,
+) -> dict:
     msg = state["message"]
-    cards: list[dict[str, object]] = []
-
-    # Extract symbol from message
-    symbol, name = await _extract_symbol(db, llm, msg)
+    symbol, _name = await _extract_symbol(db, llm, msg)
     if not symbol:
-        # Fallback to direct mode
         agent = OrchestratorAgent(db=db, llm=llm, user_id=state["user_id"])
         reply, agent_cards = await agent.run(msg)
         return {"cards": agent_cards, "reply": reply}
 
-    # Get market data for context
-    market_data = ""
-    try:
-        provider = QuoteProvider()
-        quote = await provider.get_quote(symbol)
-        arrow = "↑" if quote.change_pct > 0 else "↓" if quote.change_pct < 0 else "→"
-        market_data = (
-            f"{quote.name}({quote.symbol}) 现价{quote.price:.2f} "
-            f"{arrow}{quote.change_pct:+.2f}%\n"
-            f"最高{quote.high:.2f} 最低{quote.low:.2f} "
-            f"成交量{quote.volume:.0f}"
-        )
-    except Exception:
-        pass
+    result = await run_research(symbol, llm, with_debate=with_debate)
+    return {
+        "cards": [{"type": "research", "data": result.model_dump(mode="json")}],
+        "reply": result.summary,
+    }
 
-    # Get financial ratios for context
-    financial_context = ""
-    try:
-        from stockresearch.agents.financial.agent import FinancialRatioAgent
 
-        fin_agent = FinancialRatioAgent(llm=None)
-        fin_result = await fin_agent.run(symbol, name)
-        ratios = fin_result.get("ratios", [])
-        if ratios:
-            ratio_lines = [
-                f"  {r['name']}: {r['value']} ({r['assessment']})"
-                for r in ratios
-            ]
-            financial_context = "财报比率：\n" + "\n".join(ratio_lines)
-            # Add financial card
-            cards.append({"type": "financial", "data": fin_result})
-    except Exception:
-        pass
-
-    # Combine context for debate
-    full_context = market_data
-    if financial_context:
-        full_context += "\n\n" + financial_context
-
-    # Run debate
-    debate = DebateAgent(llm)
-    result = await debate.run_debate(symbol, name, full_context)
-
-    cards.append({"type": "debate", "data": result})
-
-    # Build reply from synthesis
-    reply = result.get("synthesis", "")
-    if not reply:
-        vote = result.get("vote_tally", {})
-        bias = result.get("final_bias", "neutral")
-        bias_cn = {"bullish": "偏多", "bearish": "偏空", "neutral": "中性"}.get(bias, "中性")
-        reply = (
-            f"多Agent辩论完成。"
-            f"投票结果：看多{vote.get('看多', 0)}票，"
-            f"看空{vote.get('看空', 0)}票，"
-            f"中性{vote.get('中性', 0)}票。"
-            f"综合倾向：{bias_cn}。\n\n"
-            "以上内容由 AI 生成，仅供参考，不构成投资建议。"
-        )
-
-    return {"cards": cards, "reply": reply}
+async def _run_market_research(
+    llm,
+    message: str,
+    *,
+    with_debate: bool,
+) -> dict:
+    payload: dict[str, object] | None = None
+    async for event in run_market_research_stream(message, llm=llm, with_debate=with_debate):
+        if event.get("type") == "done":
+            raw = event.get("result")
+            if isinstance(raw, dict):
+                payload = raw
+    if payload is None:
+        return {"cards": [], "reply": "市场深度投研暂时无法完成，请稍后重试。"}
+    summary = str(payload.get("summary", ""))
+    return {
+        "cards": [{"type": "research", "data": payload}],
+        "reply": summary,
+    }
 
 
 # ── Plan-Execute mode ────────────────────────────────────

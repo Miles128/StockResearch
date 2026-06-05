@@ -1,8 +1,8 @@
 """User-facing LLM settings metadata (keys stay on client)."""
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, HTTPException
 
-from stockresearch.api.llm_deps import merge_llm_settings, resolve_llm_client
+from stockresearch.api.llm_deps import resolve_llm_client
 from stockresearch.core.config import get_settings
 from stockresearch.core.llm_config import LlmOverrides
 from stockresearch.core.schemas import LlmSettingsOut, LlmTestOut, LlmUserSettings
@@ -16,8 +16,8 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 def get_llm_settings() -> LlmSettingsOut:
     settings = get_settings()
     return LlmSettingsOut(
-        default_base_url=settings.llm_base_url,
-        default_model=settings.llm_model,
+        default_base_url="",
+        default_model="",
         default_temperature=0.3,
         server_use_mock=settings.use_mock_llm,
     )
@@ -32,27 +32,20 @@ async def _run_llm_test(overrides: LlmOverrides) -> LlmTestOut:
             return LlmTestOut(ok=True, message="Mock 模式已启用，无需连接真实 API")
         return LlmTestOut(ok=True, message="Mock 模式已启用")
 
-    err = await verify_llm_connection(overrides)
+    err = await verify_llm_connection(overrides, client_only=True)
     if err:
         raise HTTPException(status_code=400, detail=err)
     return LlmTestOut(ok=True, message="连接成功，模型可用")
 
 
 @router.post("/llm/test", response_model=LlmTestOut)
-async def test_llm_settings(
-    payload: LlmUserSettings,
-    x_llm_api_key: str | None = Header(default=None, alias="X-LLM-Api-Key"),
-    x_llm_base_url: str | None = Header(default=None, alias="X-LLM-Base-Url"),
-    x_llm_model: str | None = Header(default=None, alias="X-LLM-Model"),
-    x_llm_temperature: str | None = Header(default=None, alias="X-LLM-Temperature"),
-    x_llm_use_mock: str | None = Header(default=None, alias="X-LLM-Use-Mock"),
-) -> LlmTestOut:
-    overrides = merge_llm_settings(
-        payload,
-        x_llm_api_key=x_llm_api_key,
-        x_llm_base_url=x_llm_base_url,
-        x_llm_model=x_llm_model,
-        x_llm_temperature=x_llm_temperature,
-        x_llm_use_mock=x_llm_use_mock,
+async def test_llm_settings(payload: LlmUserSettings) -> LlmTestOut:
+    # 连接测试只认本次表单 body，不合并请求头，避免旧配置干扰
+    overrides = LlmOverrides(
+        api_key=payload.api_key,
+        base_url=payload.base_url,
+        model=payload.model,
+        temperature=payload.temperature,
+        use_mock=payload.use_mock,
     )
     return await _run_llm_test(overrides)

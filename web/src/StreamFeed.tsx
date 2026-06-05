@@ -1,4 +1,5 @@
 import { MarkdownContent } from "./MarkdownContent";
+import { useI18n } from "./i18n";
 
 interface AgentStep {
   agent_id: string;
@@ -59,47 +60,30 @@ function managerStep(steps: AgentStep[]): AgentStep | undefined {
   return steps.find((step) => step.role === "manager" || step.agent_id === "research_manager");
 }
 
-function debateSides(round: DebateRound): { key: string; label: string; text: string }[] {
-  const sides: { key: string; label: string; text: string }[] = [];
-  if (round.bull) {
-    sides.push({ key: "bull", label: "看多", text: round.bull });
-  }
-  if (round.bear) {
-    sides.push({ key: "bear", label: "看空", text: round.bear });
-  }
-  if (round.aggressive) {
-    sides.push({ key: "aggressive", label: "激进", text: round.aggressive });
-  }
-  const neutralText = round.neutral ?? round.neutral_view;
-  if (neutralText) {
-    sides.push({ key: "neutral", label: "中性", text: neutralText });
-  }
-  if (round.conservative) {
-    sides.push({ key: "conservative", label: "审慎", text: round.conservative });
-  }
-  return sides;
-}
-
 function StreamMessage({
   title,
   body,
   running,
   streaming,
   className,
+  typingLabel,
+  analyzingLabel,
 }: {
   title: string;
   body?: string;
   running?: boolean;
   streaming?: boolean;
   className?: string;
+  typingLabel: string;
+  analyzingLabel: string;
 }) {
   const typing = streaming ?? (running === true && body !== undefined && body !== "");
   return (
     <div className={`message assistant stream-msg ${className ?? ""}`.trim()}>
       <div className="stream-msg-head">
         <strong>{title}</strong>
-        {typing && <span className="muted">输出中…</span>}
-        {running && !body && <span className="muted">分析中…</span>}
+        {typing && <span className="muted">{typingLabel}</span>}
+        {running && !body && <span className="muted">{analyzingLabel}</span>}
       </div>
       {body !== undefined && body !== "" && (
         <div className="stream-msg-body">
@@ -121,6 +105,7 @@ export function StreamFeed({
   voteTally,
   activeStreamIds = [],
 }: StreamFeedProps) {
+  const { t } = useI18n();
   const pipeline = earlyPipelineSteps(agentSteps);
   const debateAgents = agentSteps.filter((step) => DEBATE_ROLES.has(step.role));
   const manager = managerStep(agentSteps);
@@ -135,13 +120,34 @@ export function StreamFeed({
     manager != null ||
     judgeVerdict != null;
 
+  const sideLabel: Record<string, string> = {
+    bull: t("stream.long"),
+    bear: t("stream.short"),
+    aggressive: t("stream.aggressive"),
+    neutral: t("stream.neutral"),
+    conservative: t("stream.conservative"),
+  };
+
+  function debateSides(round: DebateRound): { key: string; label: string; text: string }[] {
+    const sides: { key: string; label: string; text: string }[] = [];
+    if (round.bull) sides.push({ key: "bull", label: sideLabel.bull, text: round.bull });
+    if (round.bear) sides.push({ key: "bear", label: sideLabel.bear, text: round.bear });
+    if (round.aggressive) sides.push({ key: "aggressive", label: sideLabel.aggressive, text: round.aggressive });
+    const neutralText = round.neutral ?? round.neutral_view;
+    if (neutralText) sides.push({ key: "neutral", label: sideLabel.neutral, text: neutralText });
+    if (round.conservative) sides.push({ key: "conservative", label: sideLabel.conservative, text: round.conservative });
+    return sides;
+  }
+
+  const msgProps = { typingLabel: t("stream.typing"), analyzingLabel: t("stream.analyzing") };
+
   return (
     <div className="stream-messages">
       {!hasBody && streamStatus && (
         <p className="stream-status stream-status-active">{streamStatus}</p>
       )}
       {!hasBody && !streamStatus && (
-        <p className="stream-status muted">等待 Agent 输出…</p>
+        <p className="stream-status muted">{t("stream.waiting")}</p>
       )}
       {streamLog.map((line, i) => (
         <p className="stream-status muted" key={`${i}-${line.slice(0, 12)}`}>
@@ -165,6 +171,7 @@ export function StreamFeed({
             )
           }
           className={`stream-role-${step.role}`}
+          {...msgProps}
         />
       ))}
 
@@ -179,6 +186,7 @@ export function StreamFeed({
             activeStreamIds.some((id) => id.match(new RegExp(`-${step.role}$`)))
           }
           className={`stream-role-${step.role}`}
+          {...msgProps}
         />
       ))}
 
@@ -186,18 +194,25 @@ export function StreamFeed({
         debateSides(round).map((side) => (
           <StreamMessage
             key={`${round.round}-${side.key}`}
-            title={`第 ${round.round} 轮 · ${side.label}`}
+            title={`${t("stream.round", { n: round.round })} · ${side.label}`}
             body={side.text}
             streaming={isTyping(`r${round.round}-${side.key}`)}
             className={`stream-role-${side.key}`}
+            {...msgProps}
           />
         )),
       )}
 
       {voteTally && (
         <StreamMessage
-          title="Battle 投票"
-          body={`偏多 ${voteTally.bullish} · 偏空 ${voteTally.bearish} · 中性 ${voteTally.neutral}${voteTally.leading ? ` · 领先 ${voteTally.leading}` : ""}`}
+          title={t("stream.vote")}
+          body={t("stream.voteBody", {
+            bull: voteTally.bullish,
+            bear: voteTally.bearish,
+            neutral: voteTally.neutral,
+            leading: voteTally.leading ? t("stream.leading", { value: voteTally.leading }) : "",
+          })}
+          {...msgProps}
         />
       )}
 
@@ -209,22 +224,23 @@ export function StreamFeed({
           running={manager.status === "running"}
           streaming={isTyping(manager.agent_id)}
           className="stream-role-manager"
+          {...msgProps}
         />
       )}
 
       {judgeVerdict && (
         <div className={`message assistant stream-msg stream-judge action-${judgeVerdict.position_action ?? "持有观望"}`}>
           <div className="stream-msg-head">
-            <strong>裁判结论</strong>
-            {isTyping("judge") && <span className="muted">输出中…</span>}
+            <strong>{t("stream.judge")}</strong>
+            {isTyping("judge") && <span className="muted">{t("stream.typing")}</span>}
           </div>
           {(judgeVerdict.risk_level || judgeVerdict.position_action) && (
             <p className="stream-msg-meta">
               {judgeVerdict.risk_level && (
-                <span>整体风险：{judgeVerdict.risk_level} </span>
+                <span>{t("stream.overallRisk")}: {judgeVerdict.risk_level} </span>
               )}
               {judgeVerdict.position_action && (
-                <span>组合倾向：{judgeVerdict.position_action}</span>
+                <span>{t("stream.portfolioBias")}: {judgeVerdict.position_action}</span>
               )}
             </p>
           )}
@@ -233,14 +249,14 @@ export function StreamFeed({
             <>
               {judgeVerdict.analysis_process && (
                 <>
-                  <p className="stream-section-title">分析过程</p>
+                  <p className="stream-section-title">{t("stream.process")}</p>
                   <div className="stream-msg-body">
                     <MarkdownContent text={judgeVerdict.analysis_process} />
                   </div>
                 </>
               )}
               <p className="stream-section-title">
-                逐股建议（共 {judgeVerdict.holding_actions.length} 只）
+                {t("stream.perStock", { n: judgeVerdict.holding_actions.length })}
               </p>
               <div className="holding-action-list">
                 {judgeVerdict.holding_actions.map((item) => (
@@ -254,7 +270,9 @@ export function StreamFeed({
                       </strong>
                       <span className="holding-action-badge">{item.action}</span>
                       {item.priority && (
-                        <span className="muted holding-action-priority">优先级 {item.priority}</span>
+                        <span className="muted holding-action-priority">
+                          {t("stream.priority")} {item.priority}
+                        </span>
                       )}
                     </div>
                     <div className="stream-msg-body">
@@ -263,7 +281,7 @@ export function StreamFeed({
                   </div>
                 ))}
               </div>
-              <p className="stream-section-title">组合结论</p>
+              <p className="stream-section-title">{t("stream.portfolioConclusion")}</p>
               <div className="stream-msg-body">
                 <MarkdownContent text={judgeVerdict.summary} />
               </div>
@@ -274,7 +292,7 @@ export function StreamFeed({
               )}
               {judgeVerdict.divergence && (
                 <div className="stream-msg-body muted">
-                  <MarkdownContent text={`分歧：${judgeVerdict.divergence}`} />
+                  <MarkdownContent text={`${t("stream.divergence")}: ${judgeVerdict.divergence}`} />
                 </div>
               )}
             </>
@@ -291,7 +309,7 @@ export function StreamFeed({
               )}
               {judgeVerdict.divergence && (
                 <div className="stream-msg-body muted">
-                  <MarkdownContent text={`分歧：${judgeVerdict.divergence}`} />
+                  <MarkdownContent text={`${t("stream.divergence")}: ${judgeVerdict.divergence}`} />
                 </div>
               )}
             </>

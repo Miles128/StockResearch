@@ -131,7 +131,7 @@ class NewsProvider:
             }
             async with httpx.AsyncClient(timeout=15.0) as client:
                 resp = await client.post(
-                    f"{settings.llm_base_url.rstrip('/')}/chat/completions",
+                    settings.llm_base_url.strip(),
                     headers=headers,
                     json=payload,
                 )
