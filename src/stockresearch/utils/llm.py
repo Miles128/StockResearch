@@ -9,7 +9,7 @@ from collections.abc import AsyncIterator
 import httpx
 
 from stockresearch.core.config import get_settings
-from stockresearch.core.llm_config import LlmOverrides
+from stockresearch.core.llm_config import LlmOverrides, resolve_chat_completions_url
 
 logger = logging.getLogger(__name__)
 
@@ -254,7 +254,7 @@ class OpenAICompatibleClient(LLMClient):
     def __init__(self, overrides: LlmOverrides | None = None) -> None:
         cfg = overrides or LlmOverrides()
         self._api_key = cfg.effective_api_key()
-        self._base_url = cfg.effective_base_url()
+        self._base_url = resolve_chat_completions_url(cfg.effective_base_url())
         self._model = cfg.effective_model()
         self._temperature = cfg.effective_temperature()
 
@@ -279,7 +279,7 @@ class OpenAICompatibleClient(LLMClient):
         async with httpx.AsyncClient(timeout=60.0) as client:
             async with client.stream(
                 "POST",
-                f"{self._base_url}/chat/completions",
+                self._base_url,
                 headers=headers,
                 json=payload,
             ) as resp:
@@ -323,7 +323,7 @@ class OpenAICompatibleClient(LLMClient):
         }
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
-                f"{self._base_url}/chat/completions",
+                self._base_url,
                 headers=headers,
                 json=payload,
             )

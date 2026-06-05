@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
-import { api, AgentStreamEvent, AnalysisMode, ChatResponse, HoldingEnriched, NewsItem, ResearchReport, RiskCheckup, StockLookupOut } from "./api";
+import { useEffect, useMemo, useState } from "react";
+import { api, AgentStreamEvent, ChatResponse, HoldingEnriched, NewsItem, ResearchReport, RiskCheckup, StockLookupOut } from "./api";
 import { formatPrice, formatSignedMoney, formatSignedPct, signedClass } from "./holdingDisplay";
-import { analysisModeLabel, shouldAskAnalysisMode } from "./chatAnalysis";
 import { AboutPanel } from "./AboutPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { StreamFeed } from "./StreamFeed";
 import { isLlmConfigured } from "./llmSettings";
 import { applyStreamEvent, emptyStreamState, type StreamState } from "./streamEvents";
+import { useI18n } from "./i18n";
 
 type Tab = "chat" | "news" | "portfolio" | "risk";
 
@@ -16,36 +16,35 @@ interface Message {
   cards?: ChatResponse["cards"];
   /** 完整 Multi-Agent 思考过程（SSE 过程快照，完成后保留） */
   process?: StreamState;
-  /** 等待用户选择简单 / 复杂分析 */
-  pendingChoice?: { query: string };
 }
-
-const NAV: { key: Tab; label: string; fn: string }[] = [
-  { key: "chat", label: "对话", fn: "F1" },
-  { key: "news", label: "新闻", fn: "F2" },
-  { key: "portfolio", label: "持仓", fn: "F3" },
-  { key: "risk", label: "风控", fn: "F4" },
-];
 
 function TabNav({
   className,
   tab,
   onTab,
+  items,
+  ariaLabel,
+  compact = false,
 }: {
   className: string;
   tab: Tab;
   onTab: (key: Tab) => void;
+  items: { key: Tab; label: string; fn: string }[];
+  ariaLabel: string;
+  /** 窄屏：隐藏 F1–F4，仅横向文字标签 */
+  compact?: boolean;
 }) {
   return (
-    <nav className={className} aria-label="功能导航">
-      {NAV.map((n) => (
+    <nav className={className} aria-label={ariaLabel}>
+      {items.map((n) => (
         <button
           key={n.key}
           type="button"
           className={`nav-btn${tab === n.key ? " active" : ""}`}
           onClick={() => onTab(n.key)}
+          aria-keyshortcuts={compact ? undefined : n.fn}
         >
-          <span className="fn-key">{n.fn}</span>
+          {!compact && <span className="fn-key">{n.fn}</span>}
           <span className="nav-label">{n.label}</span>
         </button>
       ))}
@@ -54,6 +53,25 @@ function TabNav({
 }
 
 export default function App() {
+  const { t, locale, setLocale } = useI18n();
+  const navItems = useMemo(
+    () => [
+      { key: "chat" as Tab, label: t("nav.chat"), fn: "F1" },
+      { key: "news" as Tab, label: t("nav.news"), fn: "F2" },
+      { key: "portfolio" as Tab, label: t("nav.portfolio"), fn: "F3" },
+      { key: "risk" as Tab, label: t("nav.risk"), fn: "F4" },
+    ],
+    [t, locale],
+  );
+  const pageTitles: Record<Tab, string> = {
+    chat: t("page.chat"),
+    news: t("page.news"),
+    portfolio: t("page.portfolio"),
+    risk: t("page.risk"),
+  };
+  const numLocale = locale === "zh" ? "zh-CN" : "en-US";
+  const ratioGrade = (v: number, excellent: number, good: number) =>
+    v > excellent ? t("rating.excellent") : v > good ? t("rating.good") : v > 0 ? t("rating.fair") : t("rating.poor");
   const [tab, setTab] = useState<Tab>("chat");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -92,10 +110,10 @@ export default function App() {
   useEffect(() => {
     const id = setInterval(() => {
       const now = new Date();
-      setClock(now.toLocaleTimeString("zh-CN", { hour12: false }));
+      setClock(now.toLocaleTimeString(locale === "zh" ? "zh-CN" : "en-US", { hour12: false }));
     }, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     if (tab !== "portfolio") return;
@@ -120,9 +138,9 @@ export default function App() {
     }
   }
 
-  async function executeChat(query: string, analysisMode?: AnalysisMode, replaceIndex?: number) {
+  async function executeChat(query: string) {
     setLoading(true);
-    setStatusMsg("正在连接…");
+    setStatusMsg(t("chat.connecting"));
     setChatStream(emptyStreamState());
     let processSnapshot = emptyStreamState();
     try {
@@ -136,12 +154,12 @@ export default function App() {
         if (event.type === "status" && event.message) {
           setStatusMsg(event.message);
         }
-      }, analysisMode);
+      });
       if (resp) {
         setSessionId(resp.session_id);
         processSnapshot = {
           ...processSnapshot,
-          streamStatus: processSnapshot.streamStatus || statusMsg || "分析完成",
+          streamStatus: processSnapshot.streamStatus || statusMsg || t("chat.analysisDone"),
         };
         const assistantMsg: Message = {
           role: "assistant",
@@ -155,34 +173,19 @@ export default function App() {
               ? processSnapshot
               : undefined,
         };
-        if (replaceIndex !== undefined) {
-          setMessages((m) => m.map((msg, i) => (i === replaceIndex ? assistantMsg : msg)));
-        } else {
-          setMessages((m) => [...m, assistantMsg]);
-        }
+        setMessages((m) => [...m, assistantMsg]);
       }
     } catch {
       try {
-        setStatusMsg("流式连接失败，切换同步模式…");
-        const resp = await api.chat(query, sessionId, analysisMode);
+        setStatusMsg(t("chat.streamFailed"));
+        const resp = await api.chat(query, sessionId);
         setSessionId(resp.session_id);
-        const assistantMsg: Message = {
-          role: "assistant",
-          content: resp.reply,
-          cards: resp.cards,
-        };
-        if (replaceIndex !== undefined) {
-          setMessages((m) => m.map((msg, i) => (i === replaceIndex ? assistantMsg : msg)));
-        } else {
-          setMessages((m) => [...m, assistantMsg]);
-        }
+        setMessages((m) => [
+          ...m,
+          { role: "assistant", content: resp.reply, cards: resp.cards },
+        ]);
       } catch (e) {
-        const errMsg: Message = { role: "assistant", content: `Error: ${String(e)}` };
-        if (replaceIndex !== undefined) {
-          setMessages((m) => m.map((msg, i) => (i === replaceIndex ? errMsg : msg)));
-        } else {
-          setMessages((m) => [...m, errMsg]);
-        }
+        setMessages((m) => [...m, { role: "assistant", content: `Error: ${String(e)}` }]);
       }
     } finally {
       setLoading(false);
@@ -194,31 +197,8 @@ export default function App() {
     if (!input.trim() || loading) return;
     const userMsg = input.trim();
     setInput("");
-    if (shouldAskAnalysisMode(userMsg)) {
-      setMessages((m) => [
-        ...m,
-        { role: "user", content: userMsg },
-        { role: "assistant", content: "", pendingChoice: { query: userMsg } },
-      ]);
-      return;
-    }
+    setMessages((m) => [...m, { role: "user", content: userMsg }]);
     void executeChat(userMsg);
-  }
-
-  function chooseAnalysisMode(query: string, mode: AnalysisMode, msgIndex: number) {
-    if (loading) return;
-    setMessages((m) =>
-      m.map((msg, i) =>
-        i === msgIndex
-          ? {
-              role: "assistant",
-              content: `已选择：${analysisModeLabel(mode)}，正在分析…`,
-              pendingChoice: undefined,
-            }
-          : msg,
-      ),
-    );
-    void executeChat(query, mode, msgIndex);
   }
 
   async function loadNews() {
@@ -256,7 +236,7 @@ export default function App() {
       if (result.status === "confirmed" && result.symbol && result.name) {
         const cost = holdingCost ? parseFloat(holdingCost) : 0;
         const lots = holdingLots ? parseInt(holdingLots) : 1;
-        if (cost <= 0) { showError("请输入有效的成本价"); return; }
+        if (cost <= 0) { showError(t("portfolio.invalidCost")); return; }
         await api.addHolding({ symbol: result.symbol, name: result.name, cost_price: cost, lots, sector: result.sector || undefined, buy_date: holdingDate || undefined });
         await loadHoldings();
         setHoldingInput(""); setHoldingCost(""); setHoldingLots(""); setHoldingDate(""); setLookupResult(null);
@@ -267,7 +247,7 @@ export default function App() {
   async function confirmCandidate(symbol: string, name: string) {
     const cost = holdingCost ? parseFloat(holdingCost) : 0;
     const lots = holdingLots ? parseInt(holdingLots) : 1;
-    if (cost <= 0) { showError("请输入有效的成本价"); return; }
+    if (cost <= 0) { showError(t("portfolio.invalidCost")); return; }
     try {
       await api.addHolding({ symbol, name, cost_price: cost, lots, buy_date: holdingDate || undefined });
       await loadHoldings();
@@ -281,30 +261,45 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <TabNav className="tab-nav-mobile" tab={tab} onTab={setTab} />
+      <TabNav
+        className="tab-nav-mobile"
+        compact
+        tab={tab}
+        onTab={setTab}
+        items={navItems}
+        ariaLabel={t("nav.aria")}
+      />
       <div className="terminal-header">
         <div className="terminal-brand">
           <span className="bbg-logo">StockResearch</span>
-          <span className="bbg-tag">AI 投研终端</span>
+          <span className="bbg-tag">{t("brand.tagline")}</span>
         </div>
         <div className="terminal-meta">
-          <span className="terminal-source">AKSHARE</span>
+          <button
+            type="button"
+            className="locale-toggle"
+            onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
+            title={locale === "zh" ? "English" : "中文"}
+            aria-label={locale === "zh" ? "Switch to English" : "切换为中文"}
+          >
+            {locale === "zh" ? "EN" : "中"}
+          </button>
           <button
             type="button"
             className="terminal-settings-btn"
             onClick={() => setAboutOpen(true)}
-            title="关于作者与参考项目"
+            title={t("header.aboutTitle")}
           >
-            关于
+            {t("header.about")}
           </button>
           <button
             type="button"
             className="terminal-settings-btn"
             onClick={() => setSettingsOpen(true)}
             disabled={settingsRequired}
-            title="大模型 API Key / 模型 / 温度"
+            title={t("header.settingsTitle")}
           >
-            设置
+            {t("header.settings")}
           </button>
           <span className="terminal-clock">{clock}</span>
         </div>
@@ -320,20 +315,20 @@ export default function App() {
       <div className={`app-body${settingsRequired ? " app-locked" : ""}`}>
         <aside className="sidebar">
           <div className="brand">StockResearch</div>
-          <div className="brand-sub">AI 投研终端</div>
-          <TabNav className="tab-nav-desktop" tab={tab} onTab={setTab} />
+          <div className="brand-sub">{t("brand.tagline")}</div>
+          <TabNav className="tab-nav-desktop" tab={tab} onTab={setTab} items={navItems} ariaLabel={t("nav.aria")} />
         </aside>
 
         <div className="main">
           {error && <div className="error">{error}</div>}
 
           <div className="topbar">
-            <h2 className="page-title">{{ chat: "智能对话", news: "新闻快讯", portfolio: "持仓管理", risk: "风控体检" }[tab]}</h2>
+            <h2 className="page-title">{pageTitles[tab]}</h2>
             <span className="page-sub">{tab.toUpperCase()}</span>
           </div>
 
           {tab === "chat" && (
-            <div className="panel">
+            <div className="panel chat-panel">
               <div className="chat-messages">
                 {messages.map((m, i) => (
                   <div key={i} className="chat-turn">
@@ -344,37 +339,11 @@ export default function App() {
                           dangerouslySetInnerHTML={{ __html: simpleMarkdown(m.content) }}
                         />
                       </div>
-                    ) : m.pendingChoice ? (
-                      <div className="message assistant analysis-choice-panel">
-                        <p className="analysis-choice-title">请选择分析深度</p>
-                        <p className="analysis-choice-sub">针对：{m.pendingChoice.query}</p>
-                        <div className="analysis-choice-actions">
-                          <button
-                            type="button"
-                            className="btn btn-ghost analysis-choice-btn"
-                            disabled={loading}
-                            onClick={() => chooseAnalysisMode(m.pendingChoice!.query, "simple", i)}
-                          >
-                            简单分析
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-primary analysis-choice-btn"
-                            disabled={loading}
-                            onClick={() => chooseAnalysisMode(m.pendingChoice!.query, "complex", i)}
-                          >
-                            复杂分析
-                          </button>
-                        </div>
-                        <p className="analysis-choice-hint">
-                          简单：快速直接回答；复杂：Multi-Agent 投研、多空辩论或规划执行
-                        </p>
-                      </div>
                     ) : (
                       <>
                         {m.process && (
                           <div className="message assistant process-panel">
-                            <p className="process-panel-title">Multi-Agent 思考过程</p>
+                            <p className="process-panel-title">{t("chat.processTitle")}</p>
                             <StreamFeed
                               streamStatus={m.process.streamStatus}
                               streamLog={m.process.streamLog}
@@ -388,7 +357,7 @@ export default function App() {
                         )}
                         {m.content.trim() && (
                           <div className="message assistant">
-                            <p className="process-panel-title">综合结论</p>
+                            <p className="process-panel-title">{t("chat.conclusion")}</p>
                             <div
                               className="markdown-body"
                               dangerouslySetInnerHTML={{ __html: simpleMarkdown(m.content) }}
@@ -404,7 +373,7 @@ export default function App() {
                 ))}
                 {loading && (
                   <div className="message assistant stream-live-panel">
-                    <p className="process-panel-title">Multi-Agent 思考过程（进行中）</p>
+                    <p className="process-panel-title">{t("chat.processLive")}</p>
                     <StreamFeed
                       streamStatus={chatStream.streamStatus || statusMsg}
                       streamLog={chatStream.streamLog}
@@ -417,25 +386,27 @@ export default function App() {
                   </div>
                 )}
               </div>
-              <div className="chat-input-row">
-                <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendChat()} placeholder="输入消息，如：帮我分析一下贵州茅台" />
-                <button className="btn btn-primary" onClick={sendChat} disabled={loading}>{loading ? "分析中..." : "发送"}</button>
+              <div className="chat-footer">
+                <div className="chat-input-row">
+                  <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendChat()} placeholder={t("chat.placeholder")} />
+                  <button className="btn btn-primary" onClick={sendChat} disabled={loading}>{loading ? t("chat.sending") : t("chat.send")}</button>
+                </div>
+                <p className="disclaimer">{t("chat.disclaimer")}</p>
               </div>
-              <p className="disclaimer">以上内容由 AI 生成，仅供参考，不构成投资建议。</p>
             </div>
           )}
 
           {tab === "news" && (
             <div className="panel">
               <button className="btn btn-primary" onClick={loadNews} disabled={newsLoading}>
-                {newsLoading ? "加载中..." : "刷新快讯"}
+                {newsLoading ? t("news.loading") : t("news.refresh")}
               </button>
               {news.map((n, i) => (
                 <div className="card" key={i}>
                   <h4>{n.title}</h4>
                   <p>{n.summary}</p>
                   <span className={`stat-pill ${n.sentiment === "bullish" ? "up" : n.sentiment === "bearish" ? "down" : ""}`}>
-                    {n.sentiment} · {n.impact_level} {n.related_to_user ? "· 与你相关" : ""}
+                    {n.sentiment} · {n.impact_level} {n.related_to_user ? `· ${t("news.related")}` : ""}
                   </span>
                 </div>
               ))}
@@ -446,34 +417,34 @@ export default function App() {
             <div className="panel">
               <div className="holding-form">
                 <div className="field">
-                  <span className="field-label">代码/名称</span>
-                  <input placeholder="如 600519 或 贵州茅台" value={holdingInput} onChange={(e) => { setHoldingInput(e.target.value); setLookupResult(null); }} onKeyDown={(e) => e.key === "Enter" && lookupAndAdd()} />
+                  <span className="field-label">{t("portfolio.symbol")}</span>
+                  <input placeholder={t("portfolio.symbolPh")} value={holdingInput} onChange={(e) => { setHoldingInput(e.target.value); setLookupResult(null); }} onKeyDown={(e) => e.key === "Enter" && lookupAndAdd()} />
                 </div>
                 <div className="field">
-                  <span className="field-label">成本价</span>
+                  <span className="field-label">{t("portfolio.cost")}</span>
                   <input type="number" placeholder="0.00" value={holdingCost} onChange={(e) => setHoldingCost(e.target.value)} />
                 </div>
                 <div className="field">
-                  <span className="field-label">手数</span>
+                  <span className="field-label">{t("portfolio.lots")}</span>
                   <input type="number" placeholder="1" value={holdingLots} onChange={(e) => setHoldingLots(e.target.value)} />
                 </div>
                 <div className="field">
-                  <span className="field-label">买入日期</span>
+                  <span className="field-label">{t("portfolio.buyDate")}</span>
                   <input
                     type="date"
                     value={holdingDate}
                     max={new Date().toISOString().slice(0, 10)}
-                    title="须为 A 股交易日（有开盘的日期）"
+                    title={t("portfolio.buyDateTitle")}
                     onChange={(e) => setHoldingDate(e.target.value)}
                   />
                 </div>
                 <button className="btn btn-primary" onClick={lookupAndAdd} disabled={lookupLoading} style={{ alignSelf: "end" }}>
-                  {lookupLoading ? "查询中..." : "添加"}
+                  {lookupLoading ? t("portfolio.querying") : t("portfolio.add")}
                 </button>
               </div>
               {lookupResult && lookupResult.status === "ambiguous" && (
                 <div className="confirm-card">
-                  <span className="field-label">请选择股票</span>
+                  <span className="field-label">{t("portfolio.pickStock")}</span>
                   <div className="candidate-list">
                     {lookupResult.candidates.map((c) => (
                       <button key={c.symbol} className="btn btn-ghost" onClick={() => confirmCandidate(c.symbol, c.name)}>
@@ -486,29 +457,29 @@ export default function App() {
               <div className="holding-toolbar">
                 <span className="muted">
                   {holdingsLoading
-                    ? "行情更新中…"
+                    ? t("portfolio.quotesUpdating")
                     : holdings[0]?.market_session === "trading"
-                      ? "盘中 · 显示现价（每 30 秒刷新）"
-                      : "已收盘 · 显示收盘价"}
+                      ? t("portfolio.trading")
+                      : t("portfolio.closed")}
                 </span>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => void loadHoldings()} disabled={holdingsLoading}>
-                  刷新
+                  {t("portfolio.refresh")}
                 </button>
               </div>
               {holdings.length === 0 ? (
-                <p className="muted holdings-empty">暂无持仓，请在上方添加</p>
+                <p className="muted holdings-empty">{t("portfolio.empty")}</p>
               ) : (
                 <div className="holdings-table-wrap">
                   <table className="holdings-table">
                     <thead>
                       <tr>
-                        <th>股票</th>
-                        <th>价格</th>
-                        <th>涨跌</th>
-                        <th>成本</th>
-                        <th>数量</th>
-                        <th>盈亏</th>
-                        <th>年化</th>
+                        <th>{t("portfolio.stock")}</th>
+                        <th>{t("portfolio.price")}</th>
+                        <th>{t("portfolio.change")}</th>
+                        <th>{t("portfolio.costCol")}</th>
+                        <th>{t("portfolio.qty")}</th>
+                        <th>{t("portfolio.pnl")}</th>
+                        <th>{t("portfolio.annualized")}</th>
                         <th />
                       </tr>
                     </thead>
@@ -567,7 +538,7 @@ export default function App() {
           {tab === "risk" && (
             <div className="panel">
               <button className="btn btn-primary" onClick={runRisk} disabled={loading}>
-                {loading ? "体检中..." : "持仓体检"}
+                {loading ? t("risk.running") : t("risk.run")}
               </button>
               {risk && (
                 <>
@@ -576,25 +547,25 @@ export default function App() {
                   {/* Risk Metrics Table */}
                   {risk.metrics && (
                     <div className="card">
-                      <h4>风险指标</h4>
+                      <h4>{t("risk.metrics")}</h4>
                       <table className="metrics-table">
                         <tbody>
-                          <tr><td>夏普比率</td><td className="mono">{risk.metrics.sharpe_ratio.toFixed(2)}</td><td className="muted">{risk.metrics.sharpe_ratio > 2 ? "优" : risk.metrics.sharpe_ratio > 1 ? "良" : risk.metrics.sharpe_ratio > 0 ? "中" : "差"}</td></tr>
-                          <tr><td>索提诺比率</td><td className="mono">{risk.metrics.sortino_ratio.toFixed(2)}</td><td className="muted">{risk.metrics.sortino_ratio > 2 ? "优" : risk.metrics.sortino_ratio > 1 ? "良" : risk.metrics.sortino_ratio > 0 ? "中" : "差"}</td></tr>
-                          <tr><td>Calmar 比率</td><td className="mono">{risk.metrics.calmar_ratio.toFixed(2)}</td><td className="muted">{risk.metrics.calmar_ratio > 3 ? "优" : risk.metrics.calmar_ratio > 1 ? "良" : risk.metrics.calmar_ratio > 0 ? "中" : "差"}</td></tr>
-                          <tr><td>信息比率</td><td className="mono">{risk.metrics.information_ratio.toFixed(2)}</td><td className="muted">{risk.metrics.information_ratio > 1 ? "优" : risk.metrics.information_ratio > 0.5 ? "良" : risk.metrics.information_ratio > 0 ? "中" : "差"}</td></tr>
-                          <tr><td>最大回撤</td><td className={`mono ${risk.metrics.max_drawdown < -0.1 ? "down" : risk.metrics.max_drawdown < 0 ? "warn" : ""}`}>{(risk.metrics.max_drawdown * 100).toFixed(2)}%</td><td className="muted">{Math.abs(risk.metrics.max_drawdown) > 0.15 ? "高危" : Math.abs(risk.metrics.max_drawdown) > 0.08 ? "关注" : "可控"}</td></tr>
-                          <tr><td>年化波动率</td><td className="mono">{(risk.metrics.volatility * 100).toFixed(2)}%</td><td className="muted">{risk.metrics.volatility > 0.3 ? "高" : risk.metrics.volatility > 0.2 ? "中" : "低"}</td></tr>
-                          <tr><td>行业集中度</td><td className="mono">{(risk.metrics.concentration_ratio * 100).toFixed(1)}%</td><td className="muted">{risk.metrics.concentration_sector || "-"} {risk.metrics.concentration_ratio > 0.4 ? "偏高" : "分散"}</td></tr>
-                          <tr><td>单日最大可能损失</td><td className="mono down">¥{risk.metrics.max_loss_1d.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</td><td className="muted">{(risk.metrics.max_loss_1d_pct * 100).toFixed(2)}% (3σ)</td></tr>
-                          <tr><td>期望损失 EL</td><td className="mono down">¥{risk.metrics.expected_loss.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</td><td className="muted">{(risk.metrics.expected_loss_pct * 100).toFixed(2)}% (PD×LGD×EAD)</td></tr>
+                          <tr><td>{t("risk.sharpe")}</td><td className="mono">{risk.metrics.sharpe_ratio.toFixed(2)}</td><td className="muted">{ratioGrade(risk.metrics.sharpe_ratio, 2, 1)}</td></tr>
+                          <tr><td>{t("risk.sortino")}</td><td className="mono">{risk.metrics.sortino_ratio.toFixed(2)}</td><td className="muted">{ratioGrade(risk.metrics.sortino_ratio, 2, 1)}</td></tr>
+                          <tr><td>{t("risk.calmar")}</td><td className="mono">{risk.metrics.calmar_ratio.toFixed(2)}</td><td className="muted">{ratioGrade(risk.metrics.calmar_ratio, 3, 1)}</td></tr>
+                          <tr><td>{t("risk.infoRatio")}</td><td className="mono">{risk.metrics.information_ratio.toFixed(2)}</td><td className="muted">{ratioGrade(risk.metrics.information_ratio, 1, 0.5)}</td></tr>
+                          <tr><td>{t("risk.maxDrawdown")}</td><td className={`mono ${risk.metrics.max_drawdown < -0.1 ? "down" : risk.metrics.max_drawdown < 0 ? "warn" : ""}`}>{(risk.metrics.max_drawdown * 100).toFixed(2)}%</td><td className="muted">{Math.abs(risk.metrics.max_drawdown) > 0.15 ? t("rating.highRisk") : Math.abs(risk.metrics.max_drawdown) > 0.08 ? t("rating.watch") : t("rating.ok")}</td></tr>
+                          <tr><td>{t("risk.volatility")}</td><td className="mono">{(risk.metrics.volatility * 100).toFixed(2)}%</td><td className="muted">{risk.metrics.volatility > 0.3 ? t("rating.high") : risk.metrics.volatility > 0.2 ? t("rating.medium") : t("rating.low")}</td></tr>
+                          <tr><td>{t("risk.concentration")}</td><td className="mono">{(risk.metrics.concentration_ratio * 100).toFixed(1)}%</td><td className="muted">{risk.metrics.concentration_sector || "-"} {risk.metrics.concentration_ratio > 0.4 ? t("rating.elevated") : t("rating.diversified")}</td></tr>
+                          <tr><td>{t("risk.maxLoss1d")}</td><td className="mono down">¥{risk.metrics.max_loss_1d.toLocaleString(numLocale, { minimumFractionDigits: 2 })}</td><td className="muted">{(risk.metrics.max_loss_1d_pct * 100).toFixed(2)}% (3σ)</td></tr>
+                          <tr><td>{t("risk.expectedLoss")}</td><td className="mono down">¥{risk.metrics.expected_loss.toLocaleString(numLocale, { minimumFractionDigits: 2 })}</td><td className="muted">{(risk.metrics.expected_loss_pct * 100).toFixed(2)}% (PD×LGD×EAD)</td></tr>
                         </tbody>
                       </table>
                       {risk.metrics.individual_drawdowns.length > 0 && (
                         <>
-                          <h4 style={{ marginTop: 10 }}>个股回撤</h4>
+                          <h4 style={{ marginTop: 10 }}>{t("risk.stockDrawdown")}</h4>
                           <table className="metrics-table">
-                            <thead><tr><th>股票</th><th>成本</th><th>现价</th><th>回撤</th></tr></thead>
+                            <thead><tr><th>{t("risk.stock")}</th><th>{t("portfolio.costCol")}</th><th>{t("risk.current")}</th><th>{t("risk.drawdown")}</th></tr></thead>
                             <tbody>
                               {risk.metrics.individual_drawdowns.map((d: any, i: number) => (
                                 <tr key={i}>
@@ -614,27 +585,27 @@ export default function App() {
                   {/* VaR Display */}
                   {risk.var_result && (
                     <div className="card">
-                      <h4>在险价值 VaR</h4>
+                      <h4>{t("risk.var")}</h4>
                       <div className="stat-row">
-                        <span className="stat-pill">置信水平 {(risk.var_result.confidence_level * 100).toFixed(0)}%</span>
-                        <span className="stat-pill">时间跨度 {risk.var_result.time_horizon_days}天</span>
-                        <span className="stat-pill">方法 {risk.var_result.method}</span>
+                        <span className="stat-pill">{t("risk.confidence")} {(risk.var_result.confidence_level * 100).toFixed(0)}%</span>
+                        <span className="stat-pill">{t("risk.horizon")} {risk.var_result.time_horizon_days}{t("risk.days")}</span>
+                        <span className="stat-pill">{t("risk.method")} {risk.var_result.method}</span>
                       </div>
                       <div className="var-display">
                         <div className="var-main">
-                          <span className="var-label">VaR 绝对值</span>
-                          <span className="var-value down">¥{risk.var_result.var_value.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</span>
+                          <span className="var-label">{t("risk.varAbs")}</span>
+                          <span className="var-value down">¥{risk.var_result.var_value.toLocaleString(numLocale, { minimumFractionDigits: 2 })}</span>
                         </div>
                         <div className="var-main">
-                          <span className="var-label">VaR 占比</span>
+                          <span className="var-label">{t("risk.varPct")}</span>
                           <span className="var-value">{(risk.var_result.var_pct * 100).toFixed(2)}%</span>
                         </div>
                         <div className="var-main">
-                          <span className="var-label">CVaR (Expected Shortfall)</span>
-                          <span className="var-value down">¥{risk.var_result.cvar_value.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</span>
+                          <span className="var-label">{t("risk.cvar")}</span>
+                          <span className="var-value down">¥{risk.var_result.cvar_value.toLocaleString(numLocale, { minimumFractionDigits: 2 })}</span>
                         </div>
                         <div className="var-main">
-                          <span className="var-label">CVaR 占比</span>
+                          <span className="var-label">{t("risk.cvarPct")}</span>
                           <span className="var-value">{(risk.var_result.cvar_pct * 100).toFixed(2)}%</span>
                         </div>
                       </div>
@@ -651,13 +622,13 @@ export default function App() {
                       </div>
                       {risk.var_result.holdings_var.length > 0 && (
                         <table className="metrics-table" style={{ marginTop: 8 }}>
-                          <thead><tr><th>股票</th><th>权重</th><th>VaR</th></tr></thead>
+                          <thead><tr><th>{t("risk.stock")}</th><th>{t("risk.weight")}</th><th>VaR</th></tr></thead>
                           <tbody>
                             {risk.var_result.holdings_var.map((h: any, i: number) => (
                               <tr key={i}>
                                 <td>{h.name}</td>
                                 <td className="mono">{((h.weight ?? 0) * 100).toFixed(1)}%</td>
-                                <td className="mono down">¥{(h.var_value ?? 0).toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</td>
+                                <td className="mono down">¥{(h.var_value ?? 0).toLocaleString(numLocale, { minimumFractionDigits: 2 })}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -675,13 +646,13 @@ export default function App() {
                   ))}
                   {risk.llm_analysis && (
                     <div className="card">
-                      <h4>AI 深度分析</h4>
-                      <p><strong>市场环境：</strong>{risk.llm_analysis.market_assessment}</p>
-                      <p><strong>相关性风险：</strong>{risk.llm_analysis.correlation_analysis}</p>
-                      <p><strong>风险综述：</strong>{risk.llm_analysis.risk_narrative}</p>
+                      <h4>{t("risk.aiAnalysis")}</h4>
+                      <p><strong>{t("risk.market")}:</strong> {risk.llm_analysis.market_assessment}</p>
+                      <p><strong>{t("risk.correlation")}:</strong> {risk.llm_analysis.correlation_analysis}</p>
+                      <p><strong>{t("risk.narrative")}:</strong> {risk.llm_analysis.risk_narrative}</p>
                       {risk.llm_analysis.scenario_analysis.length > 0 && (
                         <>
-                          <span className="field-label">风险情景</span>
+                          <span className="field-label">{t("risk.scenarios")}</span>
                           <ul>{risk.llm_analysis.scenario_analysis.map((s, i) => <li key={i}>{s}</li>)}</ul>
                         </>
                       )}
@@ -698,15 +669,16 @@ export default function App() {
 }
 
 function CardView({ card }: { card: ChatResponse["cards"][0] }) {
+  const { t } = useI18n();
   try {
     if (card.type === "research" && card.data && "composite_score" in card.data) {
       const d = card.data as unknown as ResearchReport;
       return (
         <div className="card">
-          <h4>投研报告 · {d.name} ({d.symbol})</h4>
+          <h4>{t("card.research")} · {d.name} ({d.symbol})</h4>
           <div className="stat-row">
-            <span className="stat-pill">评分 {d.composite_score}/10</span>
-            <span className="stat-pill">倾向 {d.bias}</span>
+            <span className="stat-pill">{t("card.score")} {d.composite_score}/10</span>
+            <span className="stat-pill">{t("card.bias")} {d.bias}</span>
           </div>
           <p>{d.summary}</p>
         </div>
@@ -716,12 +688,12 @@ function CardView({ card }: { card: ChatResponse["cards"][0] }) {
       const d = card.data as unknown as RiskCheckup;
       return (
         <div className="card">
-          <h4>风控体检</h4>
+          <h4>{t("card.riskCheckup")}</h4>
           <p>{d.portfolio_summary}</p>
           {d.alerts?.slice(0, 3).map((a, i) => (
             <p key={i} className={`alert-${a.severity}`}>{a.human_message}</p>
           ))}
-          {d.llm_analysis && <p><strong>AI 分析：</strong>{d.llm_analysis.risk_narrative}</p>}
+          {d.llm_analysis && <p><strong>{t("card.aiBrief")}:</strong> {d.llm_analysis.risk_narrative}</p>}
         </div>
       );
     }
@@ -729,33 +701,35 @@ function CardView({ card }: { card: ChatResponse["cards"][0] }) {
       const items = (card.data as { items: NewsItem[] }).items || [];
       return (
         <div className="card">
-          <h4>相关快讯</h4>
+          <h4>{t("card.relatedNews")}</h4>
           {items.slice(0, 3).map((n, i) => <p key={i}>{n.title} — {n.summary}</p>)}
         </div>
       );
     }
     if (card.type === "debate" && card.data && "positions" in card.data) {
       const d = card.data as { positions: { agent: string; stance: string; arguments: string }[]; vote_tally: Record<string, number>; final_bias: string; synthesis: string; symbol: string; name: string };
-      const biasLabel: Record<string, string> = { bullish: "偏多", bearish: "偏空", neutral: "中性" };
-      const stanceColor: Record<string, string> = { "看多": "up", "看空": "down", "中性": "" };
+      const biasLabel: Record<string, string> = { bullish: t("card.bullish"), bearish: t("card.bearish"), neutral: t("card.neutral") };
+      const stanceColor: Record<string, string> = { "看多": "up", "看空": "down", "中性": "", Long: "up", Short: "down", Neutral: "" };
+      const stanceLabel = (s: string) =>
+        ({ "看多": t("card.long"), "看空": t("card.short"), "中性": t("card.neutral") } as Record<string, string>)[s] ?? s;
       return (
         <div className="card">
-          <h4>多Agent辩论 · {d.name}({d.symbol})</h4>
+          <h4>{t("card.debate")} · {d.name}({d.symbol})</h4>
           <div className="stat-row">
-            <span className="stat-pill">看多 {d.vote_tally["看多"] || 0}</span>
-            <span className="stat-pill">看空 {d.vote_tally["看空"] || 0}</span>
-            <span className="stat-pill">中性 {d.vote_tally["中性"] || 0}</span>
-            <span className={`stat-pill ${d.final_bias === "bullish" ? "up" : d.final_bias === "bearish" ? "down" : ""}`}>综合 {biasLabel[d.final_bias] || d.final_bias}</span>
+            <span className="stat-pill">{t("card.long")} {d.vote_tally["看多"] || 0}</span>
+            <span className="stat-pill">{t("card.short")} {d.vote_tally["看空"] || 0}</span>
+            <span className="stat-pill">{t("card.neutral")} {d.vote_tally["中性"] || 0}</span>
+            <span className={`stat-pill ${d.final_bias === "bullish" ? "up" : d.final_bias === "bearish" ? "down" : ""}`}>{t("card.bias")} {biasLabel[d.final_bias] || d.final_bias}</span>
           </div>
           {d.positions.map((p, i) => (
             <div key={i} className={`debate-position ${stanceColor[p.stance] || ""}`}>
-              <strong>{p.agent}分析师</strong> <span className={`stat-pill ${stanceColor[p.stance]}`}>{p.stance}</span>
+              <strong>{p.agent} {t("card.analyst")}</strong> <span className={`stat-pill ${stanceColor[p.stance]}`}>{stanceLabel(p.stance)}</span>
               <p className="muted" style={{ marginTop: 2 }}>{p.arguments.slice(0, 200)}{p.arguments.length > 200 ? "..." : ""}</p>
             </div>
           ))}
           {d.synthesis && (
             <div style={{ marginTop: 8, borderTop: "1px solid var(--bbg-border)", paddingTop: 8 }}>
-              <strong>裁判综合</strong>
+              <strong>{t("card.judge")}</strong>
               <div className="markdown-body" style={{ marginTop: 4 }} dangerouslySetInnerHTML={{ __html: simpleMarkdown(d.synthesis) }} />
             </div>
           )}
@@ -766,9 +740,9 @@ function CardView({ card }: { card: ChatResponse["cards"][0] }) {
       const d = card.data as { symbol: string; name: string; ratios: { name: string; value: string; reference: string; assessment: string }[]; summary: string };
       return (
         <div className="card">
-          <h4>财报比率 · {d.name}({d.symbol})</h4>
+          <h4>{t("card.financial")} · {d.name}({d.symbol})</h4>
           <table className="metrics-table">
-            <thead><tr><th>指标</th><th>当前值</th><th>行业参考</th><th>评价</th></tr></thead>
+            <thead><tr><th>{t("card.metric")}</th><th>{t("card.value")}</th><th>{t("card.benchmark")}</th><th>{t("card.assessment")}</th></tr></thead>
             <tbody>
               {d.ratios.map((r, i) => (
                 <tr key={i}>
@@ -789,7 +763,7 @@ function CardView({ card }: { card: ChatResponse["cards"][0] }) {
       if (d.phase === "plan") {
         return (
           <div className="card">
-            <h4>研究计划</h4>
+            <h4>{t("card.plan")}</h4>
             {d.reasoning && <p className="muted">{d.reasoning}</p>}
             <ol style={{ margin: "4px 0", paddingLeft: 20 }}>
               {d.steps?.map((s, i) => <li key={i}>{s.description}</li>)}
@@ -800,7 +774,7 @@ function CardView({ card }: { card: ChatResponse["cards"][0] }) {
       if (d.phase === "execute") {
         return (
           <div className="card" style={{ borderLeft: "2px solid var(--bbg-amber)" }}>
-            <h4>步骤 {d.step_id}</h4>
+            <h4>{t("card.step")} {d.step_id}</h4>
             <p className="muted">{d.step}</p>
             {d.result_preview && <p style={{ marginTop: 4 }}>{d.result_preview}</p>}
           </div>
@@ -817,7 +791,7 @@ function CardView({ card }: { card: ChatResponse["cards"][0] }) {
       );
     }
   } catch {
-    return <div className="card"><p>卡片数据解析失败</p></div>;
+    return <div className="card"><p>{t("card.parseError")}</p></div>;
   }
   return null;
 }

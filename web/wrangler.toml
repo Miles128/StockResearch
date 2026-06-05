@@ -2,5 +2,6 @@ name = "stockresearch"
 compatibility_date = "2024-09-01"
 pages_build_output_dir = "./dist"
 
-# 在 Cloudflare Dashboard → Settings → Environment variables 配置：
-# BACKEND_URL = https://你的后端域名   （不要填 LLM_API_KEY）
+# 生产后端（Fly 香港）。Dashboard / `wrangler pages secret put` 可覆盖。
+[vars]
+BACKEND_URL = "https://stockresearch-api.fly.dev"

@@ -5,6 +5,16 @@ from dataclasses import dataclass
 from stockresearch.core.config import get_settings
 
 
+def resolve_chat_completions_url(url: str) -> str:
+    """OpenAI 兼容：文档 Base URL（/v1）自动补 /chat/completions；已是完整地址则原样。"""
+    u = url.strip()
+    if not u:
+        return u
+    if "chat/completions" in u:
+        return u
+    return f"{u.rstrip('/')}/chat/completions"
+
+
 @dataclass(frozen=True)
 class LlmOverrides:
     api_key: str | None = None
@@ -20,8 +30,8 @@ class LlmOverrides:
 
     def effective_base_url(self) -> str:
         if self.base_url and self.base_url.strip():
-            return self.base_url.strip().rstrip("/")
-        return get_settings().llm_base_url.rstrip("/")
+            return self.base_url.strip()
+        return get_settings().llm_base_url.strip()
 
     def effective_model(self) -> str:
         if self.model and self.model.strip():

@@ -5,8 +5,8 @@ from stockresearch.agents.orchestrator.complexity import (
     ANALYSIS_SIMPLE,
     ComplexityResult,
     classify_query,
+    classify_research_scope,
     is_market_scope,
-    needs_analysis_choice,
     resolve_execution_mode,
     wants_deep_research,
 )
@@ -37,13 +37,38 @@ def test_helpers() -> None:
     assert is_market_scope("沪深300走势")
 
 
-def test_needs_analysis_choice() -> None:
-    assert needs_analysis_choice("今天大盘行情", has_holdings=False)
-    assert not needs_analysis_choice("帮我做风控体检", has_holdings=True)
+def test_classify_research_scope() -> None:
+    assert classify_research_scope("帮我分析一下600519") == "stock"
+    assert classify_research_scope("今天大盘走势") == "market"
+    assert classify_research_scope("A 股走势如何") == "market"
+    assert classify_research_scope("最近市场怎么样") == "market"
+    assert classify_research_scope("沪深市场如何") == "market"
+    assert classify_research_scope("什么是市盈率") is None
+
+
+def test_a_share_spaced_query_routes_to_market_debate() -> None:
+    assert (
+        resolve_execution_mode("A 股走势如何", enable_debate=True)
+        == ComplexityResult.MARKET_DEBATE
+    )
 
 
 def test_resolve_execution_mode() -> None:
     assert resolve_execution_mode("今天大盘行情", ANALYSIS_SIMPLE) == ComplexityResult.DIRECT
-    assert resolve_execution_mode("今天大盘行情", ANALYSIS_COMPLEX) == ComplexityResult.PLAN_EXECUTE
-    assert resolve_execution_mode("600519 深度分析", ANALYSIS_COMPLEX) == ComplexityResult.DEBATE
+    assert (
+        resolve_execution_mode("今天大盘行情", enable_debate=False)
+        == ComplexityResult.MARKET_RESEARCH
+    )
+    assert (
+        resolve_execution_mode("今天大盘行情", enable_debate=True)
+        == ComplexityResult.MARKET_DEBATE
+    )
+    assert (
+        resolve_execution_mode("帮我分析一下600519", enable_debate=True)
+        == ComplexityResult.DEBATE
+    )
+    assert (
+        resolve_execution_mode("帮我分析一下600519", enable_debate=False)
+        == ComplexityResult.RESEARCH
+    )
     assert resolve_execution_mode("600519 深度分析", ANALYSIS_SIMPLE) == ComplexityResult.DIRECT

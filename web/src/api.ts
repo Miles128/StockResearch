@@ -1,3 +1,4 @@
+import { analysisBodyField } from "./analysisSettings";
 import {
   llmBodyField,
   llmFormToApiBody,
@@ -128,13 +129,10 @@ async function consumeSse(
   }
 }
 
-export type AnalysisMode = "simple" | "complex";
-
 async function streamChat(
   message: string,
   sessionId?: string,
   onEvent?: (event: AgentStreamEvent) => void,
-  analysisMode?: AnalysisMode,
 ): Promise<ChatResponse | null> {
   const resp = await fetch(apiUrl("/chat/stream"), {
     method: "POST",
@@ -142,7 +140,7 @@ async function streamChat(
     body: JSON.stringify({
       message,
       session_id: sessionId,
-      analysis_mode: analysisMode ?? null,
+      ...analysisBodyField(),
       ...llmBodyField(),
     }),
   });
@@ -167,13 +165,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify(llmFormToApiBody(form)),
     }),
-  chat: (message: string, sessionId?: string, analysisMode?: AnalysisMode) =>
+  chat: (message: string, sessionId?: string) =>
     request<ChatResponse>("/chat", {
       method: "POST",
       body: JSON.stringify({
         message,
         session_id: sessionId,
-        analysis_mode: analysisMode ?? null,
+        ...analysisBodyField(),
         ...llmBodyField(),
       }),
     }),
@@ -181,8 +179,7 @@ export const api = {
     message: string,
     sessionId?: string,
     onEvent?: (event: AgentStreamEvent) => void,
-    analysisMode?: AnalysisMode,
-  ) => streamChat(message, sessionId, onEvent, analysisMode),
+  ) => streamChat(message, sessionId, onEvent),
   holdings: () => request<Holding[]>("/portfolio/holdings"),
   holdingsEnriched: () => request<HoldingEnriched[]>("/portfolio/holdings/enriched"),
   addHolding: (h: HoldingCreatePayload) =>

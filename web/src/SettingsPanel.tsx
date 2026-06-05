@@ -1,17 +1,24 @@
 import { useEffect, useState } from "react";
-import { api, type LlmSettingsMeta } from "./api";
+import type { LlmSettingsMeta } from "./api";
+import { useI18n } from "./i18n";
 import {
   loadLlmSettings,
   saveLlmSettings,
   type LlmUserSettings,
 } from "./llmSettings";
+import { api } from "./api";
+import {
+  loadAnalysisSettings,
+  saveAnalysisSettings,
+  type AnalysisUserSettings,
+} from "./analysisSettings";
 import {
   applyTheme,
   loadTheme,
   saveTheme,
-  THEME_OPTIONS,
   type AppTheme,
 } from "./themeSettings";
+import type { AppLocale } from "./localeSettings";
 
 interface SettingsPanelProps {
   open: boolean;
@@ -32,9 +39,11 @@ export function SettingsPanel({
   required = false,
   onConfigured,
 }: SettingsPanelProps) {
+  const { t, locale, setLocale } = useI18n();
   const [meta, setMeta] = useState<LlmSettingsMeta | null>(null);
   const [form, setForm] = useState<LlmUserSettings>(loadLlmSettings);
   const [theme, setTheme] = useState<AppTheme>(loadTheme);
+  const [analysis, setAnalysis] = useState<AnalysisUserSettings>(loadAnalysisSettings);
   const [error, setError] = useState("");
   const [testOk, setTestOk] = useState("");
   const [testing, setTesting] = useState(false);
@@ -44,6 +53,7 @@ export function SettingsPanel({
     if (!open) return;
     setForm(loadLlmSettings());
     setTheme(loadTheme());
+    setAnalysis(loadAnalysisSettings());
     setError("");
     setTestOk("");
     api.llmSettings().then(setMeta).catch(() => setMeta(null));
@@ -57,15 +67,27 @@ export function SettingsPanel({
     applyTheme(next);
   }
 
+  function selectLocale(next: AppLocale) {
+    setLocale(next);
+  }
+
+  function toggleDebate(enabled: boolean) {
+    const next = { ...analysis, enableDebate: enabled };
+    setAnalysis(next);
+    saveAnalysisSettings(next);
+  }
+
   async function testConnection(): Promise<boolean> {
     setError("");
     setTestOk("");
+    const urlUsed = form.baseUrl.trim();
     try {
       const result = await api.testLlmConnection(form);
       setTestOk(result.message);
       return true;
     } catch (e) {
-      setError(formatApiError(e));
+      const msg = formatApiError(e);
+      setError(urlUsed ? `${msg}（表单 URL：${urlUsed}）` : msg);
       return false;
     }
   }
@@ -92,6 +114,10 @@ export function SettingsPanel({
   }
 
   const busy = testing || saving;
+  const themeOptions: { id: AppTheme; label: string; hint: string }[] = [
+    { id: "orange-black", label: t("settings.themeOrange"), hint: t("settings.themeOrangeHint") },
+    { id: "wine-red-white", label: t("settings.themeWine"), hint: t("settings.themeWineHint") },
+  ];
 
   return (
     <div
@@ -104,26 +130,24 @@ export function SettingsPanel({
       {required && <div className="settings-backdrop settings-backdrop-lock" />}
       <div className="settings-panel">
         <div className="settings-header">
-          <h3 id="settings-title">{required ? "欢迎使用 StockResearch" : "设置"}</h3>
+          <h3 id="settings-title">{required ? t("settings.welcome") : t("settings.title")}</h3>
           {!required && (
             <button type="button" className="btn btn-ghost settings-close" onClick={onClose}>
-              关闭
+              {t("settings.close")}
             </button>
           )}
         </div>
 
         {required && (
-          <p className="settings-required-banner">
-            请先配置大模型。API Key 仅保存在您本机浏览器，不会上传到 Cloudflare 或服务器仓库。
-          </p>
+          <p className="settings-required-banner">{t("settings.requiredBanner")}</p>
         )}
 
         {!required && (
           <>
-            <h4 className="settings-section-title">外观风格</h4>
-            <p className="settings-hint">切换后立即生效，保存在本机浏览器。</p>
+            <h4 className="settings-section-title">{t("settings.appearance")}</h4>
+            <p className="settings-hint">{t("settings.appearanceHint")}</p>
             <div className="theme-picker">
-              {THEME_OPTIONS.map((opt) => (
+              {themeOptions.map((opt) => (
                 <button
                   key={opt.id}
                   type="button"
@@ -136,24 +160,50 @@ export function SettingsPanel({
                 </button>
               ))}
             </div>
+
+            <h4 className="settings-section-title">{t("settings.language")}</h4>
+            <p className="settings-hint">{t("settings.languageHint")}</p>
+            <div className="locale-picker">
+              {(["zh", "en"] as AppLocale[]).map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`locale-option${locale === id ? " active" : ""}`}
+                  onClick={() => selectLocale(id)}
+                >
+                  {id === "zh" ? t("settings.langZh") : t("settings.langEn")}
+                </button>
+              ))}
+            </div>
+
           </>
         )}
 
-        <h4 className="settings-section-title">大模型</h4>
-        <p className="settings-hint">
-          API Key 保存在本机浏览器，每次请求会带给服务端用于调用大模型，不会写入数据库。
-          保存前会先测试连接，不通则无法保存。
+        <h4 className="settings-section-title">{t("settings.analysis")}</h4>
+        <p className="settings-hint">{t("settings.analysisHint")}</p>
+        <label className="settings-check">
+          <input
+            type="checkbox"
+            checked={analysis.enableDebate}
+            onChange={(e) => toggleDebate(e.target.checked)}
+          />
+          <span>{t("settings.enableDebate")}</span>
+        </label>
+        <p className="settings-muted settings-analysis-note">
+          {analysis.enableDebate ? t("settings.debateOnNote") : t("settings.debateOffNote")}
         </p>
+
+        <h4 className="settings-section-title">{t("settings.llm")}</h4>
+        <p className="settings-hint">{t("settings.llmHint")}</p>
 
         {error && <p className="settings-error">{error}</p>}
         {testOk && !error && <p className="settings-ok">{testOk}</p>}
 
         <label className="settings-field">
-          <span>API Key</span>
+          <span>{t("settings.apiKey")}</span>
           <input
             type="password"
             autoComplete="off"
-            placeholder="sk-..."
             value={form.apiKey}
             disabled={form.useMock}
             onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
@@ -161,10 +211,11 @@ export function SettingsPanel({
         </label>
 
         <label className="settings-field">
-          <span>API Base URL</span>
+          <span>{t("settings.baseUrl")}</span>
           <input
-            type="url"
-            placeholder={meta?.default_base_url ?? "https://api.example.com/v1"}
+            type="text"
+            autoComplete="off"
+            spellCheck={false}
             value={form.baseUrl}
             disabled={form.useMock}
             onChange={(e) => setForm((f) => ({ ...f, baseUrl: e.target.value }))}
@@ -172,10 +223,9 @@ export function SettingsPanel({
         </label>
 
         <label className="settings-field">
-          <span>模型 ID</span>
+          <span>{t("settings.model")}</span>
           <input
             type="text"
-            placeholder={meta?.default_model ?? "model-name"}
             value={form.model}
             disabled={form.useMock}
             onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
@@ -184,8 +234,8 @@ export function SettingsPanel({
 
         <label className="settings-field">
           <span>
-            温度 <strong>{form.temperature.toFixed(1)}</strong>
-            <span className="settings-muted">（0 更稳定，2 更发散）</span>
+            {t("settings.temperature")} <strong>{form.temperature.toFixed(1)}</strong>
+            <span className="settings-muted">{t("settings.tempHint")}</span>
           </span>
           <input
             type="range"
@@ -205,17 +255,17 @@ export function SettingsPanel({
             checked={form.useMock}
             onChange={(e) => setForm((f) => ({ ...f, useMock: e.target.checked }))}
           />
-          <span>使用 Mock 回复（无需 API Key，用于演示）</span>
+          <span>{t("settings.useMock")}</span>
         </label>
 
         {meta?.server_use_mock && !required && (
-          <p className="settings-warn">服务端当前启用了 USE_MOCK_LLM；勾选 Mock 可本地演示。</p>
+          <p className="settings-warn">{t("settings.serverMock")}</p>
         )}
 
         <div className="settings-actions">
           {!required && (
             <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>
-              取消
+              {t("settings.cancel")}
             </button>
           )}
           <button
@@ -224,7 +274,7 @@ export function SettingsPanel({
             onClick={handleTest}
             disabled={busy}
           >
-            {testing ? "测试中…" : "测试连接"}
+            {testing ? t("settings.testing") : t("settings.test")}
           </button>
           <button
             type="button"
@@ -232,7 +282,7 @@ export function SettingsPanel({
             onClick={handleSave}
             disabled={busy}
           >
-            {saving ? "保存中…" : required ? "保存并进入" : "保存"}
+            {saving ? t("settings.saving") : required ? t("settings.saveEnter") : t("settings.save")}
           </button>
         </div>
       </div>

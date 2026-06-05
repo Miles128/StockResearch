@@ -175,6 +175,8 @@ def _build_report(
 async def run_research_stream(
     symbol: str,
     llm: LLMClient | None = None,
+    *,
+    with_debate: bool = True,
 ) -> AsyncIterator[dict[str, object]]:
     client = llm or get_llm_client()
     ctx = ResearchContext(symbol=symbol, llm=client)
@@ -211,6 +213,12 @@ async def run_research_stream(
     await asyncio.gather(*pumps)
 
     yield {"type": "status", "message": "四维完成，汇总作战情…"}
+    if not with_debate:
+        report = _build_report(symbol, name, dimensions, None)
+        yield {"type": "status", "message": "投研报告已生成"}
+        yield {"type": "done", "result": report.model_dump(mode="json")}
+        return
+
     situation = summarize_situation(dimensions)
     yield {"type": "status", "message": "进入多空 Battle…"}
 

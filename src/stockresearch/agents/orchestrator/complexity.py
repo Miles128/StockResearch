@@ -17,9 +17,23 @@ _DEEP_INTENT_KEYWORDS: tuple[str, ...] = (
 )
 
 _MARKET_SCOPE_RE = re.compile(
-    r"(大盘|市场走势|A股走势|股市走势|整体市场|整个市场|宏观走势|指数走势|"
-    r"沪指|上证|深证|创业板|沪深300|A股市场|市场方向|大盘方向)"
+    r"(大盘|市场走势|a股走势|股市走势|整体市场|整个市场|宏观走势|指数走势|"
+    r"沪指|上证|深证|创业板|沪深300|a股市场|市场方向|大盘方向|沪深市场)"
 )
+
+_MARKET_ENTITY_RE = re.compile(
+    r"(大盘|沪指|上证|深证|创业板|沪深300|a股|股市|大盘|市场|指数|宏观|沪深市场)"
+)
+
+_MARKET_TREND_RE = re.compile(
+    r"(走势|行情|方向|趋势|怎么看|如何|怎么样|咋样|向好|看跌|看涨|涨跌|牛熊|研判|展望)"
+)
+
+
+def _compact_message(message: str) -> str:
+    """Collapse spaces and normalize for Chinese finance intent matching."""
+    msg = message.strip().lower().replace("Ａ", "a")
+    return re.sub(r"\s+", "", msg)
 
 # Simple patterns that can be answered directly (skipped when deep intent present)
 _SIMPLE_PATTERNS = [
@@ -65,6 +79,8 @@ class ComplexityResult:
     """Result of complexity classification."""
 
     DIRECT = "direct"
+    RESEARCH = "research"
+    MARKET_RESEARCH = "market_research"
     DEBATE = "debate"
     MARKET_DEBATE = "market_debate"
     PLAN_EXECUTE = "plan_execute"
@@ -89,11 +105,17 @@ def wants_deep_research(message: str) -> bool:
 
 
 def is_market_scope(message: str) -> bool:
-    return bool(_MARKET_SCOPE_RE.search(message))
+    compact = _compact_message(message)
+    if _MARKET_SCOPE_RE.search(compact):
+        return True
+    return bool(_MARKET_ENTITY_RE.search(compact) and _MARKET_TREND_RE.search(compact))
+
+
+_STOCK_CODE_RE = re.compile(r"(?<!\d)(\d{6})(?!\d)")
 
 
 def has_stock_reference(message: str) -> bool:
-    if re.search(r"\b\d{6}\b", message):
+    if _STOCK_CODE_RE.search(message):
         return True
     return bool(re.search(_STOCK_NAMES, message))
 
@@ -139,21 +161,51 @@ def is_risk_intent(message: str) -> bool:
     return any(kw in message for kw in _RISK_KEYWORDS)
 
 
-def needs_analysis_choice(message: str, *, has_holdings: bool) -> bool:
-    """Whether to prompt user for simple vs complex analysis."""
+def classify_research_scope(message: str) -> str | None:
+    """Return 'stock' or 'market' when the query is finance-research scoped."""
     msg = message.strip()
-    if is_risk_intent(msg) and has_holdings:
-        return False
-    return True
+    if has_stock_reference(msg):
+        return "stock"
+    if is_market_scope(msg):
+        return "market"
+    compact = _compact_message(msg)
+    if _MARKET_ENTITY_RE.search(compact) and _MARKET_TREND_RE.search(compact):
+        return "market"
+    return None
 
 
-def resolve_execution_mode(message: str, analysis_mode: str | None) -> str:
-    """Map user-selected depth to execution strategy."""
-    auto = classify_query(message)
+def resolve_execution_mode(
+    message: str,
+    analysis_mode: str | None = None,
+    *,
+    enable_debate: bool = False,
+) -> str:
+    """Route chat to direct / multi-dim research / debate / plan-execute."""
+    msg = message.strip()
+
+    # Legacy clients may still send simple/complex — honor simple only.
     if analysis_mode == ANALYSIS_SIMPLE:
         return ComplexityResult.DIRECT
+
+    for pattern in _COMPLEX_PATTERNS:
+        if re.search(pattern, msg):
+            return ComplexityResult.PLAN_EXECUTE
+
+    scope = classify_research_scope(msg)
+    if scope == "stock":
+        return ComplexityResult.DEBATE if enable_debate else ComplexityResult.RESEARCH
+    if scope == "market":
+        return ComplexityResult.MARKET_DEBATE if enable_debate else ComplexityResult.MARKET_RESEARCH
+
     if analysis_mode == ANALYSIS_COMPLEX:
+        auto = classify_query(msg)
         if auto in (ComplexityResult.DEBATE, ComplexityResult.MARKET_DEBATE):
-            return auto
-        return ComplexityResult.PLAN_EXECUTE
-    return auto
+            return auto if enable_debate else (
+                ComplexityResult.RESEARCH
+                if auto == ComplexityResult.DEBATE
+                else ComplexityResult.MARKET_RESEARCH
+            )
+        if auto == ComplexityResult.PLAN_EXECUTE:
+            return ComplexityResult.PLAN_EXECUTE
+
+    return classify_query(msg)

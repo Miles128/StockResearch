@@ -64,7 +64,6 @@ export function isLlmConfigured(): boolean {
   return Boolean(s.apiKey.trim() && s.baseUrl.trim() && s.model.trim());
 }
 
-/** API body for test/save — only the form values, not saved localStorage. */
 export function llmFormToApiBody(form: LlmUserSettings): Record<string, unknown> {
   return {
     api_key: form.apiKey.trim() || null,
