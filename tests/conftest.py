@@ -43,8 +43,3 @@ def client(db_session: object) -> TestClient:
     cache = CacheService()
     cache.clear_memory()
     return TestClient(app)
-
-
-@pytest.fixture()
-def auth_headers() -> dict[str, str]:
-    return {}

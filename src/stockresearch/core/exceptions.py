@@ -9,14 +9,6 @@ class NotFoundError(StockResearchError):
     """Resource not found."""
 
 
-class AuthenticationError(StockResearchError):
-    """Authentication failed."""
-
-
-class AuthorizationError(StockResearchError):
-    """Authorization failed."""
-
-
 class ValidationError(StockResearchError):
     """Input validation failed."""
 

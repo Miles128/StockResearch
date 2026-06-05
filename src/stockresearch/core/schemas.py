@@ -9,29 +9,6 @@ from stockresearch.core.constants import DISCLAIMER
 from stockresearch.services.trading_calendar import validate_buy_date
 
 
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-
-
-class UserCreate(BaseModel):
-    username: str = Field(min_length=3, max_length=50)
-    password: str = Field(min_length=6, max_length=128)
-
-
-class UserLogin(BaseModel):
-    username: str
-    password: str
-
-
-class UserOut(BaseModel):
-    id: int
-    username: str
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
 class HoldingCreate(BaseModel):
     """Accept code/name query or explicit symbol; quantity in 手 (lots)."""
 
@@ -381,6 +358,16 @@ class ResearchReportListItem(BaseModel):
     created_at: datetime
 
 
+class LlmUsageOut(BaseModel):
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    model: str | None = None
+    estimated_cost_cny: float | None = None
+    is_estimate: bool = False
+    llm_calls: int = 0
+
+
 class ChatResponse(BaseModel):
     session_id: str
     reply: str
@@ -388,3 +375,4 @@ class ChatResponse(BaseModel):
     intent: str
     disclaimer: str = DISCLAIMER
     partial: bool = False
+    llm_usage: LlmUsageOut | None = None

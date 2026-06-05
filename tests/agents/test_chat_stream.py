@@ -5,12 +5,10 @@ from sqlalchemy.orm import Session
 
 from stockresearch.agents.orchestrator.stream import run_chat_stream
 from stockresearch.db.models import User
-from stockresearch.services.auth import hash_password
-
 
 @pytest.mark.asyncio
 async def test_chat_stream_stock_without_debate(db_session: Session) -> None:
-    user = User(username="stream-choice", password_hash=hash_password("password1"))
+    user = User(username="stream-choice", password_hash="")
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
@@ -33,7 +31,7 @@ async def test_chat_stream_stock_without_debate(db_session: Session) -> None:
 
 @pytest.mark.asyncio
 async def test_chat_stream_returns_reply(db_session: Session) -> None:
-    user = User(username="stream-test", password_hash=hash_password("password1"))
+    user = User(username="stream-test", password_hash="")
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
@@ -58,7 +56,7 @@ async def test_chat_stream_returns_reply(db_session: Session) -> None:
 
 @pytest.mark.asyncio
 async def test_chat_stream_ambiguous_stock_choice(db_session: Session) -> None:
-    user = User(username="stream-ambig", password_hash=hash_password("password1"))
+    user = User(username="stream-ambig", password_hash="")
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
@@ -83,7 +81,7 @@ async def test_chat_stream_ambiguous_stock_choice(db_session: Session) -> None:
 
 @pytest.mark.asyncio
 async def test_chat_stream_confirmed_symbol_proceeds(db_session: Session) -> None:
-    user = User(username="stream-confirm", password_hash=hash_password("password1"))
+    user = User(username="stream-confirm", password_hash="")
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)

@@ -1,7 +1,0 @@
-name = "stockresearch"
-compatibility_date = "2024-09-01"
-pages_build_output_dir = "./dist"
-
-# 生产后端（Fly 香港）。Dashboard / `wrangler pages secret put` 可覆盖。
-[vars]
-BACKEND_URL = "https://stockresearch-api.fly.dev"

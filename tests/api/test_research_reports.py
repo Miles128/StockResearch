@@ -35,7 +35,7 @@ def _sample_report() -> ResearchReportOut:
 
 def test_list_and_export_reports(client, db_session) -> None:
     from stockresearch.api.routes.research import persist_report
-    from stockresearch.services.auth import get_or_create_mvp_user
+    from stockresearch.services.local_user import get_or_create_mvp_user
 
     user = get_or_create_mvp_user(db_session)
     row = persist_report(db_session, user.id, _sample_report())

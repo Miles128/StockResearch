@@ -10,6 +10,7 @@ import httpx
 
 from stockresearch.core.config import get_settings
 from stockresearch.core.llm_config import LlmOverrides, resolve_chat_completions_url
+from stockresearch.utils.llm_usage import estimate_tokens, record_usage
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ class MockLLMClient(LLMClient):
         for offset in range(0, len(text), step):
             yield text[offset : offset + step]
 
-    async def complete(self, system: str, user: str) -> str:
+    def _mock_reply(self, system: str, user: str) -> str:
         if "编排 Agent" in system or "调用工具" in system:
             if any(kw in user for kw in ("大盘", "市场", "股市", "走势", "行情", "板块")):
                 return (
@@ -249,6 +250,15 @@ class MockLLMClient(LLMClient):
             )
         return "您好，以上仅供参考，请您结合自己的判断决策。"
 
+    async def complete(self, system: str, user: str) -> str:
+        text = self._mock_reply(system, user)
+        record_usage(
+            prompt_tokens=estimate_tokens(f"{system}\n{user}"),
+            completion_tokens=estimate_tokens(text),
+            is_estimate=True,
+        )
+        return text
+
 
 class OpenAICompatibleClient(LLMClient):
     def __init__(self, overrides: LlmOverrides | None = None) -> None:
@@ -276,6 +286,9 @@ class OpenAICompatibleClient(LLMClient):
             "temperature": self._temperature,
             "stream": True,
         }
+        prompt_text = f"{system}\n{user}"
+        completion_parts: list[str] = []
+        usage_from_api: dict[str, int] | None = None
         async with httpx.AsyncClient(timeout=60.0) as client:
             async with client.stream(
                 "POST",
@@ -294,13 +307,32 @@ class OpenAICompatibleClient(LLMClient):
                         chunk = json.loads(data)
                     except json.JSONDecodeError:
                         continue
+                    raw_usage = chunk.get("usage")
+                    if isinstance(raw_usage, dict) and raw_usage.get("total_tokens"):
+                        usage_from_api = {
+                            "prompt_tokens": int(raw_usage.get("prompt_tokens") or 0),
+                            "completion_tokens": int(raw_usage.get("completion_tokens") or 0),
+                        }
                     choices = chunk.get("choices", [])
                     if not choices:
                         continue
                     delta = choices[0].get("delta", {})
                     content = delta.get("content")
                     if content:
-                        yield str(content)
+                        piece = str(content)
+                        completion_parts.append(piece)
+                        yield piece
+        if usage_from_api:
+            record_usage(
+                prompt_tokens=usage_from_api["prompt_tokens"],
+                completion_tokens=usage_from_api["completion_tokens"],
+            )
+        else:
+            record_usage(
+                prompt_tokens=estimate_tokens(prompt_text),
+                completion_tokens=estimate_tokens("".join(completion_parts)),
+                is_estimate=True,
+            )
 
     async def complete(self, system: str, user: str) -> str:
         parts: list[str] = []
@@ -329,7 +361,23 @@ class OpenAICompatibleClient(LLMClient):
             )
             resp.raise_for_status()
             data = resp.json()
-            return data["choices"][0]["message"]["content"]
+            content = str(data["choices"][0]["message"]["content"])
+            usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+            if usage.get("total_tokens"):
+                record_usage(
+                    prompt_tokens=int(usage.get("prompt_tokens") or 0),
+                    completion_tokens=int(usage.get("completion_tokens") or 0),
+                )
+            else:
+                prompt_text = "\n".join(
+                    f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages
+                )
+                record_usage(
+                    prompt_tokens=estimate_tokens(prompt_text),
+                    completion_tokens=estimate_tokens(content),
+                    is_estimate=True,
+                )
+            return content
 
 
 def get_llm_client(overrides: LlmOverrides | None = None) -> LLMClient:

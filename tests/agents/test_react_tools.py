@@ -6,13 +6,12 @@ from sqlalchemy.orm import Session
 from stockresearch.agents.orchestrator.react_agent import OrchestratorAgent
 from stockresearch.core.schemas import DebateResult, DimensionResult, ResearchReportOut
 from stockresearch.db.models import User
-from stockresearch.services.auth import hash_password
 from stockresearch.utils.llm import MockLLMClient
 
 
 @pytest.mark.asyncio
 async def test_debate_stock_tool_registered(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> None:
-    user = User(username="react-tool", password_hash=hash_password("password1"))
+    user = User(username="react-tool", password_hash="")
     db_session.add(user)
     db_session.commit()
 

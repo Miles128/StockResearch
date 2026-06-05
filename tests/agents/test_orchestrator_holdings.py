@@ -5,12 +5,10 @@ from sqlalchemy.orm import Session
 
 from stockresearch.agents.orchestrator.graph import Orchestrator
 from stockresearch.db.models import Holding, User
-from stockresearch.services.auth import hash_password
-
 
 @pytest.mark.asyncio
 async def test_chat_risk_sees_user_holdings(db_session: Session) -> None:
-    user = User(username="holdings_user", password_hash=hash_password("password1"))
+    user = User(username="holdings_user", password_hash="")
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)

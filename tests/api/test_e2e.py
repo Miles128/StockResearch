@@ -27,18 +27,9 @@ def test_api_v1_index(client: TestClient) -> None:
     assert "endpoints" in resp.json()
 
 
-def test_path_register_login(client: TestClient) -> None:
-    """Auth routes removed in local-only mode; verify they return 405."""
-    resp = client.post("/api/v1/auth/register", json={"username": "alice", "password": "password1"})
-    assert resp.status_code == 405
-    login = client.post("/api/v1/auth/login", json={"username": "alice", "password": "password1"})
-    assert login.status_code == 405
-
-
-def test_path_holdings(client: TestClient, auth_headers: dict[str, str]) -> None:
+def test_path_holdings(client: TestClient) -> None:
     resp = client.post(
         "/api/v1/portfolio/holdings",
-        headers=auth_headers,
         json={
             "query": "600519",
             "cost_price": 1800.0,
@@ -49,22 +40,21 @@ def test_path_holdings(client: TestClient, auth_headers: dict[str, str]) -> None
     data = resp.json()
     assert data["symbol"] == "600519"
     assert "茅台" in data["name"]
-    listing = client.get("/api/v1/portfolio/holdings", headers=auth_headers)
+    listing = client.get("/api/v1/portfolio/holdings")
     assert len(listing.json()) == 1
 
 
-def test_path_holdings_by_name(client: TestClient, auth_headers: dict[str, str]) -> None:
+def test_path_holdings_by_name(client: TestClient) -> None:
     resp = client.post(
         "/api/v1/portfolio/holdings",
-        headers=auth_headers,
         json={"query": "贵州茅台", "cost_price": 1800.0, "quantity": 5},
     )
     assert resp.status_code == 200
     assert resp.json()["symbol"] == "600519"
 
 
-def test_market_overview(client: TestClient, auth_headers: dict[str, str]) -> None:
-    resp = client.get("/api/v1/market/overview", headers=auth_headers)
+def test_market_overview(client: TestClient) -> None:
+    resp = client.get("/api/v1/market/overview")
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["indices"]) >= 1
@@ -75,8 +65,8 @@ def test_market_overview(client: TestClient, auth_headers: dict[str, str]) -> No
 
 
 @pytest.mark.asyncio
-async def test_path_research(client: TestClient, auth_headers: dict[str, str]) -> None:
-    resp = client.get("/api/v1/research/analyze?symbol=600519", headers=auth_headers)
+async def test_path_research(client: TestClient) -> None:
+    resp = client.get("/api/v1/research/analyze?symbol=600519")
     assert resp.status_code == 200
     data = resp.json()
     assert data["symbol"] == "600519"
@@ -87,10 +77,9 @@ async def test_path_research(client: TestClient, auth_headers: dict[str, str]) -
 
 
 @pytest.mark.asyncio
-async def test_path_risk_checkup(client: TestClient, auth_headers: dict[str, str]) -> None:
+async def test_path_risk_checkup(client: TestClient) -> None:
     client.post(
         "/api/v1/portfolio/holdings",
-        headers=auth_headers,
         json={
             "symbol": "300750",
             "name": "宁德时代",
@@ -99,16 +88,15 @@ async def test_path_risk_checkup(client: TestClient, auth_headers: dict[str, str
             "sector": "新能源",
         },
     )
-    resp = client.post("/api/v1/risk/checkup", headers=auth_headers)
+    resp = client.post("/api/v1/risk/checkup")
     assert resp.status_code == 200
     assert "alerts" in resp.json()
 
 
 @pytest.mark.asyncio
-async def test_path_chat_research(client: TestClient, auth_headers: dict[str, str]) -> None:
+async def test_path_chat_research(client: TestClient) -> None:
     resp = client.post(
         "/api/v1/chat",
-        headers=auth_headers,
         json={"message": "帮我分析一下贵州茅台"},
     )
     assert resp.status_code == 200
@@ -119,8 +107,8 @@ async def test_path_chat_research(client: TestClient, auth_headers: dict[str, st
 
 
 @pytest.mark.asyncio
-async def test_path_news_ingest_and_feed(client: TestClient, auth_headers: dict[str, str]) -> None:
-    ingest = client.post("/api/v1/news/ingest?limit=5", headers=auth_headers)
+async def test_path_news_ingest_and_feed(client: TestClient) -> None:
+    ingest = client.post("/api/v1/news/ingest?limit=5")
     assert ingest.status_code == 200
-    feed = client.get("/api/v1/news/feed", headers=auth_headers)
+    feed = client.get("/api/v1/news/feed")
     assert feed.status_code == 200

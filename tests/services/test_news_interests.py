@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from stockresearch.core.constants import IMPACT_MAJOR, IMPACT_NORMAL
 from stockresearch.data.pipeline.news import NewsPipeline
 from stockresearch.db.models import NewsItem, User, UserSectorPreference
-from stockresearch.services.auth import hash_password
 from stockresearch.services.news_interests import (
     UserNewsInterests,
     classify_news,
@@ -48,7 +47,7 @@ def test_classify_market_news() -> None:
 
 
 def test_classify_sector_news(db_session: object) -> None:
-    user = User(username="newsuser", password_hash=hash_password("password1"))
+    user = User(username="newsuser", password_hash="")
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
@@ -70,7 +69,7 @@ def test_classify_sector_news(db_session: object) -> None:
 
 
 def test_list_feed_excludes_unrelated(db_session: object) -> None:
-    user = User(username="feeduser", password_hash=hash_password("password1"))
+    user = User(username="feeduser", password_hash="")
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
@@ -111,7 +110,7 @@ def test_list_feed_excludes_unrelated(db_session: object) -> None:
 
 
 def test_purge_irrelevant_news(db_session: object) -> None:
-    user = User(username="purgeuser", password_hash=hash_password("password1"))
+    user = User(username="purgeuser", password_hash="")
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
