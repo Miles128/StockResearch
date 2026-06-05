@@ -229,11 +229,9 @@ class FinancialDataProvider:
 
 
 class TechnicalDataProvider:
-    async def get_kline(self, symbol: str, days: int = 60) -> list[dict[str, float]]:
+    async def get_kline_bars(self, symbol: str, days: int = 60) -> list[dict[str, float | str]]:
         if get_settings().use_mock_market_data:
-            quote = await QuoteProvider().get_quote(symbol)
-            base = quote.price
-            return [{"close": base * (1 + (i - days / 2) * 0.001), "volume": quote.volume} for i in range(days)]
+            return await self._mock_kline_bars(symbol, days)
         try:
             end_date = datetime.now(UTC).strftime("%Y%m%d")
             now = datetime.now(UTC)
@@ -254,20 +252,67 @@ class TechnicalDataProvider:
                 timeout=10.0,
             )
             if df.empty:
-                return await self._mock_kline(symbol, days)
+                return await self._mock_kline_bars(symbol, days)
             recent = df.tail(days)
             return [
-                {"close": float(row["收盘"]), "volume": float(row["成交量"])}
+                {
+                    "date": str(row["日期"])[:10],
+                    "open": float(row["开盘"]),
+                    "high": float(row["最高"]),
+                    "low": float(row["最低"]),
+                    "close": float(row["收盘"]),
+                    "volume": float(row["成交量"]),
+                }
                 for _, row in recent.iterrows()
             ]
         except Exception as exc:
             logger.warning("AkShare kline failed for %s: %s", symbol, exc)
-            return await self._mock_kline(symbol, days)
+            return await self._mock_kline_bars(symbol, days)
 
-    async def _mock_kline(self, symbol: str, days: int) -> list[dict[str, float]]:
+    async def get_kline(self, symbol: str, days: int = 60) -> list[dict[str, float]]:
+        bars = await self.get_kline_bars(symbol, days)
+        return [{"close": float(b["close"]), "volume": float(b["volume"])} for b in bars]
+
+    async def get_kline_chart(self, symbol: str, days: int = 60) -> dict[str, object]:
+        from stockresearch.data.technical_indicators import ma_series, macd_series, rsi_series
+
+        bars = await self.get_kline_bars(symbol, days)
+        closes = [float(b["close"]) for b in bars]
+        macd = macd_series(closes)
+        return {
+            "symbol": symbol,
+            "days": days,
+            "bars": bars,
+            "indicators": {
+                "ma20": ma_series(closes, 20),
+                "rsi": rsi_series(closes),
+                "macd": macd["macd"],
+                "macd_signal": macd["signal"],
+                "macd_histogram": macd["histogram"],
+            },
+        }
+
+    async def _mock_kline_bars(self, symbol: str, days: int) -> list[dict[str, float | str]]:
+        from datetime import timedelta
+
         quote = await QuoteProvider().get_quote(symbol)
         base = quote.price
-        return [{"close": base * (1 + (i - days / 2) * 0.001), "volume": quote.volume} for i in range(days)]
+        end = datetime.now(UTC).date()
+        bars: list[dict[str, float | str]] = []
+        for i in range(days):
+            close = base * (1 + (i - days / 2) * 0.001)
+            open_ = close * 0.998
+            bars.append(
+                {
+                    "date": (end - timedelta(days=days - 1 - i)).isoformat(),
+                    "open": open_,
+                    "high": close * 1.005,
+                    "low": close * 0.995,
+                    "close": close,
+                    "volume": quote.volume,
+                }
+            )
+        return bars
 
     def calc_ma(self, closes: list[float], window: int) -> float:
         if not closes:

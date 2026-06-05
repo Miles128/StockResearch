@@ -1,6 +1,6 @@
 # StockResearch 产品需求文档（PRD）
 
-> **版本 V3.0** · 2026-06-05  
+> **版本 V3.1** · 2026-06-05  
 > **定位**：单用户、本机运行、长期开源 MVP  
 > **状态**：Phase 1 / 1.5 已交付 · Phase 2 待启动  
 > **仓库**：[github.com/Miles128/StockResearch](https://github.com/Miles128/StockResearch)  
@@ -175,7 +175,7 @@ src/stockresearch/
 | ID | 需求 | 验收 |
 |----|------|------|
 | P2-1 | PDF 报告导出 | Markdown 已有；补 PDF |
-| P2-2 | 技术图表 | 个股 K 线 + MACD/RSI 组件 |
+| P2-2 | 技术图表 | ✅ 个股 K 线 + MACD/RSI；持仓/投研卡片嵌入 |
 | P2-3 | 行业深度研究 | Plan-Execute 多轮板块报告 |
 | P2-4 | 持仓简报 | 手动生成早报/收盘摘要（无推送基础设施） |
 | P2-5 | 信号回测摘要 | 裁判信号 N 日 forward return（非荐股） |
@@ -197,7 +197,7 @@ src/stockresearch/
 | 类别 | 指标 | 现状 |
 |------|------|------|
 | 性能 | 快讯 feed ≤ 3s | ✅ |
-| 可靠性 | pytest | ✅ 138 |
+| 可靠性 | pytest | ✅ 141 |
 | 隐私 | Key 不落库 | ✅ |
 | 合规 | 免责声明 | ✅ |
 | 可维护性 | 面板拆分、单测 | ✅ 持续 |
@@ -224,7 +224,7 @@ src/stockresearch/
 
 ## 九、对标与致谢
 
-参考 [TradingAgents](https://github.com/TauricResearch/TradingAgents)、[FinGenius](https://github.com/PbRQianJiang/FinGenius)、[TradingAgents-CN](https://github.com/hsliuping/TradingAgents-CN)、[LangGraph](https://github.com/langchain-ai/langgraph) 等开源生态；差异化在于 **A 股终端体验 + 规则快讯 + 本机 BYOK**，而非自动交易或 SaaS。
+参考 [TradingAgents](https://github.com/TauricResearch/TradingAgents)、[FinGenius](https://github.com/HuaYaoAI/FinGenius)、[TradingAgents-CN](https://github.com/hsliuping/TradingAgents-CN)、[LangGraph](https://github.com/langchain-ai/langgraph) 等开源生态；差异化在于 **A 股终端体验 + 规则快讯 + 本机 BYOK**，而非自动交易或 SaaS。
 
 ---
 
@@ -244,6 +244,7 @@ src/stockresearch/
 | 版本 | 日期 | 摘要 |
 |------|------|------|
 | V3.0 | 2026-06-05 | **按单用户本机 MVP 全文改写**；明确永久不做项；路线图去 SaaS 化 |
+| V3.1 | 2026-06-05 | Phase 2：P2-2 K 线/MACD/RSI 图表；FinGenius 链接更正为 HuaYaoAI 原版 |
 | V2.5 | 2026-06-05 | App 拆分、缓存统一、移除部署残留 |
 | V2.4 | 2026-06-05 | Phase 1.5：Token 成本、CI |
 | ≤V2.3 | 2026-06-05 | 功能迭代与 UI 打磨（见 Git 历史） |

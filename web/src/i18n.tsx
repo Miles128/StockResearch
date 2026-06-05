@@ -79,6 +79,13 @@ const zh: Dict = {
     breadth: "涨 {up} / 跌 {down}",
     clickIndex: "分析大盘",
   },
+  chart: {
+    loading: "加载 K 线…",
+    error: "图表加载失败",
+    price: "K 线 · MA20",
+    macd: "MACD",
+    rsi: "RSI (14)",
+  },
   news: {
     refresh: "刷新快讯",
     loading: "加载中...",
@@ -116,6 +123,7 @@ const zh: Dict = {
     summaryValue: "总市值",
     summaryToday: "今日盈亏",
     analyze: "分析",
+    chart: "图表",
     lookupPrice: "现价参考",
     sectorMix: "行业分布",
   },
@@ -357,6 +365,13 @@ const en: Dict = {
     breadth: "Up {up} / Down {down}",
     clickIndex: "Analyze market",
   },
+  chart: {
+    loading: "Loading chart…",
+    error: "Chart failed",
+    price: "Candles · MA20",
+    macd: "MACD",
+    rsi: "RSI (14)",
+  },
   news: {
     refresh: "Refresh feed",
     loading: "Loading...",
@@ -394,6 +409,7 @@ const en: Dict = {
     summaryValue: "Total value",
     summaryToday: "Today P&L",
     analyze: "Analyze",
+    chart: "Chart",
     lookupPrice: "Ref. price",
     sectorMix: "Sector mix",
   },

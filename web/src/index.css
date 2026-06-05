@@ -2290,3 +2290,35 @@ input:focus {
 .about-disclaimer {
   margin-bottom: 0;
 }
+
+.stock-chart {
+  margin-top: 10px;
+  border-top: 1px solid var(--bbg-border);
+  padding-top: 8px;
+}
+
+.stock-chart-pane-label {
+  font-size: 11px;
+  color: var(--bbg-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 4px 0 2px;
+}
+
+.stock-chart-pane {
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.stock-chart-status {
+  font-size: 12px;
+  margin: 8px 0 0;
+}
+
+.portfolio-chart-panel {
+  margin: 12px 0;
+  padding: 10px;
+  border: 1px solid var(--bbg-border);
+  border-radius: 4px;
+  background: var(--bbg-panel-alt, rgba(0, 0, 0, 0.15));
+}

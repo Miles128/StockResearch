@@ -317,6 +317,30 @@ class StockQuoteOut(BaseModel):
     source: str = "live"
 
 
+class KlineBarOut(BaseModel):
+    date: str
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+
+
+class KlineIndicatorsOut(BaseModel):
+    ma20: list[float | None]
+    rsi: list[float | None]
+    macd: list[float | None]
+    macd_signal: list[float | None]
+    macd_histogram: list[float | None]
+
+
+class KlineChartOut(BaseModel):
+    symbol: str
+    days: int
+    bars: list[KlineBarOut]
+    indicators: KlineIndicatorsOut
+
+
 class MarketOverviewOut(BaseModel):
     indices: list[IndexQuoteOut]
     northbound_net_yi: float | None

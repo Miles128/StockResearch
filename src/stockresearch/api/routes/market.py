@@ -6,7 +6,14 @@ from sqlalchemy.orm import Session
 from stockresearch.api.deps import get_current_user
 from stockresearch.core.config import get_settings
 from stockresearch.core.data_source_config import get_tushare_token
-from stockresearch.core.schemas import DataSourceStatusOut, MarketOverviewOut, ProviderStatusOut, StockQuoteOut
+from stockresearch.core.schemas import (
+    DataSourceStatusOut,
+    KlineChartOut,
+    MarketOverviewOut,
+    ProviderStatusOut,
+    StockQuoteOut,
+)
+from stockresearch.data.providers.market import TechnicalDataProvider
 from stockresearch.data.registry import get_snapshots
 from stockresearch.data.providers.market_overview import BatchQuoteProvider, MarketOverviewProvider
 from stockresearch.db.models import Holding, User
@@ -35,6 +42,16 @@ async def stock_quotes(
     if not symbol_list:
         return []
     return await BatchQuoteProvider().get_quotes(symbol_list)
+
+
+@router.get("/kline", response_model=KlineChartOut)
+async def stock_kline(
+    symbol: str = Query(min_length=6, max_length=6, pattern=r"^\d{6}$"),
+    days: int = Query(default=60, ge=10, le=250),
+    _user: User = Depends(get_current_user),
+) -> KlineChartOut:
+    raw = await TechnicalDataProvider().get_kline_chart(symbol, days)
+    return KlineChartOut.model_validate(raw)
 
 
 @router.get("/data-status", response_model=DataSourceStatusOut)

@@ -1,6 +1,8 @@
+import { useState } from "react";
 import type { HoldingEnriched, StockLookupOut } from "./api";
 import { formatPrice, formatSignedMoney, formatSignedPct, signedClass } from "./holdingDisplay";
 import { useI18n } from "./i18n";
+import { StockChart } from "./StockChart";
 import type { PortfolioSummary, SectorWeight } from "./portfolioHelpers";
 
 interface PortfolioPanelProps {
@@ -53,6 +55,7 @@ export function PortfolioPanel({
   onAnalyzeHolding,
 }: PortfolioPanelProps) {
   const { t } = useI18n();
+  const [chartSymbol, setChartSymbol] = useState<string | null>(null);
 
   return (
     <div className="panel portfolio-panel">
@@ -160,21 +163,33 @@ export function PortfolioPanel({
                   <td className={`mono ${signedClass(h.annualized_pct)}`}>
                     {h.annualized_pct != null ? formatSignedPct(h.annualized_pct) : "—"}
                   </td>
-                  <td>
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => onAnalyzeHolding(h)}>
-                      {t("portfolio.analyze")}
-                    </button>{" "}
-                    <button type="button" className="delete-btn" onClick={() => h.id && onDeleteHolding(h.id)}>
-                      DEL
-                    </button>
-                  </td>
+                          <td>
+                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => onAnalyzeHolding(h)}>
+                              {t("portfolio.analyze")}
+                            </button>{" "}
+                            <button
+                              type="button"
+                              className={`btn btn-ghost btn-sm${chartSymbol === h.symbol ? " active" : ""}`}
+                              onClick={() => setChartSymbol(chartSymbol === h.symbol ? null : h.symbol)}
+                            >
+                              {t("portfolio.chart")}
+                            </button>{" "}
+                            <button type="button" className="delete-btn" onClick={() => h.id && onDeleteHolding(h.id)}>
+                              DEL
+                            </button>
+                          </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      )}
-      <div className="portfolio-add-footer">
+              </div>
+              )}
+              {chartSymbol && (
+                <div className="portfolio-chart-panel">
+                  <StockChart symbol={chartSymbol} />
+                </div>
+              )}
+              <div className="portfolio-add-footer">
         <div className="holding-form">
           <div className="field">
             <span className="field-label">{t("portfolio.symbol")}</span>

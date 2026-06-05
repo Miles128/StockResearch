@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ChatResponse, NewsItem, ResearchReport, RiskCheckup, StockChoiceCardData } from "./api";
 import { useI18n } from "./i18n";
 import { simpleMarkdown } from "./simpleMarkdown";
+import { StockChart } from "./StockChart";
 
 export function StockChoiceCardView({
   data,
@@ -59,6 +60,7 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
             </span>
           </div>
           <p>{d.summary}</p>
+          {d.symbol && <StockChart symbol={d.symbol} compact />}
         </div>
       );
     }

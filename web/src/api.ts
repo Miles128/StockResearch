@@ -221,6 +221,8 @@ export const api = {
   marketOverview: () => request<MarketOverview>("/market/overview"),
   stockQuotes: (symbols: string) => request<StockQuoteOut[]>(`/market/quotes?symbols=${symbols}`),
   dataSourceStatus: () => request<DataSourceStatus>("/market/data-status"),
+  klineChart: (symbol: string, days = 60) =>
+    request<KlineChart>(`/market/kline?symbol=${symbol}&days=${days}`),
   listReports: () => request<ResearchReportListItem[]>("/research/reports"),
   downloadReportMarkdown: (id: number) => {
     window.open(apiUrl(`/research/reports/${id}/markdown`), "_blank", "noopener,noreferrer");
@@ -444,4 +446,24 @@ export interface StockQuoteOut {
   name: string;
   price: number;
   change_pct: number;
+}
+
+export interface KlineChart {
+  symbol: string;
+  days: number;
+  bars: {
+    date: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+  }[];
+  indicators: {
+    ma20: (number | null)[];
+    rsi: (number | null)[];
+    macd: (number | null)[];
+    macd_signal: (number | null)[];
+    macd_histogram: (number | null)[];
+  };
 }

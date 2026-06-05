@@ -2,7 +2,7 @@
 
 **[中文](#中文) · [English](#english)** · [PRD](docs/PRD.md)
 
-[![Tests](https://img.shields.io/badge/tests-138%20passed-brightgreen)](.)
+[![Tests](https://img.shields.io/badge/tests-141%20passed-brightgreen)](.)
 [![Python](https://img.shields.io/badge/python-3.12+-blue)](pyproject.toml)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
@@ -73,7 +73,7 @@ StockResearch 是**长期开源 MVP**：跑在你自己电脑上的投研工作�
 |------|------|
 | **本机优先** | `venv` + SQLite + `localhost`，无 Docker/Redis/Postgres |
 | **单用户** | 固定本地用户 `mvp`，无需登录 |
-| **Research 先于 Battle** | 四维研究完成后再可选多空辩论（[FinGenius](https://github.com/PbRQianJiang/FinGenius)） |
+| **Research 先于 Battle** | 四维研究完成后再可选多空辩论（[FinGenius](https://github.com/HuaYaoAI/FinGenius)） |
 | **工具隔离** | 各维度 Agent 仅调用本域工具（[TradingAgents](https://github.com/TauricResearch/TradingAgents)） |
 | **规则与模型分工** | 快讯/风控走规则；LLM 负责推理与生成 |
 | **BYOK** | API Key 仅存浏览器，不经服务端数据库 |
@@ -121,7 +121,7 @@ cd web && npm install && npm run dev
 打开 **http://localhost:5174**，在「设置」中配置大模型（BYOK）。支持 [DeepSeek](https://platform.deepseek.com/)、[DashScope 兼容模式](https://help.aliyun.com/zh/model-studio/) 等 OpenAI 兼容接口。
 
 ```bash
-pytest          # 138 tests
+pytest          # 141 tests
 cd web && npm run build
 ```
 
@@ -165,7 +165,7 @@ StockResearch is a **long-term open-source MVP**: a personal research workstatio
 |-----------|--------|
 | **Local-first** | `venv` + SQLite + `localhost`; no Docker/Redis/Postgres |
 | **Single user** | Fixed local user `mvp`; no login |
-| **Research before battle** | Four dimensions finish independently, then optional debate ([FinGenius](https://github.com/PbRQianJiang/FinGenius)) |
+| **Research before battle** | Four dimensions finish independently, then optional debate ([FinGenius](https://github.com/HuaYaoAI/FinGenius)) |
 | **Tool isolation** | Each agent only calls domain tools ([TradingAgents](https://github.com/TauricResearch/TradingAgents)) |
 | **Rules vs models** | News/risk thresholds are rule-based; LLM for reasoning |
 | **BYOK** | API keys stay in the browser, never stored server-side |
@@ -213,7 +213,7 @@ cd web && npm install && npm run dev
 Open **http://localhost:5174** and configure your LLM under **Settings** (BYOK). Works with [DeepSeek](https://platform.deepseek.com/), [DashScope compatible mode](https://help.aliyun.com/zh/model-studio/), and other OpenAI-compatible APIs.
 
 ```bash
-pytest          # 138 tests
+pytest          # 141 tests
 cd web && npm run build
 ```
 
