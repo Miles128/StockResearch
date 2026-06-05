@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from stockresearch.api.routes import chat, market, news, portfolio, research, risk, settings
 from stockresearch.core.constants import DISCLAIMER
+from stockresearch.core.data_source_config import clear_data_source_context, set_tushare_token
 from stockresearch.core.exceptions import StockResearchError
 from stockresearch.db.session import init_db
 
@@ -42,6 +43,14 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def bind_data_source_context(request: Request, call_next):
+        set_tushare_token(request.headers.get("X-Tushare-Token"))
+        try:
+            return await call_next(request)
+        finally:
+            clear_data_source_context()
 
     @app.exception_handler(StockResearchError)
     async def stockresearch_exception_handler(_request: Request, exc: StockResearchError) -> JSONResponse:

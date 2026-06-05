@@ -16,12 +16,12 @@ export const ABOUT_INFO = {
     {
       name: "TradingAgents",
       url: "https://github.com/TauricResearch/TradingAgents",
-      note: "多空辩论式投研",
+      note: "多 Agent 辩论与分工协作",
     },
     {
       name: "TradingAgents-CN",
       url: "https://github.com/hsliuping/TradingAgents-CN",
-      note: "A 股 / 国产模型适配",
+      note: "A 股与国产大模型适配",
     },
     {
       name: "FinGenius",
@@ -29,9 +29,14 @@ export const ABOUT_INFO = {
       note: "Research-Battle 双阶段",
     },
     {
-      name: "LangGraph",
-      url: "https://github.com/langchain-ai/langgraph",
-      note: "Agent 编排",
+      name: "Vibe-Trading",
+      url: "https://github.com/HKUDS/Vibe-Trading",
+      note: "多源数据与 MCP 工具生态",
+    },
+    {
+      name: "FinRobot",
+      url: "https://github.com/AI4Finance-Foundation/FinRobot",
+      note: "自动研报与分层架构",
     },
   ] as AboutReference[],
 };

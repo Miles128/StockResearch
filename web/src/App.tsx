@@ -1,19 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, AgentStreamEvent, ChatResponse, HoldingEnriched, NewsItem, ResearchReport, RiskCheckup, StockLookupOut } from "./api";
+import { api, AgentStreamEvent, ChatResponse, ChatStreamOptions, DataSourceStatus, HoldingEnriched, MarketOverview, NewsItem, ResearchReport, RiskCheckup, SectorPreferences, StockChoiceCardData, StockLookupOut } from "./api";
 import { formatPrice, formatSignedMoney, formatSignedPct, signedClass } from "./holdingDisplay";
-import { AboutPanel } from "./AboutPanel";
+import { MarketTicker } from "./MarketTicker";
+import { computePortfolioSummary, computeSectorConcentration } from "./portfolioHelpers";
 import { SettingsPanel } from "./SettingsPanel";
 import { StreamFeed } from "./StreamFeed";
 import { isLlmConfigured } from "./llmSettings";
+import { isResearchTurn, stripDisclaimer } from "./disclaimerText";
 import { applyStreamEvent, emptyStreamState, type StreamState } from "./streamEvents";
 import { useI18n } from "./i18n";
 
-type Tab = "chat" | "news" | "portfolio" | "risk";
+type Tab = "chat" | "news" | "portfolio" | "risk" | "settings";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
   cards?: ChatResponse["cards"];
+  intent?: string;
   /** 完整 Multi-Agent 思考过程（SSE 过程快照，完成后保留） */
   process?: StreamState;
 }
@@ -25,14 +28,17 @@ function TabNav({
   items,
   ariaLabel,
   compact = false,
+  locale,
+  onLocaleToggle,
 }: {
   className: string;
   tab: Tab;
   onTab: (key: Tab) => void;
   items: { key: Tab; label: string; fn: string }[];
   ariaLabel: string;
-  /** 窄屏：隐藏 F1–F4，仅横向文字标签 */
   compact?: boolean;
+  locale?: "zh" | "en";
+  onLocaleToggle?: () => void;
 }) {
   return (
     <nav className={className} aria-label={ariaLabel}>
@@ -48,6 +54,18 @@ function TabNav({
           <span className="nav-label">{n.label}</span>
         </button>
       ))}
+      {onLocaleToggle && locale && (
+        <button
+          type="button"
+          className="nav-btn nav-locale-btn"
+          onClick={onLocaleToggle}
+          title={locale === "zh" ? "English" : "中文"}
+          aria-label={locale === "zh" ? "Switch to English" : "切换为中文"}
+        >
+          {!compact && <span className="fn-key" aria-hidden="true"> </span>}
+          <span className="nav-label">{locale === "zh" ? "EN" : "中"}</span>
+        </button>
+      )}
     </nav>
   );
 }
@@ -60,6 +78,7 @@ export default function App() {
       { key: "news" as Tab, label: t("nav.news"), fn: "F2" },
       { key: "portfolio" as Tab, label: t("nav.portfolio"), fn: "F3" },
       { key: "risk" as Tab, label: t("nav.risk"), fn: "F4" },
+      { key: "settings" as Tab, label: t("nav.settings"), fn: "F5" },
     ],
     [t, locale],
   );
@@ -68,6 +87,7 @@ export default function App() {
     news: t("page.news"),
     portfolio: t("page.portfolio"),
     risk: t("page.risk"),
+    settings: t("page.settings"),
   };
   const numLocale = locale === "zh" ? "zh-CN" : "en-US";
   const ratioGrade = (v: number, excellent: number, good: number) =>
@@ -93,18 +113,54 @@ export default function App() {
   const [newsLoading, setNewsLoading] = useState(false);
   const [clock, setClock] = useState("");
   const [llmConfigured, setLlmConfigured] = useState(isLlmConfigured);
-  const [settingsOpen, setSettingsOpen] = useState(!isLlmConfigured());
-  const [aboutOpen, setAboutOpen] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(!isLlmConfigured());
+  const [dataStatus, setDataStatus] = useState<DataSourceStatus | null>(null);
+  const [marketOverview, setMarketOverview] = useState<MarketOverview | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(false);
+  const [lookupPrice, setLookupPrice] = useState<number | null>(null);
+  const [newsSectors, setNewsSectors] = useState<SectorPreferences | null>(null);
+  const [sectorSaving, setSectorSaving] = useState(false);
   const settingsRequired = !llmConfigured;
 
-  function closeSettings() {
-    if (settingsRequired) return;
-    setSettingsOpen(false);
+  const chatExamples = useMemo(
+    () => [
+      { label: t("chat.exampleMarketLabel"), query: t("chat.exampleMarketQuery") },
+      { label: t("chat.exampleStockLabel"), query: t("chat.exampleStockQuery") },
+      { label: t("chat.exampleNewsLabel"), query: t("chat.exampleNewsQuery") },
+      { label: t("chat.exampleRiskLabel"), query: t("chat.exampleRiskQuery") },
+    ],
+    [t, locale],
+  );
+  const portfolioSummary = useMemo(() => computePortfolioSummary(holdings), [holdings]);
+  const sectorMix = useMemo(() => computeSectorConcentration(holdings), [holdings]);
+  const marketSessionLabel =
+    holdings[0]?.market_session === "trading" ? t("ticker.trading") : t("ticker.closed");
+
+  function refreshDataStatus() {
+    void api.dataSourceStatus().then(setDataStatus).catch(() => setDataStatus(null));
+  }
+
+  function dataSourceLabel(): string {
+    if (!dataStatus) return t("header.dataUnknown");
+    if (dataStatus.use_mock) return t("header.dataMock");
+    const overview = dataStatus.overview;
+    const quotes = dataStatus.quotes;
+    const primary = overview?.primary || quotes?.primary || "sina";
+    const fallback = overview?.fallback || quotes?.fallback;
+    const degraded = Boolean(overview?.degraded || quotes?.degraded);
+    if (degraded && fallback) {
+      return t("header.dataDegraded").replace("{primary}", primary).replace("{fallback}", fallback);
+    }
+    return t("header.dataLive").replace("{primary}", primary);
   }
 
   function handleLlmConfigured() {
     setLlmConfigured(true);
-    setSettingsOpen(false);
+    setSetupOpen(false);
+  }
+
+  function toggleLocale() {
+    setLocale(locale === "zh" ? "en" : "zh");
   }
 
   useEffect(() => {
@@ -114,6 +170,59 @@ export default function App() {
     }, 1000);
     return () => clearInterval(id);
   }, [locale]);
+
+  async function loadOverview() {
+    try {
+      setOverviewLoading(true);
+      setMarketOverview(await api.marketOverview());
+      refreshDataStatus();
+    } catch {
+      setMarketOverview(null);
+    } finally {
+      setOverviewLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadOverview();
+    void loadHoldings();
+  }, []);
+
+  useEffect(() => {
+    if (tab !== "news") return;
+    void api.newsSectors().then(setNewsSectors).catch(() => setNewsSectors(null));
+    if (news.length === 0) void loadNews();
+  }, [tab]);
+
+  useEffect(() => {
+    if (lookupResult?.status !== "confirmed" || !lookupResult.symbol) {
+      setLookupPrice(null);
+      return;
+    }
+    void api
+      .stockQuotes(lookupResult.symbol)
+      .then((quotes) => setLookupPrice(quotes[0]?.price ?? null))
+      .catch(() => setLookupPrice(null));
+  }, [lookupResult]);
+
+  useEffect(() => {
+    const fnMap: Partial<Record<string, Tab>> = {
+      F1: "chat",
+      F2: "news",
+      F3: "portfolio",
+      F4: "risk",
+      F5: "settings",
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const next = fnMap[e.key];
+      if (!next) return;
+      e.preventDefault();
+      setTab(next);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   useEffect(() => {
     if (tab !== "portfolio") return;
@@ -131,6 +240,7 @@ export default function App() {
     try {
       setHoldingsLoading(true);
       setHoldings(await api.holdingsEnriched());
+      refreshDataStatus();
     } catch (e) {
       showError(String(e));
     } finally {
@@ -138,23 +248,28 @@ export default function App() {
     }
   }
 
-  async function executeChat(query: string) {
+  async function executeChat(query: string, options?: ChatStreamOptions) {
     setLoading(true);
     setStatusMsg(t("chat.connecting"));
     setChatStream(emptyStreamState());
     let processSnapshot = emptyStreamState();
     try {
-      const resp = await api.chatStream(query, sessionId, (event: AgentStreamEvent) => {
-        if (event.type === "analysis_choice") return;
-        setChatStream((prev) => {
-          const next = applyStreamEvent(prev, event);
-          processSnapshot = next;
-          return next;
-        });
-        if (event.type === "status" && event.message) {
-          setStatusMsg(event.message);
-        }
-      });
+      const resp = await api.chatStream(
+        query,
+        sessionId,
+        (event: AgentStreamEvent) => {
+          if (event.type === "analysis_choice" || event.type === "stock_choice") return;
+          setChatStream((prev) => {
+            const next = applyStreamEvent(prev, event);
+            processSnapshot = next;
+            return next;
+          });
+          if (event.type === "status" && event.message) {
+            setStatusMsg(event.message);
+          }
+        },
+        options,
+      );
       if (resp) {
         setSessionId(resp.session_id);
         processSnapshot = {
@@ -163,8 +278,9 @@ export default function App() {
         };
         const assistantMsg: Message = {
           role: "assistant",
-          content: resp.reply,
+          content: stripDisclaimer(resp.reply),
           cards: resp.cards,
+          intent: resp.intent,
           process:
             processSnapshot.streamLog.length > 0 ||
             processSnapshot.agentSteps.length > 0 ||
@@ -178,11 +294,16 @@ export default function App() {
     } catch {
       try {
         setStatusMsg(t("chat.streamFailed"));
-        const resp = await api.chat(query, sessionId);
+        const resp = await api.chat(query, sessionId, options);
         setSessionId(resp.session_id);
         setMessages((m) => [
           ...m,
-          { role: "assistant", content: resp.reply, cards: resp.cards },
+          {
+            role: "assistant",
+            content: stripDisclaimer(resp.reply),
+            cards: resp.cards,
+            intent: resp.intent,
+          },
         ]);
       } catch (e) {
         setMessages((m) => [...m, { role: "assistant", content: `Error: ${String(e)}` }]);
@@ -193,12 +314,55 @@ export default function App() {
     }
   }
 
+  function startChatQuery(query: string, opts?: { switchTab?: boolean }) {
+    if (!query.trim() || loading) return;
+    if (opts?.switchTab) setTab("chat");
+    setInput("");
+    setMessages((m) => [...m, { role: "user", content: query }]);
+    void executeChat(query);
+  }
+
   function sendChat() {
     if (!input.trim() || loading) return;
-    const userMsg = input.trim();
-    setInput("");
-    setMessages((m) => [...m, { role: "user", content: userMsg }]);
-    void executeChat(userMsg);
+    startChatQuery(input.trim());
+  }
+
+  function analyzeHolding(h: HoldingEnriched) {
+    const q = locale === "zh" ? `分析${h.name}` : `Analyze ${h.name}`;
+    startChatQuery(q, { switchTab: true });
+  }
+
+  function onTickerIndexClick(_name: string) {
+    setTab("chat");
+    setInput(t("chat.exampleMarketQuery"));
+  }
+
+  async function toggleNewsSector(sector: string) {
+    if (!newsSectors || sectorSaving) return;
+    const selected = newsSectors.selected.includes(sector)
+      ? newsSectors.selected.filter((s) => s !== sector)
+      : [...newsSectors.selected, sector];
+    try {
+      setSectorSaving(true);
+      const updated = await api.updateNewsSectors(selected);
+      setNewsSectors(updated);
+      await api.ingestNews();
+      setNews(await api.newsFeed());
+    } catch (e) {
+      showError(String(e));
+    } finally {
+      setSectorSaving(false);
+    }
+  }
+
+  function alertHoldingTags(message: string): HoldingEnriched[] {
+    return holdings.filter((h) => message.includes(h.name) || message.includes(h.symbol));
+  }
+
+  function confirmChatStock(originalMessage: string, symbol: string, name: string) {
+    if (loading) return;
+    setMessages((m) => [...m, { role: "user", content: `${name}（${symbol}）` }]);
+    void executeChat(originalMessage, { confirmedSymbol: symbol, confirmedName: name });
   }
 
   async function loadNews() {
@@ -268,68 +432,103 @@ export default function App() {
         onTab={setTab}
         items={navItems}
         ariaLabel={t("nav.aria")}
+        locale={locale}
+        onLocaleToggle={toggleLocale}
       />
-      <div className="terminal-header">
-        <div className="terminal-brand">
+      <div className="app-chrome">
+        <div className="chrome-left">
           <span className="bbg-logo">StockResearch</span>
-          <span className="bbg-tag">{t("brand.tagline")}</span>
+          <span className="chrome-sep">·</span>
+          <span className="chrome-page-title">{pageTitles[tab]}</span>
         </div>
-        <div className="terminal-meta">
-          <button
-            type="button"
-            className="locale-toggle"
-            onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
-            title={locale === "zh" ? "English" : "中文"}
-            aria-label={locale === "zh" ? "Switch to English" : "切换为中文"}
+        <p className="chrome-disclaimer">{t("chat.disclaimer")}</p>
+        <div className="chrome-meta">
+          <span
+            className={`data-source-badge${
+              dataStatus && (dataStatus.quotes?.degraded || dataStatus.overview?.degraded)
+                ? " degraded"
+                : ""
+            }`}
+            title={
+              dataStatus?.overview?.message ||
+              dataStatus?.quotes?.message ||
+              dataSourceLabel()
+            }
           >
-            {locale === "zh" ? "EN" : "中"}
-          </button>
-          <button
-            type="button"
-            className="terminal-settings-btn"
-            onClick={() => setAboutOpen(true)}
-            title={t("header.aboutTitle")}
-          >
-            {t("header.about")}
-          </button>
-          <button
-            type="button"
-            className="terminal-settings-btn"
-            onClick={() => setSettingsOpen(true)}
-            disabled={settingsRequired}
-            title={t("header.settingsTitle")}
-          >
-            {t("header.settings")}
-          </button>
+            {dataSourceLabel()}
+          </span>
           <span className="terminal-clock">{clock}</span>
         </div>
       </div>
-      <AboutPanel open={aboutOpen} onClose={() => setAboutOpen(false)} />
+      <MarketTicker
+        overview={marketOverview}
+        loading={overviewLoading}
+        sessionLabel={marketSessionLabel}
+        northboundLabel={t("ticker.northbound")}
+        breadthLabel={t("ticker.breadth")}
+        refreshTitle={t("ticker.refresh")}
+        onRefresh={() => void loadOverview()}
+        onIndexClick={onTickerIndexClick}
+      />
       <SettingsPanel
-        open={settingsOpen}
-        onClose={closeSettings}
+        open={setupOpen}
+        onClose={() => setSetupOpen(false)}
         required={settingsRequired}
         onConfigured={handleLlmConfigured}
+        variant="modal"
       />
 
       <div className={`app-body${settingsRequired ? " app-locked" : ""}`}>
         <aside className="sidebar">
-          <div className="brand">StockResearch</div>
-          <div className="brand-sub">{t("brand.tagline")}</div>
-          <TabNav className="tab-nav-desktop" tab={tab} onTab={setTab} items={navItems} ariaLabel={t("nav.aria")} />
+          <TabNav
+            className="tab-nav-desktop"
+            tab={tab}
+            onTab={setTab}
+            items={navItems}
+            ariaLabel={t("nav.aria")}
+            locale={locale}
+            onLocaleToggle={toggleLocale}
+          />
         </aside>
 
         <div className="main">
           {error && <div className="error">{error}</div>}
 
-          <div className="topbar">
-            <h2 className="page-title">{pageTitles[tab]}</h2>
-            <span className="page-sub">{tab.toUpperCase()}</span>
-          </div>
-
           {tab === "chat" && (
             <div className="panel chat-panel">
               <div className="chat-messages">
+                {messages.length === 0 && !loading && (
+                  <div className="chat-empty">
+                    <p className="chat-empty-label">{t("chat.emptyHint")}</p>
+                    <div className="chat-example-row">
+                      {chatExamples.map((ex) => (
+                        <button
+                          key={ex.label}
+                          type="button"
+                          className="example-chip"
+                          onClick={() => startChatQuery(ex.query)}
+                        >
+                          {ex.label}
+                        </button>
+                      ))}
+                    </div>
+                    {holdings.length > 0 && (
+                      <div className="research-quick-picks" style={{ marginTop: 8 }}>
+                        <span className="muted">{t("chat.holdingsQuick")}</span>
+                        {holdings.map((h) => (
+                          <button
+                            key={h.id ?? h.symbol}
+                            type="button"
+                            className="holdings-pill"
+                            onClick={() => analyzeHolding(h)}
+                          >
+                            {h.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {messages.map((m, i) => (
                   <div key={i} className="chat-turn">
                     {m.role === "user" ? (
@@ -356,7 +555,7 @@ export default function App() {
                           </div>
                         )}
                         {m.content.trim() && (
-                          <div className="message assistant">
+                          <div className="message assistant conclusion-panel">
                             <p className="process-panel-title">{t("chat.conclusion")}</p>
                             <div
                               className="markdown-body"
@@ -364,9 +563,21 @@ export default function App() {
                             />
                           </div>
                         )}
-                        {m.cards?.map((c, j) => (
-                          <CardView key={j} card={c} />
-                        ))}
+                        {m.cards?.map((c, j) =>
+                          c.type === "stock_choice" ? (
+                            <StockChoiceCardView
+                              key={j}
+                              data={c.data as unknown as StockChoiceCardData}
+                              disabled={loading}
+                              onConfirm={confirmChatStock}
+                            />
+                          ) : (
+                            <CardView key={j} card={c} />
+                          ),
+                        )}
+                        {isResearchTurn(m.cards, m.intent) && (
+                          <p className="turn-disclaimer">{t("chat.turnDisclaimer")}</p>
+                        )}
                       </>
                     )}
                   </div>
@@ -391,7 +602,6 @@ export default function App() {
                   <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendChat()} placeholder={t("chat.placeholder")} />
                   <button className="btn btn-primary" onClick={sendChat} disabled={loading}>{loading ? t("chat.sending") : t("chat.send")}</button>
                 </div>
-                <p className="disclaimer">{t("chat.disclaimer")}</p>
               </div>
             </div>
           )}
@@ -401,57 +611,95 @@ export default function App() {
               <button className="btn btn-primary" onClick={loadNews} disabled={newsLoading}>
                 {newsLoading ? t("news.loading") : t("news.refresh")}
               </button>
-              {news.map((n, i) => (
-                <div className="card" key={i}>
-                  <h4>{n.title}</h4>
-                  <p>{n.summary}</p>
-                  <span className={`stat-pill ${n.sentiment === "bullish" ? "up" : n.sentiment === "bearish" ? "down" : ""}`}>
-                    {n.sentiment} · {n.impact_level} {n.related_to_user ? `· ${t("news.related")}` : ""}
-                  </span>
+              {newsSectors && newsSectors.available.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <span className="field-label">{t("news.sectors")}</span>
+                  <div className="sector-grid">
+                    {newsSectors.available.map((sector) => (
+                      <button
+                        key={sector}
+                        type="button"
+                        className={`sector-chip${newsSectors.selected.includes(sector) ? " active" : ""}`}
+                        disabled={sectorSaving}
+                        onClick={() => void toggleNewsSector(sector)}
+                      >
+                        {sector}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              ))}
+              )}
+              {(["holding", "sector", "market"] as const).map((group) => {
+                const items = news.filter((n) => {
+                  if (group === "holding") return n.category === "holding" || n.related_to_user;
+                  if (group === "sector") return n.category === "sector" && !n.related_to_user;
+                  return n.category === "market" && !n.related_to_user;
+                });
+                if (items.length === 0) return null;
+                const title =
+                  group === "market"
+                    ? t("news.groupMarket")
+                    : group === "sector"
+                      ? t("news.groupSector")
+                      : t("news.groupHolding");
+                return (
+                  <div key={group}>
+                    <p className="news-group-title">{title}</p>
+                    {items.map((n) => (
+                      <div
+                        className={`card${n.related_to_user || n.category === "holding" ? " news-card-related" : ""}`}
+                        key={n.id}
+                      >
+                        <h4>{n.title}</h4>
+                        <p>{n.summary}</p>
+                        <span className={`stat-pill ${n.sentiment === "bullish" ? "up" : n.sentiment === "bearish" ? "down" : ""}`}>
+                          {n.sentiment} · {n.impact_level} {n.related_to_user ? `· ${t("news.related")}` : ""}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+              {news.length === 0 && !newsLoading && <p className="muted">{t("news.empty")}</p>}
             </div>
           )}
 
           {tab === "portfolio" && (
-            <div className="panel">
-              <div className="holding-form">
-                <div className="field">
-                  <span className="field-label">{t("portfolio.symbol")}</span>
-                  <input placeholder={t("portfolio.symbolPh")} value={holdingInput} onChange={(e) => { setHoldingInput(e.target.value); setLookupResult(null); }} onKeyDown={(e) => e.key === "Enter" && lookupAndAdd()} />
-                </div>
-                <div className="field">
-                  <span className="field-label">{t("portfolio.cost")}</span>
-                  <input type="number" placeholder="0.00" value={holdingCost} onChange={(e) => setHoldingCost(e.target.value)} />
-                </div>
-                <div className="field">
-                  <span className="field-label">{t("portfolio.lots")}</span>
-                  <input type="number" placeholder="1" value={holdingLots} onChange={(e) => setHoldingLots(e.target.value)} />
-                </div>
-                <div className="field">
-                  <span className="field-label">{t("portfolio.buyDate")}</span>
-                  <input
-                    type="date"
-                    value={holdingDate}
-                    max={new Date().toISOString().slice(0, 10)}
-                    title={t("portfolio.buyDateTitle")}
-                    onChange={(e) => setHoldingDate(e.target.value)}
-                  />
-                </div>
-                <button className="btn btn-primary" onClick={lookupAndAdd} disabled={lookupLoading} style={{ alignSelf: "end" }}>
-                  {lookupLoading ? t("portfolio.querying") : t("portfolio.add")}
-                </button>
-              </div>
-              {lookupResult && lookupResult.status === "ambiguous" && (
-                <div className="confirm-card">
-                  <span className="field-label">{t("portfolio.pickStock")}</span>
-                  <div className="candidate-list">
-                    {lookupResult.candidates.map((c) => (
-                      <button key={c.symbol} className="btn btn-ghost" onClick={() => confirmCandidate(c.symbol, c.name)}>
-                        {c.name} ({c.symbol})
-                      </button>
-                    ))}
+            <div className="panel portfolio-panel">
+              {holdings.length > 0 && (
+                <div className="portfolio-summary">
+                  <div className="portfolio-summary-item">
+                    <span className="portfolio-summary-label">{t("portfolio.summaryCount").replace("{n}", String(portfolioSummary.count))}</span>
+                    <span className="portfolio-summary-value">{portfolioSummary.count}</span>
                   </div>
+                  <div className="portfolio-summary-item">
+                    <span className="portfolio-summary-label">{t("portfolio.summaryValue")}</span>
+                    <span className="portfolio-summary-value mono">
+                      {portfolioSummary.hasQuotes
+                        ? `¥${portfolioSummary.totalValue.toLocaleString(numLocale, { maximumFractionDigits: 0 })}`
+                        : "—"}
+                    </span>
+                  </div>
+                  <div className="portfolio-summary-item">
+                    <span className="portfolio-summary-label">{t("portfolio.summaryToday")}</span>
+                    <span className={`portfolio-summary-value mono ${signedClass(portfolioSummary.todayPnl)}`}>
+                      {portfolioSummary.hasQuotes ? formatSignedMoney(portfolioSummary.todayPnl) : "—"}
+                    </span>
+                  </div>
+                </div>
+              )}
+              {sectorMix.length > 0 && (
+                <div className="sector-concentration">
+                  <span className="field-label">{t("portfolio.sectorMix")}</span>
+                  {sectorMix.slice(0, 4).map((s) => (
+                    <div className="sector-concentration-row" key={s.sector}>
+                      <span>{s.sector}</span>
+                      <div className="sector-concentration-bar">
+                        <div style={{ width: `${Math.min(s.pct, 100)}%` }} />
+                      </div>
+                      <span className="mono">{s.pct.toFixed(0)}%</span>
+                    </div>
+                  ))}
                 </div>
               )}
               <div className="holding-toolbar">
@@ -522,6 +770,9 @@ export default function App() {
                             {h.annualized_pct != null ? formatSignedPct(h.annualized_pct) : "—"}
                           </td>
                           <td>
+                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => analyzeHolding(h)}>
+                              {t("portfolio.analyze")}
+                            </button>{" "}
                             <button type="button" className="delete-btn" onClick={() => h.id && deleteHolding(h.id)}>
                               DEL
                             </button>
@@ -532,14 +783,74 @@ export default function App() {
                   </table>
                 </div>
               )}
+              <div className="portfolio-add-footer">
+                <div className="holding-form">
+                  <div className="field">
+                    <span className="field-label">{t("portfolio.symbol")}</span>
+                    <input placeholder={t("portfolio.symbolPh")} value={holdingInput} onChange={(e) => { setHoldingInput(e.target.value); setLookupResult(null); }} onKeyDown={(e) => e.key === "Enter" && lookupAndAdd()} />
+                  </div>
+                  <div className="field">
+                    <span className="field-label">{t("portfolio.cost")}</span>
+                    <input type="number" placeholder="0.00" value={holdingCost} onChange={(e) => setHoldingCost(e.target.value)} />
+                  </div>
+                  <div className="field">
+                    <span className="field-label">{t("portfolio.lots")}</span>
+                    <input type="number" placeholder="1" value={holdingLots} onChange={(e) => setHoldingLots(e.target.value)} />
+                  </div>
+                  <div className="field">
+                    <span className="field-label">{t("portfolio.buyDate")}</span>
+                    <input
+                      type="date"
+                      value={holdingDate}
+                      max={new Date().toISOString().slice(0, 10)}
+                      title={t("portfolio.buyDateTitle")}
+                      onChange={(e) => setHoldingDate(e.target.value)}
+                    />
+                  </div>
+                  <button className="btn btn-primary" onClick={lookupAndAdd} disabled={lookupLoading} style={{ alignSelf: "end" }}>
+                    {lookupLoading ? t("portfolio.querying") : t("portfolio.add")}
+                  </button>
+                </div>
+                {lookupResult && lookupResult.status === "ambiguous" && (
+                  <div className="confirm-card">
+                    <span className="field-label">{t("portfolio.pickStock")}</span>
+                    <div className="candidate-list">
+                      {lookupResult.candidates.map((c) => (
+                        <button key={c.symbol} className="btn btn-ghost" onClick={() => confirmCandidate(c.symbol, c.name)}>
+                          {c.name} ({c.symbol})
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {lookupResult?.status === "confirmed" && lookupPrice != null && (
+                  <p className="lookup-price-ref">
+                    {t("portfolio.lookupPrice")}: {formatPrice(lookupPrice)}
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
           {tab === "risk" && (
             <div className="panel">
-              <button className="btn btn-primary" onClick={runRisk} disabled={loading}>
-                {loading ? t("risk.running") : t("risk.run")}
-              </button>
+              {holdings.length === 0 ? (
+                <div className="risk-empty-cta">
+                  <p className="muted">{t("risk.emptyHoldings")}</p>
+                  <button type="button" className="btn btn-primary" onClick={() => setTab("portfolio")}>
+                    {t("risk.goPortfolio")}
+                  </button>
+                </div>
+              ) : (
+                <div className="risk-run-panel">
+                  <p className="muted" style={{ margin: 0 }}>
+                    {t("risk.hasHoldingsHint").replace("{n}", String(holdings.length))}
+                  </p>
+                  <button className="btn btn-primary" onClick={runRisk} disabled={loading}>
+                    {loading ? t("risk.running") : t("risk.run")}
+                  </button>
+                </div>
+              )}
               {risk && (
                 <>
                   <p style={{ margin: "8px 0" }}>{risk.portfolio_summary}</p>
@@ -638,12 +949,24 @@ export default function App() {
                   )}
 
                   {/* Alerts */}
-                  {risk.alerts.map((a, i) => (
-                    <div className={`card alert-${a.severity}`} key={i}>
-                      <h4>{a.rule_id}</h4>
-                      <p>{a.human_message}</p>
-                    </div>
-                  ))}
+                  {risk.alerts.map((a, i) => {
+                    const tags = alertHoldingTags(a.human_message);
+                    return (
+                      <div className={`card alert-${a.severity}`} key={i}>
+                        <h4>{a.rule_id}</h4>
+                        <p>{a.human_message}</p>
+                        {tags.length > 0 && (
+                          <div className="alert-holding-tags">
+                            {tags.map((h) => (
+                              <span className="alert-holding-tag" key={h.symbol}>
+                                {h.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                   {risk.llm_analysis && (
                     <div className="card">
                       <h4>{t("risk.aiAnalysis")}</h4>
@@ -662,8 +985,56 @@ export default function App() {
               )}
             </div>
           )}
+
+          {tab === "settings" && (
+            <div className="panel settings-page-panel">
+              <SettingsPanel
+                open
+                variant="inline"
+                onClose={() => setTab("chat")}
+                onConfigured={handleLlmConfigured}
+              />
+            </div>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function StockChoiceCardView({
+  data,
+  disabled,
+  onConfirm,
+}: {
+  data: StockChoiceCardData;
+  disabled: boolean;
+  onConfirm: (originalMessage: string, symbol: string, name: string) => void;
+}) {
+  const { t } = useI18n();
+  const [picked, setPicked] = useState(false);
+  return (
+    <div className="confirm-card message assistant">
+      <p className="process-panel-title">{t("chat.pickStock")}</p>
+      <p className="muted">{data.message}</p>
+      {data.candidates.length > 0 && (
+        <div className="candidate-list">
+          {data.candidates.map((c) => (
+            <button
+              key={c.symbol}
+              type="button"
+              className="btn btn-ghost"
+              disabled={disabled || picked}
+              onClick={() => {
+                setPicked(true);
+                onConfirm(data.original_message, c.symbol, c.name);
+              }}
+            >
+              {c.name} ({c.symbol})
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

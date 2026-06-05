@@ -1,4 +1,13 @@
+import { useState } from "react";
+import { parseDebateSpeech } from "./debateText";
+import { stripDisclaimer } from "./disclaimerText";
 import { MarkdownContent } from "./MarkdownContent";
+import {
+  detectDimensionSet,
+  dimensionPhaseActive,
+  dimensionsComplete,
+  orderedDimensionSteps,
+} from "./dimensionStream";
 import { useI18n } from "./i18n";
 
 interface AgentStep {
@@ -6,7 +15,7 @@ interface AgentStep {
   agent_name: string;
   role: string;
   content?: string;
-  status: "running" | "done";
+  status: "pending" | "running" | "done";
 }
 
 interface DebateRound {
@@ -49,15 +58,110 @@ interface StreamFeedProps {
   activeStreamIds?: string[];
 }
 
-const DEBATE_ROLES = new Set(["bull", "bear", "aggressive", "neutral", "conservative"]);
+const DEBATE_ROLES = new Set(["bull", "bear", "aggressive", "neutral", "conservative", "vote"]);
 const SUMMARY_ROLES = new Set(["manager", "judge"]);
 
-function earlyPipelineSteps(steps: AgentStep[]): AgentStep[] {
-  return steps.filter((step) => !DEBATE_ROLES.has(step.role) && !SUMMARY_ROLES.has(step.role));
+function DimensionCard({
+  step,
+  streaming,
+  startedLabel,
+  doneLabel,
+  pendingLabel,
+  analyzingLabel,
+  typingLabel,
+}: {
+  step: AgentStep;
+  streaming: boolean;
+  startedLabel: string;
+  doneLabel: string;
+  pendingLabel: string;
+  analyzingLabel: string;
+  typingLabel: string;
+}) {
+  const statusLabel =
+    step.status === "done"
+      ? doneLabel
+      : step.status === "running"
+        ? startedLabel
+        : pendingLabel;
+  const showBody = step.status !== "pending";
+  return (
+    <div className={`dimension-card dimension-${step.status}`}>
+      <div className="dimension-card-head">
+        <strong>{step.agent_name}</strong>
+        <span className={`dimension-status dimension-status-${step.status}`}>{statusLabel}</span>
+      </div>
+      {showBody && (
+        <div className="dimension-card-body">
+          {step.status === "running" && !step.content && (
+            <p className="muted dimension-card-hint">{analyzingLabel}</p>
+          )}
+          {step.content && (
+            <div className="stream-msg-body">
+              <MarkdownContent text={stripDisclaimer(step.content)} />
+              {streaming && <span className="stream-cursor">▍</span>}
+            </div>
+          )}
+          {step.status === "running" && step.content && streaming && (
+            <span className="muted dimension-card-hint">{typingLabel}</span>
+          )}
+          {step.status === "done" && <p className="muted dimension-card-done">{doneLabel}</p>}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function managerStep(steps: AgentStep[]): AgentStep | undefined {
   return steps.find((step) => step.role === "manager" || step.agent_id === "research_manager");
+}
+
+function DebateRoundMessage({
+  title,
+  text,
+  streaming,
+  className,
+  expandLabel,
+  collapseLabel,
+  typingLabel,
+}: {
+  title: string;
+  text: string;
+  streaming?: boolean;
+  className?: string;
+  expandLabel: string;
+  collapseLabel: string;
+  typingLabel: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const parsed = parseDebateSpeech(stripDisclaimer(text));
+  const collapsible = parsed.collapsible && !streaming;
+  const showSummaryOnly = collapsible && !expanded;
+  const body = showSummaryOnly
+    ? parsed.summary
+    : parsed.full || (parsed.detail ? `${parsed.summary}\n\n${parsed.detail}` : text);
+
+  return (
+    <div className={`message assistant stream-msg debate-round-msg ${className ?? ""}`.trim()}>
+      <div className="stream-msg-head">
+        <strong>{title}</strong>
+        {streaming && <span className="muted">{typingLabel}</span>}
+      </div>
+      <div className="stream-msg-body">
+        <MarkdownContent text={body} />
+        {streaming && <span className="stream-cursor">▍</span>}
+      </div>
+      {collapsible && (
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm debate-expand-btn"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? collapseLabel : expandLabel}
+        </button>
+      )}
+    </div>
+  );
 }
 
 function StreamMessage({
@@ -106,17 +210,30 @@ export function StreamFeed({
   activeStreamIds = [],
 }: StreamFeedProps) {
   const { t } = useI18n();
-  const pipeline = earlyPipelineSteps(agentSteps);
-  const debateAgents = agentSteps.filter((step) => DEBATE_ROLES.has(step.role));
+  const dimensionDefs = detectDimensionSet(agentSteps, streamStatus);
+  const dimensionSteps = orderedDimensionSteps(agentSteps, dimensionDefs);
+  const showDimensionGrid = dimensionPhaseActive(dimensionSteps) || streamStatus.includes("四维");
+  const dimsDone = dimensionsComplete(dimensionSteps);
   const manager = managerStep(agentSteps);
   const sortedRounds = debateRounds.slice().sort((a, b) => a.round - b.round);
   const isTyping = (streamId: string) => activeStreamIds.includes(streamId);
+  const showDebateSection =
+    dimsDone &&
+    (sortedRounds.length > 0 ||
+      voteTally != null ||
+      streamStatus.includes("Battle") ||
+      streamStatus.includes("辩论"));
+  const showConclusionSection =
+    dimsDone &&
+    (voteTally != null ||
+      manager != null ||
+      judgeVerdict != null ||
+      streamStatus.includes("裁判") ||
+      streamStatus.includes("Manager"));
   const hasBody =
     streamLog.length > 0 ||
-    pipeline.length > 0 ||
-    debateAgents.length > 0 ||
-    sortedRounds.length > 0 ||
-    voteTally != null ||
+    showDimensionGrid ||
+    showDebateSection ||
     manager != null ||
     judgeVerdict != null;
 
@@ -149,61 +266,59 @@ export function StreamFeed({
       {!hasBody && !streamStatus && (
         <p className="stream-status muted">{t("stream.waiting")}</p>
       )}
-      {streamLog.map((line, i) => (
-        <p className="stream-status muted" key={`${i}-${line.slice(0, 12)}`}>
-          {line}
-        </p>
-      ))}
-      {streamStatus && streamLog[streamLog.length - 1] !== streamStatus && (
+      {!showDimensionGrid &&
+        streamLog.map((line, i) => (
+          <p className="stream-status muted" key={`${i}-${line.slice(0, 12)}`}>
+            {line}
+          </p>
+        ))}
+      {!showDimensionGrid && streamStatus && streamLog[streamLog.length - 1] !== streamStatus && (
         <p className="stream-status stream-status-active">{streamStatus}</p>
       )}
 
-      {pipeline.map((step) => (
-        <StreamMessage
-          key={step.agent_id}
-          title={step.agent_name}
-          body={step.content}
-          running={step.status === "running"}
-          streaming={
-            isTyping(step.agent_id) ||
-            activeStreamIds.some(
-              (id) => id === `vote-${step.agent_id}` || id.endsWith(`-${step.agent_id}`),
-            )
-          }
-          className={`stream-role-${step.role}`}
-          {...msgProps}
-        />
-      ))}
-
-      {debateAgents.map((step) => (
-        <StreamMessage
-          key={`debate-agent-${step.agent_id}`}
-          title={step.agent_name}
-          body={step.content}
-          running={step.status === "running"}
-          streaming={
-            isTyping(step.agent_id) ||
-            activeStreamIds.some((id) => id.match(new RegExp(`-${step.role}$`)))
-          }
-          className={`stream-role-${step.role}`}
-          {...msgProps}
-        />
-      ))}
-
-      {sortedRounds.map((round) =>
-        debateSides(round).map((side) => (
-          <StreamMessage
-            key={`${round.round}-${side.key}`}
-            title={`${t("stream.round", { n: round.round })} · ${side.label}`}
-            body={side.text}
-            streaming={isTyping(`r${round.round}-${side.key}`)}
-            className={`stream-role-${side.key}`}
-            {...msgProps}
-          />
-        )),
+      {showDimensionGrid && (
+        <div className="dimension-grid">
+          <p className="stream-section-title">{t("stream.fourDim")}</p>
+          {dimensionSteps.map((step) => (
+            <DimensionCard
+              key={step.agent_id}
+              step={step}
+              streaming={isTyping(step.agent_id)}
+              startedLabel={t("stream.dimStarted")}
+              doneLabel={t("stream.dimDone")}
+              pendingLabel={t("stream.dimPending")}
+              analyzingLabel={t("stream.analyzing")}
+              typingLabel={t("stream.typing")}
+            />
+          ))}
+        </div>
       )}
 
-      {voteTally && (
+      {showDebateSection && (
+        <p className="stream-section-title">{t("stream.debateSection")}</p>
+      )}
+
+      {showDebateSection &&
+        sortedRounds.map((round) =>
+          debateSides(round).map((side) => (
+            <DebateRoundMessage
+              key={`${round.round}-${side.key}`}
+              title={`${t("stream.round", { n: round.round })} · ${side.label}`}
+              text={side.text}
+              streaming={isTyping(`r${round.round}-${side.key}`)}
+              className={`stream-role-${side.key}`}
+              expandLabel={t("stream.expandDetail")}
+              collapseLabel={t("stream.collapseDetail")}
+              typingLabel={t("stream.typing")}
+            />
+          )),
+        )}
+
+      {showConclusionSection && (
+        <p className="stream-section-title">{t("stream.conclusionSection")}</p>
+      )}
+
+      {showDebateSection && voteTally && (
         <StreamMessage
           title={t("stream.vote")}
           body={t("stream.voteBody", {
@@ -216,7 +331,7 @@ export function StreamFeed({
         />
       )}
 
-      {manager && (
+      {dimsDone && manager && (
         <StreamMessage
           key={manager.agent_id}
           title={manager.agent_name}
@@ -228,7 +343,7 @@ export function StreamFeed({
         />
       )}
 
-      {judgeVerdict && (
+      {dimsDone && judgeVerdict && (
         <div className={`message assistant stream-msg stream-judge action-${judgeVerdict.position_action ?? "持有观望"}`}>
           <div className="stream-msg-head">
             <strong>{t("stream.judge")}</strong>

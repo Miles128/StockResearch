@@ -14,6 +14,7 @@ dependencies = [
     "bcrypt>=4.2.0",
     "httpx>=0.28.0",
     "akshare>=1.16.0",
+    "tushare>=1.4.0",
     "langgraph>=0.2.60",
     "langchain-core>=0.3.28",
     "redis>=5.2.0",

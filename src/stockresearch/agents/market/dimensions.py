@@ -3,11 +3,11 @@
 from stockresearch.agents.market.context import MarketResearchContext
 from stockresearch.agents.research.agents._scoring import as_confidence
 from stockresearch.agents.voice import AGENT_VOICE
-from stockresearch.core.constants import CONFIDENCE_LOW, CONFIDENCE_MEDIUM, DISCLAIMER
+from stockresearch.core.constants import CONFIDENCE_LOW, CONFIDENCE_MEDIUM
 from stockresearch.core.schemas import DimensionResult, MarketOverviewOut
 
 _SYSTEM_SUFFIX = (
-    f"{AGENT_VOICE} 分析 A 股整体，不要给出买卖建议。末尾标注：{DISCLAIMER}"
+    f"{AGENT_VOICE} 分析 A 股整体，不要给出买卖建议。"
 )
 
 

@@ -21,8 +21,10 @@ from stockresearch.agents.risk.stream import run_risk_checkup_stream
 from stockresearch.core.constants import INTENT_RESEARCH, INTENT_RISK
 from stockresearch.core.schemas import ResearchReportOut
 from stockresearch.core.schemas import CardPayload, ChatResponse, RiskCheckupOut
-from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.db.models import Holding
+from stockresearch.services.message_stock import resolve_message_stock, stock_choice_card
+from stockresearch.services.stock_lookup import StockLookupResult
+from stockresearch.utils.disclaimer import strip_disclaimer
 from stockresearch.utils.llm import LLMClient, get_llm_client
 
 
@@ -34,6 +36,8 @@ async def run_chat_stream(
     llm: LLMClient | None = None,
     analysis_mode: str | None = None,
     enable_debate: bool | None = None,
+    confirmed_symbol: str | None = None,
+    confirmed_name: str | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     """Yield SSE events with real-time progress updates."""
     sid = session_id or str(uuid.uuid4())
@@ -104,6 +108,8 @@ async def run_chat_stream(
                 client,
                 msg,
                 with_debate=mode == ComplexityResult.DEBATE,
+                confirmed_symbol=confirmed_symbol,
+                confirmed_name=confirmed_name,
             ):
                 if event.get("type") == "done":
                     cards = event.get("cards", [])
@@ -149,6 +155,8 @@ async def run_chat_stream(
     if partial:
         reply += "\n\n（部分分析未完成）"
 
+    reply = strip_disclaimer(reply)
+
     response = ChatResponse(
         session_id=sid,
         reply=reply,
@@ -179,14 +187,30 @@ async def _run_stock_research_stream(
     message: str,
     *,
     with_debate: bool = True,
+    confirmed_symbol: str | None = None,
+    confirmed_name: str | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     """个股深度投研：四维 ReAct，可选多空辩论 + 裁判。"""
     yield {"type": "status", "message": "正在识别股票…"}
-    symbol, _name = await _extract_symbol(message)
-    if not symbol:
-        yield {"type": "status", "message": "未识别到股票代码，请提供 6 位代码或常见股票名称"}
-        yield {"type": "done", "cards": [], "reply": "请提供具体股票代码（如 600519）后再进行深度投研辩论。"}
+    resolved = await resolve_message_stock(
+        message,
+        llm,  # type: ignore[arg-type]
+        confirmed_symbol=confirmed_symbol,
+        confirmed_name=confirmed_name,
+    )
+    if isinstance(resolved, StockLookupResult):
+        card = stock_choice_card(message, resolved)
+        yield {
+            "type": "stock_choice",
+            "message": resolved.message,
+            "candidates": card["data"]["candidates"],
+            "original_message": message,
+        }
+        yield {"type": "done", "cards": [card], "reply": resolved.message}
         return
+
+    symbol = resolved.symbol
+    _name = resolved.name
 
     cards: list[dict[str, object]] = []
     reply = ""
@@ -251,34 +275,3 @@ async def _run_plan_execute_stream(
 
     await task
     yield {"type": "done", "cards": plan_cards, "reply": plan_reply}
-
-
-async def _extract_symbol(message: str) -> tuple[str, str]:
-    """Try to extract stock symbol from message."""
-    import re
-
-    match = re.search(r"\b(\d{6})\b", message)
-    if match:
-        symbol = match.group(1)
-        try:
-            provider = QuoteProvider()
-            quote = await provider.get_quote(symbol)
-            return symbol, quote.name
-        except Exception:
-            return symbol, symbol
-
-    stock_names = {
-        "茅台": ("600519", "贵州茅台"),
-        "宁德时代": ("300750", "宁德时代"),
-        "比亚迪": ("002594", "比亚迪"),
-        "招商银行": ("600036", "招商银行"),
-        "平安银行": ("000001", "平安银行"),
-        "中芯国际": ("688981", "中芯国际"),
-        "腾讯": ("00700", "腾讯控股"),
-        "阿里": ("09988", "阿里巴巴"),
-    }
-    for name, (sym, full_name) in stock_names.items():
-        if name in message:
-            return sym, full_name
-
-    return "", ""

@@ -1,11 +1,8 @@
 """Streaming multi-agent research — parallel dimensions + debate + report."""
 
 import asyncio
-import json
 import logging
-import re
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
 from typing import Literal
 
 from stockresearch.agents.research.debate import (
@@ -31,6 +28,7 @@ from stockresearch.agents.stream_typewriter import (
     iter_queue_merged_events,
     pump_dimension_llm_stream,
 )
+from stockresearch.agents.structured_output import ResearchJudgeOut
 from stockresearch.agents.voice import DEBATE_ROUNDS, DEBATE_VOICE, JUDGE_VOICE
 from stockresearch.core.constants import CONFIDENCE_HIGH, CONFIDENCE_LOW
 from stockresearch.core.schemas import DebateResult, DebateRound, DimensionResult, ResearchReportOut
@@ -38,8 +36,6 @@ from stockresearch.utils.llm import LLMClient, get_llm_client
 from stockresearch.utils.symbols import resolve_name
 
 logger = logging.getLogger(__name__)
-
-_JSON_BLOCK = re.compile(r"\{[\s\S]*\}")
 
 _BULL_SYSTEM = f"你是看多 Agent。{DEBATE_VOICE}"
 _BEAR_SYSTEM = f"你是看空 Agent。{DEBATE_VOICE}"
@@ -69,52 +65,8 @@ def _as_confidence(value: str) -> Literal["high", "medium", "low"]:
     return "medium"
 
 
-@dataclass(frozen=True)
-class _ResearchJudge:
-    final_bias: Literal["bullish", "bearish", "neutral"]
-    summary: str
-    reason: str
-    divergence: str
-    divergence_point: str
-
-
-def _bias_from_text(text: str) -> Literal["bullish", "bearish", "neutral"]:
-    if "偏多" in text or "bullish" in text.lower():
-        return "bullish"
-    if "偏空" in text or "bearish" in text.lower():
-        return "bearish"
-    return "neutral"
-
-
-def _parse_research_judge(raw: str) -> _ResearchJudge:
-    match = _JSON_BLOCK.search(raw)
-    if match:
-        try:
-            data = json.loads(match.group(0))
-            bias = _bias_from_text(str(data.get("bias", "中性")))
-            summary = str(data.get("summary", "")).strip()
-            reason = str(data.get("reason", "")).strip()
-            divergence = str(data.get("divergence", "分歧中等")).strip()
-            divergence_point = str(data.get("divergence_point", "")).strip()
-            if summary:
-                return _ResearchJudge(
-                    final_bias=bias,
-                    summary=summary,
-                    reason=reason or summary,
-                    divergence=divergence or "分歧中等",
-                    divergence_point=divergence_point or "多空对短期方向仍有分歧",
-                )
-        except json.JSONDecodeError:
-            pass
-    plain = raw.strip()
-    bias = _bias_from_text(raw)
-    return _ResearchJudge(
-        final_bias=bias,
-        summary=plain or "综合看，倾向中性。",
-        reason=plain or "四维信号未形成一致方向。",
-        divergence="分歧中等",
-        divergence_point="估值与动量方向不完全一致",
-    )
+def _parse_research_judge(raw: str) -> ResearchJudgeOut:
+    return ResearchJudgeOut.from_llm(raw)
 
 
 def _dimension_brief(label: str, dim: DimensionResult) -> str:

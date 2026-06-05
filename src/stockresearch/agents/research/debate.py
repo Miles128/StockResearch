@@ -1,6 +1,7 @@
 """Bull vs Bear debate + judge agent (Research-Battle phase)."""
 
 import asyncio
+import re
 from collections.abc import AsyncIterator, Callable
 from typing import Literal
 
@@ -10,17 +11,18 @@ from stockresearch.agents.stream_typewriter import (
     pump_llm_stream_events_to_queue,
 )
 from stockresearch.agents.voice import DEBATE_ROUNDS, DEBATE_VOICE, JUDGE_VOICE
-from stockresearch.core.constants import DISCLAIMER
+from stockresearch.agents.structured_output import VoteLabelOut
 from stockresearch.core.schemas import DebateResult, DebateRound, DimensionResult
+from stockresearch.utils.disclaimer import strip_disclaimer
 from stockresearch.utils.llm import LLMClient
 
 _BULL_SYSTEM = f"""你是 A 股看多分析师（Bull Agent）。
 {DEBATE_VOICE} 基于四维研究，说明最强看多逻辑。
-不要给出买入建议。{DISCLAIMER}"""
+不要给出买入建议。"""
 
 _BEAR_SYSTEM = f"""你是 A 股看空分析师（Bear Agent）。
 {DEBATE_VOICE} 指出主要下行风险与逻辑漏洞。
-不要给出卖出建议。{DISCLAIMER}"""
+不要给出卖出建议。"""
 
 _JUDGE_SYSTEM = f"""你是 impartial 裁判 Agent。
 {JUDGE_VOICE} 输出：
@@ -28,7 +30,7 @@ _JUDGE_SYSTEM = f"""你是 impartial 裁判 Agent。
 2. 为何得出此结论（2句内）
 3. 核心分歧及分歧大小（大/中等/小，1～2句）
 4. 综合倾向（偏多/偏空/中性）与置信度（高/中/低）
-不要给出买卖建议。{DISCLAIMER}"""
+不要给出买卖建议。"""
 
 
 def _dimension_summary(dimensions: dict[str, DimensionResult]) -> str:
@@ -50,6 +52,26 @@ def _trim_text(
     cleaned = text.strip()
     if compact and max_len:
         return compact(cleaned, max_len)
+    return cleaned
+
+
+def _format_debate_utterance(raw: str) -> str:
+    """Normalize debate text: ensure summary line and cap total length."""
+    cleaned = strip_disclaimer(raw).strip()
+    if not cleaned:
+        return ""
+    if "【摘要】" not in cleaned:
+        if "\n" in cleaned:
+            first, rest = cleaned.split("\n", 1)
+            first, rest = first.strip(), rest.strip()
+        else:
+            parts = re.split(r"(?<=[。！？!?])\s*", cleaned, maxsplit=1)
+            first = parts[0].strip()
+            rest = parts[1].strip() if len(parts) > 1 else ""
+        if rest:
+            cleaned = f"【摘要】{first}\n【详述】{rest}"
+        else:
+            cleaned = f"【摘要】{first}"
     return cleaned
 
 
@@ -128,14 +150,8 @@ def dimension_vote(agent_key: str, label: str, dim: DimensionResult) -> tuple[st
     return agent_key, label, vote
 
 
-_VOTE_PARSE = ("偏多", "偏空", "中性")
-
-
 def _parse_vote(raw: str) -> str:
-    for token in _VOTE_PARSE:
-        if token in raw:
-            return token
-    return "中性"
+    return VoteLabelOut.from_llm(raw).vote
 
 
 async def iter_battle_vote_events(
@@ -364,23 +380,27 @@ async def run_multi_round_debate(
     transcript: list[str] = []
     result: list[DebateRound] = []
     for round_num in range(1, rounds + 1):
-        bull_text = _trim_text(
-            await llm.complete(
-                bull_system,
-                _bull_prompt(context, round_num, transcript, bull_side_label),
-            ),
-            max_len,
-            compact,
+        bull_text = _format_debate_utterance(
+            _trim_text(
+                await llm.complete(
+                    bull_system,
+                    _bull_prompt(context, round_num, transcript, bull_side_label),
+                ),
+                max_len,
+                compact,
+            )
         )
         transcript.append(f"第{round_num}轮{bull_side_label}：{bull_text}")
 
-        bear_text = _trim_text(
-            await llm.complete(
-                bear_system,
-                _bear_prompt(context, round_num, transcript[:-1], bull_text, bull_side_label),
-            ),
-            max_len,
-            compact,
+        bear_text = _format_debate_utterance(
+            _trim_text(
+                await llm.complete(
+                    bear_system,
+                    _bear_prompt(context, round_num, transcript[:-1], bull_text, bull_side_label),
+                ),
+                max_len,
+                compact,
+            )
         )
         transcript.append(f"第{round_num}轮{bear_side_label}：{bear_text}")
         result.append(
@@ -427,7 +447,7 @@ async def iter_multi_round_debate_events(
         ):
             yield event
             if event.get("type") == "agent_done":
-                bull_text = str(event.get("content", "")).strip()
+                bull_text = _format_debate_utterance(str(event.get("content", "")))
         transcript.append(f"第{round_num}轮{bull_side_label}：{bull_text}")
 
         yield {
@@ -450,7 +470,7 @@ async def iter_multi_round_debate_events(
         ):
             yield event
             if event.get("type") == "agent_done":
-                bear_text = str(event.get("content", "")).strip()
+                bear_text = _format_debate_utterance(str(event.get("content", "")))
         transcript.append(f"第{round_num}轮{bear_side_label}：{bear_text}")
 
         yield {

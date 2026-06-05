@@ -130,7 +130,9 @@ async def pump_dimension_llm_stream(
                 "delta": chunk,
             }
         )
-    analysis = "".join(parts)
+    from stockresearch.utils.disclaimer import strip_disclaimer
+
+    analysis = strip_disclaimer("".join(parts))
     dim = build(data, analysis)  # type: ignore[operator]
     dimensions[agent_id] = dim
     await queue.put(

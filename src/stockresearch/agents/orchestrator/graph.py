@@ -21,8 +21,10 @@ from stockresearch.agents.risk.engine import run_risk_checkup
 from stockresearch.core.config import get_settings
 from stockresearch.core.constants import INTENT_CHAT, INTENT_RISK
 from stockresearch.core.schemas import CardPayload, ChatResponse, RiskCheckupOut
-from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.db.models import Conversation, Holding
+from stockresearch.services.message_stock import resolve_message_stock, stock_choice_card
+from stockresearch.services.stock_lookup import StockLookupResult
+from stockresearch.utils.disclaimer import strip_disclaimer
 from stockresearch.utils.llm import LLMClient, get_llm_client
 
 logger = logging.getLogger(__name__)
@@ -50,6 +52,8 @@ class OrchestratorState(TypedDict):
     mode: str  # direct / debate / plan_execute
     analysis_mode: str | None
     enable_debate: bool | None
+    confirmed_symbol: str | None
+    confirmed_name: str | None
     holdings: list[_HoldingInfo]
     holding_objects: list[Holding]
     cards: Annotated[list[dict[str, object]], _append]
@@ -141,6 +145,8 @@ class Orchestrator:
         session_id: str | None = None,
         analysis_mode: str | None = None,
         enable_debate: bool | None = None,
+        confirmed_symbol: str | None = None,
+        confirmed_name: str | None = None,
     ) -> ChatResponse:
         sid = session_id or str(uuid.uuid4())
         holdings = await asyncio.to_thread(
@@ -158,6 +164,8 @@ class Orchestrator:
             "mode": ComplexityResult.DIRECT,
             "analysis_mode": analysis_mode,
             "enable_debate": enable_debate,
+            "confirmed_symbol": confirmed_symbol,
+            "confirmed_name": confirmed_name,
             "holdings": holdings_data,
             "holding_objects": holdings,
             "cards": [],
@@ -167,7 +175,7 @@ class Orchestrator:
 
         final_state = await self._graph.ainvoke(initial_state)
 
-        reply = final_state["reply"]
+        reply = strip_disclaimer(final_state["reply"])
         if final_state["partial"]:
             reply += "\n\n（部分分析未完成）"
 
@@ -202,13 +210,17 @@ async def _run_stock_research(
     with_debate: bool,
 ) -> dict:
     msg = state["message"]
-    symbol, _name = await _extract_symbol(db, llm, msg)
-    if not symbol:
-        agent = OrchestratorAgent(db=db, llm=llm, user_id=state["user_id"])
-        reply, agent_cards = await agent.run(msg)
-        return {"cards": agent_cards, "reply": reply}
+    resolved = await resolve_message_stock(
+        msg,
+        llm,
+        confirmed_symbol=state.get("confirmed_symbol"),
+        confirmed_name=state.get("confirmed_name"),
+    )
+    if isinstance(resolved, StockLookupResult):
+        card = stock_choice_card(msg, resolved)
+        return {"cards": [card], "reply": resolved.message}
 
-    result = await run_research(symbol, llm, with_debate=with_debate)
+    result = await run_research(resolved.symbol, llm, with_debate=with_debate)
     return {
         "cards": [{"type": "research", "data": result.model_dump(mode="json")}],
         "reply": result.summary,
@@ -251,37 +263,3 @@ async def _run_plan_execute(db: Session, llm, state: OrchestratorState) -> dict:
     reply, plan_cards = await agent.run(msg)
 
     return {"cards": plan_cards, "reply": reply}
-
-
-# ── Symbol extraction ────────────────────────────────────
-async def _extract_symbol(db: Session, llm, message: str) -> tuple[str, str]:
-    """Try to extract stock symbol from message."""
-    import re
-
-    # Direct 6-digit code
-    match = re.search(r"\b(\d{6})\b", message)
-    if match:
-        symbol = match.group(1)
-        try:
-            provider = QuoteProvider()
-            quote = await provider.get_quote(symbol)
-            return symbol, quote.name
-        except Exception:
-            return symbol, symbol
-
-    # Common stock names
-    stock_names = {
-        "茅台": ("600519", "贵州茅台"),
-        "宁德时代": ("300750", "宁德时代"),
-        "比亚迪": ("002594", "比亚迪"),
-        "招商银行": ("600036", "招商银行"),
-        "平安银行": ("000001", "平安银行"),
-        "中芯国际": ("688981", "中芯国际"),
-        "腾讯": ("00700", "腾讯控股"),
-        "阿里": ("09988", "阿里巴巴"),
-    }
-    for name, (sym, full_name) in stock_names.items():
-        if name in message:
-            return sym, full_name
-
-    return "", ""

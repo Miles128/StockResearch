@@ -4,12 +4,12 @@ from stockresearch.agents.research.agents._scoring import as_confidence
 from stockresearch.agents.research.react import DimensionAgent, ResearchTool
 from stockresearch.agents.research.context import ResearchContext
 from stockresearch.agents.voice import AGENT_VOICE
-from stockresearch.core.constants import CONFIDENCE_LOW, CONFIDENCE_MEDIUM, DISCLAIMER
+from stockresearch.core.constants import CONFIDENCE_LOW, CONFIDENCE_MEDIUM
 from stockresearch.core.schemas import DimensionResult
 from stockresearch.data.providers.market import SentimentDataProvider
 from stockresearch.utils.symbols import resolve_name
 
-_SYSTEM = f"你是 A 股市场情绪分析师。{AGENT_VOICE} 不要给出买入卖出建议。末尾标注：{DISCLAIMER}"
+_SYSTEM = f"你是 A 股市场情绪分析师。{AGENT_VOICE} 不要给出买入卖出建议。"
 
 
 async def _tool_hot(ctx: ResearchContext) -> dict[str, object]:
@@ -35,26 +35,41 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
     news_score = float(news.get("news_score", 0))
 
     bull_ratio = float(hot.get("bull_ratio", 0.5))
+    available = bool(hot.get("available", True))
+    heat_score = int(hot.get("heat_score", 0))
+    post_count = int(hot.get("post_count", 0))
+    source = str(hot.get("source", "unknown"))
+
     score = 4.0 + bull_ratio * 6
     if news_score < -0.2:
         score -= 1.0
     if news_score > 0.2:
         score += 1.0
+    if not available:
+        score = max(1.0, min(10.0, score - 0.5))
     score = max(1.0, min(10.0, score))
 
     risks = ["情绪指标波动较大，需结合基本面"]
+    if not available:
+        risks.insert(0, "雪球/东财情绪数据未成功拉取，结论置信度降低")
     if news_score < -0.3:
         risks.insert(0, "近期新闻偏负面")
+    if not items:
+        risks.append("个股新闻为空，需核对数据源")
 
     highlight = (
         analysis.strip()
         if analysis.strip()
-        else f"新闻 {len(items)} 条，看多比例 {bull_ratio:.0%}"
+        else (
+            f"热度 {heat_score}、讨论 {post_count}、多空比 {bull_ratio:.0%}、新闻 {len(items)} 条"
+            f"（来源 {source}）"
+        )
     )
+    has_data = available or bool(items)
     return DimensionResult(
         agent="sentiment",
         score=round(score, 1),
-        confidence=as_confidence(CONFIDENCE_MEDIUM if items else CONFIDENCE_LOW),
+        confidence=as_confidence(CONFIDENCE_MEDIUM if has_data else CONFIDENCE_LOW),
         highlights=[highlight],
         risks=risks,
         data_sources=["xueqiu_hot", "akshare_news"],
