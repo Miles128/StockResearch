@@ -61,6 +61,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export interface AgentStreamEvent {
   type: string;
   message?: string;
+  message_key?: string;
+  message_params?: Record<string, string | number | boolean>;
   stream_id?: string;
   delta?: string;
   agent_id?: string;
@@ -176,6 +178,11 @@ async function streamChat(
 
 export const api = {
   llmSettings: () => request<LlmSettingsMeta>("/settings/llm"),
+  saveLlmSettings: (form: LlmUserSettings) =>
+    request<LlmSettingsMeta>("/settings/llm", {
+      method: "PUT",
+      body: JSON.stringify(llmFormToApiBody(form)),
+    }),
   testLlmConnection: (form: LlmUserSettings) =>
     requestPlain<LlmTestResult>("/settings/llm/test", {
       method: "POST",
@@ -222,7 +229,11 @@ export const api = {
   research: (symbol: string) => request<ResearchReport>(`/research/analyze?symbol=${symbol}`),
   researchStream: (symbol: string, onEvent?: (event: AgentStreamEvent) => void) =>
     streamResearch(symbol, onEvent),
-  riskCheckup: () => request<RiskCheckup>("/risk/checkup", { method: "POST" }),
+  riskCheckup: () =>
+    request<RiskCheckup>("/risk/checkup", {
+      method: "POST",
+      body: JSON.stringify({ ...analysisBodyField() }),
+    }),
   marketOverview: () => request<MarketOverview>("/market/overview"),
   stockQuotes: (symbols: string) => request<StockQuoteOut[]>(`/market/quotes?symbols=${symbols}`),
   dataSourceStatus: () => request<DataSourceStatus>("/market/data-status"),
@@ -290,16 +301,21 @@ export interface StockChoiceCardData {
 
 export interface RouteChoiceOption {
   id: ExecutionPreference;
-  label: string;
-  description: string;
+  label?: string;
+  description?: string;
+  label_key?: string;
+  description_key?: string;
+  label_params?: Record<string, string | number>;
+  description_params?: Record<string, string | number>;
 }
 
 export interface RouteChoiceCardData {
-  message: string;
+  message?: string;
+  reason_key?: string;
+  reason_params?: Record<string, string | number>;
   original_message: string;
   finance_related: boolean;
   preset_mode: string | null;
-  preset_label: string | null;
   options: RouteChoiceOption[];
 }
 
@@ -383,18 +399,44 @@ export interface NewsIngestOut {
   message: string;
 }
 
+export interface DimensionResult {
+  agent: string;
+  score: number;
+  confidence: string;
+  highlights: string[];
+  risks: string[];
+  data_sources: string[];
+}
+
+export interface DebateRoundResult {
+  round: number;
+  bull_argument: string;
+  bear_rebuttal: string;
+}
+
+export interface DebateResult {
+  rounds: DebateRoundResult[];
+  judge_verdict: string;
+  consensus: string;
+  core_divergence: string;
+  final_bias: string;
+  confidence: string;
+  vote_tally?: Record<string, number> | null;
+  manager_thesis?: string | null;
+}
+
 export interface ResearchReport {
   symbol: string;
   name: string;
   composite_score: number;
+  composite_confidence?: string;
   bias: string;
   summary: string;
-  dimensions: Record<string, { score: number; highlights: string[]; risks: string[] }>;
-  debate?: {
-    consensus: string;
-    final_bias: string;
-    judge_verdict: string;
-  };
+  news_text_factor?: string | null;
+  text_factor_summary?: string | null;
+  dimension_weights?: Record<string, number>;
+  dimensions: Record<string, DimensionResult>;
+  debate?: DebateResult | null;
 }
 
 export interface PortfolioMetrics {
@@ -441,7 +483,7 @@ export interface RiskCheckup {
 }
 
 export interface MarketOverview {
-  indices: { name: string; price: number; change_pct: number }[];
+  indices: { name: string; symbol?: string; price: number; change_pct: number }[];
   northbound_net_yi: number | null;
   advancers: number | null;
   decliners: number | null;

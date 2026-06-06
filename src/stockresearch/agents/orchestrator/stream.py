@@ -14,9 +14,11 @@ from stockresearch.agents.orchestrator.complexity import (
     ComplexityResult,
     extract_industry_sector,
     is_risk_intent,
+    is_stock_analysis_intent,
 )
 from stockresearch.agents.orchestrator.plan_execute import PlanExecuteAgent
 from stockresearch.agents.orchestrator.react_agent import OrchestratorAgent
+from stockresearch.i18n.status_events import status_event
 from stockresearch.agents.orchestrator.route_plan import (
     build_route_proposal,
     needs_execution_choice,
@@ -29,7 +31,12 @@ from stockresearch.core.constants import INTENT_RESEARCH, INTENT_RISK
 from stockresearch.core.schemas import ResearchReportOut
 from stockresearch.core.schemas import CardPayload, ChatResponse, RiskCheckupOut
 from stockresearch.db.models import Holding
-from stockresearch.services.message_stock import resolve_message_stock, stock_choice_card
+from stockresearch.services.message_stock import (
+    ResolvedStock,
+    match_holding_in_message,
+    resolve_message_stock,
+    stock_choice_card,
+)
 from stockresearch.services.stream_checkpoint import clear_checkpoint, save_checkpoint
 from stockresearch.services.stock_lookup import StockLookupResult
 from stockresearch.utils.disclaimer import strip_disclaimer
@@ -59,12 +66,12 @@ async def run_chat_stream(
     reset_usage(model=_llm_model_name(client))
     holdings = db.query(Holding).filter(Holding.user_id == user_id).all()
 
-    yield {"type": "status", "message": "正在理解您的问题…"}
+    yield status_event("status.understanding")
 
     msg = message.strip()
     is_risk = is_risk_intent(msg) and bool(holdings)
 
-    debate_on = bool(enable_debate)
+    debate_on = True if enable_debate is None else bool(enable_debate)
 
     cards: list[dict[str, object]] = []
     reply = ""
@@ -72,7 +79,7 @@ async def run_chat_stream(
     intent = INTENT_RISK if is_risk else "chat"
 
     if is_risk:
-        yield {"type": "status", "message": "已路由至「风控体检」…"}
+        yield status_event("status.routed_risk")
         async for event in run_risk_checkup_stream(holdings, llm=client):
             if event.get("type") == "done":
                 payload = event.get("result")
@@ -93,18 +100,24 @@ async def run_chat_stream(
             card = route_choice_card(msg, proposal)
             yield {
                 "type": "route_choice",
-                "message": proposal.reason,
+                "reason_key": proposal.reason_key,
+                "reason_params": proposal.reason_params or {},
                 "finance_related": proposal.finance_related,
                 "preset_mode": proposal.preset_mode,
-                "preset_label": proposal.preset_label,
                 "options": [
-                    {"id": o.id, "label": o.label, "description": o.description}
+                    {
+                        "id": o.id,
+                        "label_key": o.label_key,
+                        "description_key": o.description_key,
+                        "label_params": o.label_params or {},
+                        "description_params": o.description_params or {},
+                    }
                     for o in proposal.options
                 ],
                 "original_message": msg,
             }
             cards = [card]
-            reply = proposal.reason
+            reply = ""
         else:
             mode, finance_tools = resolve_mode_with_preference(
                 msg,
@@ -112,20 +125,23 @@ async def run_chat_stream(
                 analysis_mode=analysis_mode,
                 enable_debate=debate_on,
             )
-            mode_labels = {
-                ComplexityResult.DIRECT: "直接回答",
-                ComplexityResult.RESEARCH: "个股多维投研",
-                ComplexityResult.MARKET_RESEARCH: "大盘多维投研",
-                ComplexityResult.DEBATE: "个股深度投研·多空辩论",
-                ComplexityResult.MARKET_DEBATE: "大盘深度投研·多空辩论",
-                ComplexityResult.PLAN_EXECUTE: "规划执行",
-                ComplexityResult.INDUSTRY_RESEARCH: "行业深度研究",
-            }
-            debate_label = "多空辩论开" if debate_on else "多空辩论关"
-            yield {
-                "type": "status",
-                "message": f"{debate_label} · {mode_labels.get(mode, mode)}",
-            }
+            route_symbol = confirmed_symbol
+            route_name = confirmed_name
+            mode, route_symbol, route_name = await _upgrade_stock_research_route(
+                msg,
+                client,
+                holdings,
+                mode=mode,
+                debate_on=debate_on,
+                execution_preference=execution_preference,
+                confirmed_symbol=route_symbol,
+                confirmed_name=route_name,
+            )
+            yield status_event(
+                "status.route",
+                debate="on" if debate_on else "off",
+                mode=str(mode),
+            )
 
             if mode in (ComplexityResult.MARKET_DEBATE, ComplexityResult.MARKET_RESEARCH):
                 intent = INTENT_RESEARCH
@@ -148,8 +164,8 @@ async def run_chat_stream(
                     client,
                     msg,
                     with_debate=mode == ComplexityResult.DEBATE,
-                    confirmed_symbol=confirmed_symbol,
-                    confirmed_name=confirmed_name,
+                    confirmed_symbol=route_symbol,
+                    confirmed_name=route_name,
                 ):
                     if event.get("type") == "done":
                         cards = event.get("cards", [])
@@ -180,9 +196,9 @@ async def run_chat_stream(
                         yield event
             else:
                 # Direct ReAct mode with progress
-                progress_queue: asyncio.Queue[str | None] = asyncio.Queue()
+                progress_queue: asyncio.Queue[dict[str, object] | None] = asyncio.Queue()
 
-                async def on_progress(hint: str) -> None:
+                async def on_progress(hint: dict[str, object]) -> None:
                     await progress_queue.put(hint)
 
                 agent = OrchestratorAgent(
@@ -203,8 +219,17 @@ async def run_chat_stream(
                     hint = await progress_queue.get()
                     if hint is None:
                         break
-                    yield {"type": "status", "message": hint}
-                    save_checkpoint(db, user_id, sid, {"mode": mode, "message": hint})
+                    yield hint
+                    save_checkpoint(
+                        db,
+                        user_id,
+                        sid,
+                        {
+                            "mode": mode,
+                            "message_key": hint.get("message_key"),
+                            "message_params": hint.get("message_params"),
+                        },
+                    )
 
                 await agent_task
 
@@ -249,7 +274,7 @@ async def _run_stock_research_stream(
     confirmed_name: str | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     """个股深度投研：四维 ReAct，可选多空辩论 + 裁判。"""
-    yield {"type": "status", "message": "正在识别股票…"}
+    yield status_event("status.identifying_stock")
     resolved = await resolve_message_stock(
         message,
         llm,  # type: ignore[arg-type]
@@ -347,7 +372,7 @@ async def _run_plan_execute_stream(
     finance_tools: bool = True,
 ) -> AsyncIterator[dict[str, object]]:
     """Stream plan-execute mode with progress."""
-    yield {"type": "status", "message": "正在制定研究计划…"}
+    yield status_event("status.planning")
 
     react_agent = OrchestratorAgent(
         db=db, llm=llm, user_id=user_id, finance_tools=finance_tools
@@ -361,9 +386,9 @@ async def _run_plan_execute_stream(
     )
 
     # Use progress callback for real-time status
-    progress_queue: asyncio.Queue[str | None] = asyncio.Queue()
+    progress_queue: asyncio.Queue[dict[str, object] | None] = asyncio.Queue()
 
-    async def on_progress(hint: str) -> None:
+    async def on_progress(hint: dict[str, object]) -> None:
         await progress_queue.put(hint)
 
     agent.set_progress_callback(on_progress)
@@ -386,15 +411,84 @@ async def _run_plan_execute_stream(
             hint = await asyncio.wait_for(progress_queue.get(), timeout=0.5)
             if hint is None:
                 break
-            yield {"type": "status", "message": hint}
+            yield hint
             save_checkpoint(
                 db,
                 user_id,
                 session_id,
-                {"mode": ComplexityResult.PLAN_EXECUTE, "message": hint},
+                {
+                    "mode": ComplexityResult.PLAN_EXECUTE,
+                    "message_key": hint.get("message_key"),
+                    "message_params": hint.get("message_params"),
+                },
             )
         except TimeoutError:
             pass
 
     await task
-    yield {"type": "done", "cards": plan_cards, "reply": plan_reply}
+    merged_cards = _merge_plan_cards(plan_cards, react_agent.tool_cards())
+    yield {"type": "done", "cards": merged_cards, "reply": plan_reply}
+
+
+async def _upgrade_stock_research_route(
+    message: str,
+    llm: object,
+    holdings: list[object],
+    *,
+    mode: str,
+    debate_on: bool,
+    execution_preference: str | None,
+    confirmed_symbol: str | None,
+    confirmed_name: str | None,
+) -> tuple[str, str | None, str | None]:
+    """Send holding/name stock analysis to streaming research instead of ReAct direct."""
+    if execution_preference == "react":
+        return mode, confirmed_symbol, confirmed_name
+    if mode in (
+        ComplexityResult.DEBATE,
+        ComplexityResult.RESEARCH,
+        ComplexityResult.MARKET_DEBATE,
+        ComplexityResult.MARKET_RESEARCH,
+        ComplexityResult.INDUSTRY_RESEARCH,
+    ):
+        return mode, confirmed_symbol, confirmed_name
+
+    if not is_stock_analysis_intent(message):
+        return mode, confirmed_symbol, confirmed_name
+
+    holding = match_holding_in_message(message, holdings)
+    if holding:
+        upgraded = ComplexityResult.DEBATE if debate_on else ComplexityResult.RESEARCH
+        return upgraded, holding.symbol, holding.name
+
+    if mode != ComplexityResult.DIRECT:
+        return mode, confirmed_symbol, confirmed_name
+
+    resolved = await resolve_message_stock(
+        message,
+        llm,  # type: ignore[arg-type]
+        confirmed_symbol=confirmed_symbol,
+        confirmed_name=confirmed_name,
+    )
+    if isinstance(resolved, ResolvedStock):
+        upgraded = ComplexityResult.DEBATE if debate_on else ComplexityResult.RESEARCH
+        return upgraded, resolved.symbol, resolved.name
+
+    return mode, confirmed_symbol, confirmed_name
+
+
+def _merge_plan_cards(
+    plan_cards: list[dict[str, object]],
+    tool_cards: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    """Attach research/news/etc. cards produced by tools during Plan-Execute."""
+    merged: list[dict[str, object]] = list(plan_cards)
+    for card in tool_cards:
+        ctype = card.get("type")
+        if ctype == "research":
+            merged = [c for c in merged if c.get("type") != "research"]
+            merged.append(card)
+        elif ctype in ("news", "financial", "debate", "market"):
+            if not any(c.get("type") == ctype for c in merged):
+                merged.append(card)
+    return merged

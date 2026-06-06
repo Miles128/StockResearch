@@ -2,8 +2,6 @@
 
 import asyncio
 from collections.abc import AsyncIterator
-from typing import Literal
-
 from sqlalchemy.orm import Session
 
 from stockresearch.agents.industry.context import SectorResearchContext
@@ -20,6 +18,7 @@ from stockresearch.agents.industry.dimensions import (
     prepare_valuation,
 )
 from stockresearch.agents.industry.leaders import iter_leader_analysis_events
+from stockresearch.agents.research.report_builder import build_research_report
 from stockresearch.agents.research.debate import (
     iter_battle_vote_events,
     iter_multi_round_debate_events,
@@ -30,10 +29,11 @@ from stockresearch.agents.research.debate import (
 from stockresearch.agents.stream_typewriter import iter_llm_stream_events, iter_queue_merged_events, pump_dimension_llm_stream
 from stockresearch.agents.structured_output import ResearchJudgeOut
 from stockresearch.agents.voice import DEBATE_ROUNDS, DEBATE_VOICE, JUDGE_VOICE
-from stockresearch.core.constants import CONFIDENCE_HIGH, CONFIDENCE_LOW
 from stockresearch.core.schemas import DebateResult, DebateRound, DimensionResult, ResearchReportOut, SectorLeaderBrief
+from stockresearch.services.text_factor import build_news_text_factor, news_from_title
 from stockresearch.data.providers.sector import SectorDataProvider
 from stockresearch.db.models import Holding, NewsItem
+from stockresearch.i18n.status_events import status_event
 from stockresearch.utils.llm import LLMClient, get_llm_client
 
 _BULL_SYSTEM = f"你是 A 股板块看多分析师。{DEBATE_VOICE}"
@@ -56,14 +56,6 @@ _DIMENSION_JOBS: list[tuple[str, str, object, object]] = [
     ("technical", "技术走势", prepare_technical, build_technical),
     ("structure", "结构持仓", prepare_structure, build_structure),
 ]
-
-
-def _as_confidence(value: str) -> Literal["high", "medium", "low"]:
-    if value == CONFIDENCE_HIGH:
-        return "high"
-    if value == CONFIDENCE_LOW:
-        return "low"
-    return "medium"
 
 
 async def _load_context(
@@ -116,53 +108,27 @@ def _build_report(
     dimensions: dict[str, DimensionResult],
     debate: DebateResult | None,
     leaders: list[SectorLeaderBrief],
+    *,
+    news_text_factor: str | None = None,
 ) -> ResearchReportOut:
-    scores = [d.score for d in dimensions.values()]
-    composite = round(sum(scores) / len(scores), 1)
-    confidences = [d.confidence for d in dimensions.values()]
-    if confidences.count("high") >= 2:
-        composite_confidence: Literal["high", "medium", "low"] = "high"
-    elif "low" in confidences:
-        composite_confidence = "low"
-    else:
-        composite_confidence = "medium"
-
-    if composite >= 6.5:
-        bias: Literal["bullish", "bearish", "neutral"] = "bullish"
-    elif composite <= 4.5:
-        bias = "bearish"
-    else:
-        bias = "neutral"
-
     board_code = "000000"
     if leaders:
         board_code = leaders[0].symbol or board_code
 
-    summary = (
-        f"「{sector}」板块综合 {composite}/10，"
-        f"倾向{'偏多' if bias == 'bullish' else '偏空' if bias == 'bearish' else '中性'}。"
-    )
+    summary_prefix = f"「{sector}」板块加权综合投研。"
     if leaders:
-        summary += f" 龙头：{'、'.join(ld.name for ld in leaders[:2])}。"
-    if debate:
-        bias_label = (
-            "偏多" if debate.final_bias == "bullish"
-            else "偏空" if debate.final_bias == "bearish"
-            else "中性"
-        )
-        summary += f" 裁判{bias_label}：{debate.consensus}"
+        summary_prefix += f" 龙头：{'、'.join(ld.name for ld in leaders[:2])}。"
 
-    return ResearchReportOut(
-        symbol=board_code,
-        name=sector,
+    return build_research_report(
+        board_code,
+        sector,
+        dimensions,
+        debate,
+        dimension_labels=_AGENT_LABELS,
+        news_text_factor=news_text_factor,
         sector=sector,
-        dimensions=dimensions,
-        composite_score=composite,
-        composite_confidence=composite_confidence,
-        bias=bias,
-        summary=summary,
-        debate=debate,
         leaders=leaders,
+        summary_prefix=summary_prefix,
     )
 
 
@@ -178,7 +144,7 @@ async def run_industry_research_stream(
     client = llm or get_llm_client()
     ctx = await _load_context(db, user_id, sector, query, client)
 
-    yield {"type": "status", "message": f"启动「{sector}」板块五维深度研究…"}
+    yield status_event("status.industry.start", sector=sector)
 
     for agent_id, agent_name, _, _ in _DIMENSION_JOBS:
         yield {
@@ -208,7 +174,7 @@ async def run_industry_research_stream(
         yield event  # type: ignore[misc]
     await asyncio.gather(*pumps)
 
-    yield {"type": "status", "message": "五维完成，分析板块龙头…"}
+    yield status_event("status.industry.leaders")
     leader_briefs: list[SectorLeaderBrief] = []
     async for event in iter_leader_analysis_events(ctx, ctx.leaders, limit=3):
         if event.get("type") == "leader_briefs":
@@ -223,7 +189,7 @@ async def run_industry_research_stream(
         situation = summarize_situation(dimensions)
         leader_note = "\n".join(f"- {ld.name}: {ld.brief}" for ld in leader_briefs)
         debate_context = f"板块：{sector}\n作战情：\n{situation}\n龙头简评：\n{leader_note}"
-        yield {"type": "status", "message": "进入板块多空 Battle…"}
+        yield status_event("status.industry.battle_start")
         debate_rounds: list[DebateRound] = []
         async for event in iter_multi_round_debate_events(
             client,
@@ -294,6 +260,10 @@ async def run_industry_research_stream(
             "divergence": parsed.divergence,
         }
 
-    report = _build_report(sector, dimensions, debate, leader_briefs)
-    yield {"type": "status", "message": "板块投研报告已生成"}
+    news_snippets = [news_from_title(title) for title in ctx.news_snippets]
+    news_text_factor = build_news_text_factor(news_snippets, subject=f"「{sector}」板块")
+    report = _build_report(
+        sector, dimensions, debate, leader_briefs, news_text_factor=news_text_factor
+    )
+    yield status_event("status.industry.report_done")
     yield {"type": "done", "result": report.model_dump(mode="json")}

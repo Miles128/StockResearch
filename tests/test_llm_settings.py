@@ -35,6 +35,54 @@ def test_get_llm_client_mock_override() -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_llm_settings_reflects_env(monkeypatch) -> None:
+    monkeypatch.setenv("LLM_API_KEY", "sk-test")
+    monkeypatch.setenv("LLM_BASE_URL", "https://api.deepseek.com/v1")
+    monkeypatch.setenv("LLM_MODEL", "deepseek-chat")
+    monkeypatch.setenv("USE_MOCK_LLM", "false")
+    from stockresearch.core.config import get_settings
+
+    get_settings.cache_clear()
+    app = create_app()
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/v1/settings/llm")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["server_configured"] is True
+    assert data["server_has_api_key"] is True
+    assert data["default_api_key"] == "sk-test"
+    assert data["default_base_url"] == "https://api.deepseek.com/v1"
+    assert data["default_model"] == "deepseek-chat"
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_put_llm_settings_writes_env(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    env = tmp_path / ".env"
+    env.write_text("USE_MOCK_LLM=true\n", encoding="utf-8")
+    monkeypatch.setenv("USE_MOCK_LLM", "true")
+    from stockresearch.core.config import get_settings
+
+    get_settings.cache_clear()
+
+    app = create_app()
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.put(
+            "/api/v1/settings/llm",
+            json={"use_mock": True},
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["server_configured"] is True
+    saved = env.read_text(encoding="utf-8")
+    assert "USE_MOCK_LLM=true" in saved
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
 async def test_llm_test_endpoint_mock() -> None:
     app = create_app()
     transport = ASGITransport(app=app)

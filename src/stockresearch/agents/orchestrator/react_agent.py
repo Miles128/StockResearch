@@ -18,6 +18,7 @@ from stockresearch.core.constants import DISCLAIMER
 from stockresearch.core.schemas import ResearchReportOut
 from stockresearch.db.models import Holding, NewsItem
 from stockresearch.data.providers.market import QuoteProvider
+from stockresearch.i18n.status_events import status_event
 from stockresearch.data.providers.market_overview import MarketOverviewProvider
 from stockresearch.agents.orchestrator.route_plan import FINANCE_TOOLS
 from stockresearch.utils.llm import LLMClient
@@ -107,9 +108,13 @@ class OrchestratorAgent:
         """Set an async callback(msg: str) called at each step."""
         self._on_progress = cb
 
-    async def _progress(self, msg: str) -> None:
+    def tool_cards(self) -> list[dict[str, Any]]:
+        """Cards accumulated from tool calls (research, news, etc.)."""
+        return list(self._cards)
+
+    async def _progress(self, event: dict[str, object]) -> None:
         if self._on_progress:
-            await self._on_progress(msg)
+            await self._on_progress(event)
 
     async def run(self, message: str) -> tuple[str, list[dict[str, Any]]]:
         system = ORCHESTRATOR_SYSTEM if self._finance_tools else ORCHESTRATOR_GENERAL_SYSTEM
@@ -119,7 +124,7 @@ class OrchestratorAgent:
         ]
 
         for i in range(_MAX_ITERATIONS):
-            await self._progress(f"正在思考… (第{i+1}步)")
+            await self._progress(status_event("status.react.thinking", step=i + 1))
             response = await self._llm.complete_messages(messages)
             logger.info("ReAct iter %d: response=%s", i, response[:200])
 
@@ -128,6 +133,7 @@ class OrchestratorAgent:
 
             if not tool_calls:
                 reply = _clean_reply(response)
+                reply = _reply_from_cards(self._cards) or reply
                 logger.info("ReAct final reply (no tool): %s", reply[:200])
                 if not self._cards:
                     self._cards.append({"type": "text", "data": {"content": reply}})
@@ -139,16 +145,28 @@ class OrchestratorAgent:
                 tool_name = tc.get("tool", "")
                 tool_args = tc.get("args", {})
                 # Progress hint based on tool
-                tool_hints = {
-                    "get_market_data": "正在获取大盘行情…",
-                    "get_stock_quote": f"正在查询 {tool_args.get('symbol', '')} 行情…",
-                    "get_stock_research": f"正在进行 {tool_args.get('symbol', '')} 投研分析…",
-                    "debate_stock": f"正在对 {tool_args.get('symbol', '')} 进行多空辩论…",
-                    "get_news": "正在获取财经新闻…",
-                    "reply": "正在生成回复…",
+                tool_status_keys = {
+                    "get_market_data": ("status.react.market_data", {}),
+                    "get_stock_quote": (
+                        "status.react.stock_quote",
+                        {"symbol": str(tool_args.get("symbol", ""))},
+                    ),
+                    "get_stock_research": (
+                        "status.react.stock_research",
+                        {"symbol": str(tool_args.get("symbol", ""))},
+                    ),
+                    "debate_stock": (
+                        "status.react.debate_stock",
+                        {"symbol": str(tool_args.get("symbol", ""))},
+                    ),
+                    "get_news": ("status.react.news", {}),
+                    "reply": ("status.react.reply", {}),
                 }
-                hint = tool_hints.get(tool_name, f"正在执行 {tool_name}…")
-                await self._progress(hint)
+                key, params = tool_status_keys.get(
+                    tool_name,
+                    ("status.react.tool", {"tool": tool_name}),
+                )
+                await self._progress(status_event(key, **params))
 
                 result = await self._execute_tool(tool_name, tool_args)
                 messages.append({"role": "user", "content": f"[工具 {tool_name} 返回]\n{result}"})
@@ -160,7 +178,9 @@ class OrchestratorAgent:
                         self._cards.append({"type": "text", "data": {"content": reply}})
                     return reply, self._cards
 
-        reply = "抱歉，分析过程超出最大步骤数，以下是目前已获取的信息摘要。"
+        reply = _reply_from_cards(self._cards) or (
+            "抱歉，分析过程超出最大步骤数，以下是目前已获取的信息摘要。"
+        )
         if self._cards:
             last_card = self._cards[-1]
             if last_card.get("type") == "text":
@@ -315,6 +335,8 @@ class OrchestratorAgent:
         return "\n".join(lines)
 
     async def _tool_news(self) -> str:
+        from stockresearch.services.text_factor import build_news_text_factor, news_from_out
+
         news = await get_news_for_user(self._db, self._user_id, related_only=False, limit=8)
         if not news:
             return "暂无最新新闻"
@@ -322,10 +344,10 @@ class OrchestratorAgent:
             "type": "news",
             "data": {"items": [n.model_dump(mode="json") for n in news]},
         })
-        lines = []
-        for n in news[:8]:
-            lines.append(f"- {n.title} [{n.sentiment}]")
-        return "最新快讯:\n" + "\n".join(lines)
+        return build_news_text_factor(
+            [news_from_out(n) for n in news],
+            subject="财经快讯",
+        )
 
     async def _tool_sector_holdings(self, args: dict[str, Any]) -> str:
         sector = str(args.get("sector", "")).strip()
@@ -385,6 +407,29 @@ def _extract_tool_calls(text: str) -> list[dict[str, Any]]:
         except json.JSONDecodeError:
             continue
     return calls
+
+
+def _reply_from_cards(cards: list[dict[str, Any]]) -> str | None:
+    """Build a user-facing reply when the LLM returns empty but tools already produced cards."""
+    for card in reversed(cards):
+        ctype = card.get("type")
+        data = card.get("data")
+        if not isinstance(data, dict):
+            continue
+        if ctype == "research":
+            summary = str(data.get("summary", "")).strip()
+            if summary:
+                return summary
+            name = str(data.get("name", ""))
+            symbol = str(data.get("symbol", ""))
+            score = data.get("composite_score")
+            if name and symbol and score is not None:
+                return f"{name}({symbol}) 投研已完成，综合评分 {score}/10。"
+        if ctype == "text":
+            content = str(data.get("content", "")).strip()
+            if content:
+                return content
+    return None
 
 
 def _clean_reply(text: str) -> str:

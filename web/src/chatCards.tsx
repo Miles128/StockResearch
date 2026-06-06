@@ -9,6 +9,8 @@ import type {
   StockChoiceCardData,
 } from "./api";
 import { useI18n } from "./i18n";
+import { translateRouteOption, translateRouteReason } from "./streamI18n";
+import { localizeDebateAgentName, localizeRating } from "./uiLabels";
 import { simpleMarkdown } from "./simpleMarkdown";
 import { StockChart } from "./StockChart";
 
@@ -26,9 +28,11 @@ export function RouteChoiceCardView({
   return (
     <div className="confirm-card message assistant">
       <p className="process-panel-title">{t("chat.chooseRoute")}</p>
-      <p className="muted">{data.message}</p>
+      <p className="muted">{translateRouteReason(data, t)}</p>
       <div className="candidate-list route-choice-list">
-        {data.options.map((opt) => (
+        {data.options.map((opt) => {
+          const { label, description } = translateRouteOption(opt, t);
+          return (
           <button
             key={opt.id}
             type="button"
@@ -39,10 +43,11 @@ export function RouteChoiceCardView({
               onConfirm(data.original_message, opt.id);
             }}
           >
-            <span className="route-choice-label">{opt.label}</span>
-            <span className="route-choice-desc muted">{opt.description}</span>
+            <span className="route-choice-label">{label}</span>
+            <span className="route-choice-desc muted">{description}</span>
           </button>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -188,7 +193,7 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
           {d.positions.map((p, i) => (
             <div key={i} className={`debate-position ${stanceColor[p.stance] || ""}`}>
               <strong>
-                {p.agent} {t("card.analyst")}
+                {localizeDebateAgentName(p.agent, t)}
               </strong>{" "}
               <span className={`stat-pill ${stanceColor[p.stance]}`}>{stanceLabel(p.stance)}</span>
               <p className="muted" style={{ marginTop: 2 }}>
@@ -246,7 +251,7 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
                           : ""
                     }
                   >
-                    {r.assessment}
+                    {localizeRating(r.assessment, t)}
                   </td>
                 </tr>
               ))}
@@ -292,6 +297,18 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
             </h4>
             <p className="muted">{d.step}</p>
             {d.result_preview && <p style={{ marginTop: 4 }}>{d.result_preview}</p>}
+          </div>
+        );
+      }
+      if (d.phase === "synthesis") {
+        return (
+          <div className="card" style={{ borderLeft: "2px solid var(--bbg-green, #3d9970)" }}>
+            <h4>{t("card.synthesis")}</h4>
+            <p className="muted">
+              {t("card.synthesisHint", {
+                count: String((d as { step_count?: number }).step_count ?? ""),
+              })}
+            </p>
           </div>
         );
       }

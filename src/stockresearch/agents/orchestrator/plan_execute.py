@@ -9,6 +9,7 @@ import logging
 from typing import Any
 
 from stockresearch.agents.orchestrator.route_plan import FINANCE_TOOLS
+from stockresearch.i18n.status_events import status_event
 from stockresearch.utils.llm import LLMClient
 
 logger = logging.getLogger(__name__)
@@ -54,9 +55,12 @@ _PLAN_SYSTEM = """你是「StockResearch」的研究规划 Agent。用户提出�
 - get_sector_news: 获取与某板块相关的快讯（参数: sector）
 
 规则：
-- 步骤不超过5步
-- 先获取数据，再分析
-- 如果涉及个股，优先使用 debate_stock
+- **禁止只规划 1 个数据步骤**；金融问题至少 3 步，最后一步用 tool:auto 做归纳分析
+- 步骤不超过 5 步；顺序：先行情/数据 → 再新闻或持仓/板块 → 最后解读研判
+- 大盘/市场走势类至少：get_market_data → get_news → auto 综合解读
+- 个股类至少：get_stock_quote 或 get_stock_research → get_news → auto 解读
+- 对比多只标的：分别拉数据/投研 → get_news → auto 对比结论
+- 如果涉及个股深度投研，可用 debate_stock
 - 不要建议买卖"""
 
 _EXECUTE_SYSTEM = """你是「StockResearch」的执行 Agent。根据计划步骤执行研究任务。
@@ -89,6 +93,151 @@ _SYNTHESIS_SYSTEM = """你是「StockResearch」的综合分析 Agent。根据�
 不要建议买卖。末尾加上：以上内容由 AI 生成，仅供参考，不构成投资建议。"""
 
 _MAX_PLAN_STEPS = 5
+_MIN_FINANCE_PLAN_STEPS = 3
+
+_MARKET_PLAN_TEMPLATE: list[dict[str, Any]] = [
+    {
+        "id": 1,
+        "description": "获取主要指数、北向资金与涨跌家数",
+        "tool": "get_market_data",
+        "args": {},
+    },
+    {
+        "id": 2,
+        "description": "获取今日市场财经快讯与要闻",
+        "tool": "get_news",
+        "args": {},
+    },
+    {
+        "id": 3,
+        "description": "结合行情与新闻，归纳多空因素、板块轮动与短线节奏",
+        "tool": "auto",
+        "args": {},
+    },
+]
+
+
+def _reindex_steps(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for i, step in enumerate(steps[:_MAX_PLAN_STEPS], start=1):
+        merged = dict(step)
+        merged["id"] = i
+        out.append(merged)
+    return out
+
+
+def _extract_symbol(query: str) -> str | None:
+    import re
+
+    match = re.search(r"(?<!\d)(\d{6})(?!\d)", query)
+    return match.group(1) if match else None
+
+
+def _normalize_plan_steps(query: str, steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Expand overly shallow LLM plans into multi-step research workflows."""
+    if not steps:
+        steps = [{"id": 1, "description": query, "tool": "auto", "args": {}}]
+
+    from stockresearch.agents.orchestrator.complexity import has_stock_reference, is_market_scope
+
+    if len(steps) >= _MIN_FINANCE_PLAN_STEPS:
+        return _reindex_steps(steps)
+
+    msg = query.strip()
+    if is_market_scope(msg) and not has_stock_reference(msg):
+        return _reindex_steps(_MARKET_PLAN_TEMPLATE)
+
+    from stockresearch.agents.orchestrator.complexity import (
+        count_stock_mentions,
+        is_stock_comparison,
+        _STOCK_CODE_RE,
+    )
+
+    if is_stock_comparison(msg) and count_stock_mentions(msg) >= 2:
+        codes = list(dict.fromkeys(_STOCK_CODE_RE.findall(msg)))
+        if len(codes) < 2:
+            codes = ["600519", "000858"]
+        return _reindex_steps(
+            [
+                {
+                    "id": 1,
+                    "description": f"获取 {codes[0]} 多维投研",
+                    "tool": "get_stock_research",
+                    "args": {"symbol": codes[0]},
+                },
+                {
+                    "id": 2,
+                    "description": f"获取 {codes[1]} 多维投研",
+                    "tool": "get_stock_research",
+                    "args": {"symbol": codes[1]},
+                },
+                {
+                    "id": 3,
+                    "description": "获取相关市场快讯与行业背景",
+                    "tool": "get_news",
+                    "args": {},
+                },
+                {
+                    "id": 4,
+                    "description": "对比两只标的的估值、趋势与风险差异",
+                    "tool": "auto",
+                    "args": {},
+                },
+            ]
+        )
+
+    symbol = _extract_symbol(msg)
+    if has_stock_reference(msg) or symbol:
+        sym = symbol or "600519"
+        return _reindex_steps(
+            [
+                {
+                    "id": 1,
+                    "description": f"获取 {sym} 实时行情",
+                    "tool": "get_stock_quote",
+                    "args": {"symbol": sym},
+                },
+                {
+                    "id": 2,
+                    "description": f"获取 {sym} 多维投研分析",
+                    "tool": "get_stock_research",
+                    "args": {"symbol": sym},
+                },
+                {
+                    "id": 3,
+                    "description": "获取相关财经快讯与市场背景",
+                    "tool": "get_news",
+                    "args": {},
+                },
+                {
+                    "id": 4,
+                    "description": "综合行情、投研与新闻形成结论",
+                    "tool": "auto",
+                    "args": {},
+                },
+            ]
+        )
+
+    padded = list(steps)
+    if len(padded) == 1:
+        padded.append(
+            {
+                "id": 2,
+                "description": "补充相关财经快讯与背景信息",
+                "tool": "get_news",
+                "args": {},
+            }
+        )
+    while len(padded) < _MIN_FINANCE_PLAN_STEPS:
+        padded.append(
+            {
+                "id": len(padded) + 1,
+                "description": "综合已收集信息形成结构化分析结论",
+                "tool": "auto",
+                "args": {},
+            }
+        )
+    return _reindex_steps(padded)
 
 
 def _extract_json(text: str) -> dict[str, Any] | None:
@@ -151,9 +300,9 @@ class PlanExecuteAgent:
         """Set an async callback(msg: str) called at each step."""
         self._on_progress = cb
 
-    async def _progress(self, msg: str) -> None:
+    async def _progress(self, event: dict[str, object]) -> None:
         if self._on_progress:
-            await self._on_progress(msg)
+            await self._on_progress(event)
 
     async def run(self, query: str) -> tuple[str, list[dict[str, Any]]]:
         """Run Plan-and-Execute workflow.
@@ -164,18 +313,27 @@ class PlanExecuteAgent:
         cards: list[dict[str, Any]] = []
 
         # Phase 1: Planning
-        await self._progress("正在制定研究计划…")
+        await self._progress(status_event("status.planning"))
         plan_prompt = _PLAN_SYSTEM if self._finance_tools else _PLAN_GENERAL_SYSTEM
         plan_response = await self._llm.complete(plan_prompt, query)
         plan_data = _extract_json(plan_response)
 
         if plan_data and "steps" in plan_data:
-            self._plan_steps = plan_data["steps"][:_MAX_PLAN_STEPS]
+            raw_steps = plan_data["steps"][:_MAX_PLAN_STEPS]
             reasoning = plan_data.get("reasoning", "")
         else:
-            # Fallback: treat as single-step
-            self._plan_steps = [{"id": 1, "description": query, "tool": "auto", "args": {}}]
+            raw_steps = [{"id": 1, "description": query, "tool": "auto", "args": {}}]
             reasoning = "自动规划"
+
+        if self._finance_tools:
+            self._plan_steps = _normalize_plan_steps(query, raw_steps)
+            if len(raw_steps) < _MIN_FINANCE_PLAN_STEPS:
+                reasoning = (
+                    f"{reasoning} "
+                    f"（原规划仅 {len(raw_steps)} 步，已扩展为 {len(self._plan_steps)} 步多源研究流程）"
+                ).strip()
+        else:
+            self._plan_steps = _reindex_steps(raw_steps)
 
         # Plan card
         cards.append({
@@ -194,7 +352,14 @@ class PlanExecuteAgent:
         for step in self._plan_steps:
             step_id = step.get("id", 0)
             step_desc = step.get("description", "")
-            await self._progress(f"执行步骤 {step_id}/{len(self._plan_steps)}: {step_desc}")
+            await self._progress(
+                status_event(
+                    "status.plan.step",
+                    step_id=step_id,
+                    total=len(self._plan_steps),
+                    desc=step_desc,
+                )
+            )
             step_result = await self._execute_step(query, step)
             self._completed.append({"step": step_desc, "result": step_result})
 
@@ -210,7 +375,7 @@ class PlanExecuteAgent:
             })
 
         # Phase 3: Synthesis
-        await self._progress("正在综合分析…")
+        await self._progress(status_event("status.plan.synthesizing"))
         results_text = "\n\n".join(
             f"步骤{c['step']}：\n{c['result']}" for c in self._completed
         )
@@ -222,6 +387,15 @@ class PlanExecuteAgent:
 
         if not reply:
             reply = "综合分析完成，但无法生成报告摘要。"
+
+        cards.append({
+            "type": "plan",
+            "data": {
+                "phase": "synthesis",
+                "step_count": len(self._plan_steps),
+                "summary_preview": reply[:400] if reply else "",
+            },
+        })
 
         return reply, cards
 

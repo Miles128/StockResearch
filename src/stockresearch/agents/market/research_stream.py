@@ -27,6 +27,7 @@ from stockresearch.agents.research.stream import (
     _build_report,
     _parse_research_judge,
 )
+from stockresearch.services.text_factor import build_news_text_factor, fetch_market_news_snippets
 from stockresearch.agents.stream_typewriter import (
     iter_llm_stream_events,
     iter_queue_merged_events,
@@ -35,6 +36,7 @@ from stockresearch.agents.stream_typewriter import (
 from stockresearch.agents.voice import DEBATE_ROUNDS, DEBATE_VOICE
 from stockresearch.core.schemas import DebateResult, DebateRound, DimensionResult
 from stockresearch.data.providers.market_overview import MarketOverviewProvider
+from stockresearch.i18n.status_events import status_event
 from stockresearch.utils.llm import LLMClient, get_llm_client
 
 _BULL_SYSTEM = f"你是 A 股大盘看多分析师（Bull Agent）。{DEBATE_VOICE} 基于宏观/行业/技术/情绪四维，阐述看多逻辑。"
@@ -73,7 +75,7 @@ async def run_market_research_stream(
         overview_text=overview_text,
     )
 
-    yield {"type": "status", "message": "启动 A 股市场四维深度投研…"}
+    yield status_event("status.market.research.start")
 
     for agent_id, agent_name, _, _ in _DIMENSION_JOBS:
         yield {
@@ -103,15 +105,26 @@ async def run_market_research_stream(
         yield event  # type: ignore[misc]
     await asyncio.gather(*pumps)
 
-    yield {"type": "status", "message": "四维完成，汇总市场作战情…"}
+    yield status_event("status.market.research.news_factor")
+    market_news = await fetch_market_news_snippets()
+    news_text_factor = build_news_text_factor(market_news, subject=MARKET_NAME)
+
+    yield status_event("status.market.research.summarize")
     if not with_debate:
-        report = _build_report(MARKET_SYMBOL, MARKET_NAME, dimensions, None)
-        yield {"type": "status", "message": "市场深度投研报告已生成"}
+        report = _build_report(
+            MARKET_SYMBOL,
+            MARKET_NAME,
+            dimensions,
+            None,
+            news_text_factor=news_text_factor,
+            dimension_labels=_AGENT_LABELS,
+        )
+        yield status_event("status.market.research.report_done")
         yield {"type": "done", "result": report.model_dump(mode="json")}
         return
 
     situation = summarize_situation(dimensions)
-    yield {"type": "status", "message": "进入大盘多空 Battle…"}
+    yield status_event("status.market.research.battle_start")
 
     debate_context = f"{MARKET_NAME}\n用户关切：{query}\n作战情摘要：\n{situation}"
     debate_rounds: list[DebateRound] = []
@@ -206,6 +219,13 @@ async def run_market_research_stream(
         "divergence": parsed.divergence,
     }
 
-    report = _build_report(MARKET_SYMBOL, MARKET_NAME, dimensions, debate)
-    yield {"type": "status", "message": "市场深度投研报告已生成"}
+    report = _build_report(
+        MARKET_SYMBOL,
+        MARKET_NAME,
+        dimensions,
+        debate,
+        news_text_factor=news_text_factor,
+        dimension_labels=_AGENT_LABELS,
+    )
+    yield status_event("status.market.research.report_done")
     yield {"type": "done", "result": report.model_dump(mode="json")}

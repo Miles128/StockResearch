@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api, type Briefing, type HoldingEnriched, type StockLookupOut } from "./api";
 import { formatPrice, formatSignedMoney, formatSignedPct, signedClass } from "./holdingDisplay";
 import { useI18n } from "./i18n";
+import { localizeBriefing } from "./uiLabels";
 import { StockChart } from "./StockChart";
 import type { PortfolioSummary, SectorWeight } from "./portfolioHelpers";
 
@@ -86,18 +87,21 @@ export function PortfolioPanel({
           {t("portfolio.briefingClosing")}
         </button>
       </div>
-      {briefing && (
+      {briefing && (() => {
+        const b = localizeBriefing(briefing, t);
+        return (
         <div className="briefing-card">
-          <h4>{briefing.title}</h4>
-          <p>{briefing.summary}</p>
-          {briefing.sections.map((s) => (
+          <h4>{b.title}</h4>
+          <p>{b.summary}</p>
+          {b.sections.map((s) => (
             <div key={s.title}>
               <strong>{s.title}</strong>
               <pre className="briefing-section">{s.content}</pre>
             </div>
           ))}
         </div>
-      )}
+        );
+      })()}
       {holdings.length > 0 && (
         <div className="portfolio-summary">
           <div className="portfolio-summary-item">

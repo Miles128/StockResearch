@@ -3,8 +3,7 @@
 import asyncio
 import logging
 from collections.abc import AsyncIterator
-from typing import Literal
-
+from stockresearch.agents.research.report_builder import build_research_report
 from stockresearch.agents.research.debate import (
     iter_battle_vote_events,
     iter_multi_round_debate_events,
@@ -30,8 +29,9 @@ from stockresearch.agents.stream_typewriter import (
 )
 from stockresearch.agents.structured_output import ResearchJudgeOut
 from stockresearch.agents.voice import DEBATE_ROUNDS, DEBATE_VOICE, JUDGE_VOICE
-from stockresearch.core.constants import CONFIDENCE_HIGH, CONFIDENCE_LOW
 from stockresearch.core.schemas import DebateResult, DebateRound, DimensionResult, ResearchReportOut
+from stockresearch.services.text_factor import build_news_text_factor, fetch_symbol_news_snippets
+from stockresearch.i18n.status_events import status_event
 from stockresearch.utils.llm import LLMClient, get_llm_client
 from stockresearch.utils.symbols import resolve_name
 
@@ -57,14 +57,6 @@ _DIMENSION_STREAM_JOBS: list[tuple[str, str, object, object]] = [
 ]
 
 
-def _as_confidence(value: str) -> Literal["high", "medium", "low"]:
-    if value == CONFIDENCE_HIGH:
-        return "high"
-    if value == CONFIDENCE_LOW:
-        return "low"
-    return "medium"
-
-
 def _parse_research_judge(raw: str) -> ResearchJudgeOut:
     return ResearchJudgeOut.from_llm(raw)
 
@@ -82,45 +74,17 @@ def _build_report(
     name: str,
     dimensions: dict[str, DimensionResult],
     debate: DebateResult | None,
+    *,
+    news_text_factor: str | None = None,
+    dimension_labels: dict[str, str] | None = None,
 ) -> ResearchReportOut:
-    scores = [d.score for d in dimensions.values()]
-    composite = round(sum(scores) / len(scores), 1)
-    confidences = [d.confidence for d in dimensions.values()]
-    if confidences.count("high") >= 2:
-        composite_confidence: Literal["high", "medium", "low"] = "high"
-    elif "low" in confidences:
-        composite_confidence = "low"
-    else:
-        composite_confidence = "medium"
-
-    if composite >= 6.5:
-        bias: Literal["bullish", "bearish", "neutral"] = "bullish"
-    elif composite <= 4.5:
-        bias = "bearish"
-    else:
-        bias = "neutral"
-
-    summary = (
-        f"{name}({symbol}) 综合 {composite}/10，"
-        f"倾向{'偏多' if bias == 'bullish' else '偏空' if bias == 'bearish' else '中性'}。"
-    )
-    if debate:
-        bias_label = (
-            "偏多" if debate.final_bias == "bullish"
-            else "偏空" if debate.final_bias == "bearish"
-            else "中性"
-        )
-        summary += f" 裁判{bias_label}：{debate.consensus}"
-
-    return ResearchReportOut(
-        symbol=symbol,
-        name=name,
-        dimensions=dimensions,
-        composite_score=composite,
-        composite_confidence=composite_confidence,
-        bias=bias,
-        summary=summary,
-        debate=debate,
+    return build_research_report(
+        symbol,
+        name,
+        dimensions,
+        debate,
+        dimension_labels=dimension_labels or _AGENT_LABELS,
+        news_text_factor=news_text_factor,
     )
 
 
@@ -134,7 +98,7 @@ async def run_research_stream(
     ctx = ResearchContext(symbol=symbol, llm=client)
     name = resolve_name(symbol)
 
-    yield {"type": "status", "message": f"启动 {name}（{symbol}）四维投研…"}
+    yield status_event("status.research.start", name=name, symbol=symbol)
 
     for agent_id, agent_name, _, _ in _DIMENSION_STREAM_JOBS:
         yield {
@@ -164,15 +128,19 @@ async def run_research_stream(
         yield event  # type: ignore[misc]
     await asyncio.gather(*pumps)
 
-    yield {"type": "status", "message": "四维完成，汇总作战情…"}
+    yield status_event("status.research.news_factor")
+    news_snippets = await fetch_symbol_news_snippets(symbol, name)
+    news_text_factor = build_news_text_factor(news_snippets, subject=f"{name}({symbol})")
+
+    yield status_event("status.research.summarize")
     if not with_debate:
-        report = _build_report(symbol, name, dimensions, None)
-        yield {"type": "status", "message": "投研报告已生成"}
+        report = _build_report(symbol, name, dimensions, None, news_text_factor=news_text_factor)
+        yield status_event("status.research.report_done")
         yield {"type": "done", "result": report.model_dump(mode="json")}
         return
 
     situation = summarize_situation(dimensions)
-    yield {"type": "status", "message": "进入多空 Battle…"}
+    yield status_event("status.research.battle_start")
 
     debate_context = f"{name}({symbol})\n作战情摘要：\n{situation}"
     debate_rounds: list[DebateRound] = []
@@ -265,6 +233,6 @@ async def run_research_stream(
         "divergence": parsed.divergence,
     }
 
-    report = _build_report(symbol, name, dimensions, debate)
-    yield {"type": "status", "message": "投研报告已生成"}
+    report = _build_report(symbol, name, dimensions, debate, news_text_factor=news_text_factor)
+    yield status_event("status.research.report_done")
     yield {"type": "done", "result": report.model_dump(mode="json")}

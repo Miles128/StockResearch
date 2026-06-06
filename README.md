@@ -102,23 +102,22 @@ StockResearch 是**长期开源 MVP**：跑在你自己电脑上的投研工作�
 
 ### 快速开始
 
-**环境**：Python 3.12+、Node.js 18+
+**环境**：Python 3.12+、[uv](https://docs.astral.sh/uv/)、Node.js 18+
 
 ```bash
 git clone https://github.com/Miles128/StockResearch.git
 cd StockResearch
 
-# 后端
-python3.12 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-cp .env.example .env
-uvicorn stockresearch.api.app:app --reload --host 127.0.0.1 --port 8000 --app-dir src
+# 后端（uv 管理虚拟环境与依赖，见 uv.lock）
+uv sync
+cp .env.example .env   # 编辑 .env 填写 LLM_API_KEY / LLM_BASE_URL / LLM_MODEL
+uv run uvicorn stockresearch.api.app:app --reload --host 127.0.0.1 --port 8000 --app-dir src
 
 # 前端（新终端）
 cd web && npm install && npm run dev
 ```
 
-打开 **http://localhost:5174**，在「设置」中配置大模型（BYOK）。支持 [DeepSeek](https://platform.deepseek.com/)、[DashScope 兼容模式](https://help.aliyun.com/zh/model-studio/) 等 OpenAI 兼容接口。
+打开 **http://localhost:5174**。首次进入若未配置大模型会弹出设置；也可随时按 **F5** 打开设置页。保存后自动写入项目根 `.env`（已 gitignore），无需手改 env 文件。支持 [DeepSeek](https://platform.deepseek.com/)、[DashScope 兼容模式](https://help.aliyun.com/zh/model-studio/) 等 OpenAI 兼容接口。
 
 ```bash
 pytest          # 152 tests
@@ -131,11 +130,14 @@ cd web && npm run build
 
 | 变量 | 说明 |
 |------|------|
+| `LLM_API_KEY` | 本机大模型 Key（勿提交） |
+| `LLM_BASE_URL` | OpenAI 兼容 Base URL，如 `https://api.deepseek.com/v1` |
+| `LLM_MODEL` | 模型名，如 `deepseek-chat` |
 | `USE_MOCK_LLM` | `true` 时 Mock 回复，便于无 Key 演示 |
 | `USE_MOCK_MARKET_DATA` | `true` 时模拟行情 |
 | `LLM_HTTP_PROXY` | 本机访问 API 的代理，如 `http://127.0.0.1:7890` |
 
-LLM Key 优先使用浏览器设置，`.env` 中的 `LLM_API_KEY` 可留空。
+在设置页保存后，后端从 `.env` 读取；无需每次在浏览器重复填 Key。
 
 ### 文档与贡献
 
@@ -194,23 +196,22 @@ Browser (:5174)  ──REST/SSE──▶  FastAPI (:8000) + SQLite
 
 ### Quick start
 
-**Requires** Python 3.12+, Node.js 18+
+**Requires** Python 3.12+, [uv](https://docs.astral.sh/uv/), Node.js 18+
 
 ```bash
 git clone https://github.com/Miles128/StockResearch.git
 cd StockResearch
 
-# Backend
-python3.12 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-cp .env.example .env
-uvicorn stockresearch.api.app:app --reload --host 127.0.0.1 --port 8000 --app-dir src
+# Backend (uv manages the venv; see uv.lock)
+uv sync
+cp .env.example .env   # set LLM_API_KEY / LLM_BASE_URL / LLM_MODEL
+uv run uvicorn stockresearch.api.app:app --reload --host 127.0.0.1 --port 8000 --app-dir src
 
 # Frontend (new terminal)
 cd web && npm install && npm run dev
 ```
 
-Open **http://localhost:5174** and configure your LLM under **Settings** (BYOK). Works with [DeepSeek](https://platform.deepseek.com/), [DashScope compatible mode](https://help.aliyun.com/zh/model-studio/), and other OpenAI-compatible APIs.
+Open **http://localhost:5174**. If no LLM is configured, a setup dialog appears; press **F5** anytime for Settings. Saving writes to the project root `.env` (gitignored) automatically. Works with [DeepSeek](https://platform.deepseek.com/), [DashScope compatible mode](https://help.aliyun.com/zh/model-studio/), and other OpenAI-compatible APIs.
 
 ```bash
 pytest          # 152 tests
@@ -223,11 +224,14 @@ See [.env.example](.env.example).
 
 | Variable | Purpose |
 |----------|---------|
+| `LLM_API_KEY` | Local LLM API key (never commit) |
+| `LLM_BASE_URL` | OpenAI-compatible base URL |
+| `LLM_MODEL` | Model id, e.g. `deepseek-chat` |
 | `USE_MOCK_LLM` | Mock replies when `true` |
 | `USE_MOCK_MARKET_DATA` | Simulated quotes when `true` |
 | `LLM_HTTP_PROXY` | HTTP proxy for API calls, e.g. `http://127.0.0.1:7890` |
 
-Browser LLM settings take precedence; `LLM_API_KEY` in `.env` can stay empty.
+Saving in Settings writes `.env`; the backend reads it on the next request.
 
 ### Docs & contributing
 

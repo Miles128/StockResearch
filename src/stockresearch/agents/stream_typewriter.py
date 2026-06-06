@@ -116,6 +116,14 @@ async def pump_dimension_llm_stream(
     dimensions: dict[str, object],
 ) -> None:
     """Fetch market data, stream LLM analysis, store DimensionResult."""
+    await queue.put(
+        {
+            "type": "agent_start",
+            "agent_id": agent_id,
+            "agent_name": agent_name,
+            "role": "analyst",
+        }
+    )
     system, user, data = await prepare(ctx)  # type: ignore[operator]
     parts: list[str] = []
     async for chunk in ctx.llm.stream_complete(system, user):  # type: ignore[attr-defined]
@@ -135,13 +143,24 @@ async def pump_dimension_llm_stream(
     analysis = strip_disclaimer("".join(parts))
     dim = build(data, analysis)  # type: ignore[operator]
     dimensions[agent_id] = dim
+    content = analysis.strip() or analysis
+    await queue.put(
+        {
+            "type": "dimension_ready",
+            "agent_id": agent_id,
+            "agent_name": agent_name,
+            "role": "analyst",
+            "content": content,
+            "dimension": dim.model_dump(mode="json"),  # type: ignore[union-attr]
+        }
+    )
     await queue.put(
         {
             "type": "agent_done",
             "agent_id": agent_id,
             "agent_name": agent_name,
             "role": "analyst",
-            "content": analysis.strip() or analysis,
+            "content": content,
         }
     )
     await queue.put(_PUMP_DONE)

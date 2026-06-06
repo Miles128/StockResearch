@@ -44,6 +44,8 @@ _SIMPLE_PATTERNS = [
     r"\d{6}.*?(行情|价格|报价)",
 ]
 
+_COMPARE_RE = re.compile(r"(对比|比较|vs|versus|哪个更好|哪家|哪只|孰优|优劣)")
+
 # Complex patterns requiring multi-step planning
 _COMPLEX_PATTERNS = [
     r"(对比|比较|vs|versus).{2,}",
@@ -59,7 +61,7 @@ _STOCK_NAMES = (
     r"|腾讯|阿里|阿里巴巴|五粮液|泸州老窖|恒瑞医药|美的|格力"
     r"|中国平安|工商银行|建行|农行|中行|交行|兴业|浦发|民生"
     r"|海康威视|药明康德|隆基绿能|隆基|通威|紫金矿业|长江电力"
-    r"|中国移动|中国石油|中国石化|神华|中远海控)"
+    r"|中国移动|中国石油|中国石化|神华|中远海控|中信证券|中信)"
 )
 
 _DEBATE_PATTERNS = [
@@ -153,6 +155,97 @@ def has_stock_reference(message: str) -> bool:
     return bool(re.search(_STOCK_NAMES, message))
 
 
+def count_stock_mentions(message: str) -> int:
+    """Distinct stock codes + known names mentioned in the message."""
+    codes = set(_STOCK_CODE_RE.findall(message))
+    names = set(re.findall(_STOCK_NAMES, message))
+    return len(codes) + len(names)
+
+
+def is_stock_comparison(message: str) -> bool:
+    """True when the user compares two or more stocks."""
+    msg = message.strip()
+    if count_stock_mentions(msg) >= 2:
+        return True
+    return bool(_COMPARE_RE.search(msg) and has_stock_reference(msg))
+
+
+def count_sector_mentions(message: str) -> int:
+    msg = message.strip()
+    return sum(1 for sector in _KNOWN_SECTORS if sector in msg)
+
+
+def is_multi_scope(message: str) -> bool:
+    """True when the question spans market + stock/industry, or multiple sectors, etc."""
+    msg = message.strip()
+    scopes = 0
+    if is_market_scope(msg):
+        scopes += 1
+    if has_stock_reference(msg):
+        scopes += 1
+    sectors = count_sector_mentions(msg)
+    if sectors >= 2:
+        return True
+    if sectors >= 1 and (is_market_scope(msg) or has_stock_reference(msg)):
+        scopes += 1
+    if is_industry_research(msg) and (is_market_scope(msg) or has_stock_reference(msg)):
+        return True
+    return scopes >= 2
+
+
+def is_single_focus_scope(message: str) -> bool:
+    """Only大盘、单股、或单行业/板块 — 不走 Plan-Execute。"""
+    msg = message.strip()
+    if is_stock_comparison(msg) or is_multi_scope(msg):
+        return False
+    for pattern in _COMPLEX_PATTERNS:
+        if re.search(pattern, msg):
+            return False
+
+    if has_stock_reference(msg) and count_stock_mentions(msg) == 1:
+        if not is_market_scope(msg) and count_sector_mentions(msg) == 0:
+            return True
+
+    if is_market_scope(msg) and not has_stock_reference(msg) and count_sector_mentions(msg) == 0:
+        if not is_industry_research(msg):
+            return True
+
+    if is_industry_research(msg) and not has_stock_reference(msg) and not is_market_scope(msg):
+        if count_sector_mentions(msg) <= 1:
+            return True
+
+    return False
+
+
+def should_auto_plan_execute(message: str) -> bool:
+    """Complex queries that must auto-start Plan-and-Execute."""
+    msg = message.strip()
+    if not msg or is_risk_intent(msg):
+        return False
+
+    for pattern in _SIMPLE_PATTERNS:
+        if re.search(pattern, msg):
+            return False
+
+    if is_single_focus_scope(msg):
+        return False
+
+    if is_stock_comparison(msg):
+        return True
+
+    for pattern in _COMPLEX_PATTERNS:
+        if re.search(pattern, msg):
+            return True
+
+    if is_multi_scope(msg):
+        return True
+
+    if count_stock_mentions(msg) >= 2:
+        return True
+
+    return False
+
+
 def classify_query(message: str) -> str:
     """Classify query complexity and return execution strategy."""
     msg = message.strip()
@@ -220,6 +313,26 @@ def extract_industry_sector(message: str, holding_sectors: list[str] | None = No
     return None
 
 
+_STOCK_ANALYSIS_RE = re.compile(
+    r"(分析|研究|投研|走势|基本面|技术面|情绪|筹码|怎么样|如何|咋样|看法|观点|值不值得|能不能买|还能|持有)"
+)
+
+
+def is_stock_analysis_intent(message: str) -> bool:
+    """True when the user likely wants per-stock research, not a generic chat reply."""
+    msg = message.strip()
+    if not msg:
+        return False
+    if wants_deep_research(msg):
+        return True
+    if _STOCK_ANALYSIS_RE.search(msg):
+        return True
+    for pattern in _DEBATE_PATTERNS:
+        if re.search(pattern, msg):
+            return True
+    return False
+
+
 def classify_research_scope(message: str) -> str | None:
     """Return 'stock' or 'market' when the query is finance-research scoped."""
     msg = message.strip()
@@ -246,9 +359,8 @@ def resolve_execution_mode(
     if analysis_mode == ANALYSIS_SIMPLE:
         return ComplexityResult.DIRECT
 
-    for pattern in _COMPLEX_PATTERNS:
-        if re.search(pattern, msg):
-            return ComplexityResult.PLAN_EXECUTE
+    if should_auto_plan_execute(msg):
+        return ComplexityResult.PLAN_EXECUTE
 
     scope = classify_research_scope(msg)
     if scope == "stock":

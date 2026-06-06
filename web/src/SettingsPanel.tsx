@@ -3,6 +3,7 @@ import type { LlmSettingsMeta } from "./api";
 import { ABOUT_INFO } from "./aboutInfo";
 import { useI18n } from "./i18n";
 import {
+  llmMetaToForm,
   loadLlmSettings,
   saveLlmSettings,
   type LlmUserSettings,
@@ -17,6 +18,7 @@ import {
   loadAnalysisSettings,
   saveAnalysisSettings,
   type AnalysisUserSettings,
+  type OutputTone,
 } from "./analysisSettings";
 import {
   loadDataSourceSettings,
@@ -88,7 +90,20 @@ export function SettingsPanel({
     setError("");
     setTestOk("");
     if (required) setActiveTab("llm");
-    api.llmSettings().then(setMeta).catch(() => setMeta(null));
+    api
+      .llmSettings()
+      .then((m) => {
+        setMeta(m);
+        const fromServer = llmMetaToForm(m);
+        const local = loadLlmSettings();
+        const hasLocal =
+          local.apiKey.trim() || local.baseUrl.trim() || local.model.trim() || local.useMock;
+        setForm(hasLocal ? local : fromServer);
+      })
+      .catch(() => {
+        setMeta(null);
+        setForm(loadLlmSettings());
+      });
     if (!required) {
       api.listReports().then(setReports).catch(() => setReports([]));
       api.signalBacktest().then(setBacktest).catch(() => setBacktest(null));
@@ -114,6 +129,18 @@ export function SettingsPanel({
     setAnalysis(next);
     saveAnalysisSettings(next);
   }
+
+  function selectOutputTone(tone: OutputTone) {
+    const next = { ...analysis, outputTone: tone };
+    setAnalysis(next);
+    saveAnalysisSettings(next);
+  }
+
+  const toneOptions: { id: OutputTone; labelKey: string; hintKey: string }[] = [
+    { id: "professional", labelKey: "settings.toneProfessional", hintKey: "settings.toneProfessionalHint" },
+    { id: "standard", labelKey: "settings.toneStandard", hintKey: "settings.toneStandardHint" },
+    { id: "friendly", labelKey: "settings.toneFriendly", hintKey: "settings.toneFriendlyHint" },
+  ];
 
   function saveDataSources() {
     saveDataSourceSettings(dataForm);
@@ -148,9 +175,14 @@ export function SettingsPanel({
     setSaving(true);
     try {
       if (!(await testConnection())) return;
+      const saved = await api.saveLlmSettings(form);
+      setMeta(saved);
       saveLlmSettings(form);
+      setTestOk(t("settings.savedEnv"));
       onConfigured?.();
       if (!required && variant === "modal") onClose();
+    } catch (e) {
+      setError(formatApiError(e));
     } finally {
       setSaving(false);
     }
@@ -344,6 +376,30 @@ export function SettingsPanel({
             <p className="settings-muted settings-analysis-note">
               {analysis.enableDebate ? t("settings.debateOnNote") : t("settings.debateOffNote")}
             </p>
+
+            <h4 className="settings-section-title">{t("settings.outputTone")}</h4>
+            <p className="settings-hint">{t("settings.outputToneHint")}</p>
+            <div className="settings-tone-options" role="radiogroup" aria-label={t("settings.outputTone")}>
+              {toneOptions.map((opt) => (
+                <label
+                  key={opt.id}
+                  className={`locale-option${analysis.outputTone === opt.id ? " active" : ""}`}
+                >
+                  <input
+                    type="radio"
+                    name="output-tone"
+                    value={opt.id}
+                    checked={analysis.outputTone === opt.id}
+                    onChange={() => selectOutputTone(opt.id)}
+                  />
+                  <span className="theme-option-label">{t(opt.labelKey)}</span>
+                  <span className="theme-option-hint">{t(opt.hintKey)}</span>
+                </label>
+              ))}
+            </div>
+            {locale === "en" && (
+              <p className="settings-muted settings-analysis-note">{t("settings.outputLocaleEnNote")}</p>
+            )}
           </>
         )}
 

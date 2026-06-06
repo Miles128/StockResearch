@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from sqlalchemy.orm import Session
 
 from stockresearch.agents.news.agent import get_news_for_user
+from stockresearch.services.text_factor import build_news_text_factor, news_from_out
 from stockresearch.core.constants import DISCLAIMER
 from stockresearch.core.schemas import BriefingOut, BriefingSection
 from stockresearch.data.providers.market import QuoteProvider
@@ -69,10 +70,15 @@ async def generate_briefing(
         sections.append(BriefingSection(title="持仓快照", content="暂无持仓，可在「持仓」页添加。"))
 
     if news:
-        news_lines = [f"· {n.title}" for n in news[:5]]
-        sections.append(BriefingSection(title="相关快讯", content="\n".join(news_lines)))
+        news_factor = build_news_text_factor(
+            [news_from_out(n) for n in news[:6]],
+            subject="持仓与市场",
+        )
+        sections.append(BriefingSection(title="新闻文本因子", content=news_factor))
     else:
-        sections.append(BriefingSection(title="相关快讯", content="暂无快讯，可在「新闻」页刷新。"))
+        sections.append(
+            BriefingSection(title="新闻文本因子", content="暂无快讯，可在「新闻」页刷新。")
+        )
 
     if alerts:
         alert_lines = [f"· [{a.severity}] {a.message}" for a in alerts]

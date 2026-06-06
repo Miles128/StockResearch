@@ -7,16 +7,12 @@ from dataclasses import dataclass
 from typing import Literal
 
 from stockresearch.agents.orchestrator.complexity import (
-    ANALYSIS_COMPLEX,
     ComplexityResult,
-    _COMPLEX_PATTERNS,
-    _SIMPLE_PATTERNS,
     classify_query,
     classify_research_scope,
     is_industry_research,
     is_risk_intent,
     resolve_execution_mode,
-    wants_deep_research,
 )
 
 ExecutionPreference = Literal["react", "plan_execute", "preset", "auto"]
@@ -74,16 +70,18 @@ FINANCE_TOOLS: frozenset[str] = frozenset(
 @dataclass(frozen=True)
 class RouteOption:
     id: str
-    label: str
-    description: str
+    label_key: str
+    description_key: str
+    label_params: dict[str, object] | None = None
+    description_params: dict[str, object] | None = None
 
 
 @dataclass(frozen=True)
 class RouteProposal:
     finance_related: bool
-    reason: str
+    reason_key: str
+    reason_params: dict[str, object] | None
     preset_mode: str | None
-    preset_label: str | None
     options: list[RouteOption]
 
 
@@ -109,34 +107,8 @@ def needs_execution_choice(
     execution_preference: str | None = None,
     confirmed_symbol: str | None = None,
 ) -> bool:
-    """Whether to pause and ask the user to pick ReAct / Plan-Execute / preset."""
-    if execution_preference and execution_preference not in ("auto", None):
-        return False
-    if confirmed_symbol:
-        return False
-
-    msg = message.strip()
-    if not msg or is_risk_intent(msg):
-        return False
-
-    for pattern in _SIMPLE_PATTERNS:
-        if re.search(pattern, msg):
-            return False
-
-    if analysis_mode == ANALYSIS_COMPLEX:
-        return True
-
-    for pattern in _COMPLEX_PATTERNS:
-        if re.search(pattern, msg):
-            return True
-
-    auto = classify_query(msg)
-    if auto == ComplexityResult.PLAN_EXECUTE:
-        return True
-
-    if len(msg) >= 60 and wants_deep_research(msg):
-        return True
-
+    """Plan-Execute and preset routes are chosen automatically — no manual picker."""
+    _ = (message, analysis_mode, execution_preference, confirmed_symbol)
     return False
 
 
@@ -192,50 +164,49 @@ def build_route_proposal(message: str, *, enable_debate: bool = False) -> RouteP
     msg = message.strip()
     finance = is_finance_related(msg)
     preset_mode: str | None = None
-    preset_label: str | None = None
 
     if finance:
         preset_mode = resolve_preset_mode(msg, enable_debate=enable_debate)
-        preset_label = _MODE_LABELS.get(preset_mode, preset_mode)
 
-    if finance and preset_mode:
-        reason = f"检测到较复杂的{'金融' if finance else ''}分析问题，请选择执行方式。"
-    else:
-        reason = "检测到较复杂的问题。本问题与股票投资无直接关系，将不使用联网搜索或行情工具。"
+    reason_key = "route.reason.finance_complex" if finance and preset_mode else "route.reason.non_finance"
+    reason_params: dict[str, object] | None = None
 
     options: list[RouteOption] = []
-    if finance and preset_mode and preset_label:
+    if finance and preset_mode:
         options.append(
             RouteOption(
                 id="preset",
-                label=f"预定路线 · {preset_label}",
-                description="按系统推荐的专业投研流程执行（推荐）",
+                label_key="route.option.preset",
+                description_key="route.option.preset_desc",
+                label_params={"mode": preset_mode},
             )
         )
     options.extend(
         [
             RouteOption(
                 id="react",
-                label="ReAct 快速分析",
-                description="逐步调用工具并即时回答，适合需要较快结论的场景"
-                if finance
-                else "基于模型知识直接回答，不调用行情、新闻等金融工具",
+                label_key="route.option.react",
+                description_key=(
+                    "route.option.react.desc" if finance else "route.option.react.desc_non_finance"
+                ),
             ),
             RouteOption(
                 id="plan_execute",
-                label="规划执行",
-                description="先制定多步研究计划，再逐步执行并综合报告"
-                if finance
-                else "先规划步骤再执行，仅使用通用推理，不调用金融数据工具",
+                label_key="route.option.plan_execute",
+                description_key=(
+                    "route.option.plan_execute.desc"
+                    if finance
+                    else "route.option.plan_execute.desc_non_finance"
+                ),
             ),
         ]
     )
 
     return RouteProposal(
         finance_related=finance,
-        reason=reason,
+        reason_key=reason_key,
+        reason_params=reason_params,
         preset_mode=preset_mode,
-        preset_label=preset_label,
         options=options,
     )
 
@@ -244,13 +215,19 @@ def route_choice_card(original_message: str, proposal: RouteProposal) -> dict[st
     return {
         "type": "route_choice",
         "data": {
-            "message": proposal.reason,
+            "reason_key": proposal.reason_key,
+            "reason_params": proposal.reason_params or {},
             "original_message": original_message,
             "finance_related": proposal.finance_related,
             "preset_mode": proposal.preset_mode,
-            "preset_label": proposal.preset_label,
             "options": [
-                {"id": o.id, "label": o.label, "description": o.description}
+                {
+                    "id": o.id,
+                    "label_key": o.label_key,
+                    "description_key": o.description_key,
+                    "label_params": o.label_params or {},
+                    "description_params": o.description_params or {},
+                }
                 for o in proposal.options
             ],
         },

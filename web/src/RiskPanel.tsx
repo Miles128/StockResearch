@@ -1,5 +1,6 @@
 import type { HoldingEnriched, RiskCheckup } from "./api";
 import { useI18n } from "./i18n";
+import { localizeRiskRuleId, localizeSeverity } from "./uiLabels";
 
 interface RiskPanelProps {
   holdings: HoldingEnriched[];
@@ -230,7 +231,8 @@ export function RiskPanel({
             const tags = alertHoldingTags(a.human_message);
             return (
               <div className={`card alert-${a.severity}`} key={i}>
-                <h4>{a.rule_id}</h4>
+                <h4>{localizeRiskRuleId(a.rule_id, t)}</h4>
+                <span className="stat-pill muted">{localizeSeverity(a.severity, t)}</span>
                 <p>{a.human_message}</p>
                 {tags.length > 0 && (
                   <div className="alert-holding-tags">

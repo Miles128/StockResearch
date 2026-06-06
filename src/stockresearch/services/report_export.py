@@ -48,12 +48,16 @@ def report_to_markdown(report: ResearchReportOut) -> str:
     lines = [
         f"# {report.name}（{report.symbol}）投研报告",
         "",
-        f"**综合评分**：{report.composite_score}/10 · **倾向**：{bias} · **置信度**：{conf}",
+        f"**加权综合评分**：{report.composite_score}/10 · **倾向**：{bias} · **置信度**：{conf}",
         "",
         report.summary,
         "",
-        "## 四维分析",
     ]
+    if report.text_factor_summary:
+        lines.extend(["## 文本因子·总结", report.text_factor_summary, ""])
+    if report.news_text_factor:
+        lines.extend(["## 文本因子·新闻", report.news_text_factor, ""])
+    lines.append("## 四维分析")
     for key, dim in report.dimensions.items():
         lines.extend(_dim_section(key, dim))
         lines.append("")

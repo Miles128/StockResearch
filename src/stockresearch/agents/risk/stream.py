@@ -5,6 +5,7 @@ import logging
 from collections.abc import AsyncIterator
 
 from stockresearch.agents.research.debate import iter_triangular_debate_events, triangular_transcript
+from stockresearch.agents.risk import messages as risk_msg
 from stockresearch.agents.risk.engine import (
     _humanize,
     _llm_correlation_analysis,
@@ -38,6 +39,7 @@ from stockresearch.core.constants import (
 from stockresearch.core.schemas import LLMRiskAnalysis, RiskAlertOut, RiskCheckupOut
 from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.db.models import Holding
+from stockresearch.i18n.status_events import status_event
 from stockresearch.utils.llm import LLMClient, get_llm_client
 
 logger = logging.getLogger(__name__)
@@ -73,8 +75,12 @@ def _parse_rule_alerts(holdings: list[Holding], quotes: list) -> list[RiskAlertO
                     rule_id="stop_loss_red",
                     severity=SEVERITY_RED,
                     symbol=holding.symbol,
-                    message=(
-                        f"{holding.name}({holding.symbol}) 亏损 {drawdown:.0%}，触发红色止损预警。"
+                    message=risk_msg.alert_stop_loss_red(
+                        holding.name,
+                        holding.symbol,
+                        holding.cost_price,
+                        quote.price,
+                        drawdown,
                     ),
                     human_message="",
                 )
@@ -85,7 +91,9 @@ def _parse_rule_alerts(holdings: list[Holding], quotes: list) -> list[RiskAlertO
                     rule_id="stop_loss_yellow",
                     severity=SEVERITY_YELLOW,
                     symbol=holding.symbol,
-                    message=f"{holding.name}({holding.symbol}) 回撤 {drawdown:.0%}。",
+                    message=risk_msg.alert_stop_loss_yellow_short(
+                        holding.name, holding.symbol, drawdown
+                    ),
                     human_message="",
                 )
             )
@@ -95,7 +103,7 @@ def _parse_rule_alerts(holdings: list[Holding], quotes: list) -> list[RiskAlertO
                     rule_id="black_swan",
                     severity=SEVERITY_CRITICAL,
                     symbol=holding.symbol,
-                    message=f"{holding.name} 今日大跌 {quote.change_pct}%。",
+                    message=risk_msg.alert_black_swan_drop(holding.name, quote.change_pct),
                     human_message="",
                 )
             )
@@ -106,7 +114,7 @@ def _parse_rule_alerts(holdings: list[Holding], quotes: list) -> list[RiskAlertO
                         rule_id="black_swan",
                         severity=SEVERITY_CRITICAL,
                         symbol=holding.symbol,
-                        message=f"{holding.name} 存在 {kw} 相关风险标签。",
+                        message=risk_msg.alert_black_swan_tag_short(holding.name, kw),
                         human_message="",
                     )
                 )
@@ -118,7 +126,7 @@ def _parse_rule_alerts(holdings: list[Holding], quotes: list) -> list[RiskAlertO
                 rule_id="concentration",
                 severity=SEVERITY_WARNING,
                 symbol=None,
-                message=f"行业集中度偏高：{sector} 占仓位 {ratio:.0%}。",
+                message=risk_msg.alert_concentration_short(sector, ratio),
                 human_message="",
             )
         )
@@ -170,7 +178,7 @@ async def run_risk_checkup_stream(
 ) -> AsyncIterator[dict[str, object]]:
     client = llm or get_llm_client()
 
-    yield {"type": "status", "message": "多 Agent 风控分析中…"}
+    yield status_event("status.risk.analysis")
 
     yield {
         "type": "agent_start",
@@ -185,11 +193,7 @@ async def run_risk_checkup_stream(
         else []
     )
     alerts = _parse_rule_alerts(holdings, quotes)
-    rules_summary = (
-        f"扫描 {len(holdings)} 只，触发 {len(alerts)} 条告警。"
-        if holdings
-        else "暂无持仓。"
-    )
+    rules_summary = risk_msg.rules_scan_summary(len(holdings), len(alerts))
     async for event in iter_agent_done_stream(
         agent_id="rules",
         agent_name="规则引擎",
@@ -270,7 +274,7 @@ async def run_risk_checkup_stream(
                     f"第{round_num}轮审慎：{event.get('conservative', '')}"
                 )
 
-    yield {"type": "status", "message": "Research Manager 综合风控意见…"}
+    yield status_event("status.risk.manager")
     yield {
         "type": "agent_start",
         "agent_id": "research_manager",
@@ -292,7 +296,7 @@ async def run_risk_checkup_stream(
             manager_summary = str(event.get("content", "")).strip()
     yield {"type": "manager", "content": manager_summary}
 
-    yield {"type": "status", "message": "裁判逐股研判并汇总结论…"}
+    yield status_event("status.risk.judge")
     yield {
         "type": "agent_start",
         "agent_id": "judge",

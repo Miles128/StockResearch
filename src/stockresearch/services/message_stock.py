@@ -14,7 +14,7 @@ _STOCK_NAME_RE = re.compile(
     r"|腾讯|阿里|阿里巴巴|五粮液|泸州老窖|恒瑞医药|美的|格力"
     r"|工商银行|建行|农行|中行|交行|兴业|浦发|民生"
     r"|海康威视|药明康德|隆基绿能|隆基|通威|紫金矿业|长江电力"
-    r"|中国移动|中国石油|中国石化|神华|中远海控|徐工机械|徐工|招商证券)"
+    r"|中国移动|中国石油|中国石化|神华|中远海控|徐工机械|徐工|招商证券|中信证券|中信)"
 )
 
 
@@ -22,6 +22,21 @@ _STOCK_NAME_RE = re.compile(
 class ResolvedStock:
     symbol: str
     name: str
+
+
+def match_holding_in_message(message: str, holdings: list[object]) -> ResolvedStock | None:
+    """Match a user holding name/symbol mentioned in the message."""
+    text = message.strip()
+    if not text or not holdings:
+        return None
+    for holding in holdings:
+        symbol = str(getattr(holding, "symbol", "") or "")
+        name = str(getattr(holding, "name", "") or "")
+        if symbol and symbol in text:
+            return ResolvedStock(symbol=symbol, name=name or resolve_name(symbol))
+        if name and name in text:
+            return ResolvedStock(symbol=symbol, name=name)
+    return None
 
 
 def extract_stock_query(message: str) -> str | None:

@@ -8,11 +8,16 @@ from collections.abc import AsyncIterator
 
 import httpx
 
+from stockresearch.agents.output_style import apply_style_to_system
 from stockresearch.core.config import get_settings
 from stockresearch.core.llm_config import LlmOverrides, resolve_chat_completions_url
 from stockresearch.utils.llm_usage import estimate_tokens, record_usage
 
 logger = logging.getLogger(__name__)
+
+
+def _styled_system(system: str) -> str:
+    return apply_style_to_system(system)
 
 
 class LLMClient(ABC):
@@ -251,6 +256,7 @@ class MockLLMClient(LLMClient):
         return "您好，以上仅供参考，请您结合自己的判断决策。"
 
     async def complete(self, system: str, user: str) -> str:
+        system = _styled_system(system)
         text = self._mock_reply(system, user)
         record_usage(
             prompt_tokens=estimate_tokens(f"{system}\n{user}"),
@@ -269,6 +275,7 @@ class OpenAICompatibleClient(LLMClient):
         self._temperature = cfg.effective_temperature()
 
     async def stream_complete(self, system: str, user: str) -> AsyncIterator[str]:
+        system = _styled_system(system)
         if not self._api_key:
             logger.warning("LLM API key missing, falling back to mock")
             mock = MockLLMClient()
@@ -342,15 +349,22 @@ class OpenAICompatibleClient(LLMClient):
 
     async def complete_messages(self, messages: list[dict[str, str]]) -> str:
         """Complete with full message history using the chat API natively."""
+        styled_messages = list(messages)
+        for idx, msg in enumerate(styled_messages):
+            if msg.get("role") == "system" and msg.get("content"):
+                styled_messages[idx] = {
+                    **msg,
+                    "content": _styled_system(str(msg["content"])),
+                }
         if not self._api_key:
             logger.warning("LLM API key missing, falling back to mock")
             mock = MockLLMClient()
-            return await mock.complete_messages(messages)
+            return await mock.complete_messages(styled_messages)
 
         headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
         payload = {
             "model": self._model,
-            "messages": messages,
+            "messages": styled_messages,
             "temperature": self._temperature,
         }
         async with httpx.AsyncClient(timeout=60.0) as client:

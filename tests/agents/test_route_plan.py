@@ -18,15 +18,12 @@ def test_is_finance_related() -> None:
     assert not is_finance_related("帮我写一首关于春天的诗")
 
 
-def test_needs_execution_choice_complex_patterns() -> None:
-    assert needs_execution_choice("对比茅台和五粮液的投资价值")
-    assert needs_execution_choice("如果美联储加息，A股科技板块会怎样，该怎么办")
+def test_needs_execution_choice_disabled() -> None:
+    """Plan-Execute is automatic; users are not asked to pick a mode."""
+    assert not needs_execution_choice("对比茅台和五粮液的投资价值")
+    assert not needs_execution_choice("如果美联储加息，A股科技板块会怎样，该怎么办")
     assert not needs_execution_choice("你好")
     assert not needs_execution_choice("今天大盘行情")
-    assert not needs_execution_choice(
-        "对比茅台和五粮液",
-        execution_preference="react",
-    )
 
 
 def test_build_route_proposal_finance_has_preset() -> None:
@@ -57,14 +54,18 @@ def test_resolve_mode_with_preference() -> None:
     assert mode == ComplexityResult.DIRECT
     assert finance
 
+    mode, finance = resolve_mode_with_preference(msg, None)
+    assert mode == ComplexityResult.PLAN_EXECUTE
+    assert finance
+
     mode, finance = resolve_mode_with_preference(
         "如果地球引力减半会怎样", "plan_execute"
     )
     assert mode == ComplexityResult.PLAN_EXECUTE
     assert not finance
 
-    mode, _ = resolve_mode_with_preference(msg, "preset", enable_debate=False)
-    assert mode == ComplexityResult.RESEARCH
+    mode, _ = resolve_mode_with_preference("今天大盘行情", "preset", enable_debate=False)
+    assert mode == ComplexityResult.MARKET_RESEARCH
 
 
 def test_route_choice_card_shape() -> None:

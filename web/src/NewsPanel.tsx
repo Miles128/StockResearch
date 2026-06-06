@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, type Briefing, type NewsItem, type SectorPreferences } from "./api";
 import { useI18n } from "./i18n";
+import { localizeBriefing, localizeImpactLevel, localizeSentiment } from "./uiLabels";
 
 interface NewsPanelProps {
   news: NewsItem[];
@@ -53,18 +54,21 @@ export function NewsPanel({
           {t("news.briefingClosing")}
         </button>
       </div>
-      {briefing && (
+      {briefing && (() => {
+        const b = localizeBriefing(briefing, t);
+        return (
         <div className="briefing-card">
-          <h4>{briefing.title}</h4>
-          <p>{briefing.summary}</p>
-          {briefing.sections.map((s) => (
+          <h4>{b.title}</h4>
+          <p>{b.summary}</p>
+          {b.sections.map((s) => (
             <div key={s.title}>
               <strong>{s.title}</strong>
               <pre className="briefing-section">{s.content}</pre>
             </div>
           ))}
         </div>
-      )}
+        );
+      })()}
       {newsSectors && newsSectors.available.length > 0 && (
         <div style={{ marginTop: 10 }}>
           <span className="field-label">{t("news.sectors")}</span>
@@ -105,7 +109,8 @@ export function NewsPanel({
                 <span
                   className={`stat-pill ${n.sentiment === "bullish" ? "up" : n.sentiment === "bearish" ? "down" : ""}`}
                 >
-                  {n.sentiment} · {n.impact_level} {n.related_to_user ? `· ${t("news.related")}` : ""}
+                  {localizeSentiment(n.sentiment, t)} · {localizeImpactLevel(n.impact_level, t)}
+                  {n.related_to_user ? ` · ${t("news.related")}` : ""}
                 </span>
               </div>
             ))}

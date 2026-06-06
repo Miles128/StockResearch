@@ -187,6 +187,9 @@ class ResearchReportOut(BaseModel):
     debate: DebateResult | None = None
     sector: str | None = None
     leaders: list[SectorLeaderBrief] = Field(default_factory=list)
+    news_text_factor: str | None = None
+    text_factor_summary: str | None = None
+    dimension_weights: dict[str, float] = Field(default_factory=dict)
     disclaimer: str = DISCLAIMER
     cached: bool = False
 
@@ -272,13 +275,21 @@ class LlmUserSettings(BaseModel):
 class LlmSettingsOut(BaseModel):
     default_base_url: str
     default_model: str
+    default_api_key: str
     default_temperature: float
     server_use_mock: bool
+    server_configured: bool
+    server_has_api_key: bool
 
 
 class LlmTestOut(BaseModel):
     ok: bool
     message: str
+
+
+class RiskCheckupRequest(BaseModel):
+    output_tone: Literal["professional", "standard", "friendly"] | None = None
+    output_locale: Literal["zh", "en"] | None = None
 
 
 class ChatRequest(BaseModel):
@@ -287,6 +298,8 @@ class ChatRequest(BaseModel):
     llm: LlmUserSettings | None = None
     analysis_mode: Literal["simple", "complex"] | None = None
     enable_debate: bool | None = None
+    output_tone: Literal["professional", "standard", "friendly"] | None = None
+    output_locale: Literal["zh", "en"] | None = None
     confirmed_symbol: str | None = Field(
         default=None, min_length=6, max_length=6, pattern=r"^\d{6}$"
     )

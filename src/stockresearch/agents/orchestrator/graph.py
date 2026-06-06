@@ -92,20 +92,29 @@ class Orchestrator:
                 confirmed_symbol=state.get("confirmed_symbol"),
             ):
                 proposal = build_route_proposal(
-                    msg, enable_debate=bool(state.get("enable_debate"))
+                    msg,
+                    enable_debate=(
+                        True
+                        if state.get("enable_debate") is None
+                        else bool(state.get("enable_debate"))
+                    ),
                 )
                 card = route_choice_card(msg, proposal)
                 return {
                     "intent": INTENT_CHAT,
                     "mode": "route_choice",
                     "cards": [card],
-                    "reply": proposal.reason,
+                    "reply": "",
                 }
             mode, finance_tools = resolve_mode_with_preference(
                 msg,
                 state.get("execution_preference"),
                 analysis_mode=state.get("analysis_mode"),
-                enable_debate=bool(state.get("enable_debate")),
+                enable_debate=(
+                    True
+                    if state.get("enable_debate") is None
+                    else bool(state.get("enable_debate"))
+                ),
             )
             return {"intent": INTENT_CHAT, "mode": mode, "finance_tools": finance_tools}
 

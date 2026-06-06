@@ -1,5 +1,7 @@
 import type { MarketOverview } from "./api";
 import { formatPrice, formatSignedPct, signedClass } from "./holdingDisplay";
+import { useI18n } from "./i18n";
+import { localizeIndexName } from "./indexLabels";
 
 export function MarketTicker({
   overview,
@@ -20,6 +22,7 @@ export function MarketTicker({
   onRefresh: () => void;
   onIndexClick: (name: string) => void;
 }) {
+  const { t } = useI18n();
   const hasMeta =
     overview?.northbound_net_yi != null ||
     (overview?.advancers != null && overview?.decliners != null);
@@ -27,21 +30,24 @@ export function MarketTicker({
   return (
     <div className="market-ticker-wrap">
       <div className="ticker-strip">
-        {(overview?.indices ?? []).map((idx) => (
+        {(overview?.indices ?? []).map((idx) => {
+          const label = localizeIndexName(idx.symbol, idx.name, t);
+          return (
           <button
-            key={idx.name}
+            key={idx.symbol ?? idx.name}
             type="button"
             className="ticker-card ticker-card-btn"
-            onClick={() => onIndexClick(idx.name)}
-            title={idx.name}
+            onClick={() => onIndexClick(label)}
+            title={label}
           >
-            <div className="ticker-name">{idx.name}</div>
+            <div className="ticker-name">{label}</div>
             <div className="ticker-price mono">{formatPrice(idx.price)}</div>
             <div className={`ticker-change mono ${signedClass(idx.change_pct)}`}>
               {formatSignedPct(idx.change_pct)}
             </div>
           </button>
-        ))}
+          );
+        })}
         {!overview?.indices?.length && (
           <div className="ticker-card ticker-card-empty">
             <span className="muted">{loading ? "…" : "—"}</span>
