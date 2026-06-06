@@ -918,6 +918,17 @@ input:focus {
 }
 
 .candidate-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.route-choice-list { flex-direction: column; align-items: stretch; }
+.route-choice-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  padding: 10px 12px;
+}
+.route-choice-label { font-weight: 600; }
+.route-choice-desc { font-size: 0.85em; line-height: 1.35; }
 
 .success {
   color: var(--bbg-up);
@@ -1838,6 +1849,52 @@ input:focus {
 
 .report-history-time {
   font-size: 11px;
+}
+
+.report-history-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.settings-memory-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.settings-memory-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.panel-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.briefing-card {
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  background: var(--bbg-panel);
+}
+
+.briefing-card h4 {
+  margin: 0 0 8px;
+}
+
+.briefing-section {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 12px;
+  margin: 4px 0 10px;
+  background: transparent;
+  border: none;
+  padding: 0;
 }
 
 .btn-sm {

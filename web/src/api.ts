@@ -133,9 +133,12 @@ async function consumeSse(
   }
 }
 
+export type ExecutionPreference = "react" | "plan_execute" | "preset" | "auto";
+
 export interface ChatStreamOptions {
   confirmedSymbol?: string;
   confirmedName?: string;
+  executionPreference?: ExecutionPreference;
 }
 
 async function streamChat(
@@ -152,6 +155,7 @@ async function streamChat(
       session_id: sessionId,
       confirmed_symbol: options?.confirmedSymbol,
       confirmed_name: options?.confirmedName,
+      execution_preference: options?.executionPreference,
       ...analysisBodyField(),
       ...llmBodyField(),
     }),
@@ -185,6 +189,7 @@ export const api = {
         session_id: sessionId,
         confirmed_symbol: options?.confirmedSymbol,
         confirmed_name: options?.confirmedName,
+        execution_preference: options?.executionPreference,
         ...analysisBodyField(),
         ...llmBodyField(),
       }),
@@ -227,6 +232,14 @@ export const api = {
   downloadReportMarkdown: (id: number) => {
     window.open(apiUrl(`/research/reports/${id}/markdown`), "_blank", "noopener,noreferrer");
   },
+  downloadReportPdf: (id: number) => {
+    window.open(apiUrl(`/research/reports/${id}/pdf`), "_blank", "noopener,noreferrer");
+  },
+  signalBacktest: () => request<SignalBacktest>("/research/signal-backtest"),
+  searchMemory: (q: string) =>
+    request<MemorySearchResult>(`/research/memory/search?q=${encodeURIComponent(q)}`),
+  generateBriefing: (kind: "morning" | "closing") =>
+    request<Briefing>(`/briefing/generate?kind=${kind}`, { method: "POST" }),
 };
 
 async function streamResearch(
@@ -275,8 +288,33 @@ export interface StockChoiceCardData {
   original_message: string;
 }
 
+export interface RouteChoiceOption {
+  id: ExecutionPreference;
+  label: string;
+  description: string;
+}
+
+export interface RouteChoiceCardData {
+  message: string;
+  original_message: string;
+  finance_related: boolean;
+  preset_mode: string | null;
+  preset_label: string | null;
+  options: RouteChoiceOption[];
+}
+
 export interface Card {
-  type: "news" | "research" | "risk" | "text" | "market" | "debate" | "plan" | "financial" | "stock_choice";
+  type:
+    | "news"
+    | "research"
+    | "risk"
+    | "text"
+    | "market"
+    | "debate"
+    | "plan"
+    | "financial"
+    | "stock_choice"
+    | "route_choice";
   data: Record<string, unknown>;
 }
 
@@ -446,6 +484,51 @@ export interface StockQuoteOut {
   name: string;
   price: number;
   change_pct: number;
+}
+
+export interface SignalBacktestHorizon {
+  days: number;
+  sample_count: number;
+  bullish_count: number;
+  bearish_count: number;
+  bullish_avg_return_pct: number | null;
+  bearish_avg_return_pct: number | null;
+  bullish_positive_rate_pct: number | null;
+  bearish_negative_rate_pct: number | null;
+}
+
+export interface SignalBacktest {
+  horizons: SignalBacktestHorizon[];
+  disclaimer: string;
+}
+
+export interface MemorySearchHit {
+  report_id: number;
+  symbol: string;
+  name: string;
+  bias: string;
+  summary: string;
+  composite_score: number;
+  created_at: string;
+}
+
+export interface MemorySearchResult {
+  query: string;
+  hits: MemorySearchHit[];
+}
+
+export interface BriefingSection {
+  title: string;
+  content: string;
+}
+
+export interface Briefing {
+  kind: "morning" | "closing";
+  title: string;
+  sections: BriefingSection[];
+  summary: string;
+  disclaimer: string;
+  generated_at: string;
 }
 
 export interface KlineChart {

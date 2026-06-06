@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { HoldingEnriched, StockLookupOut } from "./api";
+import { api, type Briefing, type HoldingEnriched, type StockLookupOut } from "./api";
 import { formatPrice, formatSignedMoney, formatSignedPct, signedClass } from "./holdingDisplay";
 import { useI18n } from "./i18n";
 import { StockChart } from "./StockChart";
@@ -56,9 +56,48 @@ export function PortfolioPanel({
 }: PortfolioPanelProps) {
   const { t } = useI18n();
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
+  const [briefing, setBriefing] = useState<Briefing | null>(null);
+  const [briefingLoading, setBriefingLoading] = useState(false);
+
+  async function loadBriefing(kind: "morning" | "closing") {
+    setBriefingLoading(true);
+    try {
+      setBriefing(await api.generateBriefing(kind));
+    } finally {
+      setBriefingLoading(false);
+    }
+  }
 
   return (
     <div className="panel portfolio-panel">
+      <div className="panel-actions-row">
+        <button
+          className="btn btn-ghost btn-sm"
+          disabled={briefingLoading}
+          onClick={() => void loadBriefing("morning")}
+        >
+          {briefingLoading ? t("portfolio.briefingLoading") : t("portfolio.briefingMorning")}
+        </button>
+        <button
+          className="btn btn-ghost btn-sm"
+          disabled={briefingLoading}
+          onClick={() => void loadBriefing("closing")}
+        >
+          {t("portfolio.briefingClosing")}
+        </button>
+      </div>
+      {briefing && (
+        <div className="briefing-card">
+          <h4>{briefing.title}</h4>
+          <p>{briefing.summary}</p>
+          {briefing.sections.map((s) => (
+            <div key={s.title}>
+              <strong>{s.title}</strong>
+              <pre className="briefing-section">{s.content}</pre>
+            </div>
+          ))}
+        </div>
+      )}
       {holdings.length > 0 && (
         <div className="portfolio-summary">
           <div className="portfolio-summary-item">

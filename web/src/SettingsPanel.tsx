@@ -7,7 +7,12 @@ import {
   saveLlmSettings,
   type LlmUserSettings,
 } from "./llmSettings";
-import { api, type ResearchReportListItem } from "./api";
+import {
+  api,
+  type MemorySearchResult,
+  type ResearchReportListItem,
+  type SignalBacktest,
+} from "./api";
 import {
   loadAnalysisSettings,
   saveAnalysisSettings,
@@ -61,6 +66,9 @@ export function SettingsPanel({
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [reports, setReports] = useState<ResearchReportListItem[]>([]);
+  const [backtest, setBacktest] = useState<SignalBacktest | null>(null);
+  const [memoryQuery, setMemoryQuery] = useState("");
+  const [memoryHits, setMemoryHits] = useState<MemorySearchResult | null>(null);
 
   const tabs: { id: SettingsTab; label: string; hideWhenRequired?: boolean }[] = [
     { id: "general", label: t("settings.tabGeneral"), hideWhenRequired: true },
@@ -83,6 +91,9 @@ export function SettingsPanel({
     api.llmSettings().then(setMeta).catch(() => setMeta(null));
     if (!required) {
       api.listReports().then(setReports).catch(() => setReports([]));
+      api.signalBacktest().then(setBacktest).catch(() => setBacktest(null));
+      setMemoryHits(null);
+      setMemoryQuery("");
     }
   }, [open, required]);
 
@@ -358,15 +369,88 @@ export function SettingsPanel({
                         {new Date(r.created_at).toLocaleString(locale === "zh" ? "zh-CN" : "en-US")}
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => api.downloadReportMarkdown(r.id)}
-                    >
-                      {t("settings.reportExport")}
-                    </button>
+                    <div className="report-history-actions">
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => api.downloadReportMarkdown(r.id)}
+                      >
+                        {t("settings.reportExport")}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => api.downloadReportPdf(r.id)}
+                      >
+                        {t("settings.reportExportPdf")}
+                      </button>
+                    </div>
                   </li>
                 ))}
+              </ul>
+            )}
+
+            <h4 className="settings-section-title">{t("settings.signalBacktest")}</h4>
+            <p className="settings-hint">{t("settings.signalBacktestHint")}</p>
+            {backtest && backtest.horizons.some((h) => h.sample_count > 0) ? (
+              <ul className="report-history-list">
+                {backtest.horizons.map((h) => (
+                  <li key={h.days} className="settings-muted">
+                    {t("settings.signalBacktestRow", {
+                      days: String(h.days),
+                      n: String(h.sample_count),
+                      bull:
+                        h.bullish_avg_return_pct != null ? String(h.bullish_avg_return_pct) : "—",
+                      bear:
+                        h.bearish_avg_return_pct != null ? String(h.bearish_avg_return_pct) : "—",
+                    })}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="settings-muted">{t("settings.signalBacktestEmpty")}</p>
+            )}
+
+            <h4 className="settings-section-title">{t("settings.memorySearch")}</h4>
+            <p className="settings-hint">{t("settings.memorySearchHint")}</p>
+            <div className="settings-memory-row">
+              <input
+                type="search"
+                value={memoryQuery}
+                placeholder={t("settings.memorySearchPh")}
+                onChange={(e) => setMemoryQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && memoryQuery.trim()) {
+                    void api.searchMemory(memoryQuery.trim()).then(setMemoryHits);
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                disabled={!memoryQuery.trim()}
+                onClick={() => void api.searchMemory(memoryQuery.trim()).then(setMemoryHits)}
+              >
+                {t("settings.memorySearchBtn")}
+              </button>
+            </div>
+            {memoryHits && (
+              <ul className="report-history-list">
+                {memoryHits.hits.length === 0 ? (
+                  <li className="settings-muted">{t("settings.memoryEmpty")}</li>
+                ) : (
+                  memoryHits.hits.map((hit) => (
+                    <li key={hit.report_id} className="report-history-item">
+                      <strong>
+                        {hit.name} ({hit.symbol})
+                      </strong>
+                      <span className="settings-muted">
+                        {hit.composite_score}/10 · {hit.bias}
+                      </span>
+                      <p className="settings-muted">{hit.summary}</p>
+                    </li>
+                  ))
+                )}
               </ul>
             )}
           </>

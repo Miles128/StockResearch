@@ -3,6 +3,7 @@ import {
   api,
   AgentStreamEvent,
   ChatStreamOptions,
+  ExecutionPreference,
   DataSourceStatus,
   HoldingEnriched,
   LlmUsage,
@@ -234,7 +235,13 @@ export default function App() {
         query,
         sessionId,
         (event: AgentStreamEvent) => {
-          if (event.type === "analysis_choice" || event.type === "stock_choice") return;
+          if (
+            event.type === "analysis_choice" ||
+            event.type === "stock_choice" ||
+            event.type === "route_choice"
+          ) {
+            return;
+          }
           setChatStream((prev) => {
             const next = applyStreamEvent(prev, event);
             processSnapshot = next;
@@ -341,6 +348,21 @@ export default function App() {
     if (loading) return;
     setMessages((m) => [...m, { role: "user", content: `${name}（${symbol}）` }]);
     void executeChat(originalMessage, { confirmedSymbol: symbol, confirmedName: name });
+  }
+
+  function confirmChatRoute(originalMessage: string, preference: ExecutionPreference) {
+    if (loading) return;
+    const labels: Record<ExecutionPreference, string> = {
+      react: t("chat.routeReact"),
+      plan_execute: t("chat.routePlan"),
+      preset: t("chat.routePreset"),
+      auto: t("chat.routeAuto"),
+    };
+    setMessages((m) => [
+      ...m,
+      { role: "user", content: t("chat.selectedMode", { mode: labels[preference] }) },
+    ]);
+    void executeChat(originalMessage, { executionPreference: preference });
   }
 
   async function loadNews() {
@@ -517,6 +539,7 @@ export default function App() {
               onSend={sendChat}
               onAnalyzeHolding={analyzeHolding}
               onConfirmStock={confirmChatStock}
+              onConfirmRoute={confirmChatRoute}
             />
           )}
 

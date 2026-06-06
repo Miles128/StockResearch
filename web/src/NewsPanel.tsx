@@ -1,4 +1,5 @@
-import type { NewsItem, SectorPreferences } from "./api";
+import { useState } from "react";
+import { api, type Briefing, type NewsItem, type SectorPreferences } from "./api";
 import { useI18n } from "./i18n";
 
 interface NewsPanelProps {
@@ -19,12 +20,51 @@ export function NewsPanel({
   onToggleSector,
 }: NewsPanelProps) {
   const { t } = useI18n();
+  const [briefing, setBriefing] = useState<Briefing | null>(null);
+  const [briefingLoading, setBriefingLoading] = useState(false);
+
+  async function loadBriefing(kind: "morning" | "closing") {
+    setBriefingLoading(true);
+    try {
+      setBriefing(await api.generateBriefing(kind));
+    } finally {
+      setBriefingLoading(false);
+    }
+  }
 
   return (
     <div className="panel">
-      <button className="btn btn-primary" onClick={onLoadNews} disabled={newsLoading}>
-        {newsLoading ? t("news.loading") : t("news.refresh")}
-      </button>
+      <div className="panel-actions-row">
+        <button className="btn btn-primary" onClick={onLoadNews} disabled={newsLoading}>
+          {newsLoading ? t("news.loading") : t("news.refresh")}
+        </button>
+        <button
+          className="btn btn-ghost"
+          disabled={briefingLoading}
+          onClick={() => void loadBriefing("morning")}
+        >
+          {briefingLoading ? t("news.briefingLoading") : t("news.briefingMorning")}
+        </button>
+        <button
+          className="btn btn-ghost"
+          disabled={briefingLoading}
+          onClick={() => void loadBriefing("closing")}
+        >
+          {t("news.briefingClosing")}
+        </button>
+      </div>
+      {briefing && (
+        <div className="briefing-card">
+          <h4>{briefing.title}</h4>
+          <p>{briefing.summary}</p>
+          {briefing.sections.map((s) => (
+            <div key={s.title}>
+              <strong>{s.title}</strong>
+              <pre className="briefing-section">{s.content}</pre>
+            </div>
+          ))}
+        </div>
+      )}
       {newsSectors && newsSectors.available.length > 0 && (
         <div style={{ marginTop: 10 }}>
           <span className="field-label">{t("news.sectors")}</span>

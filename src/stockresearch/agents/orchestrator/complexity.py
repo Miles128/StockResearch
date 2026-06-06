@@ -84,6 +84,39 @@ class ComplexityResult:
     DEBATE = "debate"
     MARKET_DEBATE = "market_debate"
     PLAN_EXECUTE = "plan_execute"
+    INDUSTRY_RESEARCH = "industry_research"
+
+
+_INDUSTRY_PATTERNS = [
+    r"(行业|板块).{0,8}(深度|研究|分析|投研|前景|趋势|研判|怎么样|如何)",
+    r"(半导体|新能源|白酒|医药|银行|券商|房地产|消费|科技|军工|光伏|锂电|储能|汽车|传媒|游戏|化工|钢铁|煤炭|有色|电力|通信|计算机|电子|机械|建材|农林|纺织|旅游|航空|航运|保险|信托).{0,6}(行业|板块)",
+]
+
+_KNOWN_SECTORS: tuple[str, ...] = (
+    "半导体",
+    "新能源",
+    "白酒",
+    "医药",
+    "银行",
+    "券商",
+    "房地产",
+    "消费",
+    "科技",
+    "军工",
+    "光伏",
+    "锂电",
+    "储能",
+    "汽车",
+    "传媒",
+    "化工",
+    "钢铁",
+    "煤炭",
+    "有色",
+    "电力",
+    "通信",
+    "计算机",
+    "电子",
+)
 
 
 ANALYSIS_SIMPLE = "simple"
@@ -161,6 +194,32 @@ def is_risk_intent(message: str) -> bool:
     return any(kw in message for kw in _RISK_KEYWORDS)
 
 
+def is_industry_research(message: str) -> bool:
+    msg = message.strip()
+    if has_stock_reference(msg):
+        return False
+    for pattern in _INDUSTRY_PATTERNS:
+        if re.search(pattern, msg):
+            return True
+    return False
+
+
+def extract_industry_sector(message: str, holding_sectors: list[str] | None = None) -> str | None:
+    msg = message.strip()
+    for sector in _KNOWN_SECTORS:
+        if sector in msg:
+            return sector
+    m = re.search(r"([^\s，,。！？]{2,8})(行业|板块)", msg)
+    if m:
+        candidate = m.group(1).strip()
+        if candidate and candidate not in ("这个", "那个", "整个", "相关"):
+            return candidate
+    for sector in holding_sectors or []:
+        if sector and sector != "未知" and sector in msg:
+            return sector
+    return None
+
+
 def classify_research_scope(message: str) -> str | None:
     """Return 'stock' or 'market' when the query is finance-research scoped."""
     msg = message.strip()
@@ -196,6 +255,9 @@ def resolve_execution_mode(
         return ComplexityResult.DEBATE if enable_debate else ComplexityResult.RESEARCH
     if scope == "market":
         return ComplexityResult.MARKET_DEBATE if enable_debate else ComplexityResult.MARKET_RESEARCH
+
+    if is_industry_research(msg):
+        return ComplexityResult.INDUSTRY_RESEARCH
 
     if analysis_mode == ANALYSIS_COMPLEX:
         auto = classify_query(msg)

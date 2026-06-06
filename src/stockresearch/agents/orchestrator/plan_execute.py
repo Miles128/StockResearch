@@ -8,9 +8,27 @@ import json
 import logging
 from typing import Any
 
+from stockresearch.agents.orchestrator.route_plan import FINANCE_TOOLS
 from stockresearch.utils.llm import LLMClient
 
 logger = logging.getLogger(__name__)
+
+_PLAN_GENERAL_SYSTEM = """你是「StockResearch」的研究规划 Agent。用户提出了一个与股票投资无直接关系的复杂问题，请制定分析计划。
+
+输出格式（JSON）：
+```json
+{
+  "reasoning": "为什么选择这个计划",
+  "steps": [
+    {"id": 1, "description": "步骤描述", "tool": "auto", "args": {}}
+  ]
+}
+```
+
+规则：
+- 步骤不超过5步
+- 不要使用任何金融数据、新闻或联网搜索工具（tool 请填 auto）
+- 基于逻辑推理与常识分析"""
 
 _PLAN_SYSTEM = """你是「StockResearch」的研究规划 Agent。用户提出了一个复杂的金融研究问题，请制定研究计划。
 
@@ -32,6 +50,8 @@ _PLAN_SYSTEM = """你是「StockResearch」的研究规划 Agent。用户提出�
 - debate_stock: 个股 Multi-Agent 多空辩论投研（参数: symbol, 可选 name）
 - get_financial_ratios: 获取个股财报比率（参数: symbol）
 - get_news: 获取最新财经新闻
+- get_sector_holdings: 获取用户持仓中某板块的股票（参数: sector）
+- get_sector_news: 获取与某板块相关的快讯（参数: sector）
 
 规则：
 - 步骤不超过5步
@@ -113,9 +133,16 @@ def _extract_tool_calls(text: str) -> list[dict[str, Any]]:
 class PlanExecuteAgent:
     """Plan-and-Execute workflow for complex queries."""
 
-    def __init__(self, llm: LLMClient, tool_executor: Any = None) -> None:
+    def __init__(
+        self,
+        llm: LLMClient,
+        tool_executor: Any = None,
+        *,
+        finance_tools: bool = True,
+    ) -> None:
         self._llm = llm
         self._tool_executor = tool_executor  # function(name, args) -> str
+        self._finance_tools = finance_tools
         self._plan_steps: list[dict[str, Any]] = []
         self._completed: list[dict[str, str]] = []
         self._on_progress: Any = None
@@ -138,7 +165,8 @@ class PlanExecuteAgent:
 
         # Phase 1: Planning
         await self._progress("正在制定研究计划…")
-        plan_response = await self._llm.complete(_PLAN_SYSTEM, query)
+        plan_prompt = _PLAN_SYSTEM if self._finance_tools else _PLAN_GENERAL_SYSTEM
+        plan_response = await self._llm.complete(plan_prompt, query)
         plan_data = _extract_json(plan_response)
 
         if plan_data and "steps" in plan_data:
@@ -202,6 +230,12 @@ class PlanExecuteAgent:
         tool_name = step.get("tool", "")
         tool_args = step.get("args", {})
 
+        if (
+            not self._finance_tools
+            and tool_name in FINANCE_TOOLS
+        ):
+            return f"工具 {tool_name} 已禁用：当前问题与股票投资无关。"
+
         # If tool_executor is available and tool is known, use it directly
         if self._tool_executor and tool_name != "auto":
             try:
@@ -230,8 +264,12 @@ class PlanExecuteAgent:
         if tool_calls and self._tool_executor:
             results = []
             for tc in tool_calls:
+                tc_name = tc["tool"]
+                if not self._finance_tools and tc_name in FINANCE_TOOLS:
+                    results.append(f"工具 {tc_name} 已禁用：当前问题与股票投资无关。")
+                    continue
                 try:
-                    r = await self._tool_executor(tc["tool"], tc.get("args", {}))
+                    r = await self._tool_executor(tc_name, tc.get("args", {}))
                     results.append(r)
                 except Exception as exc:
                     results.append(f"工具 {tc['tool']} 失败: {exc}")

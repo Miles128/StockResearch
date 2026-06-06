@@ -121,7 +121,7 @@ cd web && npm install && npm run dev
 打开 **http://localhost:5174**，在「设置」中配置大模型（BYOK）。支持 [DeepSeek](https://platform.deepseek.com/)、[DashScope 兼容模式](https://help.aliyun.com/zh/model-studio/) 等 OpenAI 兼容接口。
 
 ```bash
-pytest          # 141 tests
+pytest          # 152 tests
 cd web && npm run build
 ```
 
@@ -213,7 +213,7 @@ cd web && npm install && npm run dev
 Open **http://localhost:5174** and configure your LLM under **Settings** (BYOK). Works with [DeepSeek](https://platform.deepseek.com/), [DashScope compatible mode](https://help.aliyun.com/zh/model-studio/), and other OpenAI-compatible APIs.
 
 ```bash
-pytest          # 141 tests
+pytest          # 152 tests
 cd web && npm run build
 ```
 

@@ -112,6 +112,7 @@ class Conversation(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     session_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     messages: Mapped[list[dict[str, str]]] = mapped_column(JSON, default=list)
+    checkpoint: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True, default=None)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )

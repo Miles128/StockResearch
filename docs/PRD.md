@@ -2,7 +2,7 @@
 
 > **版本 V3.1** · 2026-06-05  
 > **定位**：单用户、本机运行、长期开源 MVP  
-> **状态**：Phase 1 / 1.5 已交付 · Phase 2 待启动  
+> **状态**：Phase 1 / 1.5 已交付 · Phase 2 已交付  
 > **仓库**：[github.com/Miles128/StockResearch](https://github.com/Miles128/StockResearch)  
 > **README**：中英双语 [README.md](../README.md)（[中文](../README.md#中文) · [English](../README.md#english)）
 
@@ -174,13 +174,13 @@ src/stockresearch/
 
 | ID | 需求 | 验收 |
 |----|------|------|
-| P2-1 | PDF 报告导出 | Markdown 已有；补 PDF |
+| P2-1 | PDF 报告导出 | ✅ Markdown + PDF；设置页导出 |
 | P2-2 | 技术图表 | ✅ 个股 K 线 + MACD/RSI；持仓/投研卡片嵌入 |
-| P2-3 | 行业深度研究 | Plan-Execute 多轮板块报告 |
-| P2-4 | 持仓简报 | 手动生成早报/收盘摘要（无推送基础设施） |
-| P2-5 | 信号回测摘要 | 裁判信号 N 日 forward return（非荐股） |
-| P2-6 | LangGraph Checkpoint | 长任务断点续跑（低优先级） |
-| P2-7 | 决策记忆 | 历史投研检索（低优先级） |
+| P2-3 | 行业深度研究 | ✅ Research Stream 五维 + 龙头简评；`POST/GET /research/industry` |
+| P2-4 | 持仓简报 | ✅ 盘前/收盘手动生成；新闻/持仓 Tab |
+| P2-5 | 信号回测摘要 | ✅ 5/10/20 日 forward return 统计；设置页 |
+| P2-6 | LangGraph Checkpoint | ✅ 流式任务 SQLite checkpoint + `GET /chat/checkpoint/{id}` |
+| P2-7 | 决策记忆 | ✅ 历史投研关键词检索；设置页 |
 
 ### Phase 3 — 可选探索
 
@@ -245,6 +245,7 @@ src/stockresearch/
 |------|------|------|
 | V3.0 | 2026-06-05 | **按单用户本机 MVP 全文改写**；明确永久不做项；路线图去 SaaS 化 |
 | V3.1 | 2026-06-05 | Phase 2：P2-2 K 线/MACD/RSI 图表；FinGenius 链接更正为 HuaYaoAI 原版 |
+| V3.2 | 2026-06-05 | Phase 2 全部交付：PDF、行业研究、简报、信号回测、Checkpoint、决策记忆 |
 | V2.5 | 2026-06-05 | App 拆分、缓存统一、移除部署残留 |
 | V2.4 | 2026-06-05 | Phase 1.5：Token 成本、CI |
 | ≤V2.3 | 2026-06-05 | 功能迭代与 UI 打磨（见 Git 历史） |

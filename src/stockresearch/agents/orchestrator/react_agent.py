@@ -16,12 +16,28 @@ from stockresearch.agents.research.runner import run_research
 from stockresearch.core.config import get_settings
 from stockresearch.core.constants import DISCLAIMER
 from stockresearch.core.schemas import ResearchReportOut
+from stockresearch.db.models import Holding, NewsItem
 from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.data.providers.market_overview import MarketOverviewProvider
+from stockresearch.agents.orchestrator.route_plan import FINANCE_TOOLS
 from stockresearch.utils.llm import LLMClient
 from stockresearch.utils.symbols import resolve_name
 
 logger = logging.getLogger(__name__)
+
+ORCHESTRATOR_GENERAL_SYSTEM = f"""你是「StockResearch」的对话助手。用户的问题与股票投资无直接关系。
+
+规则：
+- 基于已有知识直接回答，不要编造实时行情或新闻
+- 不要调用任何金融数据、新闻或联网搜索类工具
+- 当你准备给出最终回答时，调用 reply 工具
+- 简明扼要，先结论后分析
+- 末尾加上：{DISCLAIMER}
+
+调用格式（仅 reply 可用）：
+```tool
+{{"tool": "reply", "args": {{"message": "你的回答"}}}}
+```"""
 
 ORCHESTRATOR_SYSTEM = f"""你是「StockResearch」的编排 Agent，负责理解用户问题并调用工具获取数据后回答。
 
@@ -37,6 +53,8 @@ ORCHESTRATOR_SYSTEM = f"""你是「StockResearch」的编排 Agent，负责理�
 - debate_stock: 个股 Multi-Agent 多空辩论投研（参数: symbol, 可选 name）
 - get_financial_ratios: 获取个股财报比率（参数: symbol）含PE/PB/ROE/毛利率等
 - get_news: 获取最新财经新闻
+- get_sector_holdings: 获取用户持仓中某板块的股票（参数: sector）
+- get_sector_news: 获取与某板块相关的快讯（参数: sector）
 - reply: 生成最终回复给用户（当你认为数据足够时调用）
 
 调用格式：在回复中使用 JSON 块调用工具：
@@ -70,10 +88,18 @@ _MAX_ITERATIONS = 6
 
 
 class OrchestratorAgent:
-    def __init__(self, db: Session, llm: LLMClient, user_id: int = 1) -> None:
+    def __init__(
+        self,
+        db: Session,
+        llm: LLMClient,
+        user_id: int = 1,
+        *,
+        finance_tools: bool = True,
+    ) -> None:
         self._db = db
         self._llm = llm
         self._user_id = user_id
+        self._finance_tools = finance_tools
         self._cards: list[dict[str, Any]] = []
         self._on_progress: Any = None  # optional async callback(str) -> None
 
@@ -86,8 +112,9 @@ class OrchestratorAgent:
             await self._on_progress(msg)
 
     async def run(self, message: str) -> tuple[str, list[dict[str, Any]]]:
+        system = ORCHESTRATOR_SYSTEM if self._finance_tools else ORCHESTRATOR_GENERAL_SYSTEM
         messages: list[dict[str, str]] = [
-            {"role": "system", "content": ORCHESTRATOR_SYSTEM},
+            {"role": "system", "content": system},
             {"role": "user", "content": message},
         ]
 
@@ -143,6 +170,8 @@ class OrchestratorAgent:
         return reply, self._cards
 
     async def _execute_tool(self, name: str, args: dict[str, Any]) -> str:
+        if not self._finance_tools and name in FINANCE_TOOLS:
+            return f"工具 {name} 已禁用：当前问题与股票投资无关，请直接基于知识回答。"
         try:
             if name == "get_market_data":
                 return await self._tool_market_data()
@@ -159,6 +188,10 @@ class OrchestratorAgent:
                 return await self._tool_financial_ratios(args.get("symbol", ""))
             if name == "get_news":
                 return await self._tool_news()
+            if name == "get_sector_holdings":
+                return await self._tool_sector_holdings(args)
+            if name == "get_sector_news":
+                return await self._tool_sector_news(args)
             if name == "reply":
                 return args.get("message", "")
             return f"未知工具: {name}"
@@ -293,6 +326,40 @@ class OrchestratorAgent:
         for n in news[:8]:
             lines.append(f"- {n.title} [{n.sentiment}]")
         return "最新快讯:\n" + "\n".join(lines)
+
+    async def _tool_sector_holdings(self, args: dict[str, Any]) -> str:
+        sector = str(args.get("sector", "")).strip()
+        if not sector:
+            return "请提供板块名称"
+        rows = (
+            self._db.query(Holding)
+            .filter(Holding.user_id == self._user_id, Holding.sector.contains(sector))
+            .all()
+        )
+        if not rows:
+            return f"持仓中暂无「{sector}」板块标的"
+        lines = [f"- {h.name}({h.symbol}) 成本{h.cost_price:.2f} · {h.quantity}股" for h in rows]
+        return f"「{sector}」板块持仓：\n" + "\n".join(lines)
+
+    async def _tool_sector_news(self, args: dict[str, Any]) -> str:
+        sector = str(args.get("sector", "")).strip()
+        if not sector:
+            return "请提供板块名称"
+        candidates = (
+            self._db.query(NewsItem)
+            .order_by(NewsItem.published_at.desc())
+            .limit(80)
+            .all()
+        )
+        matched = [
+            n
+            for n in candidates
+            if sector in n.title or sector in n.summary or sector in " ".join(n.entities or [])
+        ][:8]
+        if not matched:
+            return f"暂无与「{sector}」相关的快讯"
+        lines = [f"- {n.title} [{n.sentiment}]" for n in matched]
+        return f"「{sector}」板块快讯：\n" + "\n".join(lines)
 
 
 async def _run_with_timeout[T](coro, timeout: int) -> tuple[T | None, bool]:

@@ -1,8 +1,52 @@
 import { useState } from "react";
-import type { ChatResponse, NewsItem, ResearchReport, RiskCheckup, StockChoiceCardData } from "./api";
+import type {
+  ChatResponse,
+  ExecutionPreference,
+  NewsItem,
+  ResearchReport,
+  RiskCheckup,
+  RouteChoiceCardData,
+  StockChoiceCardData,
+} from "./api";
 import { useI18n } from "./i18n";
 import { simpleMarkdown } from "./simpleMarkdown";
 import { StockChart } from "./StockChart";
+
+export function RouteChoiceCardView({
+  data,
+  disabled,
+  onConfirm,
+}: {
+  data: RouteChoiceCardData;
+  disabled: boolean;
+  onConfirm: (originalMessage: string, preference: ExecutionPreference) => void;
+}) {
+  const { t } = useI18n();
+  const [picked, setPicked] = useState(false);
+  return (
+    <div className="confirm-card message assistant">
+      <p className="process-panel-title">{t("chat.chooseRoute")}</p>
+      <p className="muted">{data.message}</p>
+      <div className="candidate-list route-choice-list">
+        {data.options.map((opt) => (
+          <button
+            key={opt.id}
+            type="button"
+            className="btn btn-ghost route-choice-btn"
+            disabled={disabled || picked}
+            onClick={() => {
+              setPicked(true);
+              onConfirm(data.original_message, opt.id);
+            }}
+          >
+            <span className="route-choice-label">{opt.label}</span>
+            <span className="route-choice-desc muted">{opt.description}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function StockChoiceCardView({
   data,

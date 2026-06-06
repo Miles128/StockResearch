@@ -168,6 +168,14 @@ class DebateResult(BaseModel):
     manager_thesis: str | None = None
 
 
+class SectorLeaderBrief(BaseModel):
+    symbol: str
+    name: str
+    price: float
+    change_pct: float
+    brief: str
+
+
 class ResearchReportOut(BaseModel):
     symbol: str
     name: str
@@ -177,6 +185,8 @@ class ResearchReportOut(BaseModel):
     bias: Literal["bullish", "bearish", "neutral"]
     summary: str
     debate: DebateResult | None = None
+    sector: str | None = None
+    leaders: list[SectorLeaderBrief] = Field(default_factory=list)
     disclaimer: str = DISCLAIMER
     cached: bool = False
 
@@ -281,6 +291,7 @@ class ChatRequest(BaseModel):
         default=None, min_length=6, max_length=6, pattern=r"^\d{6}$"
     )
     confirmed_name: str | None = Field(default=None, min_length=1, max_length=50)
+    execution_preference: Literal["react", "plan_execute", "preset", "auto"] | None = None
 
 
 class CardPayload(BaseModel):
@@ -294,6 +305,7 @@ class CardPayload(BaseModel):
         "plan",
         "financial",
         "stock_choice",
+        "route_choice",
     ]
     data: dict[str, object]
 
@@ -380,6 +392,61 @@ class ResearchReportListItem(BaseModel):
     summary: str
     has_debate: bool
     created_at: datetime
+
+
+class IndustryResearchRequest(BaseModel):
+    sector: str = Field(min_length=1, max_length=50)
+    query: str = Field(default="", max_length=500)
+
+
+class BriefingSection(BaseModel):
+    title: str
+    content: str
+
+
+class BriefingOut(BaseModel):
+    kind: Literal["morning", "closing"]
+    title: str
+    sections: list[BriefingSection]
+    summary: str
+    disclaimer: str = DISCLAIMER
+    generated_at: datetime
+
+
+class SignalBacktestHorizon(BaseModel):
+    days: int
+    sample_count: int
+    bullish_count: int
+    bearish_count: int
+    bullish_avg_return_pct: float | None = None
+    bearish_avg_return_pct: float | None = None
+    bullish_positive_rate_pct: float | None = None
+    bearish_negative_rate_pct: float | None = None
+
+
+class SignalBacktestOut(BaseModel):
+    horizons: list[SignalBacktestHorizon]
+    disclaimer: str
+
+
+class MemorySearchHit(BaseModel):
+    report_id: int
+    symbol: str
+    name: str
+    bias: str
+    summary: str
+    composite_score: float
+    created_at: datetime
+
+
+class MemorySearchOut(BaseModel):
+    query: str
+    hits: list[MemorySearchHit]
+
+
+class StreamCheckpointOut(BaseModel):
+    session_id: str
+    checkpoint: dict[str, object] | None = None
 
 
 class LlmUsageOut(BaseModel):

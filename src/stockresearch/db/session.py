@@ -3,7 +3,8 @@
 from collections.abc import Generator
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from stockresearch.core.config import get_settings
@@ -26,8 +27,19 @@ engine = create_engine(_db_url, connect_args=_connect_args)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 
+def _migrate_sqlite_columns() -> None:
+    if not _db_url.startswith("sqlite"):
+        return
+    with engine.begin() as conn:
+        try:
+            conn.execute(text("ALTER TABLE conversations ADD COLUMN checkpoint JSON"))
+        except OperationalError:
+            pass
+
+
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    _migrate_sqlite_columns()
 
 
 def get_db() -> Generator[Session, None, None]:

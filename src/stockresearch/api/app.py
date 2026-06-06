@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from stockresearch.api.routes import chat, market, news, portfolio, research, risk, settings
+from stockresearch.api.routes import briefing, chat, market, news, portfolio, research, risk, settings
 from stockresearch.core.constants import DISCLAIMER
 from stockresearch.core.data_source_config import clear_data_source_context, set_tushare_token
 from stockresearch.core.exceptions import StockResearchError
@@ -90,6 +90,7 @@ def create_app() -> FastAPI:
     app.include_router(market.router, prefix="/api/v1")
     app.include_router(news.router, prefix="/api/v1")
     app.include_router(research.router, prefix="/api/v1")
+    app.include_router(briefing.router, prefix="/api/v1")
     app.include_router(risk.router, prefix="/api/v1")
     app.include_router(chat.router, prefix="/api/v1")
     app.include_router(settings.router, prefix="/api/v1")
