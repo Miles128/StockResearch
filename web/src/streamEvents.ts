@@ -1,7 +1,16 @@
 import type { AgentStreamEvent } from "./api";
+import {
+  detectDimensionKind,
+  localizeAgentName,
+  shouldSeedDimensions,
+  shouldSkipStatusLog,
+} from "./streamI18n";
+import { localizePositionAction, localizeVoteLabel } from "./uiLabels";
+import type { TParams } from "./i18n";
 import { stripDisclaimer } from "./disclaimerText";
 import {
   detectDimensionSet,
+  dimensionDefsForKind,
   isDimensionAgent,
   seedDimensionSteps,
 } from "./dimensionStream";
@@ -152,7 +161,13 @@ export function emptyStreamState(): StreamState {
   };
 }
 
-export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent): StreamState {
+type TFn = (key: string, params?: TParams) => string;
+
+export function applyStreamEvent(
+  prev: StreamState,
+  event: AgentStreamEvent,
+  t?: TFn,
+): StreamState {
   let {
     streamStatus,
     streamLog,
@@ -163,18 +178,16 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent): St
     activeStreamIds,
   } = prev;
 
-  if (event.type === "status" && event.message) {
-    streamStatus = event.message;
-    if (event.message.includes("四维")) {
-      const defs = detectDimensionSet(agentSteps, event.message);
+  if (event.type === "status" && (event.message || event.message_key)) {
+    const msg = event.message ?? "";
+    streamStatus = msg;
+    if (shouldSeedDimensions(event)) {
+      const kind = detectDimensionKind(event, msg);
+      const defs = t ? dimensionDefsForKind(kind, t) : detectDimensionSet(agentSteps, msg, kind);
       agentSteps = seedDimensionSteps(agentSteps, defs);
     }
-    const skipLog =
-      event.message.includes("四维") ||
-      event.message.includes("作战情") ||
-      event.message.includes("Battle");
-    if (!skipLog && streamLog[streamLog.length - 1] !== event.message) {
-      streamLog = [...streamLog, event.message];
+    if (!shouldSkipStatusLog(event) && streamLog[streamLog.length - 1] !== msg) {
+      streamLog = [...streamLog, msg];
     }
   }
 
@@ -202,14 +215,26 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent): St
   }
 
   if (event.type === "agent_start" && event.agent_id && event.agent_name && event.role) {
+    const agentName =
+      t != null
+        ? localizeAgentName(event.agent_id, event.agent_name, t)
+        : event.agent_name;
     const dimensionAgent = isDimensionAgent(event.agent_id);
     if (!dimensionAgent) {
-      const startLine = `▶ ${event.agent_name} 开始`;
+      const startLine = t
+        ? t("stream.agentStarted", { name: agentName })
+        : `▶ ${agentName} 开始`;
       if (streamLog[streamLog.length - 1] !== startLine) {
         streamLog = [...streamLog, startLine];
       }
     } else {
-      const defs = detectDimensionSet(agentSteps, streamStatus);
+      const kind = detectDimensionKind(
+        { type: "status", message: streamStatus },
+        streamStatus,
+      );
+      const defs = t
+        ? dimensionDefsForKind(kind, t)
+        : detectDimensionSet(agentSteps, streamStatus, kind);
       agentSteps = seedDimensionSteps(agentSteps, defs);
     }
     const existing = agentSteps.find((s) => s.agent_id === event.agent_id);
@@ -217,10 +242,27 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent): St
       ...agentSteps.filter((s) => s.agent_id !== event.agent_id),
       {
         agent_id: event.agent_id,
-        agent_name: event.agent_name,
+        agent_name: agentName,
         role: event.role,
         status: "running",
         content: existing?.content ?? "",
+      },
+    ];
+  }
+
+  if (event.type === "dimension_ready" && event.agent_id && event.agent_name) {
+    const defs = detectDimensionSet(agentSteps, streamStatus);
+    agentSteps = seedDimensionSteps(agentSteps, defs);
+    const content = stripDisclaimer(String(event.content ?? ""));
+    const existing = agentSteps.find((s) => s.agent_id === event.agent_id);
+    agentSteps = [
+      ...agentSteps.filter((s) => s.agent_id !== event.agent_id),
+      {
+        agent_id: event.agent_id,
+        agent_name: event.agent_name,
+        role: event.role ?? "analyst",
+        status: "done",
+        content: content || existing?.content || "",
       },
     ];
   }
@@ -230,7 +272,9 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent): St
     if (!dimensionAgent) {
       const doneName =
         agentSteps.find((s) => s.agent_id === event.agent_id)?.agent_name ?? event.agent_id;
-      const doneLine = `✓ ${doneName} 完成`;
+      const doneLine = t
+        ? t("stream.agentDone", { name: doneName })
+        : `✓ ${doneName} 完成`;
       if (streamLog[streamLog.length - 1] !== doneLine) {
         streamLog = [...streamLog, doneLine];
       }
@@ -248,7 +292,9 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent): St
   }
 
   if (event.type === "debate_round" && event.round != null) {
-    const roundLine = `◆ 第 ${event.round} 轮多空交锋完成`;
+    const roundLine = t
+      ? t("stream.debateRoundDone", { n: event.round ?? 0 })
+      : `◆ 第 ${event.round} 轮多空交锋完成`;
     if (streamLog[streamLog.length - 1] !== roundLine) {
       streamLog = [...streamLog, roundLine];
     }
@@ -272,7 +318,13 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent): St
   }
 
   if (event.type === "vote" && event.agent_name && event.vote) {
-    streamLog = [...streamLog, `${event.agent_name} 投票：${event.vote}`];
+    const voteLine = t
+      ? t("stream.voteLine", {
+          name: event.agent_name,
+          vote: localizeVoteLabel(String(event.vote), t),
+        })
+      : `${event.agent_name} 投票：${event.vote}`;
+    streamLog = [...streamLog, voteLine];
   }
 
   if (event.type === "vote_tally") {
@@ -282,18 +334,37 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent): St
       neutral: event.neutral ?? 0,
       leading: event.leading,
     };
-    if (event.message) {
-      streamStatus = event.message;
-      if (streamLog[streamLog.length - 1] !== event.message) {
-        streamLog = [...streamLog, event.message];
+    const voteMsg = t
+      ? t("stream.voteBody", {
+          bull: event.bullish ?? 0,
+          bear: event.bearish ?? 0,
+          neutral: event.neutral ?? 0,
+          leading: event.leading
+            ? t("stream.leading", {
+                value: localizeVoteLabel(String(event.leading), t),
+              })
+            : "",
+        })
+      : event.message;
+    if (voteMsg) {
+      streamStatus = voteMsg;
+      if (streamLog[streamLog.length - 1] !== voteMsg) {
+        streamLog = [...streamLog, voteMsg];
       }
     }
   }
 
   if (event.type === "judge") {
     activeStreamIds = activeStreamIds.filter((id) => id !== "judge");
-    const biasLabel =
-      event.verdict === "bullish"
+    const biasLabel = t
+      ? event.verdict === "bullish"
+        ? t("card.bullish")
+        : event.verdict === "bearish"
+          ? t("card.bearish")
+          : event.verdict === "neutral"
+            ? t("card.neutral")
+            : undefined
+      : event.verdict === "bullish"
         ? "偏多"
         : event.verdict === "bearish"
           ? "偏空"
@@ -302,7 +373,11 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent): St
             : undefined;
     judgeVerdict = {
       risk_level: event.risk_level ?? biasLabel,
-      position_action: event.position_action,
+      position_action: event.position_action
+        ? t
+          ? localizePositionAction(String(event.position_action), t)
+          : event.position_action
+        : event.position_action,
       summary: stripDisclaimer(
         String(event.summary ?? event.content ?? judgeVerdict?.summary ?? ""),
       ),

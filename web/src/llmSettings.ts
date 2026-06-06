@@ -12,8 +12,22 @@ export interface LlmUserSettings {
 export interface LlmSettingsMeta {
   default_base_url: string;
   default_model: string;
+  default_api_key: string;
   default_temperature: number;
   server_use_mock: boolean;
+  server_configured: boolean;
+  server_has_api_key: boolean;
+}
+
+/** Map server metadata into the settings form. */
+export function llmMetaToForm(meta: LlmSettingsMeta): LlmUserSettings {
+  return {
+    apiKey: meta.default_api_key,
+    baseUrl: meta.default_base_url,
+    model: meta.default_model,
+    temperature: meta.default_temperature,
+    useMock: meta.server_use_mock,
+  };
 }
 
 export interface LlmTestResult {
@@ -57,11 +71,20 @@ export function saveLlmSettings(settings: LlmUserSettings): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 }
 
-/** True when user can call LLM features (mock or full API config in browser only). */
-export function isLlmConfigured(): boolean {
+/** Browser-local override configured (mock or full API fields). */
+export function isLlmConfiguredLocally(): boolean {
   const s = loadLlmSettings();
   if (s.useMock) return true;
   return Boolean(s.apiKey.trim() && s.baseUrl.trim() && s.model.trim());
+}
+
+export function isServerLlmConfigured(meta: LlmSettingsMeta): boolean {
+  return Boolean(meta.server_configured);
+}
+
+/** @deprecated use isLlmConfiguredLocally or server meta */
+export function isLlmConfigured(): boolean {
+  return isLlmConfiguredLocally();
 }
 
 export function llmFormToApiBody(form: LlmUserSettings): Record<string, unknown> {

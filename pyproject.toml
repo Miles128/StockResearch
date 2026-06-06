@@ -16,6 +16,7 @@ dependencies = [
     "langchain-core>=0.3.28",
     "pyyaml>=6.0.2",
     "python-multipart>=0.0.18",
+    "fpdf2>=2.8.0",
 ]
 
 [project.optional-dependencies]
@@ -51,3 +52,12 @@ python_version = "3.12"
 strict = true
 packages = ["stockresearch"]
 mypy_path = "src"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "types-PyYAML",
+]

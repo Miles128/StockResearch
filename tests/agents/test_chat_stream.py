@@ -23,8 +23,12 @@ async def test_chat_stream_stock_without_debate(db_session: Session) -> None:
         events.append(event)
 
     assert events[0].get("type") == "status"
-    status_msgs = [str(e.get("message", "")) for e in events if e.get("type") == "status"]
-    assert any("多空辩论关" in m for m in status_msgs)
+    status_events = [e for e in events if e.get("type") == "status"]
+    assert any(
+        e.get("message_key") == "status.route"
+        and (e.get("message_params") or {}).get("debate") == "off"
+        for e in status_events
+    )
     types = [str(e.get("type")) for e in events]
     assert "debate_round" not in types
 

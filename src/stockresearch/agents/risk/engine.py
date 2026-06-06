@@ -8,6 +8,7 @@ from stockresearch.agents.risk.metrics import (
     calculate_portfolio_metrics,
     calculate_var,
 )
+from stockresearch.agents.risk import messages as risk_msg
 from stockresearch.agents.voice import AGENT_VOICE
 from stockresearch.core.constants import (
     SEVERITY_CRITICAL,
@@ -44,7 +45,7 @@ async def _humanize(llm: LLMClient, alert: RiskAlertOut) -> str:
 
 async def _llm_market_assessment(llm: LLMClient, holdings: list[Holding]) -> str:
     if not holdings:
-        return "无持仓，无法评估市场环境。"
+        return risk_msg.llm_no_holdings_market()
     holdings_desc = "\n".join(
         f"- {h.name}({h.symbol}) {h.sector} 成本{h.cost_price}" for h in holdings
     )
@@ -55,7 +56,7 @@ async def _llm_market_assessment(llm: LLMClient, holdings: list[Holding]) -> str
 
 async def _llm_correlation_analysis(llm: LLMClient, holdings: list[Holding]) -> str:
     if len(holdings) < 2:
-        return "持仓不足两只，无需分析相关性。"
+        return risk_msg.llm_insufficient_correlation()
     holdings_desc = "\n".join(f"- {h.name}({h.symbol}) 行业:{h.sector}" for h in holdings)
     system = f"你是 A 股风控分析师。{_RISK_LLM_BRIEF} 分析持仓相关性风险。不要建议买卖。"
     user = f"用户持仓：\n{holdings_desc}"
@@ -66,7 +67,7 @@ async def _llm_risk_narrative(
     llm: LLMClient, alerts: list[RiskAlertOut], holdings: list[Holding]
 ) -> str:
     if not alerts and not holdings:
-        return "暂无持仓，无需生成风险叙述。"
+        return risk_msg.llm_no_narrative_needed()
     alerts_desc = (
         "\n".join(f"- [{a.severity}] {a.message}" for a in alerts) if alerts else "未触发规则预警。"
     )
@@ -129,9 +130,12 @@ async def run_risk_checkup(
         drawdown = (holding.cost_price - quote.price) / holding.cost_price
 
         if drawdown >= 0.15:
-            msg = (
-                f"{holding.name}({holding.symbol}) 从成本 {holding.cost_price:.2f} "
-                f"回撤至 {quote.price:.2f}，亏损 {drawdown:.0%}，触发红色止损预警。"
+            msg = risk_msg.alert_stop_loss_red(
+                holding.name,
+                holding.symbol,
+                holding.cost_price,
+                quote.price,
+                drawdown,
             )
             alerts.append(
                 RiskAlertOut(
@@ -143,9 +147,8 @@ async def run_risk_checkup(
                 )
             )
         elif drawdown >= 0.08:
-            msg = (
-                f"{holding.name}({holding.symbol}) 回撤 {drawdown:.0%}，"
-                f"接近你设定的止损关注区间（8%）。"
+            msg = risk_msg.alert_stop_loss_yellow(
+                holding.name, holding.symbol, drawdown
             )
             alerts.append(
                 RiskAlertOut(
@@ -158,7 +161,7 @@ async def run_risk_checkup(
             )
 
         if quote.change_pct <= -9.5:
-            msg = f"{holding.name} 今日大跌 {quote.change_pct}%，请关注是否有重大利空。"
+            msg = risk_msg.alert_black_swan_drop(holding.name, quote.change_pct)
             alerts.append(
                 RiskAlertOut(
                     rule_id="black_swan",
@@ -171,7 +174,7 @@ async def run_risk_checkup(
 
         for kw in _BLACK_SWAN_KEYWORDS:
             if kw in holding.name:
-                msg = f"{holding.name} 存在 {kw} 相关风险标签，请重点关注公告。"
+                msg = risk_msg.alert_black_swan_tag(holding.name, kw)
                 alerts.append(
                     RiskAlertOut(
                         rule_id="black_swan",
@@ -185,7 +188,7 @@ async def run_risk_checkup(
 
     ratio, sector = _sector_concentration(holdings)
     if ratio > 0.40 and sector:
-        msg = f"行业集中度偏高：{sector} 占仓位 {ratio:.0%}，超过 40% 阈值。"
+        msg = risk_msg.alert_concentration(sector, ratio)
         alerts.append(
             RiskAlertOut(
                 rule_id="concentration",
@@ -213,17 +216,17 @@ async def run_risk_checkup(
         market_assessment = (
             analysis_results[0]
             if isinstance(analysis_results[0], str)
-            else "市场环境评估暂时不可用。"
+            else risk_msg.llm_unavailable_market()
         )
         correlation_analysis = (
             analysis_results[1]
             if isinstance(analysis_results[1], str)
-            else "相关性分析暂时不可用。"
+            else risk_msg.llm_unavailable_correlation()
         )
         risk_narrative = (
             analysis_results[2]
             if isinstance(analysis_results[2], str)
-            else "风险综述暂时不可用。"
+            else risk_msg.llm_unavailable_narrative()
         )
         scenario_analysis = analysis_results[3] if isinstance(analysis_results[3], list) else []
         llm_analysis = LLMRiskAnalysis(
@@ -240,11 +243,11 @@ async def run_risk_checkup(
         llm_analysis = None
 
     if not holdings:
-        summary = "您尚未录入持仓，录入后可获得个性化风控体检。"
+        summary = risk_msg.portfolio_summary_no_holdings()
     elif not alerts:
-        summary = f"您当前 {len(holdings)} 只持仓整体可控，暂无预警。"
+        summary = risk_msg.portfolio_summary_all_clear(len(holdings))
     else:
-        summary = f"共 {len(alerts)} 条风险提示，请见下方。"
+        summary = risk_msg.portfolio_summary_with_alerts(len(alerts))
 
     # ── 量化风险指标 ──
     metrics_out: PortfolioMetricsOut | None = None

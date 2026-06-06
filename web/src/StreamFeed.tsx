@@ -9,6 +9,7 @@ import {
   orderedDimensionSteps,
 } from "./dimensionStream";
 import { useI18n } from "./i18n";
+import { localizeAgentDisplay, localizePositionAction } from "./uiLabels";
 
 interface AgentStep {
   agent_id: string;
@@ -212,17 +213,21 @@ export function StreamFeed({
   const { t } = useI18n();
   const dimensionDefs = detectDimensionSet(agentSteps, streamStatus);
   const dimensionSteps = orderedDimensionSteps(agentSteps, dimensionDefs);
-  const showDimensionGrid = dimensionPhaseActive(dimensionSteps) || streamStatus.includes("四维");
+  const showDimensionGrid =
+    dimensionPhaseActive(dimensionSteps) ||
+    streamStatus.includes("四维") ||
+    streamStatus.includes("五维") ||
+    streamStatus.includes("投研");
   const dimsDone = dimensionsComplete(dimensionSteps);
   const manager = managerStep(agentSteps);
   const sortedRounds = debateRounds.slice().sort((a, b) => a.round - b.round);
   const isTyping = (streamId: string) => activeStreamIds.includes(streamId);
   const showDebateSection =
-    dimsDone &&
-    (sortedRounds.length > 0 ||
-      voteTally != null ||
-      streamStatus.includes("Battle") ||
-      streamStatus.includes("辩论"));
+    sortedRounds.length > 0 ||
+    voteTally != null ||
+    streamStatus.includes("Battle") ||
+    streamStatus.includes("辩论") ||
+    (dimsDone && judgeVerdict != null);
   const showConclusionSection =
     dimsDone &&
     (voteTally != null ||
@@ -334,7 +339,7 @@ export function StreamFeed({
       {dimsDone && manager && (
         <StreamMessage
           key={manager.agent_id}
-          title={manager.agent_name}
+          title={localizeAgentDisplay(manager.agent_id, manager.agent_name, t)}
           body={manager.content}
           running={manager.status === "running"}
           streaming={isTyping(manager.agent_id)}
@@ -355,7 +360,10 @@ export function StreamFeed({
                 <span>{t("stream.overallRisk")}: {judgeVerdict.risk_level} </span>
               )}
               {judgeVerdict.position_action && (
-                <span>{t("stream.portfolioBias")}: {judgeVerdict.position_action}</span>
+                <span>
+                  {t("stream.portfolioBias")}:{" "}
+                  {localizePositionAction(judgeVerdict.position_action ?? "", t)}
+                </span>
               )}
             </p>
           )}
@@ -383,7 +391,9 @@ export function StreamFeed({
                       <strong>
                         {item.name}（{item.symbol}）
                       </strong>
-                      <span className="holding-action-badge">{item.action}</span>
+                      <span className="holding-action-badge">
+                        {localizePositionAction(item.action, t)}
+                      </span>
                       {item.priority && (
                         <span className="muted holding-action-priority">
                           {t("stream.priority")} {item.priority}

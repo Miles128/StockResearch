@@ -14,6 +14,7 @@ from stockresearch.agents.voice import DEBATE_ROUNDS, DEBATE_VOICE, JUDGE_VOICE
 from stockresearch.agents.structured_output import VoteLabelOut
 from stockresearch.core.schemas import DebateResult, DebateRound, DimensionResult
 from stockresearch.utils.disclaimer import strip_disclaimer
+from stockresearch.i18n.status_events import status_event
 from stockresearch.utils.llm import LLMClient
 
 _BULL_SYSTEM = f"""你是 A 股看多分析师（Bull Agent）。
@@ -164,7 +165,7 @@ async def iter_battle_vote_events(
     compact: Callable[[str, int], str] | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     tally: dict[str, int] = {"偏多": 0, "偏空": 0, "中性": 0}
-    yield {"type": "status", "message": "Battle 投票中…"}
+    yield status_event("status.debate.voting")
 
     for agent_id, dim in dimensions.items():
         _, label, vote = dimension_vote(agent_id, agent_labels.get(agent_id, agent_id), dim)
@@ -234,7 +235,7 @@ async def iter_research_manager_events(
     max_len: int | None = None,
     compact: Callable[[str, int], str] | None = None,
 ) -> AsyncIterator[dict[str, object]]:
-    yield {"type": "status", "message": "Research Manager 深思考综合中…"}
+    yield status_event("status.debate.manager")
     yield {
         "type": "agent_start",
         "agent_id": "research_manager",
@@ -291,7 +292,7 @@ async def iter_triangular_debate_events(
     ]
     transcript: list[str] = []
     for round_num in range(1, rounds + 1):
-        yield {"type": "status", "message": f"第{round_num}轮三方风控辩论…"}
+        yield status_event("status.debate.risk_round", round=round_num)
         round_texts: dict[str, str] = {}
 
         queue: asyncio.Queue[object] = asyncio.Queue()
@@ -427,7 +428,7 @@ async def iter_multi_round_debate_events(
 ) -> AsyncIterator[dict[str, object]]:
     transcript: list[str] = []
     for round_num in range(1, rounds + 1):
-        yield {"type": "status", "message": f"第{round_num}轮多空交锋…"}
+        yield status_event("status.debate.round", round=round_num)
 
         yield {
             "type": "agent_start",

@@ -14,3 +14,8 @@ async def test_run_research_four_dimensions() -> None:
     assert 1 <= report.composite_score <= 10
     assert report.bias in ("bullish", "bearish", "neutral")
     assert "仅供参考" in report.disclaimer
+    assert report.news_text_factor
+    assert "新闻文本因子" in report.news_text_factor
+    assert report.text_factor_summary
+    assert "文本因子·总结" in report.text_factor_summary
+    assert report.dimension_weights

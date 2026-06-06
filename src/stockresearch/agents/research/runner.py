@@ -6,12 +6,14 @@ from typing import Literal
 from stockresearch.agents.research.agents import AGENT_BY_ID, DIMENSION_AGENTS
 from stockresearch.agents.research.context import ResearchContext
 from stockresearch.agents.research.debate import run_debate
+from stockresearch.agents.research.report_builder import build_research_report
 from stockresearch.agents.research.react import (
     DimensionAgent,
     prepare_react_agent,
     run_react_agent,
 )
 from stockresearch.core.schemas import DebateResult, DimensionResult, ResearchReportOut
+from stockresearch.services.text_factor import build_news_text_factor, fetch_symbol_news_snippets
 from stockresearch.utils.llm import LLMClient, get_llm_client
 from stockresearch.utils.symbols import resolve_name
 
@@ -95,48 +97,30 @@ async def run_research(
     sentiment = dimensions["sentiment"]
     chips = dimensions["chips"]
 
-    scores = [d.score for d in dimensions.values()]
-    composite = round(sum(scores) / len(scores), 1)
-
-    confidences = [_as_confidence(d.confidence) for d in dimensions.values()]
-    if confidences.count("high") >= 2:
-        composite_confidence: ConfidenceLevel = "high"
-    elif "low" in confidences:
-        composite_confidence = "low"
-    else:
-        composite_confidence = "medium"
-
-    if composite >= 6.5:
-        bias: BiasLevel = "bullish"
-    elif composite <= 4.5:
-        bias = "bearish"
-    else:
-        bias = "neutral"
-
-    summary = (
-        f"{name}({symbol}) 综合评分 {composite}/10，"
-        f"四维投票倾向{'偏多' if bias == 'bullish' else '偏空' if bias == 'bearish' else '中性'}。"
-        f"基本面 {fundamental.score}，技术面 {technical.score}，"
-        f"情绪面 {sentiment.score}，筹码面 {chips.score}。"
-    )
+    news_snippets = await fetch_symbol_news_snippets(symbol, name)
+    news_text_factor = build_news_text_factor(news_snippets, subject=f"{name}({symbol})")
 
     debate: DebateResult | None = None
     if with_debate:
         debate = await run_debate(symbol, name, dimensions, client)
-        bias_label = (
-            "偏多" if debate.final_bias == "bullish"
-            else "偏空" if debate.final_bias == "bearish"
-            else "中性"
-        )
-        summary += f" 裁判倾向：{bias_label}。"
 
-    return ResearchReportOut(
-        symbol=symbol,
-        name=name,
-        dimensions=dimensions,
-        composite_score=composite,
-        composite_confidence=composite_confidence,
-        bias=bias,
-        summary=summary,
-        debate=debate,
+    _LABELS = {
+        "fundamental": "基本面",
+        "technical": "技术面",
+        "sentiment": "情绪面",
+        "chips": "筹码面",
+    }
+    summary_prefix = (
+        f"{name}({symbol}) 加权综合投研，"
+        f"基本面 {fundamental.score}，技术面 {technical.score}，"
+        f"情绪面 {sentiment.score}，筹码面 {chips.score}。"
+    )
+    return build_research_report(
+        symbol,
+        name,
+        dimensions,
+        debate,
+        dimension_labels=_LABELS,
+        news_text_factor=news_text_factor,
+        summary_prefix=summary_prefix,
     )

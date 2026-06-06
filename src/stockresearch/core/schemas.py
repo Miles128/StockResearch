@@ -168,6 +168,14 @@ class DebateResult(BaseModel):
     manager_thesis: str | None = None
 
 
+class SectorLeaderBrief(BaseModel):
+    symbol: str
+    name: str
+    price: float
+    change_pct: float
+    brief: str
+
+
 class ResearchReportOut(BaseModel):
     symbol: str
     name: str
@@ -177,6 +185,11 @@ class ResearchReportOut(BaseModel):
     bias: Literal["bullish", "bearish", "neutral"]
     summary: str
     debate: DebateResult | None = None
+    sector: str | None = None
+    leaders: list[SectorLeaderBrief] = Field(default_factory=list)
+    news_text_factor: str | None = None
+    text_factor_summary: str | None = None
+    dimension_weights: dict[str, float] = Field(default_factory=dict)
     disclaimer: str = DISCLAIMER
     cached: bool = False
 
@@ -262,13 +275,21 @@ class LlmUserSettings(BaseModel):
 class LlmSettingsOut(BaseModel):
     default_base_url: str
     default_model: str
+    default_api_key: str
     default_temperature: float
     server_use_mock: bool
+    server_configured: bool
+    server_has_api_key: bool
 
 
 class LlmTestOut(BaseModel):
     ok: bool
     message: str
+
+
+class RiskCheckupRequest(BaseModel):
+    output_tone: Literal["professional", "standard", "friendly"] | None = None
+    output_locale: Literal["zh", "en"] | None = None
 
 
 class ChatRequest(BaseModel):
@@ -277,10 +298,13 @@ class ChatRequest(BaseModel):
     llm: LlmUserSettings | None = None
     analysis_mode: Literal["simple", "complex"] | None = None
     enable_debate: bool | None = None
+    output_tone: Literal["professional", "standard", "friendly"] | None = None
+    output_locale: Literal["zh", "en"] | None = None
     confirmed_symbol: str | None = Field(
         default=None, min_length=6, max_length=6, pattern=r"^\d{6}$"
     )
     confirmed_name: str | None = Field(default=None, min_length=1, max_length=50)
+    execution_preference: Literal["react", "plan_execute", "preset", "auto"] | None = None
 
 
 class CardPayload(BaseModel):
@@ -294,6 +318,7 @@ class CardPayload(BaseModel):
         "plan",
         "financial",
         "stock_choice",
+        "route_choice",
     ]
     data: dict[str, object]
 
@@ -315,6 +340,30 @@ class StockQuoteOut(BaseModel):
     volume: float
     sector: str = "未知"
     source: str = "live"
+
+
+class KlineBarOut(BaseModel):
+    date: str
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+
+
+class KlineIndicatorsOut(BaseModel):
+    ma20: list[float | None]
+    rsi: list[float | None]
+    macd: list[float | None]
+    macd_signal: list[float | None]
+    macd_histogram: list[float | None]
+
+
+class KlineChartOut(BaseModel):
+    symbol: str
+    days: int
+    bars: list[KlineBarOut]
+    indicators: KlineIndicatorsOut
 
 
 class MarketOverviewOut(BaseModel):
@@ -356,6 +405,61 @@ class ResearchReportListItem(BaseModel):
     summary: str
     has_debate: bool
     created_at: datetime
+
+
+class IndustryResearchRequest(BaseModel):
+    sector: str = Field(min_length=1, max_length=50)
+    query: str = Field(default="", max_length=500)
+
+
+class BriefingSection(BaseModel):
+    title: str
+    content: str
+
+
+class BriefingOut(BaseModel):
+    kind: Literal["morning", "closing"]
+    title: str
+    sections: list[BriefingSection]
+    summary: str
+    disclaimer: str = DISCLAIMER
+    generated_at: datetime
+
+
+class SignalBacktestHorizon(BaseModel):
+    days: int
+    sample_count: int
+    bullish_count: int
+    bearish_count: int
+    bullish_avg_return_pct: float | None = None
+    bearish_avg_return_pct: float | None = None
+    bullish_positive_rate_pct: float | None = None
+    bearish_negative_rate_pct: float | None = None
+
+
+class SignalBacktestOut(BaseModel):
+    horizons: list[SignalBacktestHorizon]
+    disclaimer: str
+
+
+class MemorySearchHit(BaseModel):
+    report_id: int
+    symbol: str
+    name: str
+    bias: str
+    summary: str
+    composite_score: float
+    created_at: datetime
+
+
+class MemorySearchOut(BaseModel):
+    query: str
+    hits: list[MemorySearchHit]
+
+
+class StreamCheckpointOut(BaseModel):
+    session_id: str
+    checkpoint: dict[str, object] | None = None
 
 
 class LlmUsageOut(BaseModel):

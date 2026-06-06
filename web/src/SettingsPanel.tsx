@@ -3,15 +3,22 @@ import type { LlmSettingsMeta } from "./api";
 import { ABOUT_INFO } from "./aboutInfo";
 import { useI18n } from "./i18n";
 import {
+  llmMetaToForm,
   loadLlmSettings,
   saveLlmSettings,
   type LlmUserSettings,
 } from "./llmSettings";
-import { api, type ResearchReportListItem } from "./api";
+import {
+  api,
+  type MemorySearchResult,
+  type ResearchReportListItem,
+  type SignalBacktest,
+} from "./api";
 import {
   loadAnalysisSettings,
   saveAnalysisSettings,
   type AnalysisUserSettings,
+  type OutputTone,
 } from "./analysisSettings";
 import {
   loadDataSourceSettings,
@@ -61,6 +68,9 @@ export function SettingsPanel({
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [reports, setReports] = useState<ResearchReportListItem[]>([]);
+  const [backtest, setBacktest] = useState<SignalBacktest | null>(null);
+  const [memoryQuery, setMemoryQuery] = useState("");
+  const [memoryHits, setMemoryHits] = useState<MemorySearchResult | null>(null);
 
   const tabs: { id: SettingsTab; label: string; hideWhenRequired?: boolean }[] = [
     { id: "general", label: t("settings.tabGeneral"), hideWhenRequired: true },
@@ -80,9 +90,25 @@ export function SettingsPanel({
     setError("");
     setTestOk("");
     if (required) setActiveTab("llm");
-    api.llmSettings().then(setMeta).catch(() => setMeta(null));
+    api
+      .llmSettings()
+      .then((m) => {
+        setMeta(m);
+        const fromServer = llmMetaToForm(m);
+        const local = loadLlmSettings();
+        const hasLocal =
+          local.apiKey.trim() || local.baseUrl.trim() || local.model.trim() || local.useMock;
+        setForm(hasLocal ? local : fromServer);
+      })
+      .catch(() => {
+        setMeta(null);
+        setForm(loadLlmSettings());
+      });
     if (!required) {
       api.listReports().then(setReports).catch(() => setReports([]));
+      api.signalBacktest().then(setBacktest).catch(() => setBacktest(null));
+      setMemoryHits(null);
+      setMemoryQuery("");
     }
   }, [open, required]);
 
@@ -103,6 +129,18 @@ export function SettingsPanel({
     setAnalysis(next);
     saveAnalysisSettings(next);
   }
+
+  function selectOutputTone(tone: OutputTone) {
+    const next = { ...analysis, outputTone: tone };
+    setAnalysis(next);
+    saveAnalysisSettings(next);
+  }
+
+  const toneOptions: { id: OutputTone; labelKey: string; hintKey: string }[] = [
+    { id: "professional", labelKey: "settings.toneProfessional", hintKey: "settings.toneProfessionalHint" },
+    { id: "standard", labelKey: "settings.toneStandard", hintKey: "settings.toneStandardHint" },
+    { id: "friendly", labelKey: "settings.toneFriendly", hintKey: "settings.toneFriendlyHint" },
+  ];
 
   function saveDataSources() {
     saveDataSourceSettings(dataForm);
@@ -137,9 +175,14 @@ export function SettingsPanel({
     setSaving(true);
     try {
       if (!(await testConnection())) return;
+      const saved = await api.saveLlmSettings(form);
+      setMeta(saved);
       saveLlmSettings(form);
+      setTestOk(t("settings.savedEnv"));
       onConfigured?.();
       if (!required && variant === "modal") onClose();
+    } catch (e) {
+      setError(formatApiError(e));
     } finally {
       setSaving(false);
     }
@@ -333,6 +376,30 @@ export function SettingsPanel({
             <p className="settings-muted settings-analysis-note">
               {analysis.enableDebate ? t("settings.debateOnNote") : t("settings.debateOffNote")}
             </p>
+
+            <h4 className="settings-section-title">{t("settings.outputTone")}</h4>
+            <p className="settings-hint">{t("settings.outputToneHint")}</p>
+            <div className="settings-tone-options" role="radiogroup" aria-label={t("settings.outputTone")}>
+              {toneOptions.map((opt) => (
+                <label
+                  key={opt.id}
+                  className={`locale-option${analysis.outputTone === opt.id ? " active" : ""}`}
+                >
+                  <input
+                    type="radio"
+                    name="output-tone"
+                    value={opt.id}
+                    checked={analysis.outputTone === opt.id}
+                    onChange={() => selectOutputTone(opt.id)}
+                  />
+                  <span className="theme-option-label">{t(opt.labelKey)}</span>
+                  <span className="theme-option-hint">{t(opt.hintKey)}</span>
+                </label>
+              ))}
+            </div>
+            {locale === "en" && (
+              <p className="settings-muted settings-analysis-note">{t("settings.outputLocaleEnNote")}</p>
+            )}
           </>
         )}
 
@@ -358,15 +425,88 @@ export function SettingsPanel({
                         {new Date(r.created_at).toLocaleString(locale === "zh" ? "zh-CN" : "en-US")}
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => api.downloadReportMarkdown(r.id)}
-                    >
-                      {t("settings.reportExport")}
-                    </button>
+                    <div className="report-history-actions">
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => api.downloadReportMarkdown(r.id)}
+                      >
+                        {t("settings.reportExport")}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => api.downloadReportPdf(r.id)}
+                      >
+                        {t("settings.reportExportPdf")}
+                      </button>
+                    </div>
                   </li>
                 ))}
+              </ul>
+            )}
+
+            <h4 className="settings-section-title">{t("settings.signalBacktest")}</h4>
+            <p className="settings-hint">{t("settings.signalBacktestHint")}</p>
+            {backtest && backtest.horizons.some((h) => h.sample_count > 0) ? (
+              <ul className="report-history-list">
+                {backtest.horizons.map((h) => (
+                  <li key={h.days} className="settings-muted">
+                    {t("settings.signalBacktestRow", {
+                      days: String(h.days),
+                      n: String(h.sample_count),
+                      bull:
+                        h.bullish_avg_return_pct != null ? String(h.bullish_avg_return_pct) : "—",
+                      bear:
+                        h.bearish_avg_return_pct != null ? String(h.bearish_avg_return_pct) : "—",
+                    })}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="settings-muted">{t("settings.signalBacktestEmpty")}</p>
+            )}
+
+            <h4 className="settings-section-title">{t("settings.memorySearch")}</h4>
+            <p className="settings-hint">{t("settings.memorySearchHint")}</p>
+            <div className="settings-memory-row">
+              <input
+                type="search"
+                value={memoryQuery}
+                placeholder={t("settings.memorySearchPh")}
+                onChange={(e) => setMemoryQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && memoryQuery.trim()) {
+                    void api.searchMemory(memoryQuery.trim()).then(setMemoryHits);
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                disabled={!memoryQuery.trim()}
+                onClick={() => void api.searchMemory(memoryQuery.trim()).then(setMemoryHits)}
+              >
+                {t("settings.memorySearchBtn")}
+              </button>
+            </div>
+            {memoryHits && (
+              <ul className="report-history-list">
+                {memoryHits.hits.length === 0 ? (
+                  <li className="settings-muted">{t("settings.memoryEmpty")}</li>
+                ) : (
+                  memoryHits.hits.map((hit) => (
+                    <li key={hit.report_id} className="report-history-item">
+                      <strong>
+                        {hit.name} ({hit.symbol})
+                      </strong>
+                      <span className="settings-muted">
+                        {hit.composite_score}/10 · {hit.bias}
+                      </span>
+                      <p className="settings-muted">{hit.summary}</p>
+                    </li>
+                  ))
+                )}
               </ul>
             )}
           </>

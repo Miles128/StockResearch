@@ -61,6 +61,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export interface AgentStreamEvent {
   type: string;
   message?: string;
+  message_key?: string;
+  message_params?: Record<string, string | number | boolean>;
   stream_id?: string;
   delta?: string;
   agent_id?: string;
@@ -133,9 +135,12 @@ async function consumeSse(
   }
 }
 
+export type ExecutionPreference = "react" | "plan_execute" | "preset" | "auto";
+
 export interface ChatStreamOptions {
   confirmedSymbol?: string;
   confirmedName?: string;
+  executionPreference?: ExecutionPreference;
 }
 
 async function streamChat(
@@ -152,6 +157,7 @@ async function streamChat(
       session_id: sessionId,
       confirmed_symbol: options?.confirmedSymbol,
       confirmed_name: options?.confirmedName,
+      execution_preference: options?.executionPreference,
       ...analysisBodyField(),
       ...llmBodyField(),
     }),
@@ -172,6 +178,11 @@ async function streamChat(
 
 export const api = {
   llmSettings: () => request<LlmSettingsMeta>("/settings/llm"),
+  saveLlmSettings: (form: LlmUserSettings) =>
+    request<LlmSettingsMeta>("/settings/llm", {
+      method: "PUT",
+      body: JSON.stringify(llmFormToApiBody(form)),
+    }),
   testLlmConnection: (form: LlmUserSettings) =>
     requestPlain<LlmTestResult>("/settings/llm/test", {
       method: "POST",
@@ -185,6 +196,7 @@ export const api = {
         session_id: sessionId,
         confirmed_symbol: options?.confirmedSymbol,
         confirmed_name: options?.confirmedName,
+        execution_preference: options?.executionPreference,
         ...analysisBodyField(),
         ...llmBodyField(),
       }),
@@ -217,14 +229,28 @@ export const api = {
   research: (symbol: string) => request<ResearchReport>(`/research/analyze?symbol=${symbol}`),
   researchStream: (symbol: string, onEvent?: (event: AgentStreamEvent) => void) =>
     streamResearch(symbol, onEvent),
-  riskCheckup: () => request<RiskCheckup>("/risk/checkup", { method: "POST" }),
+  riskCheckup: () =>
+    request<RiskCheckup>("/risk/checkup", {
+      method: "POST",
+      body: JSON.stringify({ ...analysisBodyField() }),
+    }),
   marketOverview: () => request<MarketOverview>("/market/overview"),
   stockQuotes: (symbols: string) => request<StockQuoteOut[]>(`/market/quotes?symbols=${symbols}`),
   dataSourceStatus: () => request<DataSourceStatus>("/market/data-status"),
+  klineChart: (symbol: string, days = 60) =>
+    request<KlineChart>(`/market/kline?symbol=${symbol}&days=${days}`),
   listReports: () => request<ResearchReportListItem[]>("/research/reports"),
   downloadReportMarkdown: (id: number) => {
     window.open(apiUrl(`/research/reports/${id}/markdown`), "_blank", "noopener,noreferrer");
   },
+  downloadReportPdf: (id: number) => {
+    window.open(apiUrl(`/research/reports/${id}/pdf`), "_blank", "noopener,noreferrer");
+  },
+  signalBacktest: () => request<SignalBacktest>("/research/signal-backtest"),
+  searchMemory: (q: string) =>
+    request<MemorySearchResult>(`/research/memory/search?q=${encodeURIComponent(q)}`),
+  generateBriefing: (kind: "morning" | "closing") =>
+    request<Briefing>(`/briefing/generate?kind=${kind}`, { method: "POST" }),
 };
 
 async function streamResearch(
@@ -273,8 +299,38 @@ export interface StockChoiceCardData {
   original_message: string;
 }
 
+export interface RouteChoiceOption {
+  id: ExecutionPreference;
+  label?: string;
+  description?: string;
+  label_key?: string;
+  description_key?: string;
+  label_params?: Record<string, string | number>;
+  description_params?: Record<string, string | number>;
+}
+
+export interface RouteChoiceCardData {
+  message?: string;
+  reason_key?: string;
+  reason_params?: Record<string, string | number>;
+  original_message: string;
+  finance_related: boolean;
+  preset_mode: string | null;
+  options: RouteChoiceOption[];
+}
+
 export interface Card {
-  type: "news" | "research" | "risk" | "text" | "market" | "debate" | "plan" | "financial" | "stock_choice";
+  type:
+    | "news"
+    | "research"
+    | "risk"
+    | "text"
+    | "market"
+    | "debate"
+    | "plan"
+    | "financial"
+    | "stock_choice"
+    | "route_choice";
   data: Record<string, unknown>;
 }
 
@@ -343,18 +399,44 @@ export interface NewsIngestOut {
   message: string;
 }
 
+export interface DimensionResult {
+  agent: string;
+  score: number;
+  confidence: string;
+  highlights: string[];
+  risks: string[];
+  data_sources: string[];
+}
+
+export interface DebateRoundResult {
+  round: number;
+  bull_argument: string;
+  bear_rebuttal: string;
+}
+
+export interface DebateResult {
+  rounds: DebateRoundResult[];
+  judge_verdict: string;
+  consensus: string;
+  core_divergence: string;
+  final_bias: string;
+  confidence: string;
+  vote_tally?: Record<string, number> | null;
+  manager_thesis?: string | null;
+}
+
 export interface ResearchReport {
   symbol: string;
   name: string;
   composite_score: number;
+  composite_confidence?: string;
   bias: string;
   summary: string;
-  dimensions: Record<string, { score: number; highlights: string[]; risks: string[] }>;
-  debate?: {
-    consensus: string;
-    final_bias: string;
-    judge_verdict: string;
-  };
+  news_text_factor?: string | null;
+  text_factor_summary?: string | null;
+  dimension_weights?: Record<string, number>;
+  dimensions: Record<string, DimensionResult>;
+  debate?: DebateResult | null;
 }
 
 export interface PortfolioMetrics {
@@ -401,7 +483,7 @@ export interface RiskCheckup {
 }
 
 export interface MarketOverview {
-  indices: { name: string; price: number; change_pct: number }[];
+  indices: { name: string; symbol?: string; price: number; change_pct: number }[];
   northbound_net_yi: number | null;
   advancers: number | null;
   decliners: number | null;
@@ -444,4 +526,69 @@ export interface StockQuoteOut {
   name: string;
   price: number;
   change_pct: number;
+}
+
+export interface SignalBacktestHorizon {
+  days: number;
+  sample_count: number;
+  bullish_count: number;
+  bearish_count: number;
+  bullish_avg_return_pct: number | null;
+  bearish_avg_return_pct: number | null;
+  bullish_positive_rate_pct: number | null;
+  bearish_negative_rate_pct: number | null;
+}
+
+export interface SignalBacktest {
+  horizons: SignalBacktestHorizon[];
+  disclaimer: string;
+}
+
+export interface MemorySearchHit {
+  report_id: number;
+  symbol: string;
+  name: string;
+  bias: string;
+  summary: string;
+  composite_score: number;
+  created_at: string;
+}
+
+export interface MemorySearchResult {
+  query: string;
+  hits: MemorySearchHit[];
+}
+
+export interface BriefingSection {
+  title: string;
+  content: string;
+}
+
+export interface Briefing {
+  kind: "morning" | "closing";
+  title: string;
+  sections: BriefingSection[];
+  summary: string;
+  disclaimer: string;
+  generated_at: string;
+}
+
+export interface KlineChart {
+  symbol: string;
+  days: number;
+  bars: {
+    date: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+  }[];
+  indicators: {
+    ma20: (number | null)[];
+    rsi: (number | null)[];
+    macd: (number | null)[];
+    macd_signal: (number | null)[];
+    macd_histogram: (number | null)[];
+  };
 }

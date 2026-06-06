@@ -3,6 +3,7 @@ import {
   api,
   AgentStreamEvent,
   ChatStreamOptions,
+  ExecutionPreference,
   DataSourceStatus,
   HoldingEnriched,
   LlmUsage,
@@ -15,7 +16,7 @@ import {
 import type { Message, Tab } from "./appTypes";
 import { ChatPanel } from "./ChatPanel";
 import { useI18n } from "./i18n";
-import { isLlmConfigured } from "./llmSettings";
+import { isLlmConfiguredLocally, isServerLlmConfigured } from "./llmSettings";
 import { formatHeaderUsage, formatLlmUsage } from "./llmUsageFormat";
 import { MarketTicker } from "./MarketTicker";
 import { NewsPanel } from "./NewsPanel";
@@ -25,6 +26,7 @@ import { RiskPanel } from "./RiskPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { stripDisclaimer } from "./disclaimerText";
 import { applyStreamEvent, emptyStreamState } from "./streamEvents";
+import { normalizeStreamEvent } from "./streamI18n";
 import { TabNav } from "./TabNav";
 
 export default function App() {
@@ -70,15 +72,16 @@ export default function App() {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [newsLoading, setNewsLoading] = useState(false);
   const [clock, setClock] = useState("");
-  const [llmConfigured, setLlmConfigured] = useState(isLlmConfigured);
-  const [setupOpen, setSetupOpen] = useState(!isLlmConfigured());
+  const [llmConfigured, setLlmConfigured] = useState(false);
+  const [llmCheckDone, setLlmCheckDone] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(false);
   const [dataStatus, setDataStatus] = useState<DataSourceStatus | null>(null);
   const [marketOverview, setMarketOverview] = useState<MarketOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [lookupPrice, setLookupPrice] = useState<number | null>(null);
   const [newsSectors, setNewsSectors] = useState<SectorPreferences | null>(null);
   const [sectorSaving, setSectorSaving] = useState(false);
-  const settingsRequired = !llmConfigured;
+  const settingsRequired = llmCheckDone && !llmConfigured;
 
   const chatExamples = useMemo(
     () => [
@@ -162,6 +165,20 @@ export default function App() {
   useEffect(() => {
     void loadOverview();
     void loadHoldings();
+    void api
+      .llmSettings()
+      .then((meta) => {
+        const ok = isServerLlmConfigured(meta) || isLlmConfiguredLocally();
+        setLlmConfigured(ok);
+        setSetupOpen(!ok);
+        setLlmCheckDone(true);
+      })
+      .catch(() => {
+        const ok = isLlmConfiguredLocally();
+        setLlmConfigured(ok);
+        setSetupOpen(!ok);
+        setLlmCheckDone(true);
+      });
   }, []);
 
   useEffect(() => {
@@ -234,14 +251,21 @@ export default function App() {
         query,
         sessionId,
         (event: AgentStreamEvent) => {
-          if (event.type === "analysis_choice" || event.type === "stock_choice") return;
+          if (
+            event.type === "analysis_choice" ||
+            event.type === "stock_choice" ||
+            event.type === "route_choice"
+          ) {
+            return;
+          }
+          const normalized = normalizeStreamEvent(event, t);
           setChatStream((prev) => {
-            const next = applyStreamEvent(prev, event);
+            const next = applyStreamEvent(prev, normalized, t);
             processSnapshot = next;
             return next;
           });
-          if (event.type === "status" && event.message) {
-            setStatusMsg(event.message);
+          if (normalized.type === "status" && normalized.message) {
+            setStatusMsg(normalized.message);
           }
         },
         options,
@@ -252,6 +276,12 @@ export default function App() {
           ...processSnapshot,
           streamStatus: processSnapshot.streamStatus || statusMsg || t("chat.analysisDone"),
         };
+        const hasResearchCard = resp.cards?.some((c) => c.type === "research");
+        const hasProcessTrail =
+          processSnapshot.streamLog.length > 0 ||
+          processSnapshot.agentSteps.length > 0 ||
+          processSnapshot.debateRounds.length > 0 ||
+          processSnapshot.judgeVerdict != null;
         const assistantMsg: Message = {
           role: "assistant",
           content: stripDisclaimer(resp.reply),
@@ -259,10 +289,7 @@ export default function App() {
           intent: resp.intent,
           llmUsage: resp.llm_usage ?? null,
           process:
-            processSnapshot.streamLog.length > 0 ||
-            processSnapshot.agentSteps.length > 0 ||
-            processSnapshot.debateRounds.length > 0 ||
-            processSnapshot.judgeVerdict
+            hasProcessTrail || hasResearchCard
               ? processSnapshot
               : undefined,
         };
@@ -341,6 +368,21 @@ export default function App() {
     if (loading) return;
     setMessages((m) => [...m, { role: "user", content: `${name}（${symbol}）` }]);
     void executeChat(originalMessage, { confirmedSymbol: symbol, confirmedName: name });
+  }
+
+  function confirmChatRoute(originalMessage: string, preference: ExecutionPreference) {
+    if (loading) return;
+    const labels: Record<ExecutionPreference, string> = {
+      react: t("chat.routeReact"),
+      plan_execute: t("chat.routePlan"),
+      preset: t("chat.routePreset"),
+      auto: t("chat.routeAuto"),
+    };
+    setMessages((m) => [
+      ...m,
+      { role: "user", content: t("chat.selectedMode", { mode: labels[preference] }) },
+    ]);
+    void executeChat(originalMessage, { executionPreference: preference });
   }
 
   async function loadNews() {
@@ -481,7 +523,9 @@ export default function App() {
       />
       <SettingsPanel
         open={setupOpen}
-        onClose={() => setSetupOpen(false)}
+        onClose={() => {
+          if (!settingsRequired) setSetupOpen(false);
+        }}
         required={settingsRequired}
         onConfigured={handleLlmConfigured}
         variant="modal"
@@ -517,6 +561,7 @@ export default function App() {
               onSend={sendChat}
               onAnalyzeHolding={analyzeHolding}
               onConfirmStock={confirmChatStock}
+              onConfirmRoute={confirmChatRoute}
             />
           )}
 

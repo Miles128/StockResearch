@@ -1,6 +1,9 @@
-import type { HoldingEnriched, StockLookupOut } from "./api";
+import { useState } from "react";
+import { api, type Briefing, type HoldingEnriched, type StockLookupOut } from "./api";
 import { formatPrice, formatSignedMoney, formatSignedPct, signedClass } from "./holdingDisplay";
 import { useI18n } from "./i18n";
+import { localizeBriefing } from "./uiLabels";
+import { StockChart } from "./StockChart";
 import type { PortfolioSummary, SectorWeight } from "./portfolioHelpers";
 
 interface PortfolioPanelProps {
@@ -53,9 +56,52 @@ export function PortfolioPanel({
   onAnalyzeHolding,
 }: PortfolioPanelProps) {
   const { t } = useI18n();
+  const [chartSymbol, setChartSymbol] = useState<string | null>(null);
+  const [briefing, setBriefing] = useState<Briefing | null>(null);
+  const [briefingLoading, setBriefingLoading] = useState(false);
+
+  async function loadBriefing(kind: "morning" | "closing") {
+    setBriefingLoading(true);
+    try {
+      setBriefing(await api.generateBriefing(kind));
+    } finally {
+      setBriefingLoading(false);
+    }
+  }
 
   return (
     <div className="panel portfolio-panel">
+      <div className="panel-actions-row">
+        <button
+          className="btn btn-ghost btn-sm"
+          disabled={briefingLoading}
+          onClick={() => void loadBriefing("morning")}
+        >
+          {briefingLoading ? t("portfolio.briefingLoading") : t("portfolio.briefingMorning")}
+        </button>
+        <button
+          className="btn btn-ghost btn-sm"
+          disabled={briefingLoading}
+          onClick={() => void loadBriefing("closing")}
+        >
+          {t("portfolio.briefingClosing")}
+        </button>
+      </div>
+      {briefing && (() => {
+        const b = localizeBriefing(briefing, t);
+        return (
+        <div className="briefing-card">
+          <h4>{b.title}</h4>
+          <p>{b.summary}</p>
+          {b.sections.map((s) => (
+            <div key={s.title}>
+              <strong>{s.title}</strong>
+              <pre className="briefing-section">{s.content}</pre>
+            </div>
+          ))}
+        </div>
+        );
+      })()}
       {holdings.length > 0 && (
         <div className="portfolio-summary">
           <div className="portfolio-summary-item">
@@ -160,21 +206,33 @@ export function PortfolioPanel({
                   <td className={`mono ${signedClass(h.annualized_pct)}`}>
                     {h.annualized_pct != null ? formatSignedPct(h.annualized_pct) : "—"}
                   </td>
-                  <td>
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => onAnalyzeHolding(h)}>
-                      {t("portfolio.analyze")}
-                    </button>{" "}
-                    <button type="button" className="delete-btn" onClick={() => h.id && onDeleteHolding(h.id)}>
-                      DEL
-                    </button>
-                  </td>
+                          <td>
+                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => onAnalyzeHolding(h)}>
+                              {t("portfolio.analyze")}
+                            </button>{" "}
+                            <button
+                              type="button"
+                              className={`btn btn-ghost btn-sm${chartSymbol === h.symbol ? " active" : ""}`}
+                              onClick={() => setChartSymbol(chartSymbol === h.symbol ? null : h.symbol)}
+                            >
+                              {t("portfolio.chart")}
+                            </button>{" "}
+                            <button type="button" className="delete-btn" onClick={() => h.id && onDeleteHolding(h.id)}>
+                              DEL
+                            </button>
+                          </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      )}
-      <div className="portfolio-add-footer">
+              </div>
+              )}
+              {chartSymbol && (
+                <div className="portfolio-chart-panel">
+                  <StockChart symbol={chartSymbol} />
+                </div>
+              )}
+              <div className="portfolio-add-footer">
         <div className="holding-form">
           <div className="field">
             <span className="field-label">{t("portfolio.symbol")}</span>

@@ -9,10 +9,17 @@ from langgraph.graph import END, StateGraph
 from sqlalchemy.orm import Session
 
 from stockresearch.agents.market.research_stream import run_market_research_stream
+from stockresearch.agents.industry.research import run_industry_research
 from stockresearch.agents.orchestrator.complexity import (
     ComplexityResult,
+    extract_industry_sector,
     is_risk_intent,
-    resolve_execution_mode,
+)
+from stockresearch.agents.orchestrator.route_plan import (
+    build_route_proposal,
+    needs_execution_choice,
+    resolve_mode_with_preference,
+    route_choice_card,
 )
 from stockresearch.agents.research.runner import run_research
 from stockresearch.agents.orchestrator.plan_execute import PlanExecuteAgent
@@ -55,8 +62,9 @@ class OrchestratorState(TypedDict):
     enable_debate: bool | None
     confirmed_symbol: str | None
     confirmed_name: str | None
+    execution_preference: str | None
+    finance_tools: bool
     holdings: list[_HoldingInfo]
-    holding_objects: list[Holding]
     cards: Annotated[list[dict[str, object]], _append]
     reply: str
     partial: Annotated[bool, _or_reducer]
@@ -75,14 +83,40 @@ class Orchestrator:
         async def node_route(state: OrchestratorState) -> dict:
             msg = state["message"].strip()
             # Risk keywords → risk intent
-            if is_risk_intent(msg) and state["holding_objects"]:
+            if is_risk_intent(msg) and state["holdings"]:
                 return {"intent": INTENT_RISK, "mode": "risk"}
-            mode = resolve_execution_mode(
+            if needs_execution_choice(
                 msg,
-                state.get("analysis_mode"),
-                enable_debate=bool(state.get("enable_debate")),
+                analysis_mode=state.get("analysis_mode"),
+                execution_preference=state.get("execution_preference"),
+                confirmed_symbol=state.get("confirmed_symbol"),
+            ):
+                proposal = build_route_proposal(
+                    msg,
+                    enable_debate=(
+                        True
+                        if state.get("enable_debate") is None
+                        else bool(state.get("enable_debate"))
+                    ),
+                )
+                card = route_choice_card(msg, proposal)
+                return {
+                    "intent": INTENT_CHAT,
+                    "mode": "route_choice",
+                    "cards": [card],
+                    "reply": "",
+                }
+            mode, finance_tools = resolve_mode_with_preference(
+                msg,
+                state.get("execution_preference"),
+                analysis_mode=state.get("analysis_mode"),
+                enable_debate=(
+                    True
+                    if state.get("enable_debate") is None
+                    else bool(state.get("enable_debate"))
+                ),
             )
-            return {"intent": INTENT_CHAT, "mode": mode}
+            return {"intent": INTENT_CHAT, "mode": mode, "finance_tools": finance_tools}
 
         async def node_chat(state: OrchestratorState) -> dict:
             mode = state.get("mode", ComplexityResult.DIRECT)
@@ -98,13 +132,22 @@ class Orchestrator:
                 )
             if mode == ComplexityResult.PLAN_EXECUTE:
                 return await _run_plan_execute(db, llm, state)
+            if mode == ComplexityResult.INDUSTRY_RESEARCH:
+                return await _run_industry_research(db, llm, state)
+            if mode == "route_choice":
+                return {}
             # Default: direct ReAct
-            agent = OrchestratorAgent(db=db, llm=llm, user_id=state["user_id"])
+            finance_tools = bool(state.get("finance_tools", True))
+            agent = OrchestratorAgent(
+                db=db, llm=llm, user_id=state["user_id"], finance_tools=finance_tools
+            )
             reply, cards = await agent.run(msg)
             return {"cards": cards, "reply": reply}
 
         async def node_risk(state: OrchestratorState) -> dict:
-            holdings = state.get("holding_objects", [])
+            holdings = await asyncio.to_thread(
+                lambda: db.query(Holding).filter(Holding.user_id == state["user_id"]).all()
+            )
             try:
                 result = await asyncio.wait_for(
                     run_risk_checkup(holdings, llm=llm),
@@ -148,6 +191,7 @@ class Orchestrator:
         enable_debate: bool | None = None,
         confirmed_symbol: str | None = None,
         confirmed_name: str | None = None,
+        execution_preference: str | None = None,
     ) -> ChatResponse:
         sid = session_id or str(uuid.uuid4())
         holdings = await asyncio.to_thread(
@@ -167,8 +211,9 @@ class Orchestrator:
             "enable_debate": enable_debate,
             "confirmed_symbol": confirmed_symbol,
             "confirmed_name": confirmed_name,
+            "execution_preference": execution_preference,
+            "finance_tools": True,
             "holdings": holdings_data,
-            "holding_objects": holdings,
             "cards": [],
             "reply": "",
             "partial": False,
@@ -252,17 +297,30 @@ async def _run_market_research(
 
 
 # ── Plan-Execute mode ────────────────────────────────────
+async def _run_industry_research(db: Session, llm, state: OrchestratorState) -> dict:
+    msg = state["message"]
+    sectors = [h["sector"] for h in state.get("holdings", [])]
+    sector = extract_industry_sector(msg, sectors) or "行业"
+    reply, cards = await run_industry_research(db, llm, state["user_id"], sector, msg)
+    return {"cards": cards, "reply": reply}
+
+
 async def _run_plan_execute(db: Session, llm, state: OrchestratorState) -> dict:
     """Run Plan-and-Execute workflow for complex queries."""
     msg = state["message"]
 
     # Create tool executor that delegates to OrchestratorAgent tools
-    react_agent = OrchestratorAgent(db=db, llm=llm, user_id=state["user_id"])
+    finance_tools = bool(state.get("finance_tools", True))
+    react_agent = OrchestratorAgent(
+        db=db, llm=llm, user_id=state["user_id"], finance_tools=finance_tools
+    )
 
     async def tool_executor(name: str, args: dict) -> str:
         return await react_agent._execute_tool(name, args)
 
-    agent = PlanExecuteAgent(llm=llm, tool_executor=tool_executor)
+    agent = PlanExecuteAgent(
+        llm=llm, tool_executor=tool_executor, finance_tools=finance_tools
+    )
     reply, plan_cards = await agent.run(msg)
 
     return {"cards": plan_cards, "reply": reply}

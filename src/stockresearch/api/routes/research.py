@@ -4,7 +4,7 @@ import json
 from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import PlainTextResponse, StreamingResponse
+from fastapi.responses import PlainTextResponse, Response, StreamingResponse
 from sqlalchemy.orm import Session
 
 from stockresearch.agents.research.runner import run_research
@@ -12,11 +12,20 @@ from stockresearch.agents.research.stream import run_research_stream
 from stockresearch.api.deps import get_current_user
 from stockresearch.api.llm_deps import llm_from_headers
 from stockresearch.core.exceptions import NotFoundError
-from stockresearch.core.schemas import ResearchReportListItem, ResearchReportOut
+from stockresearch.agents.industry.research import run_industry_research
+from stockresearch.core.schemas import (
+    IndustryResearchRequest,
+    MemorySearchOut,
+    ResearchReportListItem,
+    ResearchReportOut,
+    SignalBacktestOut,
+)
 from stockresearch.db.models import ResearchReport, User
 from stockresearch.db.session import get_db
 from stockresearch.services.cache import CacheService
-from stockresearch.services.report_export import report_to_markdown
+from stockresearch.services.report_export import report_to_markdown, report_to_pdf
+from stockresearch.services.research_memory import search_research_memory
+from stockresearch.services.signal_backtest import compute_signal_backtest
 from stockresearch.utils.llm import LLMClient
 
 router = APIRouter(prefix="/research", tags=["research"])
@@ -166,3 +175,95 @@ def export_report_markdown(
         media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/reports/{report_id}/pdf")
+def export_report_pdf(
+    report_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    row = (
+        db.query(ResearchReport)
+        .filter(ResearchReport.id == report_id, ResearchReport.user_id == user.id)
+        .first()
+    )
+    if row is None:
+        raise NotFoundError("报告不存在")
+    report = ResearchReportOut.model_validate(row.report_json)
+    filename = f"stockresearch-{report.symbol}-{row.id}.pdf"
+    return Response(
+        content=report_to_pdf(report),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/industry")
+async def industry_research(
+    payload: IndustryResearchRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    llm: LLMClient = Depends(llm_from_headers),
+) -> dict[str, object]:
+    reply, cards = await run_industry_research(
+        db,
+        llm,
+        user.id,
+        payload.sector,
+        payload.query or payload.sector,
+    )
+    for card in cards:
+        if card.get("type") == "research":
+            data = card.get("data")
+            if isinstance(data, dict):
+                persist_report(db, user.id, ResearchReportOut.model_validate(data))
+    return {"reply": reply, "cards": cards}
+
+
+@router.get("/industry/stream")
+async def industry_research_stream(
+    sector: str = Query(min_length=1, max_length=50),
+    query: str = Query(default=""),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    llm: LLMClient = Depends(llm_from_headers),
+) -> StreamingResponse:
+    from stockresearch.agents.industry.stream import run_industry_research_stream
+
+    async def event_generator() -> AsyncIterator[str]:
+        final: ResearchReportOut | None = None
+        async for event in run_industry_research_stream(
+            db,
+            user.id,
+            sector,
+            query or sector,
+            llm,
+        ):
+            if event.get("type") == "done":
+                raw = event.get("result")
+                if isinstance(raw, dict):
+                    final = ResearchReportOut.model_validate(raw)
+            yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
+        if final is not None:
+            persist_report(db, user.id, final)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@router.get("/signal-backtest", response_model=SignalBacktestOut)
+async def signal_backtest(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SignalBacktestOut:
+    return await compute_signal_backtest(db, user.id)
+
+
+@router.get("/memory/search", response_model=MemorySearchOut)
+def memory_search(
+    q: str = Query(min_length=1, max_length=100),
+    limit: int = Query(default=10, ge=1, le=50),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MemorySearchOut:
+    return search_research_memory(db, user.id, q, limit=limit)

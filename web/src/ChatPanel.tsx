@@ -1,6 +1,12 @@
-import type { HoldingEnriched, StockChoiceCardData } from "./api";
+import type { ExecutionPreference, HoldingEnriched, RouteChoiceCardData, StockChoiceCardData } from "./api";
 import type { Message } from "./appTypes";
-import { CardView, StockChoiceCardView } from "./chatCards";
+import { CardView, RouteChoiceCardView, StockChoiceCardView } from "./chatCards";
+import {
+  findResearchReport,
+  hasDebateStream,
+  hasDimensionStream,
+  ResearchReportDetails,
+} from "./researchReportView";
 import { isResearchTurn } from "./disclaimerText";
 import { useI18n } from "./i18n";
 import { simpleMarkdown } from "./simpleMarkdown";
@@ -20,6 +26,7 @@ interface ChatPanelProps {
   onSend: () => void;
   onAnalyzeHolding: (h: HoldingEnriched) => void;
   onConfirmStock: (originalMessage: string, symbol: string, name: string) => void;
+  onConfirmRoute: (originalMessage: string, preference: ExecutionPreference) => void;
 }
 
 export function ChatPanel({
@@ -35,6 +42,7 @@ export function ChatPanel({
   onSend,
   onAnalyzeHolding,
   onConfirmStock,
+  onConfirmRoute,
 }: ChatPanelProps) {
   const { t } = useI18n();
 
@@ -71,20 +79,38 @@ export function ChatPanel({
               </div>
             ) : (
               <>
-                {m.process && (
-                  <div className="message assistant process-panel">
-                    <p className="process-panel-title">{t("chat.processTitle")}</p>
-                    <StreamFeed
-                      streamStatus={m.process.streamStatus}
-                      streamLog={m.process.streamLog}
-                      agentSteps={m.process.agentSteps}
-                      debateRounds={m.process.debateRounds}
-                      judgeVerdict={m.process.judgeVerdict}
-                      voteTally={m.process.voteTally}
-                      activeStreamIds={[]}
-                    />
-                  </div>
-                )}
+                {(() => {
+                  const researchReport = findResearchReport(m.cards);
+                  if (!m.process && !researchReport) return null;
+                  const streamHasDims = hasDimensionStream(m.process);
+                  const streamHasDebate = hasDebateStream(m.process);
+                  const showReportDetails =
+                    researchReport != null &&
+                    (!streamHasDims || !streamHasDebate || !!researchReport.text_factor_summary);
+                  return (
+                    <div className="message assistant process-panel">
+                      <p className="process-panel-title">{t("chat.processTitle")}</p>
+                      {m.process && (
+                        <StreamFeed
+                          streamStatus={m.process.streamStatus}
+                          streamLog={m.process.streamLog}
+                          agentSteps={m.process.agentSteps}
+                          debateRounds={m.process.debateRounds}
+                          judgeVerdict={m.process.judgeVerdict}
+                          voteTally={m.process.voteTally}
+                          activeStreamIds={[]}
+                        />
+                      )}
+                      {showReportDetails && researchReport && (
+                        <ResearchReportDetails
+                          report={researchReport}
+                          showDimensions={!streamHasDims}
+                          showDebate={!streamHasDebate}
+                        />
+                      )}
+                    </div>
+                  );
+                })()}
                 {m.content.trim() && (
                   <div className="message assistant conclusion-panel">
                     <p className="process-panel-title">{t("chat.conclusion")}</p>
@@ -98,6 +124,13 @@ export function ChatPanel({
                       data={c.data as unknown as StockChoiceCardData}
                       disabled={loading}
                       onConfirm={onConfirmStock}
+                    />
+                  ) : c.type === "route_choice" ? (
+                    <RouteChoiceCardView
+                      key={j}
+                      data={c.data as unknown as RouteChoiceCardData}
+                      disabled={loading}
+                      onConfirm={onConfirmRoute}
                     />
                   ) : (
                     <CardView key={j} card={c} />
@@ -120,6 +153,9 @@ export function ChatPanel({
               voteTally={chatStream.voteTally}
               activeStreamIds={chatStream.activeStreamIds}
             />
+            <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+              {t("chat.researchStreamHint")}
+            </p>
           </div>
         )}
       </div>
