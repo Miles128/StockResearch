@@ -56,7 +56,7 @@ async def generate_briefing(
         for h in holdings[:8]:
             try:
                 q = await quote_provider.get_quote(h.symbol)
-                pnl = (q.price - h.cost_price) * h.quantity
+                pnl = (q.price - h.float_cost_price) * h.quantity
                 total_pnl += pnl
                 holding_lines.append(
                     f"{h.name}({h.symbol}) {q.price:.2f} "

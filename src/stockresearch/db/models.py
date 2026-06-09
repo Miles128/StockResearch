@@ -1,8 +1,9 @@
 """SQLAlchemy database models."""
 
+import decimal
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import JSON, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -47,12 +48,17 @@ class Holding(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     symbol: Mapped[str] = mapped_column(String(6), index=True)
     name: Mapped[str] = mapped_column(String(50))
-    cost_price: Mapped[float] = mapped_column(Float)
+    cost_price: Mapped[decimal.Decimal] = mapped_column(Numeric(12, 4))
     quantity: Mapped[int] = mapped_column(Integer)
     sector: Mapped[str] = mapped_column(String(50), default="未知")
     buy_date: Mapped[date | None] = mapped_column(Date, nullable=True, default=None)
 
     user: Mapped["User"] = relationship(back_populates="holdings")
+
+    @property
+    def float_cost_price(self) -> float:
+        """Convenience accessor that returns cost_price as float for arithmetic."""
+        return float(self.cost_price)
 
 
 class WatchlistItem(Base):

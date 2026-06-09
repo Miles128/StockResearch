@@ -76,7 +76,7 @@ async def _load_context(
         .all()
     )
     holding_lines = [
-        f"{h.name}({h.symbol}) 成本{h.cost_price:.2f} · {h.quantity}股"
+        f"{h.name}({h.symbol}) 成本{h.float_cost_price:.2f} · {h.quantity}股"
         for h in holdings
     ]
     news_rows = (

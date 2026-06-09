@@ -50,5 +50,9 @@ export function simpleMarkdown(text: string): string {
   html = html.replace(/\n{2,}/g, "</p><p>");
   html = html.replace(/\n/g, "<br>");
 
+  // Strip dangerous protocol handlers and event attributes as safety net
+  html = html.replace(/\b(on\w+)\s*=\s*["'][^"']*["']/gi, "");
+  html = html.replace(/\b(href|src)\s*=\s*["']\s*(javascript|vbscript|data):[^"']*["']/gi, "");
+
   return `<p>${html}</p>`;
 }

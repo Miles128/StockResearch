@@ -51,7 +51,8 @@ async def test_get_llm_settings_reflects_env(monkeypatch) -> None:
     data = resp.json()
     assert data["server_configured"] is True
     assert data["server_has_api_key"] is True
-    assert data["default_api_key"] == "sk-test"
+    # API key is masked in GET response for security
+    assert data["default_api_key"] == "****"
     assert data["default_base_url"] == "https://api.deepseek.com/v1"
     assert data["default_model"] == "deepseek-chat"
     get_settings.cache_clear()

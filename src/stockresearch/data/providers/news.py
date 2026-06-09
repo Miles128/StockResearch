@@ -10,7 +10,12 @@ from urllib.parse import quote
 
 import akshare as ak
 import httpx
-from curl_cffi import requests as curl_requests
+try:
+    from curl_cffi.requests import Session as CurlSession
+
+    _HAS_CURL_CFFI = True
+except ImportError:
+    _HAS_CURL_CFFI = False
 
 from stockresearch.core.config import get_settings
 from stockresearch.utils.llm import get_llm_client
@@ -215,12 +220,23 @@ def _fetch_em_symbol_news_sync(keyword: str, limit: int) -> list[RawNewsItem]:
         "Referer": f"https://so.eastmoney.com/news/s?keyword={quote(keyword)}",
     }
     try:
-        resp = curl_requests.get(
-            "https://search-api-web.eastmoney.com/search/jsonp",
-            params=params,
-            headers=headers,
-            timeout=8.0,
-        )
+        if _HAS_CURL_CFFI:
+            # curl_cffi impersonates browser TLS fingerprints
+            with CurlSession(impersonate="chrome") as s:
+                resp = s.get(
+                    "https://search-api-web.eastmoney.com/search/jsonp",
+                    params=params,
+                    headers=headers,
+                    timeout=8.0,
+                )
+        else:
+            # fallback to httpx (may be blocked by anti-bot)
+            resp = httpx.get(
+                "https://search-api-web.eastmoney.com/search/jsonp",
+                params=params,
+                headers=headers,
+                timeout=8.0,
+            )
         resp.raise_for_status()
         payload = resp.text
         start = payload.find("(")

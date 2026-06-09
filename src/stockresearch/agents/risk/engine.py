@@ -47,7 +47,7 @@ async def _llm_market_assessment(llm: LLMClient, holdings: list[Holding]) -> str
     if not holdings:
         return risk_msg.llm_no_holdings_market()
     holdings_desc = "\n".join(
-        f"- {h.name}({h.symbol}) {h.sector} 成本{h.cost_price}" for h in holdings
+        f"- {h.name}({h.symbol}) {h.sector} 成本{h.float_cost_price:.2f}" for h in holdings
     )
     system = f"你是 A 股风控分析师。{_RISK_LLM_BRIEF} 评估市场环境对组合的影响。不要建议买卖。"
     user = f"用户持仓：\n{holdings_desc}"
@@ -83,7 +83,7 @@ async def _llm_scenario_analysis(
     if not holdings:
         return []
     holdings_desc = "\n".join(
-        f"- {h.name}({h.symbol}) {h.sector} 成本{h.cost_price}" for h in holdings
+        f"- {h.name}({h.symbol}) {h.sector} 成本{h.float_cost_price:.2f}" for h in holdings
     )
     alerts_desc = (
         "\n".join(f"- [{a.severity}] {a.message}" for a in alerts) if alerts else "无"
@@ -104,7 +104,7 @@ def _sector_concentration(holdings: list[Holding]) -> tuple[float, str | None]:
     sector_values: dict[str, float] = {}
     total = 0.0
     for h in holdings:
-        value = h.cost_price * h.quantity
+        value = h.float_cost_price * h.quantity
         sector_values[h.sector] = sector_values.get(h.sector, 0) + value
         total += value
     if total <= 0:
@@ -127,13 +127,13 @@ async def run_risk_checkup(
     )
 
     for holding, quote in zip(holdings, quotes, strict=True):
-        drawdown = (holding.cost_price - quote.price) / holding.cost_price
+        drawdown = (holding.float_cost_price - quote.price) / holding.float_cost_price
 
         if drawdown >= 0.15:
             msg = risk_msg.alert_stop_loss_red(
                 holding.name,
                 holding.symbol,
-                holding.cost_price,
+                holding.float_cost_price,
                 quote.price,
                 drawdown,
             )
@@ -258,7 +258,7 @@ async def run_risk_checkup(
                 HoldingQuote(
                     symbol=h.symbol,
                     name=h.name,
-                    cost_price=h.cost_price,
+                    cost_price=h.float_cost_price,
                     current_price=q.price,
                     quantity=h.quantity,
                     sector=h.sector,

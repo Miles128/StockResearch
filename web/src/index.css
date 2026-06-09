@@ -1,5 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap");
-
 :root,
 [data-theme="orange-black"] {
   --bbg-black: #000000;
@@ -45,7 +43,7 @@
   --radius: 0;
   --shadow: none;
   --font-ui: Arial, Helvetica, "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-mono: "IBM Plex Mono", "Courier New", Consolas, monospace;
+  --font-mono: Consolas, Menlo, "Courier New", monospace;
 }
 
 [data-theme="wine-red-white"] {
@@ -853,7 +851,7 @@ input:focus {
   padding: 8px;
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: var(--font-mono, "IBM Plex Mono", monospace);
+  font-family: var(--font-mono);
   font-size: 11.5px;
   line-height: 1.45;
   color: var(--bbg-muted);
@@ -1139,15 +1137,15 @@ input:focus {
 
 .holding-action-priority { font-size: 12.5px; font-family: var(--font-mono); }
 
-.holding-action.action-加仓 { border-left: 2px solid var(--bbg-up); }
-.holding-action.action-减仓 { border-left: 2px solid var(--bbg-down); }
-.holding-action.action-持有观望 { border-left: 2px solid var(--bbg-orange); }
-.holding-action.action-暂不调整 { border-left: 2px solid var(--bbg-muted); }
+.holding-action.action-add { border-left: 2px solid var(--bbg-up); }
+.holding-action.action-reduce { border-left: 2px solid var(--bbg-down); }
+.holding-action.action-hold { border-left: 2px solid var(--bbg-orange); }
+.holding-action.action-hold_no_change { border-left: 2px solid var(--bbg-muted); }
 
-.holding-action.action-加仓 .holding-action-badge { color: var(--bbg-up); }
-.holding-action.action-减仓 .holding-action-badge { color: var(--bbg-down); }
-.holding-action.action-持有观望 .holding-action-badge { color: var(--bbg-orange); }
-.holding-action.action-暂不调整 .holding-action-badge { color: var(--bbg-muted); }
+.holding-action.action-add .holding-action-badge { color: var(--bbg-up); }
+.holding-action.action-reduce .holding-action-badge { color: var(--bbg-down); }
+.holding-action.action-hold .holding-action-badge { color: var(--bbg-orange); }
+.holding-action.action-hold_no_change .holding-action-badge { color: var(--bbg-muted); }
 
 .stream-role-bull { border-left: 2px solid var(--bbg-up); }
 .stream-role-bear { border-left: 2px solid var(--bbg-down); }
@@ -1163,9 +1161,9 @@ input:focus {
 .stream-role-judge { border-left: 2px solid var(--bbg-orange); }
 .stream-role-rules { border-left: 2px solid var(--bbg-warn); }
 
-.stream-judge.action-加仓 { border-color: rgba(0, 200, 83, 0.45); }
-.stream-judge.action-减仓 { border-color: rgba(255, 23, 68, 0.45); }
-.stream-judge.action-持有观望 { border-color: rgba(255, 102, 0, 0.45); }
+.stream-judge.action-add { border-color: rgba(0, 200, 83, 0.45); }
+.stream-judge.action-reduce { border-color: rgba(255, 23, 68, 0.45); }
+.stream-judge.action-hold { border-color: rgba(255, 102, 0, 0.45); }
 
 .vote-tally {
   margin-top: 6px;
@@ -1190,9 +1188,9 @@ input:focus {
 .verdict-summary { margin: 0; font-size: 15px; }
 .verdict-reason { margin: 4px 0 0; font-size: 13.75px; }
 
-.verdict-card.action-加仓 { border-left: 2px solid var(--bbg-up); }
-.verdict-card.action-减仓 { border-left: 2px solid var(--bbg-down); }
-.verdict-card.action-持有观望 { border-left: 2px solid var(--bbg-orange); }
+.verdict-card.action-add { border-left: 2px solid var(--bbg-up); }
+.verdict-card.action-reduce { border-left: 2px solid var(--bbg-down); }
+.verdict-card.action-hold { border-left: 2px solid var(--bbg-orange); }
 
 @media (max-width: 720px) {
   .holding-form { grid-template-columns: 1fr; }

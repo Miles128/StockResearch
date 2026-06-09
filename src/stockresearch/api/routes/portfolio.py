@@ -60,7 +60,7 @@ def _upsert_holding(
     if existing is not None:
         total_qty = existing.quantity + quantity
         existing.cost_price = (
-            existing.cost_price * existing.quantity + cost_price * quantity
+            float(existing.cost_price) * existing.quantity + cost_price * quantity
         ) / total_qty
         existing.quantity = total_qty
         existing.name = name
@@ -143,9 +143,9 @@ def _enrich_holding(
         change_pct=q.change_pct,
         price_label=label,
         market_session=session,
-        profit_amount=profit_amount(holding.cost_price, holding.quantity, q.price),
-        profit_pct=profit_pct(holding.cost_price, q.price),
-        annualized_pct=annualized_return_pct(holding.cost_price, q.price, holding.buy_date),
+        profit_amount=profit_amount(holding.float_cost_price, holding.quantity, q.price),
+        profit_pct=profit_pct(holding.float_cost_price, q.price),
+        annualized_pct=annualized_return_pct(holding.float_cost_price, q.price, holding.buy_date),
         quote_available=True,
     )
 
@@ -267,8 +267,29 @@ def add_watchlist(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> WatchlistItem:
+    existing = (
+        db.query(WatchlistItem)
+        .filter(WatchlistItem.user_id == user.id, WatchlistItem.symbol == payload.symbol)
+        .first()
+    )
+    if existing:
+        return existing
     item = WatchlistItem(user_id=user.id, **payload.model_dump())
     db.add(item)
     db.commit()
     db.refresh(item)
     return item
+
+
+@router.delete("/watchlist/{item_id}")
+def delete_watchlist(
+    item_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    item = db.query(WatchlistItem).filter(WatchlistItem.id == item_id, WatchlistItem.user_id == user.id).first()
+    if item is None:
+        raise HTTPException(status_code=404, detail="Watchlist item not found")
+    db.delete(item)
+    db.commit()
+    return {"status": "deleted"}

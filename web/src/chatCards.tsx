@@ -166,9 +166,11 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
         Long: "up",
         Short: "down",
         Neutral: "",
+        bullish: "up",
+        bearish: "down",
       };
       const stanceLabel = (s: string) =>
-        ({ 看多: t("card.long"), 看空: t("card.short"), 中性: t("card.neutral") } as Record<string, string>)[s] ?? s;
+        ({ 看多: t("card.long"), 看空: t("card.short"), 中性: t("card.neutral"), Long: t("card.long"), Short: t("card.short"), Neutral: t("card.neutral"), bullish: t("card.long"), bearish: t("card.short") } as Record<string, string>)[s] ?? s;
       return (
         <div className="card">
           <h4>
@@ -176,13 +178,13 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
           </h4>
           <div className="stat-row">
             <span className="stat-pill">
-              {t("card.long")} {d.vote_tally["看多"] || 0}
+              {t("card.long")} {(d.vote_tally["看多"] || d.vote_tally["Long"] || d.vote_tally["bullish"] || 0)}
             </span>
             <span className="stat-pill">
-              {t("card.short")} {d.vote_tally["看空"] || 0}
+              {t("card.short")} {(d.vote_tally["看空"] || d.vote_tally["Short"] || d.vote_tally["bearish"] || 0)}
             </span>
             <span className="stat-pill">
-              {t("card.neutral")} {d.vote_tally["中性"] || 0}
+              {t("card.neutral")} {(d.vote_tally["中性"] || d.vote_tally["Neutral"] || d.vote_tally["neutral"] || 0)}
             </span>
             <span
               className={`stat-pill ${d.final_bias === "bullish" ? "up" : d.final_bias === "bearish" ? "down" : ""}`}

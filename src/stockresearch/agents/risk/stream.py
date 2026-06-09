@@ -68,7 +68,7 @@ def _parse_judge(raw: str, alerts: list[RiskAlertOut], holdings: list[Holding]) 
 def _parse_rule_alerts(holdings: list[Holding], quotes: list) -> list[RiskAlertOut]:
     alerts: list[RiskAlertOut] = []
     for holding, quote in zip(holdings, quotes, strict=True):
-        drawdown = (holding.cost_price - quote.price) / holding.cost_price
+        drawdown = (holding.float_cost_price - quote.price) / holding.float_cost_price
         if drawdown >= 0.15:
             alerts.append(
                 RiskAlertOut(
@@ -78,7 +78,7 @@ def _parse_rule_alerts(holdings: list[Holding], quotes: list) -> list[RiskAlertO
                     message=risk_msg.alert_stop_loss_red(
                         holding.name,
                         holding.symbol,
-                        holding.cost_price,
+                        holding.float_cost_price,
                         quote.price,
                         drawdown,
                     ),
@@ -148,15 +148,16 @@ def _holdings_detail_block(
 
     lines: list[str] = []
     for holding, quote in zip(holdings, quotes, strict=True):
-        if holding.cost_price:
-            drawdown = (holding.cost_price - quote.price) / holding.cost_price
+        cp = holding.float_cost_price
+        if cp:
+            drawdown = (cp - quote.price) / cp
         else:
             drawdown = 0.0
         stock_alerts = alerts_by_symbol.get(holding.symbol, [])
         alert_text = "；".join(a.message for a in stock_alerts) if stock_alerts else "无个股告警"
         lines.append(
             f"- {holding.name}({holding.symbol}) 行业{holding.sector} "
-            f"现价{quote.price:.2f} 成本{holding.cost_price:.2f} 回撤{drawdown:.1%} · {alert_text}"
+            f"现价{quote.price:.2f} 成本{cp:.2f} 回撤{drawdown:.1%} · {alert_text}"
         )
     if portfolio_alerts:
         lines.append("组合层面：" + "；".join(a.message for a in portfolio_alerts))

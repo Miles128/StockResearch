@@ -13,6 +13,16 @@ from stockresearch.utils.llm_test import verify_llm_connection
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 
+def _mask_api_key(key: str) -> str:
+    """Return a masked version of the API key for display."""
+    key = key.strip()
+    if not key:
+        return ""
+    if len(key) <= 8:
+        return "****"
+    return key[:4] + "****" + key[-4:]
+
+
 @router.get("/llm", response_model=LlmSettingsOut)
 def get_llm_settings() -> LlmSettingsOut:
     settings = get_settings()
@@ -23,7 +33,7 @@ def get_llm_settings() -> LlmSettingsOut:
     return LlmSettingsOut(
         default_base_url=settings.llm_base_url.strip(),
         default_model=settings.llm_model.strip(),
-        default_api_key=settings.llm_api_key.strip(),
+        default_api_key=_mask_api_key(settings.llm_api_key),
         default_temperature=0.3,
         server_use_mock=settings.use_mock_llm,
         server_configured=configured,

@@ -1,14 +1,18 @@
-"""In-memory cache with TTL support."""
+"""In-memory cache with TTL support and size limits."""
 
 import json
 import time
+from collections import OrderedDict
 from collections.abc import Callable
 from typing import TypeVar
 
 T = TypeVar("T")
 
-_memory_store: dict[str, tuple[str, float]] = {}
-_factory_store: dict[str, tuple[float, object]] = {}
+_MAX_MEMORY_ENTRIES = 1000
+_MAX_FACTORY_ENTRIES = 200
+
+_memory_store: OrderedDict[str, tuple[str, float]] = OrderedDict()
+_factory_store: OrderedDict[str, tuple[float, object]] = OrderedDict()
 
 _MEMORY_TTL_SWEEP_INTERVAL = 100
 _memory_ops_since_sweep = 0
@@ -26,6 +30,11 @@ def _sweep_expired() -> None:
         del _memory_store[k]
 
 
+def _evict_if_full(store: OrderedDict[str, object], max_size: int) -> None:
+    while len(store) > max_size:
+        store.popitem(last=False)
+
+
 class CacheService:
     def get(self, key: str) -> str | None:
         entry = _memory_store.get(key)
@@ -35,6 +44,7 @@ class CacheService:
         if expires_at > 0 and time.monotonic() > expires_at:
             del _memory_store[key]
             return None
+        _memory_store.move_to_end(key)
         return value
 
     def set(self, key: str, value: str, ttl_seconds: int | None = None) -> None:
@@ -42,6 +52,7 @@ class CacheService:
         if ttl_seconds:
             expires_at = time.monotonic() + ttl_seconds
         _memory_store[key] = (value, expires_at)
+        _evict_if_full(_memory_store, _MAX_MEMORY_ENTRIES)
         _sweep_expired()
 
     def get_json(self, key: str) -> dict[str, object] | None:
@@ -65,9 +76,11 @@ def get_cached(key: str, ttl_sec: float, factory: Callable[[], T]) -> T:
     now = time.monotonic()
     entry = _factory_store.get(key)
     if entry is not None and now - entry[0] < ttl_sec:
+        _factory_store.move_to_end(key)
         return entry[1]  # type: ignore[return-value]
     value = factory()
     _factory_store[key] = (now, value)
+    _evict_if_full(_factory_store, _MAX_FACTORY_ENTRIES)
     return value
 
 

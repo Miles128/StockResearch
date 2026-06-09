@@ -29,12 +29,46 @@ function formatApiDetail(detail: unknown): string {
   return "";
 }
 
+const DEFAULT_TIMEOUT_MS = 30_000;
+const RETRY_COUNT = 2;
+const RETRY_DELAY_MS = 1000;
+
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
+
+async function fetchWithRetry(url: string, options: RequestInit, retries = RETRY_COUNT): Promise<Response> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const resp = await fetchWithTimeout(url, options);
+      if (resp.status >= 500 && attempt < retries) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
+        continue;
+      }
+      return resp;
+    } catch (err) {
+      lastError = err as Error;
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
+      }
+    }
+  }
+  throw lastError;
+}
+
 async function requestPlain<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
-  const resp = await fetch(`${API}${path}`, { ...options, headers });
+  const resp = await fetchWithRetry(`${API}${path}`, { ...options, headers });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ detail: resp.statusText }));
     throw new Error(formatApiDetail(err.detail) || "请求失败");
@@ -50,7 +84,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...(options.headers as Record<string, string>),
   };
 
-  const resp = await fetch(`${API}${path}`, { ...options, headers });
+  const resp = await fetchWithRetry(`${API}${path}`, { ...options, headers });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ detail: resp.statusText }));
     throw new Error(formatApiDetail(err.detail) || "请求失败");
@@ -114,10 +148,20 @@ async function consumeSse(
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  const SSE_TIMEOUT_MS = 60_000;
+  let lastData = Date.now();
 
   while (true) {
-    const { done, value } = await reader.read();
+    const readPromise = reader.read();
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error("SSE connection timed out — no data received for 60s"));
+      }, SSE_TIMEOUT_MS);
+    });
+
+    const { done, value } = await Promise.race([readPromise, timeoutPromise]);
     if (done) break;
+    lastData = Date.now();
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split("\n");
     buffer = lines.pop() || "";
@@ -257,7 +301,7 @@ async function streamResearch(
   symbol: string,
   onEvent?: (event: AgentStreamEvent) => void,
 ): Promise<ResearchReport | null> {
-  const resp = await fetch(apiUrl(`/research/analyze/stream?symbol=${symbol}`), {
+  const resp = await fetchWithTimeout(apiUrl(`/research/analyze/stream?symbol=${symbol}`), {
     headers: llmRequestHeaders(),
   });
   if (!resp.ok) {

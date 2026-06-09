@@ -8,12 +8,22 @@ from collections.abc import AsyncIterator
 
 import httpx
 
-from stockresearch.agents.output_style import apply_style_to_system
 from stockresearch.core.config import get_settings
-from stockresearch.core.llm_config import LlmOverrides, resolve_chat_completions_url
-from stockresearch.utils.llm_usage import estimate_tokens, record_usage
 
 logger = logging.getLogger(__name__)
+
+
+def _httpx_client_kwargs() -> dict:
+    """Build common httpx.AsyncClient kwargs including proxy if configured."""
+    kwargs: dict = {"timeout": 60.0}
+    proxy = get_settings().llm_http_proxy
+    if proxy:
+        kwargs["proxy"] = proxy
+    return kwargs
+
+from stockresearch.agents.output_style import apply_style_to_system
+from stockresearch.core.llm_config import LlmOverrides, resolve_chat_completions_url
+from stockresearch.utils.llm_usage import estimate_tokens, record_usage
 
 
 def _styled_system(system: str) -> str:
@@ -296,7 +306,7 @@ class OpenAICompatibleClient(LLMClient):
         prompt_text = f"{system}\n{user}"
         completion_parts: list[str] = []
         usage_from_api: dict[str, int] | None = None
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(**_httpx_client_kwargs()) as client:
             async with client.stream(
                 "POST",
                 self._base_url,
@@ -367,7 +377,7 @@ class OpenAICompatibleClient(LLMClient):
             "messages": styled_messages,
             "temperature": self._temperature,
         }
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(**_httpx_client_kwargs()) as client:
             resp = await client.post(
                 self._base_url,
                 headers=headers,

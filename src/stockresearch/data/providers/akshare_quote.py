@@ -1,6 +1,7 @@
 """AkShare daily K-line fallback quotes when Sina is unavailable."""
 
 import logging
+import time
 from datetime import UTC, datetime, timedelta
 
 import akshare as ak
@@ -50,6 +51,7 @@ def fetch_akshare_hist_quotes(symbols: list[str]) -> dict[str, dict[str, float |
             "volume": float(last["成交量"]),
             "updated_at": datetime.now(UTC),
         }
+        time.sleep(0.3)
 
     if not results:
         raise DataProviderError("AkShare 历史行情不可用")

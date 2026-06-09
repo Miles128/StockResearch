@@ -1,5 +1,6 @@
 """FastAPI application factory."""
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -8,8 +9,12 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
 
+from stockresearch.api.rate_limit import limiter
 from stockresearch.api.routes import briefing, chat, market, news, portfolio, research, risk, settings
+from stockresearch.core.config import get_settings
 from stockresearch.core.constants import DISCLAIMER
 from stockresearch.core.data_source_config import clear_data_source_context, set_tushare_token
 from stockresearch.core.exceptions import StockResearchError
@@ -21,6 +26,11 @@ _WEB_DIST = _PROJECT_ROOT / "web" / "dist"
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)-5s %(name)s | %(message)s",
+        datefmt="%H:%M:%S",
+    )
     init_db()
     from stockresearch.db.session import SessionLocal
     from stockresearch.services.local_user import get_or_create_mvp_user
@@ -36,9 +46,16 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 def create_app() -> FastAPI:
     app = FastAPI(title="StockResearch", version="0.1.0", lifespan=lifespan)
 
+    # Rate limiting
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+    # CORS — restrict origins in production
+    cfg = get_settings()
+    allowed_origins = cfg.cors_allowed_origins.split(",") if cfg.cors_allowed_origins else ["*"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

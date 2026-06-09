@@ -360,7 +360,7 @@ class OrchestratorAgent:
         )
         if not rows:
             return f"持仓中暂无「{sector}」板块标的"
-        lines = [f"- {h.name}({h.symbol}) 成本{h.cost_price:.2f} · {h.quantity}股" for h in rows]
+        lines = [f"- {h.name}({h.symbol}) 成本{h.float_cost_price:.2f} · {h.quantity}股" for h in rows]
         return f"「{sector}」板块持仓：\n" + "\n".join(lines)
 
     async def _tool_sector_news(self, args: dict[str, Any]) -> str:

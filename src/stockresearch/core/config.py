@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     use_mock_market_data: bool = False
     research_cache_ttl_seconds: int = 86400
     agent_timeout_seconds: int = 45
+    cors_allowed_origins: str = ""  # comma-separated, empty = allow all
 
 
 @lru_cache
