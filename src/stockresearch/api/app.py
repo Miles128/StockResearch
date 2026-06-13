@@ -9,11 +9,21 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from stockresearch.api.rate_limit import limiter
-from stockresearch.api.routes import briefing, chat, market, news, portfolio, research, risk, settings
+from stockresearch.api.routes import (
+    action_center,
+    briefing,
+    chat,
+    market,
+    news,
+    portfolio,
+    research,
+    risk,
+    settings,
+)
 from stockresearch.core.config import get_settings
 from stockresearch.core.constants import DISCLAIMER
 from stockresearch.core.data_source_config import clear_data_source_context, set_tushare_token
@@ -111,6 +121,7 @@ def create_app() -> FastAPI:
     app.include_router(risk.router, prefix="/api/v1")
     app.include_router(chat.router, prefix="/api/v1")
     app.include_router(settings.router, prefix="/api/v1")
+    app.include_router(action_center.router, prefix="/api/v1")
 
     if _WEB_DIST.is_dir():
         app.mount("/", StaticFiles(directory=str(_WEB_DIST), html=True), name="frontend")

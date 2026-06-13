@@ -15,6 +15,8 @@ import {
 } from "./api";
 import type { Message, Tab } from "./appTypes";
 import { ChatPanel } from "./ChatPanel";
+import { DemoBanner } from "./DemoBanner";
+import { ActionCenter } from "./ActionCenter";
 import { useI18n } from "./i18n";
 import { isLlmConfiguredLocally, isServerLlmConfigured } from "./llmSettings";
 import { formatHeaderUsage, formatLlmUsage } from "./llmUsageFormat";
@@ -83,7 +85,8 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string>();
-  const [loading, setLoading] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [riskLoading, setRiskLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
   const [chatStream, setChatStream] = useState(emptyStreamState());
   const [news, setNews] = useState<NewsItem[]>([]);
@@ -108,6 +111,8 @@ export default function App() {
   const [lookupPrice, setLookupPrice] = useState<number | null>(null);
   const [newsSectors, setNewsSectors] = useState<SectorPreferences | null>(null);
   const [sectorSaving, setSectorSaving] = useState(false);
+  const [isDemo, setIsDemo] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
   const settingsRequired = llmCheckDone && !llmConfigured;
 
   const chatExamples = useMemo(
@@ -191,7 +196,9 @@ export default function App() {
 
   useEffect(() => {
     void loadOverview();
-    void loadHoldings();
+    void loadHoldings().then(() => {
+      api.demoStatus().then((s) => setIsDemo(s.demo)).catch(() => {});
+    });
     void api
       .llmSettings()
       .then((meta) => {
@@ -259,8 +266,18 @@ export default function App() {
   async function loadHoldings() {
     try {
       setHoldingsLoading(true);
-      setHoldings(await api.holdingsEnriched());
+      const data = await api.holdingsEnriched();
+      setHoldings(data);
       refreshDataStatus();
+      if (data.length === 0) {
+        try {
+          await api.loadDemo();
+          setHoldings(await api.holdingsEnriched());
+          setIsDemo(true);
+        } catch {
+          // ignore auto-load failures
+        }
+      }
     } catch (e) {
       showError(String(e));
     } finally {
@@ -269,7 +286,7 @@ export default function App() {
   }
 
   async function executeChat(query: string, options?: ChatStreamOptions) {
-    setLoading(true);
+    setChatLoading(true);
     setStatusMsg(t("chat.connecting"));
     setChatStream(emptyStreamState());
     let processSnapshot = emptyStreamState();
@@ -341,13 +358,13 @@ export default function App() {
         setMessages((m) => [...m, { role: "assistant", content: `Error: ${String(e)}` }]);
       }
     } finally {
-      setLoading(false);
+      setChatLoading(false);
       setStatusMsg("");
     }
   }
 
   function startChatQuery(query: string, opts?: { switchTab?: boolean }) {
-    if (!query.trim() || loading) return;
+    if (!query.trim() || chatLoading) return;
     if (opts?.switchTab) setTab("chat");
     setInput("");
     setMessages((m) => [...m, { role: "user", content: query }]);
@@ -355,7 +372,7 @@ export default function App() {
   }
 
   function sendChat() {
-    if (!input.trim() || loading) return;
+    if (!input.trim() || chatLoading) return;
     startChatQuery(input.trim());
   }
 
@@ -392,13 +409,13 @@ export default function App() {
   }
 
   function confirmChatStock(originalMessage: string, symbol: string, name: string) {
-    if (loading) return;
+    if (chatLoading) return;
     setMessages((m) => [...m, { role: "user", content: `${name}（${symbol}）` }]);
     void executeChat(originalMessage, { confirmedSymbol: symbol, confirmedName: name });
   }
 
   function confirmChatRoute(originalMessage: string, preference: ExecutionPreference) {
-    if (loading) return;
+    if (chatLoading) return;
     const labels: Record<ExecutionPreference, string> = {
       react: t("chat.routeReact"),
       plan_execute: t("chat.routePlan"),
@@ -410,6 +427,32 @@ export default function App() {
       { role: "user", content: t("chat.selectedMode", { mode: labels[preference] }) },
     ]);
     void executeChat(originalMessage, { executionPreference: preference });
+  }
+
+  async function loadDemoHoldings() {
+    try {
+      setDemoLoading(true);
+      await api.loadDemo();
+      setIsDemo(true);
+      await loadHoldings();
+    } catch (e) {
+      showError(String(e));
+    } finally {
+      setDemoLoading(false);
+    }
+  }
+
+  async function clearDemoHoldings() {
+    try {
+      setDemoLoading(true);
+      await api.clearDemo();
+      setIsDemo(false);
+      await loadHoldings();
+    } catch (e) {
+      showError(String(e));
+    } finally {
+      setDemoLoading(false);
+    }
   }
 
   async function loadNews() {
@@ -428,12 +471,12 @@ export default function App() {
   async function runRisk() {
     try {
       setError("");
-      setLoading(true);
+      setRiskLoading(true);
       setRisk(await api.riskCheckup());
     } catch (e) {
       showError(String(e));
     } finally {
-      setLoading(false);
+      setRiskLoading(false);
     }
   }
 
@@ -573,11 +616,25 @@ export default function App() {
 
         <div className="main">
           {error && <div className="error">{error}</div>}
+          {holdings.length === 0 && !isDemo && (
+            <DemoBanner onLoad={loadDemoHoldings} onClear={clearDemoHoldings} isDemo={isDemo} loading={demoLoading} />
+          )}
+          {isDemo && (
+            <DemoBanner
+              onLoad={loadDemoHoldings}
+              onClear={clearDemoHoldings}
+              onGoPortfolio={() => setTab("portfolio")}
+              isDemo={isDemo}
+              loading={demoLoading}
+            />
+          )}
 
           {tab === "chat" && (
-            <ChatPanel
+            <>
+              <ActionCenter onNavigate={(t) => setTab(t as Tab)} onChatQuery={(q) => startChatQuery(q)} />
+              <ChatPanel
               messages={messages}
-              loading={loading}
+              loading={chatLoading}
               statusMsg={statusMsg}
               chatStream={chatStream}
               input={input}
@@ -590,6 +647,7 @@ export default function App() {
               onConfirmStock={confirmChatStock}
               onConfirmRoute={confirmChatRoute}
             />
+            </>
           )}
 
           {tab === "news" && (
@@ -634,7 +692,7 @@ export default function App() {
             <RiskPanel
               holdings={holdings}
               risk={risk}
-              loading={loading}
+              loading={riskLoading}
               numLocale={numLocale}
               ratioGrade={ratioGrade}
               alertHoldingTags={alertHoldingTags}

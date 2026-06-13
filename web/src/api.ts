@@ -79,6 +79,22 @@ async function requestPlain<T>(path: string, options: RequestInit = {}): Promise
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    ...dataSourceRequestHeaders(),
+    ...(options.headers as Record<string, string>),
+  };
+
+  const resp = await fetchWithRetry(`${API}${path}`, { ...options, headers });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+    throw new Error(formatApiDetail(err.detail) || "请求失败");
+  }
+  return resp.json();
+}
+
+/** Like request() but also sends LLM credentials — use only for LLM-dependent endpoints. */
+async function requestWithLlm<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
     ...llmRequestHeaders(),
     ...dataSourceRequestHeaders(),
     ...(options.headers as Record<string, string>),
@@ -126,6 +142,12 @@ export interface AgentStreamEvent {
   result?: Record<string, unknown>;
   candidates?: { symbol: string; name: string }[];
   original_message?: string;
+  // News deep analysis events
+  symbol?: string;
+  name?: string;
+  assessment?: string;
+  direction?: string;
+  key_points?: string[];
 }
 
 export interface HoldingAction {
@@ -141,6 +163,7 @@ export type StreamEvent = AgentStreamEvent;
 async function consumeSse(
   resp: Response,
   onEvent?: (event: AgentStreamEvent) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
   if (!resp.body) {
     throw new Error("流式请求失败");
@@ -150,32 +173,52 @@ async function consumeSse(
   let buffer = "";
   const SSE_TIMEOUT_MS = 60_000;
   let lastData = Date.now();
+  let timedOut = false;
 
-  while (true) {
-    const readPromise = reader.read();
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => {
-        reject(new Error("SSE connection timed out — no data received for 60s"));
-      }, SSE_TIMEOUT_MS);
-    });
+  const onAbort = () => {
+    timedOut = true;
+    reader.cancel().catch(() => {});
+  };
+  signal?.addEventListener("abort", onAbort, { once: true });
 
-    const { done, value } = await Promise.race([readPromise, timeoutPromise]);
-    if (done) break;
-    lastData = Date.now();
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      const jsonStr = line.slice(6).trim();
-      if (!jsonStr || jsonStr === "[DONE]") continue;
+  try {
+    while (true) {
+      if (timedOut) break;
+      const readPromise = reader.read();
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error("SSE connection timed out — no data received for 60s"));
+        }, SSE_TIMEOUT_MS);
+      });
+
       try {
-        const event = JSON.parse(jsonStr) as AgentStreamEvent;
-        onEvent?.(event);
-      } catch {
-        // skip malformed JSON
+        const { done, value } = await Promise.race([readPromise, timeoutPromise]);
+        if (done) break;
+        lastData = Date.now();
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr || jsonStr === "[DONE]") continue;
+          try {
+            const event = JSON.parse(jsonStr) as AgentStreamEvent;
+            onEvent?.(event);
+          } catch {
+            // skip malformed JSON
+          }
+        }
+      } catch (err) {
+        // Timeout — cancel reader and break
+        reader.cancel().catch(() => {});
+        if (err instanceof Error && err.message.includes("timed out")) break;
+        throw err;
       }
     }
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
+    try { reader.releaseLock(); } catch { /* already released */ }
   }
 }
 
@@ -192,6 +235,7 @@ async function streamChat(
   sessionId?: string,
   onEvent?: (event: AgentStreamEvent) => void,
   options?: ChatStreamOptions,
+  signal?: AbortSignal,
 ): Promise<ChatResponse | null> {
   const resp = await fetch(apiUrl("/chat/stream"), {
     method: "POST",
@@ -205,6 +249,7 @@ async function streamChat(
       ...analysisBodyField(),
       ...llmBodyField(),
     }),
+    signal,
   });
   if (!resp.ok) {
     throw new Error("流式请求失败");
@@ -216,14 +261,14 @@ async function streamChat(
     if (event.type === "done" && event.response) {
       finalResponse = event.response as ChatResponse;
     }
-  });
+  }, signal);
   return finalResponse;
 }
 
 export const api = {
   llmSettings: () => request<LlmSettingsMeta>("/settings/llm"),
   saveLlmSettings: (form: LlmUserSettings) =>
-    request<LlmSettingsMeta>("/settings/llm", {
+    requestWithLlm<LlmSettingsMeta>("/settings/llm", {
       method: "PUT",
       body: JSON.stringify(llmFormToApiBody(form)),
     }),
@@ -233,7 +278,7 @@ export const api = {
       body: JSON.stringify(llmFormToApiBody(form)),
     }),
   chat: (message: string, sessionId?: string, options?: ChatStreamOptions) =>
-    request<ChatResponse>("/chat", {
+    requestWithLlm<ChatResponse>("/chat", {
       method: "POST",
       body: JSON.stringify({
         message,
@@ -274,7 +319,7 @@ export const api = {
   researchStream: (symbol: string, onEvent?: (event: AgentStreamEvent) => void) =>
     streamResearch(symbol, onEvent),
   riskCheckup: () =>
-    request<RiskCheckup>("/risk/checkup", {
+    requestWithLlm<RiskCheckup>("/risk/checkup", {
       method: "POST",
       body: JSON.stringify({ ...analysisBodyField() }),
     }),
@@ -294,7 +339,17 @@ export const api = {
   searchMemory: (q: string) =>
     request<MemorySearchResult>(`/research/memory/search?q=${encodeURIComponent(q)}`),
   generateBriefing: (kind: "morning" | "closing") =>
-    request<Briefing>(`/briefing/generate?kind=${kind}`, { method: "POST" }),
+    requestWithLlm<Briefing>(`/briefing/generate?kind=${kind}`, { method: "POST" }),
+  loadDemo: () => request<{ status: string; count: number; demo: boolean }>("/portfolio/demo", { method: "POST" }),
+  clearDemo: () => request<{ status: string; deleted: number }>("/portfolio/demo", { method: "DELETE" }),
+  demoStatus: () => request<{ demo: boolean }>("/portfolio/demo/status"),
+  dailyActions: () => request<DailyActionCenter>("/action-center/daily"),
+  analyzeNews: (
+    newsId: number,
+    symbol: string,
+    onEvent?: (event: AgentStreamEvent) => void,
+    signal?: AbortSignal,
+  ) => streamNewsAnalysis(newsId, symbol, onEvent, signal),
 };
 
 async function streamResearch(
@@ -315,6 +370,29 @@ async function streamResearch(
     }
   });
   return report;
+}
+
+async function streamNewsAnalysis(
+  newsId: number,
+  symbol: string,
+  onEvent?: (event: AgentStreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<NewsAnalysis | null> {
+  const resp = await fetch(apiUrl(`/news/${newsId}/analyze/stream?symbol=${symbol}`), {
+    headers: llmRequestHeaders(),
+    signal,
+  });
+  if (!resp.ok) {
+    throw new Error("新闻深度分析请求失败");
+  }
+  let analysis: NewsAnalysis | null = null;
+  await consumeSse(resp, (event) => {
+    onEvent?.(event);
+    if (event.type === "done" && event.result) {
+      analysis = event.result as unknown as NewsAnalysis;
+    }
+  }, signal);
+  return analysis;
 }
 
 export interface LlmUsage {
@@ -427,6 +505,7 @@ export interface NewsItem {
   sentiment: string;
   impact_level: string;
   related_to_user: boolean;
+  entities: string[];
   category: "market" | "sector" | "holding";
   published_at: string;
 }
@@ -617,6 +696,24 @@ export interface Briefing {
   generated_at: string;
 }
 
+export interface ActionSignal {
+  type: "price" | "news" | "risk" | "fundamental" | "info";
+  severity: "critical" | "warning" | "info";
+  title: string;
+  detail: string;
+  action: string;
+  action_target: string;
+  symbol: string | null;
+  weight: number;
+}
+
+export interface DailyActionCenter {
+  signals: ActionSignal[];
+  summary: string;
+  generated_at: string;
+  disclaimer: string;
+}
+
 export interface KlineChart {
   symbol: string;
   days: number;
@@ -635,4 +732,34 @@ export interface KlineChart {
     macd_signal: (number | null)[];
     macd_histogram: (number | null)[];
   };
+}
+
+// ── News Deep Analysis ──
+
+export interface NewsAnalysisStockImpact {
+  symbol: string;
+  name: string;
+  price: number;
+  change_pct: number;
+  pe_ttm: number | null;
+  technical_signal: string;
+  technical_summary: string;
+  fundamental_summary: string;
+  sentiment_summary: string;
+  impact_assessment: string;
+  impact_direction: "positive" | "negative" | "neutral";
+  key_points: string[];
+}
+
+export interface NewsAnalysis {
+  news_id: number;
+  title: string;
+  summary: string;
+  source: string;
+  entities: string[];
+  related_stocks: NewsAnalysisStockImpact[];
+  market_context: string;
+  cross_analysis: string;
+  overall_assessment: string;
+  disclaimer: string;
 }

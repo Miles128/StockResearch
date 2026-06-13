@@ -293,3 +293,37 @@ def delete_watchlist(
     db.delete(item)
     db.commit()
     return {"status": "deleted"}
+
+
+# ── Demo holdings ────────────────────────────────────────
+
+@router.post("/demo")
+def load_demo(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    from stockresearch.services.demo_holdings import is_demo_mode, load_demo_holdings
+
+    holdings = load_demo_holdings(db, user.id)
+    return {"status": "loaded", "count": len(holdings), "demo": is_demo_mode(db, user.id)}
+
+
+@router.delete("/demo")
+def clear_demo(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    from stockresearch.services.demo_holdings import clear_demo_holdings
+
+    deleted = clear_demo_holdings(db, user.id)
+    return {"status": "cleared", "deleted": deleted}
+
+
+@router.get("/demo/status")
+def demo_status(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    from stockresearch.services.demo_holdings import is_demo_mode
+
+    return {"demo": is_demo_mode(db, user.id)}
