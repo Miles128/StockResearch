@@ -7,12 +7,12 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import PlainTextResponse, Response, StreamingResponse
 from sqlalchemy.orm import Session
 
+from stockresearch.agents.industry.research import run_industry_research
 from stockresearch.agents.research.runner import run_research
 from stockresearch.agents.research.stream import run_research_stream
 from stockresearch.api.deps import get_current_user
 from stockresearch.api.llm_deps import llm_from_headers
 from stockresearch.core.exceptions import NotFoundError
-from stockresearch.agents.industry.research import run_industry_research
 from stockresearch.core.schemas import (
     IndustryResearchRequest,
     MemorySearchOut,

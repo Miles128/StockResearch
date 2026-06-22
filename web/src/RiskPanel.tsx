@@ -13,6 +13,24 @@ interface RiskPanelProps {
   onGoPortfolio: () => void;
 }
 
+function riskLevelColor(alertCount: number): string {
+  if (alertCount === 0) return "green";
+  if (alertCount <= 2) return "yellow";
+  return "red";
+}
+
+function riskLevelLabel(alertCount: number, t: (k: string) => string): string {
+  if (alertCount === 0) return t("risk.levelLow");
+  if (alertCount <= 2) return t("risk.levelMedium");
+  return t("risk.levelHigh");
+}
+
+function humanVarText(varPct: number, varValue: number, numLocale: string): string {
+  const pct = (varPct * 100).toFixed(2);
+  const val = varValue.toLocaleString(numLocale, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return `未来一天，95% 概率亏损不超过 ¥${val}（${pct}%）`;
+}
+
 export function RiskPanel({
   holdings,
   risk,
@@ -44,189 +62,26 @@ export function RiskPanel({
           </button>
         </div>
       )}
+
       {risk && (
         <>
-          <p style={{ margin: "8px 0" }}>{risk.portfolio_summary}</p>
-
-          {risk.metrics && (
-            <div className="card">
-              <h4>{t("risk.metrics")}</h4>
-              <table className="metrics-table">
-                <tbody>
-                  <tr>
-                    <td>{t("risk.sharpe")}</td>
-                    <td className="mono">{risk.metrics.sharpe_ratio.toFixed(2)}</td>
-                    <td className="muted">{ratioGrade(risk.metrics.sharpe_ratio, 2, 1)}</td>
-                  </tr>
-                  <tr>
-                    <td>{t("risk.sortino")}</td>
-                    <td className="mono">{risk.metrics.sortino_ratio.toFixed(2)}</td>
-                    <td className="muted">{ratioGrade(risk.metrics.sortino_ratio, 2, 1)}</td>
-                  </tr>
-                  <tr>
-                    <td>{t("risk.calmar")}</td>
-                    <td className="mono">{risk.metrics.calmar_ratio.toFixed(2)}</td>
-                    <td className="muted">{ratioGrade(risk.metrics.calmar_ratio, 3, 1)}</td>
-                  </tr>
-                  <tr>
-                    <td>{t("risk.infoRatio")}</td>
-                    <td className="mono">{risk.metrics.information_ratio.toFixed(2)}</td>
-                    <td className="muted">{ratioGrade(risk.metrics.information_ratio, 1, 0.5)}</td>
-                  </tr>
-                  <tr>
-                    <td>{t("risk.maxDrawdown")}</td>
-                    <td
-                      className={`mono ${risk.metrics.max_drawdown < -0.1 ? "down" : risk.metrics.max_drawdown < 0 ? "warn" : ""}`}
-                    >
-                      {(risk.metrics.max_drawdown * 100).toFixed(2)}%
-                    </td>
-                    <td className="muted">
-                      {Math.abs(risk.metrics.max_drawdown) > 0.15
-                        ? t("rating.highRisk")
-                        : Math.abs(risk.metrics.max_drawdown) > 0.08
-                          ? t("rating.watch")
-                          : t("rating.ok")}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>{t("risk.volatility")}</td>
-                    <td className="mono">{(risk.metrics.volatility * 100).toFixed(2)}%</td>
-                    <td className="muted">
-                      {risk.metrics.volatility > 0.3
-                        ? t("rating.high")
-                        : risk.metrics.volatility > 0.2
-                          ? t("rating.medium")
-                          : t("rating.low")}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>{t("risk.concentration")}</td>
-                    <td className="mono">{(risk.metrics.concentration_ratio * 100).toFixed(1)}%</td>
-                    <td className="muted">
-                      {risk.metrics.concentration_sector || "-"} {risk.metrics.concentration_ratio > 0.4 ? t("rating.elevated") : t("rating.diversified")}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>{t("risk.maxLoss1d")}</td>
-                    <td className="mono down">
-                      ¥{risk.metrics.max_loss_1d.toLocaleString(numLocale, { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="muted">{(risk.metrics.max_loss_1d_pct * 100).toFixed(2)}% (3σ)</td>
-                  </tr>
-                  <tr>
-                    <td>{t("risk.expectedLoss")}</td>
-                    <td className="mono down">
-                      ¥{risk.metrics.expected_loss.toLocaleString(numLocale, { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="muted">{(risk.metrics.expected_loss_pct * 100).toFixed(2)}% (PD×LGD×EAD)</td>
-                  </tr>
-                </tbody>
-              </table>
-              {risk.metrics.individual_drawdowns.length > 0 && (
-                <>
-                  <h4 style={{ marginTop: 10 }}>{t("risk.stockDrawdown")}</h4>
-                  <table className="metrics-table">
-                    <thead>
-                      <tr>
-                        <th>{t("risk.stock")}</th>
-                        <th>{t("portfolio.costCol")}</th>
-                        <th>{t("risk.current")}</th>
-                        <th>{t("risk.drawdown")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {risk.metrics.individual_drawdowns.map((d, i) => (
-                        <tr key={i}>
-                          <td>{d.name}</td>
-                          <td className="mono">{d.cost_price?.toFixed(2)}</td>
-                          <td className="mono">{d.current_price?.toFixed(2)}</td>
-                          <td
-                            className={`mono ${(d.drawdown_pct ?? 0) < -0.08 ? "down" : (d.drawdown_pct ?? 0) < 0 ? "warn" : ""}`}
-                          >
-                            {((d.drawdown_pct ?? 0) * 100).toFixed(2)}%
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </>
-              )}
+          {/* ── 结论先行：人话风险等级 + VaR 翻译 ── */}
+          <div className={`risk-summary risk-level-${riskLevelColor(risk.alerts.length)}`}>
+            <div className="risk-summary-level">
+              <span className="risk-summary-dot" />
+              <span className="risk-summary-label">
+                {t("risk.portfolioRisk")}{riskLevelLabel(risk.alerts.length, t)}
+              </span>
             </div>
-          )}
+            {risk.var_result && (
+              <p className="risk-summary-var">
+                {humanVarText(risk.var_result.var_pct, risk.var_result.var_value, numLocale)}
+              </p>
+            )}
+            <p className="risk-summary-summary">{risk.portfolio_summary}</p>
+          </div>
 
-          {risk.var_result && (
-            <div className="card">
-              <h4>{t("risk.var")}</h4>
-              <div className="stat-row">
-                <span className="stat-pill">
-                  {t("risk.confidence")} {(risk.var_result.confidence_level * 100).toFixed(0)}%
-                </span>
-                <span className="stat-pill">
-                  {t("risk.horizon")} {risk.var_result.time_horizon_days}
-                  {t("risk.days")}
-                </span>
-                <span className="stat-pill">
-                  {t("risk.method")} {risk.var_result.method}
-                </span>
-              </div>
-              <div className="var-display">
-                <div className="var-main">
-                  <span className="var-label">{t("risk.varAbs")}</span>
-                  <span className="var-value down">
-                    ¥{risk.var_result.var_value.toLocaleString(numLocale, { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div className="var-main">
-                  <span className="var-label">{t("risk.varPct")}</span>
-                  <span className="var-value">{(risk.var_result.var_pct * 100).toFixed(2)}%</span>
-                </div>
-                <div className="var-main">
-                  <span className="var-label">{t("risk.cvar")}</span>
-                  <span className="var-value down">
-                    ¥{risk.var_result.cvar_value.toLocaleString(numLocale, { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div className="var-main">
-                  <span className="var-label">{t("risk.cvarPct")}</span>
-                  <span className="var-value">{(risk.var_result.cvar_pct * 100).toFixed(2)}%</span>
-                </div>
-              </div>
-              <div className="var-bar-container">
-                <div className="var-bar-track">
-                  <div
-                    className="var-bar-fill"
-                    style={{ width: `${Math.min(risk.var_result.var_pct * 100 * 2, 100)}%` }}
-                  />
-                </div>
-                <div className="var-bar-labels">
-                  <span>0%</span>
-                  <span>{(risk.var_result.var_pct * 100).toFixed(1)}%</span>
-                  <span>50%</span>
-                </div>
-              </div>
-              {risk.var_result.holdings_var.length > 0 && (
-                <table className="metrics-table" style={{ marginTop: 8 }}>
-                  <thead>
-                    <tr>
-                      <th>{t("risk.stock")}</th>
-                      <th>{t("risk.weight")}</th>
-                      <th>VaR</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {risk.var_result.holdings_var.map((h, i) => (
-                      <tr key={i}>
-                        <td>{h.name}</td>
-                        <td className="mono">{((h.weight ?? 0) * 100).toFixed(1)}%</td>
-                        <td className="mono down">¥{(h.var_value ?? 0).toLocaleString(numLocale, { minimumFractionDigits: 2 })}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          )}
-
+          {/* ── 告警 ── */}
           {risk.alerts.map((a, i) => {
             const tags = alertHoldingTags(a.human_message);
             return (
@@ -246,30 +101,215 @@ export function RiskPanel({
               </div>
             );
           })}
-          {risk.llm_analysis && (
-            <div className="card">
-              <h4>{t("risk.aiAnalysis")}</h4>
-              <p>
-                <strong>{t("risk.market")}:</strong> {risk.llm_analysis.market_assessment}
-              </p>
-              <p>
-                <strong>{t("risk.correlation")}:</strong> {risk.llm_analysis.correlation_analysis}
-              </p>
-              <p>
-                <strong>{t("risk.narrative")}:</strong> {risk.llm_analysis.risk_narrative}
-              </p>
-              {risk.llm_analysis.scenario_analysis.length > 0 && (
-                <>
-                  <span className="field-label">{t("risk.scenarios")}</span>
-                  <ul>
-                    {risk.llm_analysis.scenario_analysis.map((s, i) => (
-                      <li key={i}>{s}</li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </div>
-          )}
+
+          {/* ── 详细指标（可折叠） ── */}
+          <details className="risk-details">
+            <summary>{t("risk.metricsDetail")}</summary>
+
+            {risk.var_result && (
+              <div className="card">
+                <h4>{t("risk.var")}</h4>
+                <div className="stat-row">
+                  <span className="stat-pill">
+                    {t("risk.confidence")} {(risk.var_result.confidence_level * 100).toFixed(0)}%
+                  </span>
+                  <span className="stat-pill">
+                    {t("risk.horizon")} {risk.var_result.time_horizon_days}
+                    {t("risk.days")}
+                  </span>
+                  <span className="stat-pill">
+                    {t("risk.method")} {risk.var_result.method}
+                  </span>
+                </div>
+                <div className="var-display">
+                  <div className="var-main">
+                    <span className="var-label">{t("risk.varAbs")}</span>
+                    <span className="var-value down">
+                      ¥{risk.var_result.var_value.toLocaleString(numLocale, { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="var-main">
+                    <span className="var-label">{t("risk.varPct")}</span>
+                    <span className="var-value">{(risk.var_result.var_pct * 100).toFixed(2)}%</span>
+                  </div>
+                  <div className="var-main">
+                    <span className="var-label">{t("risk.cvar")}</span>
+                    <span className="var-value down">
+                      ¥{risk.var_result.cvar_value.toLocaleString(numLocale, { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="var-main">
+                    <span className="var-label">{t("risk.cvarPct")}</span>
+                    <span className="var-value">{(risk.var_result.cvar_pct * 100).toFixed(2)}%</span>
+                  </div>
+                </div>
+                <div className="var-bar-container">
+                  <div className="var-bar-track">
+                    <div
+                      className="var-bar-fill"
+                      style={{ width: `${Math.min(risk.var_result.var_pct * 100 * 2, 100)}%` }}
+                    />
+                  </div>
+                  <div className="var-bar-labels">
+                    <span>0%</span>
+                    <span>{(risk.var_result.var_pct * 100).toFixed(1)}%</span>
+                    <span>50%</span>
+                  </div>
+                </div>
+                {risk.var_result.holdings_var.length > 0 && (
+                  <table className="metrics-table" style={{ marginTop: 8 }}>
+                    <thead>
+                      <tr>
+                        <th>{t("risk.stock")}</th>
+                        <th>{t("risk.weight")}</th>
+                        <th>VaR</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {risk.var_result.holdings_var.map((h, i) => (
+                        <tr key={i}>
+                          <td>{h.name}</td>
+                          <td className="mono">{((h.weight ?? 0) * 100).toFixed(1)}%</td>
+                          <td className="mono down">¥{(h.var_value ?? 0).toLocaleString(numLocale, { minimumFractionDigits: 2 })}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+
+            {risk.metrics && (
+              <div className="card">
+                <h4>{t("risk.metrics")}</h4>
+                <table className="metrics-table">
+                  <tbody>
+                    <tr>
+                      <td>{t("risk.sharpe")}</td>
+                      <td className="mono">{risk.metrics.sharpe_ratio.toFixed(2)}</td>
+                      <td className="muted">{ratioGrade(risk.metrics.sharpe_ratio, 2, 1)}</td>
+                    </tr>
+                    <tr>
+                      <td>{t("risk.sortino")}</td>
+                      <td className="mono">{risk.metrics.sortino_ratio.toFixed(2)}</td>
+                      <td className="muted">{ratioGrade(risk.metrics.sortino_ratio, 2, 1)}</td>
+                    </tr>
+                    <tr>
+                      <td>{t("risk.calmar")}</td>
+                      <td className="mono">{risk.metrics.calmar_ratio.toFixed(2)}</td>
+                      <td className="muted">{ratioGrade(risk.metrics.calmar_ratio, 3, 1)}</td>
+                    </tr>
+                    <tr>
+                      <td>{t("risk.infoRatio")}</td>
+                      <td className="mono">{risk.metrics.information_ratio.toFixed(2)}</td>
+                      <td className="muted">{ratioGrade(risk.metrics.information_ratio, 1, 0.5)}</td>
+                    </tr>
+                    <tr>
+                      <td>{t("risk.maxDrawdown")}</td>
+                      <td
+                        className={`mono ${risk.metrics.max_drawdown < -0.1 ? "down" : risk.metrics.max_drawdown < 0 ? "warn" : ""}`}
+                      >
+                        {(risk.metrics.max_drawdown * 100).toFixed(2)}%
+                      </td>
+                      <td className="muted">
+                        {Math.abs(risk.metrics.max_drawdown) > 0.15
+                          ? t("rating.highRisk")
+                          : Math.abs(risk.metrics.max_drawdown) > 0.08
+                            ? t("rating.watch")
+                            : t("rating.ok")}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>{t("risk.volatility")}</td>
+                      <td className="mono">{(risk.metrics.volatility * 100).toFixed(2)}%</td>
+                      <td className="muted">
+                        {risk.metrics.volatility > 0.3
+                          ? t("rating.high")
+                          : risk.metrics.volatility > 0.2
+                            ? t("rating.medium")
+                            : t("rating.low")}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>{t("risk.concentration")}</td>
+                      <td className="mono">{(risk.metrics.concentration_ratio * 100).toFixed(1)}%</td>
+                      <td className="muted">
+                        {risk.metrics.concentration_sector || "-"} {risk.metrics.concentration_ratio > 0.4 ? t("rating.elevated") : t("rating.diversified")}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>{t("risk.maxLoss1d")}</td>
+                      <td className="mono down">
+                        ¥{risk.metrics.max_loss_1d.toLocaleString(numLocale, { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="muted">{(risk.metrics.max_loss_1d_pct * 100).toFixed(2)}% (3σ)</td>
+                    </tr>
+                    <tr>
+                      <td>{t("risk.expectedLoss")}</td>
+                      <td className="mono down">
+                        ¥{risk.metrics.expected_loss.toLocaleString(numLocale, { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="muted">{(risk.metrics.expected_loss_pct * 100).toFixed(2)}% (PD×LGD×EAD)</td>
+                    </tr>
+                  </tbody>
+                </table>
+                {risk.metrics.individual_drawdowns.length > 0 && (
+                  <>
+                    <h4 style={{ marginTop: 10 }}>{t("risk.stockDrawdown")}</h4>
+                    <table className="metrics-table">
+                      <thead>
+                        <tr>
+                          <th>{t("risk.stock")}</th>
+                          <th>{t("portfolio.costCol")}</th>
+                          <th>{t("risk.current")}</th>
+                          <th>{t("risk.drawdown")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {risk.metrics.individual_drawdowns.map((d, i) => (
+                          <tr key={i}>
+                            <td>{d.name}</td>
+                            <td className="mono">{d.cost_price?.toFixed(2)}</td>
+                            <td className="mono">{d.current_price?.toFixed(2)}</td>
+                            <td
+                              className={`mono ${(d.drawdown_pct ?? 0) < -0.08 ? "down" : (d.drawdown_pct ?? 0) < 0 ? "warn" : ""}`}
+                            >
+                              {((d.drawdown_pct ?? 0) * 100).toFixed(2)}%
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                )}
+              </div>
+            )}
+
+            {risk.llm_analysis && (
+              <div className="card">
+                <h4>{t("risk.aiAnalysis")}</h4>
+                <p>
+                  <strong>{t("risk.market")}:</strong> {risk.llm_analysis.market_assessment}
+                </p>
+                <p>
+                  <strong>{t("risk.correlation")}:</strong> {risk.llm_analysis.correlation_analysis}
+                </p>
+                <p>
+                  <strong>{t("risk.narrative")}:</strong> {risk.llm_analysis.risk_narrative}
+                </p>
+                {risk.llm_analysis.scenario_analysis.length > 0 && (
+                  <>
+                    <span className="field-label">{t("risk.scenarios")}</span>
+                    <ul>
+                      {risk.llm_analysis.scenario_analysis.map((s, i) => (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            )}
+          </details>
         </>
       )}
     </div>

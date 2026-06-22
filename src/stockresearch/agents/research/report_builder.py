@@ -4,10 +4,17 @@ from typing import Literal
 
 from stockresearch.agents.research.scoring import (
     composite_confidence as resolve_composite_confidence,
+)
+from stockresearch.agents.research.scoring import (
     score_bias,
     weighted_composite_score,
 )
-from stockresearch.core.schemas import DebateResult, DimensionResult, ResearchReportOut, SectorLeaderBrief
+from stockresearch.core.schemas import (
+    DebateResult,
+    DimensionResult,
+    ResearchReportOut,
+    SectorLeaderBrief,
+)
 from stockresearch.services.text_factor import build_text_factor_summary
 
 

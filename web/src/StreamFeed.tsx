@@ -215,9 +215,7 @@ export function StreamFeed({
   const dimensionSteps = orderedDimensionSteps(agentSteps, dimensionDefs);
   const showDimensionGrid =
     dimensionPhaseActive(dimensionSteps) ||
-    streamStatus.includes("四维") ||
-    streamStatus.includes("五维") ||
-    streamStatus.includes("投研");
+    streamStatus.toLowerCase().includes("dimension");
   const dimsDone = dimensionsComplete(dimensionSteps);
   const manager = managerStep(agentSteps);
   const sortedRounds = debateRounds.slice().sort((a, b) => a.round - b.round);
@@ -225,16 +223,14 @@ export function StreamFeed({
   const showDebateSection =
     sortedRounds.length > 0 ||
     voteTally != null ||
-    streamStatus.includes("Battle") ||
-    streamStatus.includes("辩论") ||
+    streamStatus.toLowerCase().includes("debate") ||
     (dimsDone && judgeVerdict != null);
   const showConclusionSection =
     dimsDone &&
     (voteTally != null ||
       manager != null ||
       judgeVerdict != null ||
-      streamStatus.includes("裁判") ||
-      streamStatus.includes("Manager"));
+      streamStatus.toLowerCase().includes("judge"));
   const hasBody =
     streamLog.length > 0 ||
     showDimensionGrid ||
@@ -349,7 +345,7 @@ export function StreamFeed({
       )}
 
       {dimsDone && judgeVerdict && (
-        <div className={`message assistant stream-msg stream-judge action-${judgeVerdict.position_action ?? "持有观望"}`}>
+        <div className={`message assistant stream-msg stream-judge action-${localizePositionAction(judgeVerdict.position_action ?? "hold", t).toLowerCase().replace(/\s+/g, "_")}`}>
           <div className="stream-msg-head">
             <strong>{t("stream.judge")}</strong>
             {isTyping("judge") && <span className="muted">{t("stream.typing")}</span>}

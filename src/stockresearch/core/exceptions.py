@@ -19,3 +19,7 @@ class DataProviderError(StockResearchError):
 
 class AgentError(StockResearchError):
     """Agent execution failure."""
+
+
+class LLMConfigError(StockResearchError):
+    """LLM is misconfigured (e.g. API key missing while real LLM requested)."""

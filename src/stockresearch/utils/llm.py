@@ -8,12 +8,27 @@ from collections.abc import AsyncIterator
 
 import httpx
 
-from stockresearch.agents.output_style import apply_style_to_system
 from stockresearch.core.config import get_settings
-from stockresearch.core.llm_config import LlmOverrides, resolve_chat_completions_url
-from stockresearch.utils.llm_usage import estimate_tokens, record_usage
 
 logger = logging.getLogger(__name__)
+
+
+def _httpx_client_kwargs() -> dict:
+    """Build common httpx.AsyncClient kwargs including proxy if configured.
+
+    超时取自 settings.llm_timeout_seconds（默认 30s），必须小于 agent_timeout_seconds（45s），
+    否则 agent 已超时取消但 LLM 请求仍在后台跑，浪费配额。
+    """
+    kwargs: dict = {"timeout": float(get_settings().llm_timeout_seconds)}
+    proxy = get_settings().llm_http_proxy
+    if proxy:
+        kwargs["proxy"] = proxy
+    return kwargs
+
+from stockresearch.agents.output_style import apply_style_to_system
+from stockresearch.core.exceptions import LLMConfigError
+from stockresearch.core.llm_config import LlmOverrides, resolve_chat_completions_url
+from stockresearch.utils.llm_usage import estimate_tokens, record_usage
 
 
 def _styled_system(system: str) -> str:
@@ -251,7 +266,7 @@ class MockLLMClient(LLMClient):
         if "StockResearch" in system or "投研助手" in system:
             return (
                 "您好，感谢您的提问。简要来说，当前信息仍有限，建议您结合自己的投资纪律审慎看待。"
-                f"\n\n以上内容由 AI 生成，仅供参考，不构成投资建议。"
+                "\n\n以上内容由 AI 生成，仅供参考，不构成投资建议。"
             )
         return "您好，以上仅供参考，请您结合自己的判断决策。"
 
@@ -277,11 +292,12 @@ class OpenAICompatibleClient(LLMClient):
     async def stream_complete(self, system: str, user: str) -> AsyncIterator[str]:
         system = _styled_system(system)
         if not self._api_key:
-            logger.warning("LLM API key missing, falling back to mock")
-            mock = MockLLMClient()
-            async for chunk in mock.stream_complete(system, user):
-                yield chunk
-            return
+            # 用户已显式请求真实 LLM（USE_MOCK_LLM=false）但未配置 API key，
+            # 不再静默回退到 Mock，避免误以为"AI 回复质量差"。
+            raise LLMConfigError(
+                "LLM API key is not configured. Set USE_MOCK_LLM=true for offline "
+                "development or provide a valid API key in Settings."
+            )
 
         headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
         payload = {
@@ -296,7 +312,7 @@ class OpenAICompatibleClient(LLMClient):
         prompt_text = f"{system}\n{user}"
         completion_parts: list[str] = []
         usage_from_api: dict[str, int] | None = None
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(**_httpx_client_kwargs()) as client:
             async with client.stream(
                 "POST",
                 self._base_url,
@@ -357,9 +373,10 @@ class OpenAICompatibleClient(LLMClient):
                     "content": _styled_system(str(msg["content"])),
                 }
         if not self._api_key:
-            logger.warning("LLM API key missing, falling back to mock")
-            mock = MockLLMClient()
-            return await mock.complete_messages(styled_messages)
+            raise LLMConfigError(
+                "LLM API key is not configured. Set USE_MOCK_LLM=true for offline "
+                "development or provide a valid API key in Settings."
+            )
 
         headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
         payload = {
@@ -367,7 +384,7 @@ class OpenAICompatibleClient(LLMClient):
             "messages": styled_messages,
             "temperature": self._temperature,
         }
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(**_httpx_client_kwargs()) as client:
             resp = await client.post(
                 self._base_url,
                 headers=headers,

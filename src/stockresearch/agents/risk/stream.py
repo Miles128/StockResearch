@@ -4,15 +4,23 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 
-from stockresearch.agents.research.debate import iter_triangular_debate_events, triangular_transcript
+from stockresearch.agents.research.debate import (
+    iter_triangular_debate_events,
+    triangular_transcript,
+)
 from stockresearch.agents.risk import messages as risk_msg
 from stockresearch.agents.risk.engine import (
     _humanize,
     _llm_correlation_analysis,
     _llm_market_assessment,
     _llm_scenario_analysis,
-    _sector_concentration,
+    _parse_rule_alerts,
     run_risk_checkup,
+)
+from stockresearch.agents.risk.metrics import (
+    HoldingQuote,
+    calculate_portfolio_metrics,
+    calculate_var,
 )
 from stockresearch.agents.risk.judge import (
     JudgeVerdict,
@@ -25,18 +33,15 @@ from stockresearch.agents.stream_typewriter import (
     iter_agent_done_stream,
     iter_llm_stream_events,
     iter_merged_agent_streams_from_tasks,
-    iter_queue_merged_events,
-    iter_text_deltas,
-    pump_agent_done_stream,
 )
 from stockresearch.agents.voice import DEBATE_ROUNDS, JUDGE_VOICE
-from stockresearch.core.constants import (
-    SEVERITY_CRITICAL,
-    SEVERITY_RED,
-    SEVERITY_WARNING,
-    SEVERITY_YELLOW,
+from stockresearch.core.schemas import (
+    LLMRiskAnalysis,
+    PortfolioMetricsOut,
+    RiskAlertOut,
+    RiskCheckupOut,
+    VaRResultOut,
 )
-from stockresearch.core.schemas import LLMRiskAnalysis, RiskAlertOut, RiskCheckupOut
 from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.db.models import Holding
 from stockresearch.i18n.status_events import status_event
@@ -44,7 +49,6 @@ from stockresearch.utils.llm import LLMClient, get_llm_client
 
 logger = logging.getLogger(__name__)
 
-_BLACK_SWAN_KEYWORDS = ("ST", "退市", "立案", "造假", "问询", "违规")
 _JUDGE_RISK_SYSTEM = f"""你是风控裁判 Agent。{JUDGE_VOICE} 只输出 JSON，禁止 markdown。
 {{
   "analysis_process": "分3-5步说明您如何从告警、分析与辩论证据推到结论，每步一句",
@@ -65,74 +69,6 @@ def _parse_judge(raw: str, alerts: list[RiskAlertOut], holdings: list[Holding]) 
     return parse_judge(raw, alerts, holdings)
 
 
-def _parse_rule_alerts(holdings: list[Holding], quotes: list) -> list[RiskAlertOut]:
-    alerts: list[RiskAlertOut] = []
-    for holding, quote in zip(holdings, quotes, strict=True):
-        drawdown = (holding.cost_price - quote.price) / holding.cost_price
-        if drawdown >= 0.15:
-            alerts.append(
-                RiskAlertOut(
-                    rule_id="stop_loss_red",
-                    severity=SEVERITY_RED,
-                    symbol=holding.symbol,
-                    message=risk_msg.alert_stop_loss_red(
-                        holding.name,
-                        holding.symbol,
-                        holding.cost_price,
-                        quote.price,
-                        drawdown,
-                    ),
-                    human_message="",
-                )
-            )
-        elif drawdown >= 0.08:
-            alerts.append(
-                RiskAlertOut(
-                    rule_id="stop_loss_yellow",
-                    severity=SEVERITY_YELLOW,
-                    symbol=holding.symbol,
-                    message=risk_msg.alert_stop_loss_yellow_short(
-                        holding.name, holding.symbol, drawdown
-                    ),
-                    human_message="",
-                )
-            )
-        if quote.change_pct <= -9.5:
-            alerts.append(
-                RiskAlertOut(
-                    rule_id="black_swan",
-                    severity=SEVERITY_CRITICAL,
-                    symbol=holding.symbol,
-                    message=risk_msg.alert_black_swan_drop(holding.name, quote.change_pct),
-                    human_message="",
-                )
-            )
-        for kw in _BLACK_SWAN_KEYWORDS:
-            if kw in holding.name:
-                alerts.append(
-                    RiskAlertOut(
-                        rule_id="black_swan",
-                        severity=SEVERITY_CRITICAL,
-                        symbol=holding.symbol,
-                        message=risk_msg.alert_black_swan_tag_short(holding.name, kw),
-                        human_message="",
-                    )
-                )
-                break
-    ratio, sector = _sector_concentration(holdings)
-    if ratio > 0.40 and sector:
-        alerts.append(
-            RiskAlertOut(
-                rule_id="concentration",
-                severity=SEVERITY_WARNING,
-                symbol=None,
-                message=risk_msg.alert_concentration_short(sector, ratio),
-                human_message="",
-            )
-        )
-    return alerts
-
-
 def _holdings_detail_block(
     holdings: list[Holding],
     quotes: list,
@@ -148,15 +84,16 @@ def _holdings_detail_block(
 
     lines: list[str] = []
     for holding, quote in zip(holdings, quotes, strict=True):
-        if holding.cost_price:
-            drawdown = (holding.cost_price - quote.price) / holding.cost_price
+        cp = holding.float_cost_price
+        if cp:
+            drawdown = (cp - quote.price) / cp
         else:
             drawdown = 0.0
         stock_alerts = alerts_by_symbol.get(holding.symbol, [])
         alert_text = "；".join(a.message for a in stock_alerts) if stock_alerts else "无个股告警"
         lines.append(
             f"- {holding.name}({holding.symbol}) 行业{holding.sector} "
-            f"现价{quote.price:.2f} 成本{holding.cost_price:.2f} 回撤{drawdown:.1%} · {alert_text}"
+            f"现价{quote.price:.2f} 成本{cp:.2f} 回撤{drawdown:.1%} · {alert_text}"
         )
     if portfolio_alerts:
         lines.append("组合层面：" + "；".join(a.message for a in portfolio_alerts))
@@ -364,9 +301,59 @@ async def run_risk_checkup_stream(
         holding_actions=list(verdict.holding_actions),
     )
     summary = portfolio_summary_text(verdict)
+
+    # ── 量化风险指标 ──
+    metrics_out: PortfolioMetricsOut | None = None
+    var_out: VaRResultOut | None = None
+    if holdings:
+        try:
+            holding_quotes = [
+                HoldingQuote(
+                    symbol=h.symbol,
+                    name=h.name,
+                    cost_price=h.float_cost_price,
+                    current_price=q.price,
+                    quantity=h.quantity,
+                    sector=h.sector,
+                    buy_date=str(h.buy_date) if h.buy_date else None,
+                )
+                for h, q in zip(holdings, quotes, strict=True)
+            ]
+            pm = calculate_portfolio_metrics(holding_quotes)
+            metrics_out = PortfolioMetricsOut(
+                sharpe_ratio=round(pm.sharpe_ratio, 4),
+                sortino_ratio=round(pm.sortino_ratio, 4),
+                max_drawdown=round(pm.max_drawdown, 4),
+                volatility=round(pm.volatility, 4),
+                concentration_ratio=round(pm.concentration_ratio, 4),
+                concentration_sector=pm.concentration_sector,
+                individual_drawdowns=pm.individual_drawdowns,
+                calmar_ratio=round(pm.calmar_ratio, 4),
+                information_ratio=round(pm.information_ratio, 4),
+                max_loss_1d=round(pm.max_loss_1d, 2),
+                max_loss_1d_pct=round(pm.max_loss_1d_pct, 4),
+                expected_loss=round(pm.expected_loss, 2),
+                expected_loss_pct=round(pm.expected_loss_pct, 4),
+            )
+            vr = calculate_var(holding_quotes)
+            var_out = VaRResultOut(
+                confidence_level=vr.confidence_level,
+                time_horizon_days=vr.time_horizon_days,
+                var_value=round(vr.var_value, 2),
+                var_pct=round(vr.var_pct, 4),
+                method=vr.method,
+                holdings_var=vr.holdings_var,
+                cvar_value=round(vr.cvar_value, 2),
+                cvar_pct=round(vr.cvar_pct, 4),
+            )
+        except Exception:
+            logger.warning("Quantitative metrics calculation failed", exc_info=True)
+
     result = RiskCheckupOut(
         alerts=alerts,
         portfolio_summary=summary,
         llm_analysis=llm_analysis,
+        metrics=metrics_out,
+        var_result=var_out,
     )
     yield {"type": "done", "result": result.model_dump(mode="json")}

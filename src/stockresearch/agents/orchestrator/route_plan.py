@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import Literal
 
@@ -107,7 +106,12 @@ def needs_execution_choice(
     execution_preference: str | None = None,
     confirmed_symbol: str | None = None,
 ) -> bool:
-    """Plan-Execute and preset routes are chosen automatically — no manual picker."""
+    """DEPRECATED — Permanent no-op.
+    
+    Plan-Execute and preset routes are chosen automatically via
+    resolve_mode_with_preference() — no manual picker needed.
+    The route_choice UI flow is intentionally disabled.
+    """
     _ = (message, analysis_mode, execution_preference, confirmed_symbol)
     return False
 

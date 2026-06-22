@@ -9,10 +9,9 @@ import akshare as ak
 from stockresearch.core.config import get_settings
 from stockresearch.core.schemas import IndexQuoteOut, MarketOverviewOut, StockQuoteOut
 from stockresearch.data.providers.market import QuoteProvider
-from stockresearch.data.registry import get_symbol_source
-from stockresearch.services.stock_sector import resolve_stock_sector
 from stockresearch.data.providers.sina_index import fetch_sina_indices
-from stockresearch.data.registry import record_overview_fetch
+from stockresearch.data.registry import get_symbol_source, record_overview_fetch
+from stockresearch.services.stock_sector import resolve_stock_sector
 from stockresearch.utils.symbols import resolve_name
 
 logger = logging.getLogger(__name__)
@@ -47,22 +46,14 @@ class MarketOverviewProvider:
                 timeout=_AKSHARE_FALLBACK_TIMEOUT_SEC,
             )
             if overview.indices:
-                result = MarketOverviewOut(
-                    indices=overview.indices,
-                    northbound_net_yi=None,
-                    advancers=None,
-                    decliners=None,
-                    source="akshare",
-                    data_status="live",
-                    message="新浪不可用，已切换 AkShare 指数",
-                    updated_at=datetime.now(UTC),
-                )
                 record_overview_fetch(
                     source="akshare",
                     degraded=True,
-                    message=result.message,
+                    message="新浪不可用，已切换 AkShare 指数",
                 )
-                return result
+                return overview.model_copy(update={
+                    "message": "新浪不可用，已切换 AkShare 指数",
+                })
         except TimeoutError:
             logger.warning("AkShare market overview timed out")
         except Exception as exc:
@@ -100,9 +91,17 @@ class MarketOverviewProvider:
                     change_pct=float(r.get("涨跌幅", 0.0)),
                 )
             )
+        northbound_net_yi: float | None = None
+        try:
+            nb_df = ak.stock_hsgt_north_net_flow_in_em(symbol="北向")
+            if not nb_df.empty:
+                latest = nb_df.iloc[-1]
+                northbound_net_yi = float(latest.get("当日净流入", 0)) / 1e8
+        except Exception as exc:
+            logger.warning("AkShare northbound data failed: %s", exc)
         return MarketOverviewOut(
             indices=indices,
-            northbound_net_yi=None,
+            northbound_net_yi=northbound_net_yi,
             advancers=None,
             decliners=None,
             source="akshare",
@@ -122,9 +121,17 @@ class MarketOverviewProvider:
             )
             for q in quotes
         ]
+        northbound_net_yi: float | None = None
+        try:
+            nb_df = ak.stock_hsgt_north_net_flow_in_em(symbol="北向")
+            if not nb_df.empty:
+                latest = nb_df.iloc[-1]
+                northbound_net_yi = float(latest.get("当日净流入", 0)) / 1e8
+        except Exception as exc:
+            logger.warning("AkShare northbound data failed: %s", exc)
         return MarketOverviewOut(
             indices=indices,
-            northbound_net_yi=None,
+            northbound_net_yi=northbound_net_yi,
             advancers=None,
             decliners=None,
             source="sina",

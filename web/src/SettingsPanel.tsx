@@ -18,8 +18,13 @@ import {
   loadAnalysisSettings,
   saveAnalysisSettings,
   type AnalysisUserSettings,
-  type OutputTone,
+  type ReadingMode,
 } from "./analysisSettings";
+import {
+  loadModeSettings,
+  saveModeSettings,
+  type ModeSettings,
+} from "./modeSettings";
 import {
   loadDataSourceSettings,
   saveDataSourceSettings,
@@ -128,18 +133,25 @@ export function SettingsPanel({
     const next = { ...analysis, enableDebate: enabled };
     setAnalysis(next);
     saveAnalysisSettings(next);
+    // 同步到 modeSettings（双模式架构）
+    const mode = loadModeSettings();
+    const nextMode: ModeSettings = { ...mode, enableDebate: enabled };
+    saveModeSettings(nextMode);
   }
 
-  function selectOutputTone(tone: OutputTone) {
-    const next = { ...analysis, outputTone: tone };
+  function selectReadingMode(readingMode: ReadingMode) {
+    const next = { ...analysis, readingMode };
     setAnalysis(next);
     saveAnalysisSettings(next);
+    // 同步到 modeSettings（双模式架构）
+    const mode = loadModeSettings();
+    const nextMode: ModeSettings = { ...mode, readingMode };
+    saveModeSettings(nextMode);
   }
 
-  const toneOptions: { id: OutputTone; labelKey: string; hintKey: string }[] = [
-    { id: "professional", labelKey: "settings.toneProfessional", hintKey: "settings.toneProfessionalHint" },
-    { id: "standard", labelKey: "settings.toneStandard", hintKey: "settings.toneStandardHint" },
-    { id: "friendly", labelKey: "settings.toneFriendly", hintKey: "settings.toneFriendlyHint" },
+  const readingModeOptions: { id: ReadingMode; labelKey: string; hintKey: string }[] = [
+    { id: "professional", labelKey: "settings.modeProfessional", hintKey: "settings.modeProfessionalHint" },
+    { id: "friendly", labelKey: "settings.modeFriendly", hintKey: "settings.modeFriendlyHint" },
   ];
 
   function saveDataSources() {
@@ -377,20 +389,20 @@ export function SettingsPanel({
               {analysis.enableDebate ? t("settings.debateOnNote") : t("settings.debateOffNote")}
             </p>
 
-            <h4 className="settings-section-title">{t("settings.outputTone")}</h4>
-            <p className="settings-hint">{t("settings.outputToneHint")}</p>
-            <div className="settings-tone-options" role="radiogroup" aria-label={t("settings.outputTone")}>
-              {toneOptions.map((opt) => (
+            <h4 className="settings-section-title">{t("settings.readingMode")}</h4>
+            <p className="settings-hint">{t("settings.readingModeHint")}</p>
+            <div className="settings-tone-options" role="radiogroup" aria-label={t("settings.readingMode")}>
+              {readingModeOptions.map((opt) => (
                 <label
                   key={opt.id}
-                  className={`locale-option${analysis.outputTone === opt.id ? " active" : ""}`}
+                  className={`locale-option${analysis.readingMode === opt.id ? " active" : ""}`}
                 >
                   <input
                     type="radio"
-                    name="output-tone"
+                    name="reading-mode"
                     value={opt.id}
-                    checked={analysis.outputTone === opt.id}
-                    onChange={() => selectOutputTone(opt.id)}
+                    checked={analysis.readingMode === opt.id}
+                    onChange={() => selectReadingMode(opt.id)}
                   />
                   <span className="theme-option-label">{t(opt.labelKey)}</span>
                   <span className="theme-option-hint">{t(opt.hintKey)}</span>

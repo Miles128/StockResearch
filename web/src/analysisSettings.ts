@@ -1,35 +1,43 @@
 import { loadLocale } from "./localeSettings";
+import { loadModeSettings } from "./modeSettings";
 
 const STORAGE_KEY = "stockresearch.analysis.settings";
 
-/** 分析输出文风：非常专业 / 普通 / 平易近人 */
-export type OutputTone = "professional" | "standard" | "friendly";
+/** 阅读模式：专业（术语直出+弹窗） vs 友善（人话+类比） */
+export type ReadingMode = "professional" | "friendly";
 
 export interface AnalysisUserSettings {
   /** 开启后，股票/市场相关问题在多维分析后追加多空辩论 */
   enableDebate: boolean;
-  /** 分析内容的语言专业性，默认非常专业 */
-  outputTone: OutputTone;
+  /** 阅读模式，默认友善 */
+  readingMode: ReadingMode;
 }
 
 const DEFAULTS: AnalysisUserSettings = {
   enableDebate: true,
-  outputTone: "professional",
+  readingMode: "friendly",
 };
 
 export function loadAnalysisSettings(): AnalysisUserSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULTS };
-    const parsed = JSON.parse(raw) as Partial<AnalysisUserSettings>;
+    const parsed = JSON.parse(raw) as Partial<AnalysisUserSettings> & { outputTone?: string };
+    const mode = parsed.readingMode;
+    // Backward compat: if old outputTone exists, map to readingMode
     const tone = parsed.outputTone;
+    let readingMode: ReadingMode = DEFAULTS.readingMode;
+    if (mode === "professional" || mode === "friendly") {
+      readingMode = mode;
+    } else if (tone === "professional" || tone === "standard") {
+      readingMode = "professional";
+    } else if (tone === "friendly") {
+      readingMode = "friendly";
+    }
     return {
       enableDebate:
         typeof parsed.enableDebate === "boolean" ? parsed.enableDebate : DEFAULTS.enableDebate,
-      outputTone:
-        tone === "professional" || tone === "standard" || tone === "friendly"
-          ? tone
-          : DEFAULTS.outputTone,
+      readingMode,
     };
   } catch {
     return { ...DEFAULTS };
@@ -42,13 +50,15 @@ export function saveAnalysisSettings(settings: AnalysisUserSettings): void {
 
 export function analysisBodyField(): {
   enable_debate: boolean;
-  output_tone: OutputTone;
+  reading_mode: ReadingMode;
   output_locale: "zh" | "en";
 } {
+  // 优先读 modeSettings（双模式架构），回退到 analysisSettings
+  const mode = loadModeSettings();
   const settings = loadAnalysisSettings();
   return {
-    enable_debate: settings.enableDebate,
-    output_tone: settings.outputTone,
+    enable_debate: mode.enableDebate,
+    reading_mode: mode.readingMode,
     output_locale: loadLocale(),
   };
 }

@@ -3,12 +3,12 @@
 import asyncio
 import logging
 
+from stockresearch.agents.risk import messages as risk_msg
 from stockresearch.agents.risk.metrics import (
     HoldingQuote,
     calculate_portfolio_metrics,
     calculate_var,
 )
-from stockresearch.agents.risk import messages as risk_msg
 from stockresearch.agents.voice import AGENT_VOICE
 from stockresearch.core.constants import (
     SEVERITY_CRITICAL,
@@ -47,7 +47,7 @@ async def _llm_market_assessment(llm: LLMClient, holdings: list[Holding]) -> str
     if not holdings:
         return risk_msg.llm_no_holdings_market()
     holdings_desc = "\n".join(
-        f"- {h.name}({h.symbol}) {h.sector} 成本{h.cost_price}" for h in holdings
+        f"- {h.name}({h.symbol}) {h.sector} 成本{h.float_cost_price:.2f}" for h in holdings
     )
     system = f"你是 A 股风控分析师。{_RISK_LLM_BRIEF} 评估市场环境对组合的影响。不要建议买卖。"
     user = f"用户持仓：\n{holdings_desc}"
@@ -83,7 +83,7 @@ async def _llm_scenario_analysis(
     if not holdings:
         return []
     holdings_desc = "\n".join(
-        f"- {h.name}({h.symbol}) {h.sector} 成本{h.cost_price}" for h in holdings
+        f"- {h.name}({h.symbol}) {h.sector} 成本{h.float_cost_price:.2f}" for h in holdings
     )
     alerts_desc = (
         "\n".join(f"- [{a.severity}] {a.message}" for a in alerts) if alerts else "无"
@@ -104,7 +104,7 @@ def _sector_concentration(holdings: list[Holding]) -> tuple[float, str | None]:
     sector_values: dict[str, float] = {}
     total = 0.0
     for h in holdings:
-        value = h.cost_price * h.quantity
+        value = h.float_cost_price * h.quantity
         sector_values[h.sector] = sector_values.get(h.sector, 0) + value
         total += value
     if total <= 0:
@@ -114,90 +114,84 @@ def _sector_concentration(holdings: list[Holding]) -> tuple[float, str | None]:
     return ratio, max_sector
 
 
+def _parse_rule_alerts(holdings: list[Holding], quotes: list) -> list[RiskAlertOut]:
+    """Shared rule-based alert parsing — used by both sync and streaming paths."""
+    alerts: list[RiskAlertOut] = []
+    for holding, quote in zip(holdings, quotes, strict=True):
+        drawdown = (holding.float_cost_price - quote.price) / holding.float_cost_price
+        if drawdown >= 0.15:
+            alerts.append(
+                RiskAlertOut(
+                    rule_id="stop_loss_red",
+                    severity=SEVERITY_RED,
+                    symbol=holding.symbol,
+                    message=risk_msg.alert_stop_loss_red(
+                        holding.name, holding.symbol,
+                        holding.float_cost_price, quote.price, drawdown,
+                    ),
+                    human_message="",
+                )
+            )
+        elif drawdown >= 0.08:
+            alerts.append(
+                RiskAlertOut(
+                    rule_id="stop_loss_yellow",
+                    severity=SEVERITY_YELLOW,
+                    symbol=holding.symbol,
+                    message=risk_msg.alert_stop_loss_yellow(
+                        holding.name, holding.symbol, drawdown,
+                    ),
+                    human_message="",
+                )
+            )
+        if quote.change_pct <= -9.5:
+            alerts.append(
+                RiskAlertOut(
+                    rule_id="black_swan",
+                    severity=SEVERITY_CRITICAL,
+                    symbol=holding.symbol,
+                    message=risk_msg.alert_black_swan_drop(holding.name, quote.change_pct),
+                    human_message="",
+                )
+            )
+        for kw in _BLACK_SWAN_KEYWORDS:
+            if kw in holding.name:
+                alerts.append(
+                    RiskAlertOut(
+                        rule_id="black_swan",
+                        severity=SEVERITY_CRITICAL,
+                        symbol=holding.symbol,
+                        message=risk_msg.alert_black_swan_tag(holding.name, kw),
+                        human_message="",
+                    )
+                )
+                break
+    ratio, sector = _sector_concentration(holdings)
+    if ratio > 0.40 and sector:
+        alerts.append(
+            RiskAlertOut(
+                rule_id="concentration",
+                severity=SEVERITY_WARNING,
+                symbol=None,
+                message=risk_msg.alert_concentration(sector, ratio),
+                human_message="",
+            )
+        )
+    return alerts
+
+
 async def run_risk_checkup(
     holdings: list[Holding],
     llm: LLMClient | None = None,
 ) -> RiskCheckupOut:
     client = llm or get_llm_client()
     quote_provider = QuoteProvider()
-    alerts: list[RiskAlertOut] = []
 
     quotes = await asyncio.gather(
         *[quote_provider.get_quote(holding.symbol) for holding in holdings]
     )
 
-    for holding, quote in zip(holdings, quotes, strict=True):
-        drawdown = (holding.cost_price - quote.price) / holding.cost_price
-
-        if drawdown >= 0.15:
-            msg = risk_msg.alert_stop_loss_red(
-                holding.name,
-                holding.symbol,
-                holding.cost_price,
-                quote.price,
-                drawdown,
-            )
-            alerts.append(
-                RiskAlertOut(
-                    rule_id="stop_loss_red",
-                    severity=SEVERITY_RED,
-                    symbol=holding.symbol,
-                    message=msg,
-                    human_message="",
-                )
-            )
-        elif drawdown >= 0.08:
-            msg = risk_msg.alert_stop_loss_yellow(
-                holding.name, holding.symbol, drawdown
-            )
-            alerts.append(
-                RiskAlertOut(
-                    rule_id="stop_loss_yellow",
-                    severity=SEVERITY_YELLOW,
-                    symbol=holding.symbol,
-                    message=msg,
-                    human_message="",
-                )
-            )
-
-        if quote.change_pct <= -9.5:
-            msg = risk_msg.alert_black_swan_drop(holding.name, quote.change_pct)
-            alerts.append(
-                RiskAlertOut(
-                    rule_id="black_swan",
-                    severity=SEVERITY_CRITICAL,
-                    symbol=holding.symbol,
-                    message=msg,
-                    human_message="",
-                )
-            )
-
-        for kw in _BLACK_SWAN_KEYWORDS:
-            if kw in holding.name:
-                msg = risk_msg.alert_black_swan_tag(holding.name, kw)
-                alerts.append(
-                    RiskAlertOut(
-                        rule_id="black_swan",
-                        severity=SEVERITY_CRITICAL,
-                        symbol=holding.symbol,
-                        message=msg,
-                        human_message="",
-                    )
-                )
-                break
-
-    ratio, sector = _sector_concentration(holdings)
-    if ratio > 0.40 and sector:
-        msg = risk_msg.alert_concentration(sector, ratio)
-        alerts.append(
-            RiskAlertOut(
-                rule_id="concentration",
-                severity=SEVERITY_WARNING,
-                symbol=None,
-                message=msg,
-                human_message="",
-            )
-        )
+    alerts = _parse_rule_alerts(holdings, quotes)
 
     try:
         humanize_tasks = [_humanize(client, alert) for alert in alerts]
@@ -258,7 +252,7 @@ async def run_risk_checkup(
                 HoldingQuote(
                     symbol=h.symbol,
                     name=h.name,
-                    cost_price=h.cost_price,
+                    cost_price=h.float_cost_price,
                     current_price=q.price,
                     quantity=h.quantity,
                     sector=h.sector,

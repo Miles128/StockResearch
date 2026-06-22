@@ -1,8 +1,8 @@
 """A-share trading calendar validation."""
 
+import logging
 from datetime import date, datetime
 from functools import lru_cache
-import logging
 
 import akshare as ak
 

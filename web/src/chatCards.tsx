@@ -11,7 +11,7 @@ import type {
 import { useI18n } from "./i18n";
 import { translateRouteOption, translateRouteReason } from "./streamI18n";
 import { localizeDebateAgentName, localizeRating } from "./uiLabels";
-import { simpleMarkdown } from "./simpleMarkdown";
+import { MarkdownContent } from "./MarkdownContent";
 import { StockChart } from "./StockChart";
 
 export function RouteChoiceCardView({
@@ -166,9 +166,11 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
         Long: "up",
         Short: "down",
         Neutral: "",
+        bullish: "up",
+        bearish: "down",
       };
       const stanceLabel = (s: string) =>
-        ({ 看多: t("card.long"), 看空: t("card.short"), 中性: t("card.neutral") } as Record<string, string>)[s] ?? s;
+        ({ 看多: t("card.long"), 看空: t("card.short"), 中性: t("card.neutral"), Long: t("card.long"), Short: t("card.short"), Neutral: t("card.neutral"), bullish: t("card.long"), bearish: t("card.short") } as Record<string, string>)[s] ?? s;
       return (
         <div className="card">
           <h4>
@@ -176,13 +178,13 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
           </h4>
           <div className="stat-row">
             <span className="stat-pill">
-              {t("card.long")} {d.vote_tally["看多"] || 0}
+              {t("card.long")} {(d.vote_tally["看多"] || d.vote_tally["Long"] || d.vote_tally["bullish"] || 0)}
             </span>
             <span className="stat-pill">
-              {t("card.short")} {d.vote_tally["看空"] || 0}
+              {t("card.short")} {(d.vote_tally["看空"] || d.vote_tally["Short"] || d.vote_tally["bearish"] || 0)}
             </span>
             <span className="stat-pill">
-              {t("card.neutral")} {d.vote_tally["中性"] || 0}
+              {t("card.neutral")} {(d.vote_tally["中性"] || d.vote_tally["Neutral"] || d.vote_tally["neutral"] || 0)}
             </span>
             <span
               className={`stat-pill ${d.final_bias === "bullish" ? "up" : d.final_bias === "bearish" ? "down" : ""}`}
@@ -205,11 +207,9 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
           {d.synthesis && (
             <div style={{ marginTop: 8, borderTop: "1px solid var(--bbg-border)", paddingTop: 8 }}>
               <strong>{t("card.judge")}</strong>
-              <div
-                className="markdown-body"
-                style={{ marginTop: 4 }}
-                dangerouslySetInnerHTML={{ __html: simpleMarkdown(d.synthesis) }}
-              />
+              <div style={{ marginTop: 4 }}>
+                <MarkdownContent text={d.synthesis} />
+              </div>
             </div>
           )}
         </div>
@@ -258,11 +258,9 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
             </tbody>
           </table>
           {d.summary && (
-            <div
-              className="markdown-body"
-              style={{ marginTop: 8 }}
-              dangerouslySetInnerHTML={{ __html: simpleMarkdown(d.summary) }}
-            />
+            <div style={{ marginTop: 8 }}>
+              <MarkdownContent text={d.summary} />
+            </div>
           )}
         </div>
       );
@@ -318,7 +316,7 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
       if (!content) return null;
       return (
         <div className="card">
-          <div className="markdown-body" dangerouslySetInnerHTML={{ __html: simpleMarkdown(content) }} />
+          <MarkdownContent text={content} />
         </div>
       );
     }

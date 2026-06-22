@@ -1,6 +1,10 @@
 const STORAGE_KEY = "stockresearch.llm.settings";
 const LEGACY_STORAGE_KEYS = ["stockbuddy.llm.settings", "invesbao.llm.settings"];
 
+// ── In-memory cache to avoid repeated localStorage reads ──
+let _cachedSettings: LlmUserSettings | null = null;
+let _cachedRaw: string | null = null;
+
 export interface LlmUserSettings {
   apiKey: string;
   baseUrl: string;
@@ -52,9 +56,14 @@ export function loadLlmSettings(): LlmUserSettings {
         if (raw) break;
       }
     }
-    if (!raw) return { ...DEFAULTS };
+    if (raw === _cachedRaw && _cachedSettings) return _cachedSettings;
+    _cachedRaw = raw;
+    if (!raw) {
+      _cachedSettings = { ...DEFAULTS };
+      return _cachedSettings;
+    }
     const parsed = JSON.parse(raw) as Partial<LlmUserSettings>;
-    return {
+    _cachedSettings = {
       apiKey: parsed.apiKey ?? "",
       baseUrl: parsed.baseUrl ?? "",
       model: parsed.model ?? "",
@@ -62,13 +71,17 @@ export function loadLlmSettings(): LlmUserSettings {
         typeof parsed.temperature === "number" ? parsed.temperature : DEFAULTS.temperature,
       useMock: Boolean(parsed.useMock),
     };
+    return _cachedSettings;
   } catch {
-    return { ...DEFAULTS };
+    _cachedSettings = { ...DEFAULTS };
+    return _cachedSettings;
   }
 }
 
 export function saveLlmSettings(settings: LlmUserSettings): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  _cachedSettings = settings;
+  _cachedRaw = JSON.stringify(settings);
+  localStorage.setItem(STORAGE_KEY, _cachedRaw);
 }
 
 /** Browser-local override configured (mock or full API fields). */

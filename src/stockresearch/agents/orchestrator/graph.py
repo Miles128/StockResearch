@@ -8,22 +8,19 @@ from typing import Annotated, TypedDict
 from langgraph.graph import END, StateGraph
 from sqlalchemy.orm import Session
 
-from stockresearch.agents.market.research_stream import run_market_research_stream
 from stockresearch.agents.industry.research import run_industry_research
+from stockresearch.agents.market.research_stream import run_market_research_stream
 from stockresearch.agents.orchestrator.complexity import (
     ComplexityResult,
     extract_industry_sector,
     is_risk_intent,
 )
-from stockresearch.agents.orchestrator.route_plan import (
-    build_route_proposal,
-    needs_execution_choice,
-    resolve_mode_with_preference,
-    route_choice_card,
-)
-from stockresearch.agents.research.runner import run_research
 from stockresearch.agents.orchestrator.plan_execute import PlanExecuteAgent
 from stockresearch.agents.orchestrator.react_agent import OrchestratorAgent
+from stockresearch.agents.orchestrator.route_plan import (
+    resolve_mode_with_preference,
+)
+from stockresearch.agents.research.runner import run_research
 from stockresearch.agents.risk.engine import run_risk_checkup
 from stockresearch.core.config import get_settings
 from stockresearch.core.constants import INTENT_CHAT, INTENT_RISK
@@ -31,6 +28,10 @@ from stockresearch.core.schemas import CardPayload, ChatResponse, RiskCheckupOut
 from stockresearch.db.models import Conversation, Holding
 from stockresearch.services.message_stock import resolve_message_stock, stock_choice_card
 from stockresearch.services.stock_lookup import StockLookupResult
+from stockresearch.agents.orchestrator.balance_check import check_balance
+from stockresearch.agents.output_style import get_reading_mode
+from stockresearch.services.glossary import mark_terms
+from stockresearch.services.neutral_guard import neutral_guard
 from stockresearch.utils.disclaimer import strip_disclaimer
 from stockresearch.utils.llm import LLMClient, get_llm_client
 from stockresearch.utils.llm_usage import get_usage, reset_usage, usage_to_out
@@ -85,27 +86,6 @@ class Orchestrator:
             # Risk keywords → risk intent
             if is_risk_intent(msg) and state["holdings"]:
                 return {"intent": INTENT_RISK, "mode": "risk"}
-            if needs_execution_choice(
-                msg,
-                analysis_mode=state.get("analysis_mode"),
-                execution_preference=state.get("execution_preference"),
-                confirmed_symbol=state.get("confirmed_symbol"),
-            ):
-                proposal = build_route_proposal(
-                    msg,
-                    enable_debate=(
-                        True
-                        if state.get("enable_debate") is None
-                        else bool(state.get("enable_debate"))
-                    ),
-                )
-                card = route_choice_card(msg, proposal)
-                return {
-                    "intent": INTENT_CHAT,
-                    "mode": "route_choice",
-                    "cards": [card],
-                    "reply": "",
-                }
             mode, finance_tools = resolve_mode_with_preference(
                 msg,
                 state.get("execution_preference"),
@@ -223,6 +203,11 @@ class Orchestrator:
         final_state = await self._graph.ainvoke(initial_state)
 
         reply = strip_disclaimer(final_state["reply"])
+        # Apply neutral guard → balance check → glossary marking
+        reply = neutral_guard(reply)
+        reply = check_balance(reply)
+        if get_reading_mode() == "professional":
+            reply = mark_terms(reply)
         if final_state["partial"]:
             reply += "\n\n（部分分析未完成）"
 
@@ -238,15 +223,22 @@ class Orchestrator:
         )
 
     def _save_conversation(self, user_id: int, session_id: str, user_msg: str, reply: str) -> None:
-        conv = self._db.query(Conversation).filter(Conversation.session_id == session_id).first()
-        if conv is None:
-            conv = Conversation(user_id=user_id, session_id=session_id, messages=[])
-            self._db.add(conv)
-        messages = list(conv.messages)
-        messages.append({"role": "user", "content": user_msg})
-        messages.append({"role": "assistant", "content": reply})
-        conv.messages = messages[-20:]
-        self._db.commit()
+        try:
+            conv = self._db.query(Conversation).filter(Conversation.session_id == session_id).first()
+            if conv is None:
+                conv = Conversation(user_id=user_id, session_id=session_id, messages=[])
+                self._db.add(conv)
+            messages = list(conv.messages)
+            messages.append({"role": "user", "content": user_msg})
+            messages.append({"role": "assistant", "content": reply})
+            conv.messages = messages[-20:]
+            self._db.commit()
+        except Exception:
+            logger.warning("Failed to save conversation for session %s", session_id, exc_info=True)
+            try:
+                self._db.rollback()
+            except Exception:
+                pass
 
 
 # ── Research modes ───────────────────────────────────────

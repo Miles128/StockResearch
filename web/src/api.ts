@@ -29,12 +29,51 @@ function formatApiDetail(detail: unknown): string {
   return "";
 }
 
+const DEFAULT_TIMEOUT_MS = 30_000;
+const RETRY_COUNT = 2;
+const RETRY_DELAY_MS = 1000;
+
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  retries = RETRY_COUNT,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<Response> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const resp = await fetchWithTimeout(url, options, timeoutMs);
+      if (resp.status >= 500 && attempt < retries) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
+        continue;
+      }
+      return resp;
+    } catch (err) {
+      lastError = err as Error;
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
+      }
+    }
+  }
+  throw lastError;
+}
+
 async function requestPlain<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
-  const resp = await fetch(`${API}${path}`, { ...options, headers });
+  const resp = await fetchWithRetry(`${API}${path}`, { ...options, headers });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ detail: resp.statusText }));
     throw new Error(formatApiDetail(err.detail) || "请求失败");
@@ -45,12 +84,32 @@ async function requestPlain<T>(path: string, options: RequestInit = {}): Promise
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    ...dataSourceRequestHeaders(),
+    ...(options.headers as Record<string, string>),
+  };
+
+  const resp = await fetchWithRetry(`${API}${path}`, { ...options, headers });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+    throw new Error(formatApiDetail(err.detail) || "请求失败");
+  }
+  return resp.json();
+}
+
+/** Like request() but also sends LLM credentials — use only for LLM-dependent endpoints. */
+async function requestWithLlm<T>(
+  path: string,
+  options: RequestInit = {},
+  timeoutMs?: number,
+): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
     ...llmRequestHeaders(),
     ...dataSourceRequestHeaders(),
     ...(options.headers as Record<string, string>),
   };
 
-  const resp = await fetch(`${API}${path}`, { ...options, headers });
+  const resp = await fetchWithRetry(`${API}${path}`, { ...options, headers }, RETRY_COUNT, timeoutMs);
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ detail: resp.statusText }));
     throw new Error(formatApiDetail(err.detail) || "请求失败");
@@ -92,6 +151,12 @@ export interface AgentStreamEvent {
   result?: Record<string, unknown>;
   candidates?: { symbol: string; name: string }[];
   original_message?: string;
+  // News deep analysis events
+  symbol?: string;
+  name?: string;
+  assessment?: string;
+  direction?: string;
+  key_points?: string[];
 }
 
 export interface HoldingAction {
@@ -107,6 +172,7 @@ export type StreamEvent = AgentStreamEvent;
 async function consumeSse(
   resp: Response,
   onEvent?: (event: AgentStreamEvent) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
   if (!resp.body) {
     throw new Error("流式请求失败");
@@ -114,24 +180,54 @@ async function consumeSse(
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  const SSE_TIMEOUT_MS = 60_000;
+  let lastData = Date.now();
+  let timedOut = false;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      const jsonStr = line.slice(6).trim();
-      if (!jsonStr || jsonStr === "[DONE]") continue;
+  const onAbort = () => {
+    timedOut = true;
+    reader.cancel().catch(() => {});
+  };
+  signal?.addEventListener("abort", onAbort, { once: true });
+
+  try {
+    while (true) {
+      if (timedOut) break;
+      const readPromise = reader.read();
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error("SSE connection timed out — no data received for 60s"));
+        }, SSE_TIMEOUT_MS);
+      });
+
       try {
-        const event = JSON.parse(jsonStr) as AgentStreamEvent;
-        onEvent?.(event);
-      } catch {
-        // skip malformed JSON
+        const { done, value } = await Promise.race([readPromise, timeoutPromise]);
+        if (done) break;
+        lastData = Date.now();
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr || jsonStr === "[DONE]") continue;
+          try {
+            const event = JSON.parse(jsonStr) as AgentStreamEvent;
+            onEvent?.(event);
+          } catch {
+            // skip malformed JSON
+          }
+        }
+      } catch (err) {
+        // Timeout — cancel reader and break
+        reader.cancel().catch(() => {});
+        if (err instanceof Error && err.message.includes("timed out")) break;
+        throw err;
       }
     }
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
+    try { reader.releaseLock(); } catch { /* already released */ }
   }
 }
 
@@ -148,6 +244,7 @@ async function streamChat(
   sessionId?: string,
   onEvent?: (event: AgentStreamEvent) => void,
   options?: ChatStreamOptions,
+  signal?: AbortSignal,
 ): Promise<ChatResponse | null> {
   const resp = await fetch(apiUrl("/chat/stream"), {
     method: "POST",
@@ -161,6 +258,7 @@ async function streamChat(
       ...analysisBodyField(),
       ...llmBodyField(),
     }),
+    signal,
   });
   if (!resp.ok) {
     throw new Error("流式请求失败");
@@ -172,14 +270,14 @@ async function streamChat(
     if (event.type === "done" && event.response) {
       finalResponse = event.response as ChatResponse;
     }
-  });
+  }, signal);
   return finalResponse;
 }
 
 export const api = {
   llmSettings: () => request<LlmSettingsMeta>("/settings/llm"),
   saveLlmSettings: (form: LlmUserSettings) =>
-    request<LlmSettingsMeta>("/settings/llm", {
+    requestWithLlm<LlmSettingsMeta>("/settings/llm", {
       method: "PUT",
       body: JSON.stringify(llmFormToApiBody(form)),
     }),
@@ -189,7 +287,7 @@ export const api = {
       body: JSON.stringify(llmFormToApiBody(form)),
     }),
   chat: (message: string, sessionId?: string, options?: ChatStreamOptions) =>
-    request<ChatResponse>("/chat", {
+    requestWithLlm<ChatResponse>("/chat", {
       method: "POST",
       body: JSON.stringify({
         message,
@@ -230,10 +328,30 @@ export const api = {
   researchStream: (symbol: string, onEvent?: (event: AgentStreamEvent) => void) =>
     streamResearch(symbol, onEvent),
   riskCheckup: () =>
-    request<RiskCheckup>("/risk/checkup", {
-      method: "POST",
-      body: JSON.stringify({ ...analysisBodyField() }),
-    }),
+    requestWithLlm<RiskCheckup>(
+      "/risk/checkup",
+      {
+        method: "POST",
+        body: JSON.stringify({ ...analysisBodyField() }),
+      },
+      120_000,
+    ),
+  advisorAllocation: (
+    riskTolerance: "conservative" | "moderate" | "aggressive",
+    monthlyIncome?: number,
+  ) =>
+    requestWithLlm<AssetAllocation>(
+      "/advisor/allocation",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          risk_tolerance: riskTolerance,
+          monthly_income: monthlyIncome,
+          ...analysisBodyField(),
+        }),
+      },
+      60_000,
+    ),
   marketOverview: () => request<MarketOverview>("/market/overview"),
   stockQuotes: (symbols: string) => request<StockQuoteOut[]>(`/market/quotes?symbols=${symbols}`),
   dataSourceStatus: () => request<DataSourceStatus>("/market/data-status"),
@@ -250,14 +368,24 @@ export const api = {
   searchMemory: (q: string) =>
     request<MemorySearchResult>(`/research/memory/search?q=${encodeURIComponent(q)}`),
   generateBriefing: (kind: "morning" | "closing") =>
-    request<Briefing>(`/briefing/generate?kind=${kind}`, { method: "POST" }),
+    requestWithLlm<Briefing>(`/briefing/generate?kind=${kind}`, { method: "POST" }),
+  loadDemo: () => request<{ status: string; count: number; demo: boolean }>("/portfolio/demo", { method: "POST" }),
+  clearDemo: () => request<{ status: string; deleted: number }>("/portfolio/demo", { method: "DELETE" }),
+  demoStatus: () => request<{ demo: boolean }>("/portfolio/demo/status"),
+  dailyActions: () => request<DailyActionCenter>("/action-center/daily"),
+  analyzeNews: (
+    newsId: number,
+    symbol: string,
+    onEvent?: (event: AgentStreamEvent) => void,
+    signal?: AbortSignal,
+  ) => streamNewsAnalysis(newsId, symbol, onEvent, signal),
 };
 
 async function streamResearch(
   symbol: string,
   onEvent?: (event: AgentStreamEvent) => void,
 ): Promise<ResearchReport | null> {
-  const resp = await fetch(apiUrl(`/research/analyze/stream?symbol=${symbol}`), {
+  const resp = await fetchWithTimeout(apiUrl(`/research/analyze/stream?symbol=${symbol}`), {
     headers: llmRequestHeaders(),
   });
   if (!resp.ok) {
@@ -271,6 +399,29 @@ async function streamResearch(
     }
   });
   return report;
+}
+
+async function streamNewsAnalysis(
+  newsId: number,
+  symbol: string,
+  onEvent?: (event: AgentStreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<NewsAnalysis | null> {
+  const resp = await fetch(apiUrl(`/news/${newsId}/analyze/stream?symbol=${symbol}`), {
+    headers: llmRequestHeaders(),
+    signal,
+  });
+  if (!resp.ok) {
+    throw new Error("新闻深度分析请求失败");
+  }
+  let analysis: NewsAnalysis | null = null;
+  await consumeSse(resp, (event) => {
+    onEvent?.(event);
+    if (event.type === "done" && event.result) {
+      analysis = event.result as unknown as NewsAnalysis;
+    }
+  }, signal);
+  return analysis;
 }
 
 export interface LlmUsage {
@@ -383,6 +534,7 @@ export interface NewsItem {
   sentiment: string;
   impact_level: string;
   related_to_user: boolean;
+  entities: string[];
   category: "market" | "sector" | "holding";
   published_at: string;
 }
@@ -482,6 +634,16 @@ export interface RiskCheckup {
   };
 }
 
+export interface AssetAllocation {
+  risk_tolerance: "conservative" | "moderate" | "aggressive";
+  risk_label: string;
+  allocation: Record<string, number>;
+  rationale: string;
+  cash_flow_impact?: string;
+  emergency_fund_note?: string;
+  disclaimer: string;
+}
+
 export interface MarketOverview {
   indices: { name: string; symbol?: string; price: number; change_pct: number }[];
   northbound_net_yi: number | null;
@@ -573,6 +735,24 @@ export interface Briefing {
   generated_at: string;
 }
 
+export interface ActionSignal {
+  type: "price" | "news" | "risk" | "fundamental" | "info";
+  severity: "critical" | "warning" | "info";
+  title: string;
+  detail: string;
+  action: string;
+  action_target: string;
+  symbol: string | null;
+  weight: number;
+}
+
+export interface DailyActionCenter {
+  signals: ActionSignal[];
+  summary: string;
+  generated_at: string;
+  disclaimer: string;
+}
+
 export interface KlineChart {
   symbol: string;
   days: number;
@@ -591,4 +771,34 @@ export interface KlineChart {
     macd_signal: (number | null)[];
     macd_histogram: (number | null)[];
   };
+}
+
+// ── News Deep Analysis ──
+
+export interface NewsAnalysisStockImpact {
+  symbol: string;
+  name: string;
+  price: number;
+  change_pct: number;
+  pe_ttm: number | null;
+  technical_signal: string;
+  technical_summary: string;
+  fundamental_summary: string;
+  sentiment_summary: string;
+  impact_assessment: string;
+  impact_direction: "positive" | "negative" | "neutral";
+  key_points: string[];
+}
+
+export interface NewsAnalysis {
+  news_id: number;
+  title: string;
+  summary: string;
+  source: string;
+  entities: string[];
+  related_stocks: NewsAnalysisStockImpact[];
+  market_context: string;
+  cross_analysis: string;
+  overall_assessment: string;
+  disclaimer: string;
 }

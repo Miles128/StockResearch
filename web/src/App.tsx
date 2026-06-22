@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Component, useEffect, useMemo, useState, type ErrorInfo, type ReactNode } from "react";
 import {
   api,
   AgentStreamEvent,
@@ -15,6 +15,8 @@ import {
 } from "./api";
 import type { Message, Tab } from "./appTypes";
 import { ChatPanel } from "./ChatPanel";
+import { DemoBanner } from "./DemoBanner";
+import { ActionCenter } from "./ActionCenter";
 import { useI18n } from "./i18n";
 import { isLlmConfiguredLocally, isServerLlmConfigured } from "./llmSettings";
 import { formatHeaderUsage, formatLlmUsage } from "./llmUsageFormat";
@@ -28,6 +30,43 @@ import { stripDisclaimer } from "./disclaimerText";
 import { applyStreamEvent, emptyStreamState } from "./streamEvents";
 import { normalizeStreamEvent } from "./streamI18n";
 import { TabNav } from "./TabNav";
+import { ModeSwitcher } from "./ModeSwitcher";
+import { Onboarding } from "./Onboarding";
+import { AssetAllocationPanel } from "./AssetAllocationPanel";
+import {
+  loadModeSettings,
+  saveModeSettings,
+  switchMode,
+  type AppMode,
+  type ModeSettings,
+} from "./modeSettings";
+
+export class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("ErrorBoundary caught:", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 24, color: "#ff6b6b", fontFamily: "monospace" }}>
+          <h2>Something went wrong</h2>
+          <pre style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>{this.state.error?.message}</pre>
+          <button onClick={() => this.setState({ hasError: false, error: null })} style={{ marginTop: 12, padding: "6px 16px" }}>
+            Retry
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function App() {
   const { t, locale, setLocale } = useI18n();
@@ -41,13 +80,6 @@ export default function App() {
     ],
     [t, locale],
   );
-  const pageTitles: Record<Tab, string> = {
-    chat: t("page.chat"),
-    news: t("page.news"),
-    portfolio: t("page.portfolio"),
-    risk: t("page.risk"),
-    settings: t("page.settings"),
-  };
   const numLocale = locale === "zh" ? "zh-CN" : "en-US";
   const ratioGrade = (v: number, excellent: number, good: number) =>
     v > excellent ? t("rating.excellent") : v > good ? t("rating.good") : v > 0 ? t("rating.fair") : t("rating.poor");
@@ -56,7 +88,8 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string>();
-  const [loading, setLoading] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [riskLoading, setRiskLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
   const [chatStream, setChatStream] = useState(emptyStreamState());
   const [news, setNews] = useState<NewsItem[]>([]);
@@ -81,6 +114,10 @@ export default function App() {
   const [lookupPrice, setLookupPrice] = useState<number | null>(null);
   const [newsSectors, setNewsSectors] = useState<SectorPreferences | null>(null);
   const [sectorSaving, setSectorSaving] = useState(false);
+  const [isDemo, setIsDemo] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [modeSettings, setModeSettings] = useState<ModeSettings>(() => loadModeSettings());
+  const [onboardingOpen, setOnboardingOpen] = useState(() => !loadModeSettings().onboarded);
   const settingsRequired = llmCheckDone && !llmConfigured;
 
   const chatExamples = useMemo(
@@ -133,6 +170,25 @@ export default function App() {
     setLocale(locale === "zh" ? "en" : "zh");
   }
 
+  function handleSwitchMode(mode: AppMode) {
+    const next = switchMode(modeSettings, mode);
+    setModeSettings(next);
+    saveModeSettings(next);
+  }
+
+  function handleOnboardingComplete(next: ModeSettings) {
+    setModeSettings(next);
+    saveModeSettings(next);
+    setOnboardingOpen(false);
+  }
+
+  function handleOnboardingSkip() {
+    const next: ModeSettings = { ...modeSettings, onboarded: true };
+    setModeSettings(next);
+    saveModeSettings(next);
+    setOnboardingOpen(false);
+  }
+
   useEffect(() => {
     const localeTag = locale === "zh" ? "zh-CN" : "en-US";
     const tick = () => {
@@ -164,7 +220,9 @@ export default function App() {
 
   useEffect(() => {
     void loadOverview();
-    void loadHoldings();
+    void loadHoldings().then(() => {
+      api.demoStatus().then((s) => setIsDemo(s.demo)).catch(() => {});
+    });
     void api
       .llmSettings()
       .then((meta) => {
@@ -232,8 +290,18 @@ export default function App() {
   async function loadHoldings() {
     try {
       setHoldingsLoading(true);
-      setHoldings(await api.holdingsEnriched());
+      const data = await api.holdingsEnriched();
+      setHoldings(data);
       refreshDataStatus();
+      if (data.length === 0) {
+        try {
+          await api.loadDemo();
+          setHoldings(await api.holdingsEnriched());
+          setIsDemo(true);
+        } catch {
+          // ignore auto-load failures
+        }
+      }
     } catch (e) {
       showError(String(e));
     } finally {
@@ -242,7 +310,7 @@ export default function App() {
   }
 
   async function executeChat(query: string, options?: ChatStreamOptions) {
-    setLoading(true);
+    setChatLoading(true);
     setStatusMsg(t("chat.connecting"));
     setChatStream(emptyStreamState());
     let processSnapshot = emptyStreamState();
@@ -314,13 +382,13 @@ export default function App() {
         setMessages((m) => [...m, { role: "assistant", content: `Error: ${String(e)}` }]);
       }
     } finally {
-      setLoading(false);
+      setChatLoading(false);
       setStatusMsg("");
     }
   }
 
   function startChatQuery(query: string, opts?: { switchTab?: boolean }) {
-    if (!query.trim() || loading) return;
+    if (!query.trim() || chatLoading) return;
     if (opts?.switchTab) setTab("chat");
     setInput("");
     setMessages((m) => [...m, { role: "user", content: query }]);
@@ -328,7 +396,7 @@ export default function App() {
   }
 
   function sendChat() {
-    if (!input.trim() || loading) return;
+    if (!input.trim() || chatLoading) return;
     startChatQuery(input.trim());
   }
 
@@ -365,13 +433,13 @@ export default function App() {
   }
 
   function confirmChatStock(originalMessage: string, symbol: string, name: string) {
-    if (loading) return;
+    if (chatLoading) return;
     setMessages((m) => [...m, { role: "user", content: `${name}（${symbol}）` }]);
     void executeChat(originalMessage, { confirmedSymbol: symbol, confirmedName: name });
   }
 
   function confirmChatRoute(originalMessage: string, preference: ExecutionPreference) {
-    if (loading) return;
+    if (chatLoading) return;
     const labels: Record<ExecutionPreference, string> = {
       react: t("chat.routeReact"),
       plan_execute: t("chat.routePlan"),
@@ -383,6 +451,32 @@ export default function App() {
       { role: "user", content: t("chat.selectedMode", { mode: labels[preference] }) },
     ]);
     void executeChat(originalMessage, { executionPreference: preference });
+  }
+
+  async function loadDemoHoldings() {
+    try {
+      setDemoLoading(true);
+      await api.loadDemo();
+      setIsDemo(true);
+      await loadHoldings();
+    } catch (e) {
+      showError(String(e));
+    } finally {
+      setDemoLoading(false);
+    }
+  }
+
+  async function clearDemoHoldings() {
+    try {
+      setDemoLoading(true);
+      await api.clearDemo();
+      setIsDemo(false);
+      await loadHoldings();
+    } catch (e) {
+      showError(String(e));
+    } finally {
+      setDemoLoading(false);
+    }
   }
 
   async function loadNews() {
@@ -401,12 +495,12 @@ export default function App() {
   async function runRisk() {
     try {
       setError("");
-      setLoading(true);
+      setRiskLoading(true);
       setRisk(await api.riskCheckup());
     } catch (e) {
       showError(String(e));
     } finally {
-      setLoading(false);
+      setRiskLoading(false);
     }
   }
 
@@ -491,7 +585,7 @@ export default function App() {
         <div className="chrome-left">
           <span className="bbg-logo">StockResearch</span>
           <span className="chrome-sep">·</span>
-          <span className="chrome-page-title">{pageTitles[tab]}</span>
+          <ModeSwitcher settings={modeSettings} onSwitch={handleSwitchMode} />
         </div>
         <p className="chrome-disclaimer">{t("chat.disclaimer")}</p>
         <div className="chrome-meta">
@@ -530,6 +624,9 @@ export default function App() {
         onConfigured={handleLlmConfigured}
         variant="modal"
       />
+      {onboardingOpen && (
+        <Onboarding onComplete={handleOnboardingComplete} onSkip={handleOnboardingSkip} />
+      )}
 
       <div className={`app-body${settingsRequired ? " app-locked" : ""}`}>
         <aside className="sidebar">
@@ -546,11 +643,25 @@ export default function App() {
 
         <div className="main">
           {error && <div className="error">{error}</div>}
+          {holdings.length === 0 && !isDemo && (
+            <DemoBanner onLoad={loadDemoHoldings} onClear={clearDemoHoldings} isDemo={isDemo} loading={demoLoading} />
+          )}
+          {isDemo && (
+            <DemoBanner
+              onLoad={loadDemoHoldings}
+              onClear={clearDemoHoldings}
+              onGoPortfolio={() => setTab("portfolio")}
+              isDemo={isDemo}
+              loading={demoLoading}
+            />
+          )}
 
           {tab === "chat" && (
-            <ChatPanel
+            <>
+              <ActionCenter onNavigate={(t) => setTab(t as Tab)} onChatQuery={(q) => startChatQuery(q)} />
+              <ChatPanel
               messages={messages}
-              loading={loading}
+              loading={chatLoading}
               statusMsg={statusMsg}
               chatStream={chatStream}
               input={input}
@@ -563,6 +674,7 @@ export default function App() {
               onConfirmStock={confirmChatStock}
               onConfirmRoute={confirmChatRoute}
             />
+            </>
           )}
 
           {tab === "news" && (
@@ -604,16 +716,24 @@ export default function App() {
           )}
 
           {tab === "risk" && (
-            <RiskPanel
-              holdings={holdings}
-              risk={risk}
-              loading={loading}
-              numLocale={numLocale}
-              ratioGrade={ratioGrade}
-              alertHoldingTags={alertHoldingTags}
-              onRunRisk={() => void runRisk()}
-              onGoPortfolio={() => setTab("portfolio")}
-            />
+            <>
+              {modeSettings.mode === "advisor" && (
+                <AssetAllocationPanel
+                  riskTolerance={modeSettings.riskTolerance}
+                  monthlyIncome={modeSettings.monthlyIncome}
+                />
+              )}
+              <RiskPanel
+                holdings={holdings}
+                risk={risk}
+                loading={riskLoading}
+                numLocale={numLocale}
+                ratioGrade={ratioGrade}
+                alertHoldingTags={alertHoldingTags}
+                onRunRisk={() => void runRisk()}
+                onGoPortfolio={() => setTab("portfolio")}
+              />
+            </>
           )}
 
           {tab === "settings" && (

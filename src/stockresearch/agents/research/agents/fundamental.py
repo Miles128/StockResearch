@@ -1,8 +1,8 @@
 """Fundamental dimension agent — isolated financial/valuation tools."""
 
 from stockresearch.agents.research.agents._scoring import as_confidence
-from stockresearch.agents.research.react import DimensionAgent, ResearchTool
 from stockresearch.agents.research.context import ResearchContext
+from stockresearch.agents.research.react import DimensionAgent, ResearchTool
 from stockresearch.agents.voice import AGENT_VOICE
 from stockresearch.core.constants import CONFIDENCE_HIGH, CONFIDENCE_LOW
 from stockresearch.core.schemas import DimensionResult

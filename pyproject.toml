@@ -17,6 +17,7 @@ dependencies = [
     "pyyaml>=6.0.2",
     "python-multipart>=0.0.18",
     "fpdf2>=2.8.0",
+    "slowapi>=0.1.9",
 ]
 
 [project.optional-dependencies]
