@@ -1,7 +1,7 @@
 """Textual factors — compress news and dimension findings into narrative snippets."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal, Sequence
 
 from stockresearch.core.schemas import DimensionResult, NewsItemOut
 

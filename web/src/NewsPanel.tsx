@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, type Briefing, type NewsItem, type SectorPreferences } from "./api";
 import { useI18n } from "./i18n";
+import { NewsAnalysisModal } from "./NewsAnalysisModal";
 import { localizeBriefing, localizeImpactLevel, localizeSentiment } from "./uiLabels";
 
 interface NewsPanelProps {
@@ -23,6 +24,7 @@ export function NewsPanel({
   const { t } = useI18n();
   const [briefing, setBriefing] = useState<Briefing | null>(null);
   const [briefingLoading, setBriefingLoading] = useState(false);
+  const [analyzingNews, setAnalyzingNews] = useState<NewsItem | null>(null);
 
   async function loadBriefing(kind: "morning" | "closing") {
     setBriefingLoading(true);
@@ -103,6 +105,9 @@ export function NewsPanel({
               <div
                 className={`card${n.related_to_user || n.category === "holding" ? " news-card-related" : ""}`}
                 key={n.id}
+                onClick={() => setAnalyzingNews(n)}
+                title={t("news.clickToAnalyze")}
+                style={{ cursor: "pointer" }}
               >
                 <h4>{n.title}</h4>
                 <p>{n.summary}</p>
@@ -118,6 +123,18 @@ export function NewsPanel({
         );
       })}
       {news.length === 0 && !newsLoading && <p className="muted">{t("news.empty")}</p>}
+      {analyzingNews && (
+        <NewsAnalysisModal
+          newsId={analyzingNews.id}
+          title={analyzingNews.title}
+          summary={analyzingNews.summary}
+          source={analyzingNews.source}
+          sentiment={analyzingNews.sentiment}
+          impactLevel={analyzingNews.impact_level}
+          entities={analyzingNews.entities}
+          onClose={() => setAnalyzingNews(null)}
+        />
+      )}
     </div>
   );
 }

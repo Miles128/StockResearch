@@ -148,9 +148,9 @@ def _normalize_plan_steps(query: str, steps: list[dict[str, Any]]) -> list[dict[
         return _reindex_steps(_MARKET_PLAN_TEMPLATE)
 
     from stockresearch.agents.orchestrator.complexity import (
+        _STOCK_CODE_RE,
         count_stock_mentions,
         is_stock_comparison,
-        _STOCK_CODE_RE,
     )
 
     if is_stock_comparison(msg) and count_stock_mentions(msg) >= 2:

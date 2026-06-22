@@ -1,10 +1,13 @@
 """Data provider registry — tracks quote/overview fetch sources and degradation."""
 
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
 _PRIMARY_QUOTES = "sina"
 _FALLBACK_QUOTES = "akshare"
+
+_SNAPSHOT_TTL_SECONDS = 300  # 5-minute TTL for provider snapshots
 
 
 @dataclass(frozen=True)
@@ -82,7 +85,18 @@ def record_overview_fetch(
 
 
 def get_snapshots() -> dict[str, ProviderSnapshot]:
+    _clear_expired_snapshots()
     return dict(_snapshots)
+
+
+def _clear_expired_snapshots() -> None:
+    now = datetime.now(UTC)
+    expired = [
+        k for k, v in _snapshots.items()
+        if (now - v.updated_at).total_seconds() > _SNAPSHOT_TTL_SECONDS
+    ]
+    for k in expired:
+        del _snapshots[k]
 
 
 def reset_snapshots_for_tests() -> None:

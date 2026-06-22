@@ -1,16 +1,15 @@
 """Streaming chat orchestrator — real-time progress + ReAct/Debate/PlanExecute."""
 
 import asyncio
+import logging
 import uuid
 from collections.abc import AsyncIterator
 
 from sqlalchemy.orm import Session
 
-from stockresearch.agents.market.research_stream import run_market_research_stream
 from stockresearch.agents.industry.stream import run_industry_research_stream
+from stockresearch.agents.market.research_stream import run_market_research_stream
 from stockresearch.agents.orchestrator.complexity import (
-    ANALYSIS_COMPLEX,
-    ANALYSIS_SIMPLE,
     ComplexityResult,
     extract_industry_sector,
     is_risk_intent,
@@ -18,30 +17,29 @@ from stockresearch.agents.orchestrator.complexity import (
 )
 from stockresearch.agents.orchestrator.plan_execute import PlanExecuteAgent
 from stockresearch.agents.orchestrator.react_agent import OrchestratorAgent
-from stockresearch.i18n.status_events import status_event
 from stockresearch.agents.orchestrator.route_plan import (
-    build_route_proposal,
-    needs_execution_choice,
     resolve_mode_with_preference,
-    route_choice_card,
 )
 from stockresearch.agents.research.stream import run_research_stream
 from stockresearch.agents.risk.stream import run_risk_checkup_stream
-from stockresearch.core.constants import INTENT_RESEARCH, INTENT_RISK
-from stockresearch.core.schemas import ResearchReportOut
-from stockresearch.core.schemas import CardPayload, ChatResponse, RiskCheckupOut
-from stockresearch.db.models import Holding
+from stockresearch.core.constants import INTENT_RISK
+from stockresearch.core.exceptions import LLMConfigError
+from stockresearch.core.schemas import CardPayload, ChatResponse, ResearchReportOut, RiskCheckupOut
+from stockresearch.db.models import Conversation, Holding
+from stockresearch.i18n.status_events import status_event
 from stockresearch.services.message_stock import (
     ResolvedStock,
     match_holding_in_message,
     resolve_message_stock,
     stock_choice_card,
 )
-from stockresearch.services.stream_checkpoint import clear_checkpoint, save_checkpoint
 from stockresearch.services.stock_lookup import StockLookupResult
+from stockresearch.services.stream_checkpoint import clear_checkpoint, save_checkpoint
 from stockresearch.utils.disclaimer import strip_disclaimer
 from stockresearch.utils.llm import LLMClient, get_llm_client
 from stockresearch.utils.llm_usage import get_usage, reset_usage, usage_to_out
+
+logger = logging.getLogger(__name__)
 
 
 def _llm_model_name(client: LLMClient) -> str:
@@ -78,160 +76,37 @@ async def run_chat_stream(
     partial = False
     intent = INTENT_RISK if is_risk else "chat"
 
-    if is_risk:
-        yield status_event("status.routed_risk")
-        async for event in run_risk_checkup_stream(holdings, llm=client):
-            if event.get("type") == "done":
-                payload = event.get("result")
-                if isinstance(payload, dict):
-                    result = RiskCheckupOut.model_validate(payload)
-                    cards = [{"type": "risk", "data": result.model_dump(mode="json")}]
-                    reply = result.portfolio_summary
-            else:
-                yield event
-    else:
-        if needs_execution_choice(
-            msg,
+    try:
+        async for event in _run_chat_stream_body(
+            db=db,
+            user_id=user_id,
+            message=msg,
+            sid=sid,
+            client=client,
+            holdings=holdings,
+            is_risk=is_risk,
+            debate_on=debate_on,
             analysis_mode=analysis_mode,
-            execution_preference=execution_preference,
             confirmed_symbol=confirmed_symbol,
+            confirmed_name=confirmed_name,
+            execution_preference=execution_preference,
         ):
-            proposal = build_route_proposal(msg, enable_debate=debate_on)
-            card = route_choice_card(msg, proposal)
-            yield {
-                "type": "route_choice",
-                "reason_key": proposal.reason_key,
-                "reason_params": proposal.reason_params or {},
-                "finance_related": proposal.finance_related,
-                "preset_mode": proposal.preset_mode,
-                "options": [
-                    {
-                        "id": o.id,
-                        "label_key": o.label_key,
-                        "description_key": o.description_key,
-                        "label_params": o.label_params or {},
-                        "description_params": o.description_params or {},
-                    }
-                    for o in proposal.options
-                ],
-                "original_message": msg,
-            }
-            cards = [card]
-            reply = ""
-        else:
-            mode, finance_tools = resolve_mode_with_preference(
-                msg,
-                execution_preference,
-                analysis_mode=analysis_mode,
-                enable_debate=debate_on,
-            )
-            route_symbol = confirmed_symbol
-            route_name = confirmed_name
-            mode, route_symbol, route_name = await _upgrade_stock_research_route(
-                msg,
-                client,
-                holdings,
-                mode=mode,
-                debate_on=debate_on,
-                execution_preference=execution_preference,
-                confirmed_symbol=route_symbol,
-                confirmed_name=route_name,
-            )
-            yield status_event(
-                "status.route",
-                debate="on" if debate_on else "off",
-                mode=str(mode),
-            )
-
-            if mode in (ComplexityResult.MARKET_DEBATE, ComplexityResult.MARKET_RESEARCH):
-                intent = INTENT_RESEARCH
-                async for event in _run_market_research_stream(
-                    client,
-                    msg,
-                    with_debate=mode == ComplexityResult.MARKET_DEBATE,
-                ):
-                    if event.get("type") == "done":
-                        payload = event.get("result")
-                        if isinstance(payload, dict):
-                            report = ResearchReportOut.model_validate(payload)
-                            cards = [{"type": "research", "data": payload}]
-                            reply = report.summary
-                    else:
-                        yield event
-            elif mode in (ComplexityResult.DEBATE, ComplexityResult.RESEARCH):
-                intent = INTENT_RESEARCH
-                async for event in _run_stock_research_stream(
-                    client,
-                    msg,
-                    with_debate=mode == ComplexityResult.DEBATE,
-                    confirmed_symbol=route_symbol,
-                    confirmed_name=route_name,
-                ):
-                    if event.get("type") == "done":
-                        cards = event.get("cards", [])
-                        reply = event.get("reply", "")
-                    else:
-                        yield event
-            elif mode == ComplexityResult.PLAN_EXECUTE:
-                async for event in _run_plan_execute_stream(
-                    db, client, msg, user_id, sid, finance_tools=finance_tools
-                ):
-                    if event.get("type") == "done":
-                        cards = event.get("cards", [])
-                        reply = event.get("reply", "")
-                    else:
-                        yield event
-            elif mode == ComplexityResult.INDUSTRY_RESEARCH:
-                intent = INTENT_RESEARCH
-                sectors = [h.sector for h in holdings]
-                sector = extract_industry_sector(msg, sectors) or "行业"
-                save_checkpoint(db, user_id, sid, {"mode": mode, "sector": sector, "message": msg})
-                async for event in _run_industry_research_stream(
-                    db, client, user_id, sector, msg, sid, with_debate=debate_on
-                ):
-                    if event.get("type") == "done":
-                        cards = event.get("cards", [])
-                        reply = event.get("reply", "")
-                    else:
-                        yield event
-            else:
-                # Direct ReAct mode with progress
-                progress_queue: asyncio.Queue[dict[str, object] | None] = asyncio.Queue()
-
-                async def on_progress(hint: dict[str, object]) -> None:
-                    await progress_queue.put(hint)
-
-                agent = OrchestratorAgent(
-                    db=db, llm=client, user_id=user_id, finance_tools=finance_tools
-                )
-                agent.set_progress_callback(on_progress)
-
-                async def _run_agent():
-                    nonlocal reply, cards
-                    r, c = await agent.run(message)
-                    reply = r
-                    cards = c
-                    await progress_queue.put(None)
-
-                agent_task = asyncio.create_task(_run_agent())
-
-                while True:
-                    hint = await progress_queue.get()
-                    if hint is None:
-                        break
-                    yield hint
-                    save_checkpoint(
-                        db,
-                        user_id,
-                        sid,
-                        {
-                            "mode": mode,
-                            "message_key": hint.get("message_key"),
-                            "message_params": hint.get("message_params"),
-                        },
-                    )
-
-                await agent_task
+            if isinstance(event, dict) and event.get("type") == "done" and "response" in event:
+                response = event["response"]
+                if isinstance(response, dict):
+                    reply = str(response.get("reply", ""))
+                    cards = list(response.get("cards", []))
+                    intent = str(response.get("intent", intent))
+                    partial = bool(response.get("partial", False))
+            yield event
+    except LLMConfigError as exc:
+        logger.warning("LLM config error in chat stream: %s", exc)
+        yield {
+            "type": "error",
+            "code": "llm_not_configured",
+            "message": str(exc),
+        }
+        return
 
     if partial:
         reply += "\n\n（部分分析未完成）"
@@ -247,7 +122,205 @@ async def run_chat_stream(
         llm_usage=usage_to_out(get_usage()),
     )
     clear_checkpoint(db, user_id, sid)
+
+    _save_conversation_async(db, user_id, sid, message, reply)
+
     yield {"type": "done", "response": response.model_dump(mode="json")}
+
+
+async def _run_chat_stream_body(
+    *,
+    db: Session,
+    user_id: int,
+    message: str,
+    sid: str,
+    client: LLMClient,
+    holdings: list[Holding],
+    is_risk: bool,
+    debate_on: bool,
+    analysis_mode: str | None,
+    confirmed_symbol: str | None,
+    confirmed_name: str | None,
+    execution_preference: str | None,
+) -> AsyncIterator[dict[str, object]]:
+    """Inner chat stream body. Raises LLMConfigError if API key missing."""
+    if is_risk:
+        yield status_event("status.routed_risk")
+        async for event in run_risk_checkup_stream(holdings, llm=client):
+            if event.get("type") == "done":
+                payload = event.get("result")
+                if isinstance(payload, dict):
+                    result = RiskCheckupOut.model_validate(payload)
+                    cards = [{"type": "risk", "data": result.model_dump(mode="json")}]
+                    reply = result.portfolio_summary
+                    yield {
+                        "type": "done",
+                        "response": {
+                            "session_id": sid,
+                            "reply": reply,
+                            "cards": cards,
+                            "intent": INTENT_RISK,
+                            "partial": False,
+                            "llm_usage": usage_to_out(get_usage()),
+                        },
+                    }
+                    return
+            else:
+                yield event
+        return
+
+    mode, finance_tools = resolve_mode_with_preference(
+        message,
+        execution_preference,
+        analysis_mode=analysis_mode,
+        enable_debate=debate_on,
+    )
+    route_symbol = confirmed_symbol
+    route_name = confirmed_name
+    mode, route_symbol, route_name = await _upgrade_stock_research_route(
+        message,
+        client,
+        holdings,
+        mode=mode,
+        debate_on=debate_on,
+        execution_preference=execution_preference,
+        confirmed_symbol=route_symbol,
+        confirmed_name=route_name,
+    )
+    yield status_event(
+        "status.route",
+        debate="on" if debate_on else "off",
+        mode=str(mode),
+    )
+
+    # 收集子流的最终结果（cards/reply/result），统一转换为标准 done 事件。
+    cards: list[dict[str, object]] = []
+    reply = ""
+    intent = "chat"
+
+    def _finalize_from_event(event: dict[str, object]) -> None:
+        """Extract cards/reply from sub-stream done event into local vars."""
+        nonlocal cards, reply, intent
+        if "result" in event and isinstance(event["result"], dict):
+            payload = event["result"]
+            # Research/market/industry streams return a report dict.
+            try:
+                report = ResearchReportOut.model_validate(payload)
+                cards = [{"type": "research", "data": payload}]
+                reply = report.summary
+                intent = "research"
+            except Exception:
+                # Risk stream returns a risk checkup dict.
+                try:
+                    result = RiskCheckupOut.model_validate(payload)
+                    cards = [{"type": "risk", "data": result.model_dump(mode="json")}]
+                    reply = result.portfolio_summary
+                    intent = "risk"
+                except Exception:
+                    cards = []
+                    reply = ""
+        elif "cards" in event or "reply" in event:
+            ev_cards = event.get("cards")
+            if isinstance(ev_cards, list):
+                cards = list(ev_cards)
+            ev_reply = event.get("reply")
+            if isinstance(ev_reply, str):
+                reply = ev_reply
+
+    if mode in (ComplexityResult.MARKET_DEBATE, ComplexityResult.MARKET_RESEARCH):
+        intent = "research"
+        async for event in _run_market_research_stream(
+            client,
+            message,
+            with_debate=mode == ComplexityResult.MARKET_DEBATE,
+        ):
+            if event.get("type") == "done":
+                _finalize_from_event(event)
+            else:
+                yield event
+    elif mode in (ComplexityResult.DEBATE, ComplexityResult.RESEARCH):
+        intent = "research"
+        async for event in _run_stock_research_stream(
+            client,
+            message,
+            with_debate=mode == ComplexityResult.DEBATE,
+            confirmed_symbol=route_symbol,
+            confirmed_name=route_name,
+        ):
+            if event.get("type") == "done":
+                _finalize_from_event(event)
+            else:
+                yield event
+    elif mode == ComplexityResult.PLAN_EXECUTE:
+        async for event in _run_plan_execute_stream(
+            db, client, message, user_id, sid, finance_tools=finance_tools
+        ):
+            if event.get("type") == "done":
+                _finalize_from_event(event)
+            else:
+                yield event
+    elif mode == ComplexityResult.INDUSTRY_RESEARCH:
+        intent = "research"
+        sectors = [h.sector for h in holdings]
+        sector = extract_industry_sector(message, sectors) or "行业"
+        save_checkpoint(db, user_id, sid, {"mode": mode, "sector": sector, "message": message})
+        async for event in _run_industry_research_stream(
+            db, client, user_id, sector, message, sid, with_debate=debate_on
+        ):
+            if event.get("type") == "done":
+                _finalize_from_event(event)
+            else:
+                yield event
+    else:
+        # Direct ReAct mode with progress
+        progress_queue: asyncio.Queue[dict[str, object] | None] = asyncio.Queue()
+
+        async def on_progress(hint: dict[str, object]) -> None:
+            await progress_queue.put(hint)
+
+        agent = OrchestratorAgent(
+            db=db, llm=client, user_id=user_id, finance_tools=finance_tools
+        )
+        agent.set_progress_callback(on_progress)
+
+        async def _run_agent():
+            nonlocal cards, reply
+            r, c = await agent.run(message)
+            reply = r
+            cards = c
+            await progress_queue.put(None)
+
+        agent_task = asyncio.create_task(_run_agent())
+
+        while True:
+            hint = await progress_queue.get()
+            if hint is None:
+                break
+            yield hint
+            save_checkpoint(
+                db,
+                user_id,
+                sid,
+                {
+                    "mode": mode,
+                    "message_key": hint.get("message_key"),
+                    "message_params": hint.get("message_params"),
+                },
+            )
+
+        await agent_task
+
+    yield {
+        "type": "done",
+        "response": {
+            "session_id": sid,
+            "reply": reply,
+            "cards": cards,
+            "intent": intent,
+            "partial": False,
+            "llm_usage": usage_to_out(get_usage()),
+        },
+    }
 
 
 async def _run_market_research_stream(
@@ -492,3 +565,29 @@ def _merge_plan_cards(
             if not any(c.get("type") == ctype for c in merged):
                 merged.append(card)
     return merged
+
+
+def _save_conversation_async(
+    db: Session, user_id: int, session_id: str, user_msg: str, reply: str,
+) -> None:
+    try:
+        conv = db.query(Conversation).filter(
+            Conversation.session_id == session_id,
+        ).first()
+        if conv is None:
+            conv = Conversation(user_id=user_id, session_id=session_id, messages=[])
+            db.add(conv)
+        messages = list(conv.messages)
+        messages.append({"role": "user", "content": user_msg})
+        messages.append({"role": "assistant", "content": reply})
+        conv.messages = messages[-20:]
+        db.commit()
+    except Exception:
+        logger.warning(
+            "Failed to save streaming conversation for session %s",
+            session_id, exc_info=True,
+        )
+        try:
+            db.rollback()
+        except Exception:
+            pass

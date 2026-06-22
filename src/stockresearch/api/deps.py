@@ -3,7 +3,7 @@
 from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from stockresearch.core.exceptions import StockResearchError, NotFoundError, ValidationError
+from stockresearch.core.exceptions import NotFoundError, StockResearchError, ValidationError
 from stockresearch.db.models import User
 from stockresearch.db.session import get_db
 from stockresearch.services.local_user import get_or_create_mvp_user

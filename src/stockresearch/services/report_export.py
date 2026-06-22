@@ -1,6 +1,5 @@
 """Research report Markdown and PDF export."""
 
-import sys
 from pathlib import Path
 
 from stockresearch.core.schemas import DebateResult, DimensionResult, ResearchReportOut

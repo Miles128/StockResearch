@@ -175,6 +175,18 @@ NEWS_SOURCE_AUTHORITY: dict[str, float] = {
     "default": 0.55,
 }
 
+# Output banned patterns for neutral_guard: (regex, replacement)
+# replacement=None means delete the matched text entirely
+OUTPUT_BANNED_PATTERNS: tuple[tuple[str, str | None], ...] = (
+    (r"建议\s*买入", "建议关注"),
+    (r"建议\s*卖出", "建议评估"),
+    (r"建议\s*加仓", "建议留意"),
+    (r"建议\s*减仓", "建议评估"),
+    (r"目标价\s*[\d.]+", "合理估值区间"),
+    (r"(强烈|坚决)\s*(推荐|建议)", "值得关注"),
+    (r"赶紧|立即|马上|务必", None),
+)
+
 AVAILABLE_SECTORS: tuple[str, ...] = (
     "白酒",
     "新能源",

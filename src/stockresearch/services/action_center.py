@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session
 from stockresearch.agents.news.agent import get_news_for_user
 from stockresearch.core.schemas import ActionSignal, DailyActionCenterOut
 from stockresearch.data.providers.market import QuoteProvider
-from stockresearch.data.providers.market_overview import MarketOverviewProvider
 from stockresearch.db.models import Holding
 from stockresearch.services.news_interests import load_user_news_interests
 
@@ -20,6 +19,9 @@ _STOP_LOSS_YELLOW = 0.08
 _STOP_LOSS_RED = 0.15
 _SUPPORT_DISTANCE_PCT = 0.03
 _SECTOR_CONCENTRATION_LIMIT = 0.40
+_DAILY_DROP_PCT = -5.0  # 单日跌幅阈值（%），低于此值触发价格信号
+_NEWS_TITLE_MAX_LEN = 60  # 新闻标题截断长度
+_NEWS_SIGNAL_LIMIT = 5  # 新闻信号最大数量
 
 
 async def generate_daily_actions(
@@ -76,7 +78,7 @@ async def generate_daily_actions(
                 symbol=h.symbol,
                 weight=80,
             ))
-        if q.change_pct <= -5.0:
+        if q.change_pct <= _DAILY_DROP_PCT:
             signals.append(ActionSignal(
                 type="price",
                 severity="warning",
@@ -89,7 +91,7 @@ async def generate_daily_actions(
             ))
 
     # ── 2. News signals ──
-    for item in news[:5]:
+    for item in news[:_NEWS_SIGNAL_LIMIT]:
         related_symbols = [
             s for s in (item.entities or []) if s in interests.symbols
         ]
@@ -102,7 +104,7 @@ async def generate_daily_actions(
             signals.append(ActionSignal(
                 type="news",
                 severity="info" if item.sentiment != "bearish" else "warning",
-                title=item.title[:60],
+                title=item.title[:_NEWS_TITLE_MAX_LEN],
                 detail=f"→ {matched_name}（{item.source}）",
                 action="深度解析",
                 action_target="news",

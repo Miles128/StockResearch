@@ -10,9 +10,9 @@ from sqlalchemy.orm import Session
 from stockresearch.agents.orchestrator.graph import Orchestrator
 from stockresearch.agents.orchestrator.stream import run_chat_stream
 from stockresearch.agents.output_style import output_style_scope
-from stockresearch.api.rate_limit import limiter
 from stockresearch.api.deps import get_current_user
 from stockresearch.api.llm_deps import resolve_llm_client
+from stockresearch.api.rate_limit import limiter
 from stockresearch.api.routes.research import extract_reports_from_cards, persist_report
 from stockresearch.core.exceptions import NotFoundError
 from stockresearch.core.schemas import ChatRequest, ChatResponse, StreamCheckpointOut
@@ -45,7 +45,11 @@ async def chat(
         x_llm_use_mock=x_llm_use_mock,
     )
     orchestrator = Orchestrator(db, llm=llm)
-    with output_style_scope(tone=payload.output_tone, locale=payload.output_locale):
+    with output_style_scope(
+        tone=payload.output_tone,
+        reading_mode=payload.reading_mode,
+        locale=payload.output_locale,
+    ):
         return await orchestrator.run(
             user.id,
             payload.message,
@@ -84,7 +88,11 @@ async def chat_stream(
         import asyncio
 
         async def _stream_with_keepalive():
-            with output_style_scope(tone=payload.output_tone, locale=payload.output_locale):
+            with output_style_scope(
+                tone=payload.output_tone,
+                reading_mode=payload.reading_mode,
+                locale=payload.output_locale,
+            ):
                 async for event in run_chat_stream(
                     db,
                     user.id,

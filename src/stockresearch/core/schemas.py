@@ -289,6 +289,7 @@ class LlmTestOut(BaseModel):
 
 class RiskCheckupRequest(BaseModel):
     output_tone: Literal["professional", "standard", "friendly"] | None = None
+    reading_mode: Literal["professional", "friendly"] | None = None
     output_locale: Literal["zh", "en"] | None = None
 
 
@@ -299,6 +300,7 @@ class ChatRequest(BaseModel):
     analysis_mode: Literal["simple", "complex"] | None = None
     enable_debate: bool | None = None
     output_tone: Literal["professional", "standard", "friendly"] | None = None
+    reading_mode: Literal["professional", "friendly"] | None = None
     output_locale: Literal["zh", "en"] | None = None
     confirmed_symbol: str | None = Field(
         default=None, min_length=6, max_length=6, pattern=r"^\d{6}$"
@@ -531,4 +533,28 @@ class DailyActionCenterOut(BaseModel):
     signals: list[ActionSignal] = Field(default_factory=list)
     summary: str = ""
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    disclaimer: str = DISCLAIMER
+
+
+# ── Advisor Asset Allocation ───────────────────────────
+
+
+class AssetAllocationRequest(BaseModel):
+    """投顾模式专属：根据风险等级 + 现金流给出资产配置参考。"""
+
+    risk_tolerance: Literal["conservative", "moderate", "aggressive"]
+    monthly_income: float | None = Field(default=None, gt=0, description="月收入（元），用于现金流换算")
+    reading_mode: Literal["professional", "friendly"] | None = None
+    output_locale: Literal["zh", "en"] | None = None
+
+
+class AssetAllocationOut(BaseModel):
+    risk_tolerance: Literal["conservative", "moderate", "aggressive"]
+    risk_label: str = Field(description="风险等级中文标签：保守/稳健/进取")
+    allocation: dict[str, float] = Field(
+        description="参考配置比例，如 {\"股票\": 0.5, \"债券\": 0.35, \"现金\": 0.15}"
+    )
+    rationale: str = Field(description="为什么这样配置的解释（投顾模式用大白话）")
+    cash_flow_impact: str | None = Field(default=None, description="现金流影响分析（有月收入时）")
+    emergency_fund_note: str | None = Field(default=None, description="应急资金建议（有月收入时）")
     disclaimer: str = DISCLAIMER

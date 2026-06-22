@@ -215,11 +215,7 @@ export function StreamFeed({
   const dimensionSteps = orderedDimensionSteps(agentSteps, dimensionDefs);
   const showDimensionGrid =
     dimensionPhaseActive(dimensionSteps) ||
-    streamStatus.includes("四维") ||
-    streamStatus.includes("五维") ||
-    streamStatus.includes("投研") ||
-    streamStatus.includes("dimension") ||
-    streamStatus.includes("research");
+    streamStatus.toLowerCase().includes("dimension");
   const dimsDone = dimensionsComplete(dimensionSteps);
   const manager = managerStep(agentSteps);
   const sortedRounds = debateRounds.slice().sort((a, b) => a.round - b.round);
@@ -227,18 +223,14 @@ export function StreamFeed({
   const showDebateSection =
     sortedRounds.length > 0 ||
     voteTally != null ||
-    streamStatus.includes("Battle") ||
-    streamStatus.includes("debate") ||
-    streamStatus.includes("辩论") ||
+    streamStatus.toLowerCase().includes("debate") ||
     (dimsDone && judgeVerdict != null);
   const showConclusionSection =
     dimsDone &&
     (voteTally != null ||
       manager != null ||
       judgeVerdict != null ||
-      streamStatus.includes("裁判") ||
-      streamStatus.includes("Judge") ||
-      streamStatus.includes("Manager"));
+      streamStatus.toLowerCase().includes("judge"));
   const hasBody =
     streamLog.length > 0 ||
     showDimensionGrid ||

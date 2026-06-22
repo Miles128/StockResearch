@@ -1,0 +1,41 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: check-toml
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        files: ^web/.*\.(ts|tsx|js|jsx|json|css|md)$
+        args: [--write]
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest (backend)
+        entry: uv run pytest -q
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]
+      - id: web-build
+        name: npm run build (frontend)
+        entry: bash -c 'cd web && npm run build'
+        language: system
+        files: ^web/
+        pass_filenames: false
+        stages: [pre-push]

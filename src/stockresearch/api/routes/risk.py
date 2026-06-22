@@ -12,10 +12,10 @@ from stockresearch.agents.risk.engine import run_risk_checkup
 from stockresearch.agents.risk.stream import run_risk_checkup_stream
 from stockresearch.api.deps import get_current_user
 from stockresearch.api.llm_deps import llm_from_headers
-from stockresearch.utils.llm import LLMClient
 from stockresearch.core.schemas import RiskCheckupOut, RiskCheckupRequest
 from stockresearch.db.models import Holding, RiskAlertRecord, User
 from stockresearch.db.session import get_db
+from stockresearch.utils.llm import LLMClient
 
 router = APIRouter(prefix="/risk", tags=["risk"])
 
@@ -42,7 +42,11 @@ async def risk_checkup(
     llm: LLMClient = Depends(llm_from_headers),
 ) -> RiskCheckupOut:
     holdings = db.query(Holding).filter(Holding.user_id == user.id).all()
-    with output_style_scope(tone=payload.output_tone, locale=payload.output_locale):
+    with output_style_scope(
+        tone=payload.output_tone,
+        reading_mode=payload.reading_mode,
+        locale=payload.output_locale,
+    ):
         result = await run_risk_checkup(holdings, llm=llm)
     _persist_alerts(db, user.id, result)
     return result
@@ -59,7 +63,11 @@ async def risk_checkup_stream(
 
     async def event_generator() -> AsyncIterator[str]:
         final: RiskCheckupOut | None = None
-        with output_style_scope(tone=payload.output_tone, locale=payload.output_locale):
+        with output_style_scope(
+            tone=payload.output_tone,
+            reading_mode=payload.reading_mode,
+            locale=payload.output_locale,
+        ):
             async for event in run_risk_checkup_stream(holdings, llm=llm):
                 if event.get("type") == "done":
                     payload_data = event.get("result")

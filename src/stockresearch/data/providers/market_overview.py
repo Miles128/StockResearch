@@ -9,10 +9,9 @@ import akshare as ak
 from stockresearch.core.config import get_settings
 from stockresearch.core.schemas import IndexQuoteOut, MarketOverviewOut, StockQuoteOut
 from stockresearch.data.providers.market import QuoteProvider
-from stockresearch.data.registry import get_symbol_source
-from stockresearch.services.stock_sector import resolve_stock_sector
 from stockresearch.data.providers.sina_index import fetch_sina_indices
-from stockresearch.data.registry import record_overview_fetch
+from stockresearch.data.registry import get_symbol_source, record_overview_fetch
+from stockresearch.services.stock_sector import resolve_stock_sector
 from stockresearch.utils.symbols import resolve_name
 
 logger = logging.getLogger(__name__)

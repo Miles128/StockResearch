@@ -30,3 +30,6 @@ jobs:
       - name: Install and build
         working-directory: web
         run: npm ci && npm run build
+      - name: Test
+        working-directory: web
+        run: npm test

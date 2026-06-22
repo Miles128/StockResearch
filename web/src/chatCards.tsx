@@ -11,7 +11,7 @@ import type {
 import { useI18n } from "./i18n";
 import { translateRouteOption, translateRouteReason } from "./streamI18n";
 import { localizeDebateAgentName, localizeRating } from "./uiLabels";
-import { simpleMarkdown } from "./simpleMarkdown";
+import { MarkdownContent } from "./MarkdownContent";
 import { StockChart } from "./StockChart";
 
 export function RouteChoiceCardView({
@@ -207,11 +207,9 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
           {d.synthesis && (
             <div style={{ marginTop: 8, borderTop: "1px solid var(--bbg-border)", paddingTop: 8 }}>
               <strong>{t("card.judge")}</strong>
-              <div
-                className="markdown-body"
-                style={{ marginTop: 4 }}
-                dangerouslySetInnerHTML={{ __html: simpleMarkdown(d.synthesis) }}
-              />
+              <div style={{ marginTop: 4 }}>
+                <MarkdownContent text={d.synthesis} />
+              </div>
             </div>
           )}
         </div>
@@ -260,11 +258,9 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
             </tbody>
           </table>
           {d.summary && (
-            <div
-              className="markdown-body"
-              style={{ marginTop: 8 }}
-              dangerouslySetInnerHTML={{ __html: simpleMarkdown(d.summary) }}
-            />
+            <div style={{ marginTop: 8 }}>
+              <MarkdownContent text={d.summary} />
+            </div>
           )}
         </div>
       );
@@ -320,7 +316,7 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
       if (!content) return null;
       return (
         <div className="card">
-          <div className="markdown-body" dangerouslySetInnerHTML={{ __html: simpleMarkdown(content) }} />
+          <MarkdownContent text={content} />
         </div>
       );
     }

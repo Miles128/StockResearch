@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from stockresearch.core.constants import CONFIDENCE_HIGH, CONFIDENCE_LOW, CONFIDENCE_MEDIUM
+from stockresearch.core.constants import CONFIDENCE_HIGH, CONFIDENCE_LOW
 
 ConfidenceLevel = Literal["high", "medium", "low"]
 

@@ -8,6 +8,7 @@ import {
 import { localizePositionAction, localizeVoteLabel } from "./uiLabels";
 import type { TParams } from "./i18n";
 import { stripDisclaimer } from "./disclaimerText";
+import { formatManagerContent } from "./debateText";
 import {
   detectDimensionSet,
   dimensionDefsForKind,
@@ -207,9 +208,10 @@ export function applyStreamEvent(
   }
 
   if (event.type === "manager" && event.content) {
+    const formatted = formatManagerContent(event.content);
     agentSteps = agentSteps.map((s) =>
       s.agent_id === "research_manager"
-        ? { ...s, content: event.content, status: "done" as const }
+        ? { ...s, content: formatted, status: "done" as const }
         : s,
     );
   }

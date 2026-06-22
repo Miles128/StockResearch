@@ -3,12 +3,12 @@
 import asyncio
 import logging
 
+from stockresearch.agents.risk import messages as risk_msg
 from stockresearch.agents.risk.metrics import (
     HoldingQuote,
     calculate_portfolio_metrics,
     calculate_var,
 )
-from stockresearch.agents.risk import messages as risk_msg
 from stockresearch.agents.voice import AGENT_VOICE
 from stockresearch.core.constants import (
     SEVERITY_CRITICAL,
@@ -114,90 +114,84 @@ def _sector_concentration(holdings: list[Holding]) -> tuple[float, str | None]:
     return ratio, max_sector
 
 
+def _parse_rule_alerts(holdings: list[Holding], quotes: list) -> list[RiskAlertOut]:
+    """Shared rule-based alert parsing — used by both sync and streaming paths."""
+    alerts: list[RiskAlertOut] = []
+    for holding, quote in zip(holdings, quotes, strict=True):
+        drawdown = (holding.float_cost_price - quote.price) / holding.float_cost_price
+        if drawdown >= 0.15:
+            alerts.append(
+                RiskAlertOut(
+                    rule_id="stop_loss_red",
+                    severity=SEVERITY_RED,
+                    symbol=holding.symbol,
+                    message=risk_msg.alert_stop_loss_red(
+                        holding.name, holding.symbol,
+                        holding.float_cost_price, quote.price, drawdown,
+                    ),
+                    human_message="",
+                )
+            )
+        elif drawdown >= 0.08:
+            alerts.append(
+                RiskAlertOut(
+                    rule_id="stop_loss_yellow",
+                    severity=SEVERITY_YELLOW,
+                    symbol=holding.symbol,
+                    message=risk_msg.alert_stop_loss_yellow(
+                        holding.name, holding.symbol, drawdown,
+                    ),
+                    human_message="",
+                )
+            )
+        if quote.change_pct <= -9.5:
+            alerts.append(
+                RiskAlertOut(
+                    rule_id="black_swan",
+                    severity=SEVERITY_CRITICAL,
+                    symbol=holding.symbol,
+                    message=risk_msg.alert_black_swan_drop(holding.name, quote.change_pct),
+                    human_message="",
+                )
+            )
+        for kw in _BLACK_SWAN_KEYWORDS:
+            if kw in holding.name:
+                alerts.append(
+                    RiskAlertOut(
+                        rule_id="black_swan",
+                        severity=SEVERITY_CRITICAL,
+                        symbol=holding.symbol,
+                        message=risk_msg.alert_black_swan_tag(holding.name, kw),
+                        human_message="",
+                    )
+                )
+                break
+    ratio, sector = _sector_concentration(holdings)
+    if ratio > 0.40 and sector:
+        alerts.append(
+            RiskAlertOut(
+                rule_id="concentration",
+                severity=SEVERITY_WARNING,
+                symbol=None,
+                message=risk_msg.alert_concentration(sector, ratio),
+                human_message="",
+            )
+        )
+    return alerts
+
+
 async def run_risk_checkup(
     holdings: list[Holding],
     llm: LLMClient | None = None,
 ) -> RiskCheckupOut:
     client = llm or get_llm_client()
     quote_provider = QuoteProvider()
-    alerts: list[RiskAlertOut] = []
 
     quotes = await asyncio.gather(
         *[quote_provider.get_quote(holding.symbol) for holding in holdings]
     )
 
-    for holding, quote in zip(holdings, quotes, strict=True):
-        drawdown = (holding.float_cost_price - quote.price) / holding.float_cost_price
-
-        if drawdown >= 0.15:
-            msg = risk_msg.alert_stop_loss_red(
-                holding.name,
-                holding.symbol,
-                holding.float_cost_price,
-                quote.price,
-                drawdown,
-            )
-            alerts.append(
-                RiskAlertOut(
-                    rule_id="stop_loss_red",
-                    severity=SEVERITY_RED,
-                    symbol=holding.symbol,
-                    message=msg,
-                    human_message="",
-                )
-            )
-        elif drawdown >= 0.08:
-            msg = risk_msg.alert_stop_loss_yellow(
-                holding.name, holding.symbol, drawdown
-            )
-            alerts.append(
-                RiskAlertOut(
-                    rule_id="stop_loss_yellow",
-                    severity=SEVERITY_YELLOW,
-                    symbol=holding.symbol,
-                    message=msg,
-                    human_message="",
-                )
-            )
-
-        if quote.change_pct <= -9.5:
-            msg = risk_msg.alert_black_swan_drop(holding.name, quote.change_pct)
-            alerts.append(
-                RiskAlertOut(
-                    rule_id="black_swan",
-                    severity=SEVERITY_CRITICAL,
-                    symbol=holding.symbol,
-                    message=msg,
-                    human_message="",
-                )
-            )
-
-        for kw in _BLACK_SWAN_KEYWORDS:
-            if kw in holding.name:
-                msg = risk_msg.alert_black_swan_tag(holding.name, kw)
-                alerts.append(
-                    RiskAlertOut(
-                        rule_id="black_swan",
-                        severity=SEVERITY_CRITICAL,
-                        symbol=holding.symbol,
-                        message=msg,
-                        human_message="",
-                    )
-                )
-                break
-
-    ratio, sector = _sector_concentration(holdings)
-    if ratio > 0.40 and sector:
-        msg = risk_msg.alert_concentration(sector, ratio)
-        alerts.append(
-            RiskAlertOut(
-                rule_id="concentration",
-                severity=SEVERITY_WARNING,
-                symbol=None,
-                message=msg,
-                human_message="",
-            )
-        )
+    alerts = _parse_rule_alerts(holdings, quotes)
 
     try:
         humanize_tasks = [_humanize(client, alert) for alert in alerts]

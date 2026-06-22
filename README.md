@@ -1,8 +1,8 @@
 # StockResearch
 
-**[中文](#中文) · [English](#english)** · [PRD](docs/PRD.md)
+**[中文](#中文) · [English](#english)** · [PRD v7.0](docs/PRD.md)
 
-[![Tests](https://img.shields.io/badge/tests-141%20passed-brightgreen)](.)
+[![Tests](https://img.shields.io/badge/tests-208%20passed-brightgreen)](.)
 [![Python](https://img.shields.io/badge/python-3.12+-blue)](pyproject.toml)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
@@ -13,13 +13,42 @@
 
 ---
 
+## 双模式 · Dual Mode ★
+
+**个人投顾**（默认）考虑你的现金流和风险承受能力，用大白话解释；**专业投研**专注四维深度分析，术语直出，不结合个人财务。顶栏一键切换，同一份数据，两种视角。
+
+```
+┌──────────────────────────────────────────────────────┐
+│ StockResearch   [个人投顾] [专业投研]   中/EN  ⚙️    │
+├──────────────────────────────────────────────────────┤
+│  [F1对话] [F2新闻] [F3持仓] [F4风控] [F5设置]       │
+└──────────────────────────────────────────────────────┘
+```
+
+**两个核心差异**（其他差异都派生自这两点）：
+
+| 核心差异 | 个人投顾 | 专业投研 |
+|---------|---------|---------|
+| 现金流/风险承受能力 | 考虑（"浮亏 ¥2,300，相当于月收入 15%"） | 不考虑（纯指标 VaR 4.32%） |
+| 语言表现 | 大白话，避免金融术语 | 术语直出，专业口径 |
+
+| 其他维度 | 个人投顾 | 专业投研 |
+|---------|---------|---------|
+| 信息密度 | 首屏 ≤ 5 条 | 完整数据 |
+| 辩论 | 默认关 | 默认开 |
+| 术语弹窗 | 默认开 | 默认关 |
+
+模式持久化，可随时切换；模式内单项可微调（Settings）。首次访问引导选模式 + 投顾模式填风险分级/现金流 + 加载示例持仓。
+
+---
+
 ## Screenshots · 界面预览
 
 ### Chat · 对话 (F1)
 
-Natural-language entry with SSE streaming; four research dimensions, optional debate, judge synthesis. Token usage and quote source in the header.
+Natural-language entry with SSE streaming; four research dimensions, optional debate, judge synthesis.
 
-自然语言入口，SSE 流式展示四维投研、多空辩论与裁判；顶栏显示 Token 用量与行情源。
+自然语言入口，SSE 流式展示四维投研、多空辩论与裁判。
 
 ![Chat](docs/screenshots/chat.png)
 
@@ -49,9 +78,9 @@ Sharpe、VaR、集中度、规则告警与 AI 解读。
 
 ### Settings · 设置 (F5)
 
-BYOK LLM, optional Tushare token, debate toggle, report export.
+BYOK LLM, optional Tushare token, debate toggle, report export, mode fine-tuning.
 
-BYOK 大模型、可选 Tushare、辩论开关、报告导出。
+BYOK 大模型、可选 Tushare、辩论开关、报告导出、模式微调。
 
 ![Settings](docs/screenshots/settings.png)
 
@@ -61,20 +90,22 @@ BYOK 大模型、可选 Tushare、辩论开关、报告导出。
 
 ## 中文
 
-面向 A 股个人投资者的 **本机 Multi-Agent AI 投研终端**。Bloomberg 风格 Web 界面，LangGraph 编排专用 Agent，**单用户、SQLite、浏览器 BYOK**——不注册、不上线、不收费。
+面向 A 股个人投资者的 **双模式本机 AI 投资助手**。个人投顾帮你看懂"今天该关注什么"，专业投研给你四维深度分析。LangGraph 编排专用 Agent，**单用户、SQLite、浏览器 BYOK**——不注册、不上线、不收费。
 
 > **免责声明**：所有 AI 输出仅供学习与研究参考，不构成任何投资建议。
 
 ### 产品定位
 
-StockResearch 是**长期开源 MVP**：跑在你自己电脑上的投研工作台，不是公网 SaaS。
+StockResearch 是**长期开源 MVP**：跑在你自己电脑上的投资助手，不是公网 SaaS。
 
 | 原则 | 说明 |
 |------|------|
+| **双模式** | 个人投顾（默认，人话+主动建议）/ 专业投研（术语+深度），顶栏一键切换 |
 | **本机优先** | `venv` + SQLite + `localhost`，无 Docker/Redis/Postgres |
 | **单用户** | 固定本地用户 `mvp`，无需登录 |
-| **Research 先于 Battle** | 四维研究完成后再可选多空辩论（[FinGenius](https://github.com/HuaYaoAI/FinGenius)） |
-| **工具隔离** | 各维度 Agent 仅调用本域工具（[TradingAgents](https://github.com/TauricResearch/TradingAgents)） |
+| **同一份数据** | 双模式共享后端推理与数据，只有呈现层和写作风格按模式切换 |
+| **Research 先于 Battle** | 四维研究完成后再可选多空辩论 |
+| **工具隔离** | 各维度 Agent 仅调用本域工具 |
 | **规则与模型分工** | 快讯/风控走规则；LLM 负责推理与生成 |
 | **BYOK** | API Key 仅存浏览器，不经服务端数据库 |
 
@@ -82,22 +113,30 @@ StockResearch 是**长期开源 MVP**：跑在你自己电脑上的投研工作�
 
 | 模块 | 说明 |
 |------|------|
+| **双模式切换** | 顶栏个人投顾/专业投研一键切换，持久化，模式内可微调 |
+| **首次引导** | 选模式 + 示例持仓 + LLM 配置，3 步完成 |
 | 智能对话 | 个股/市场意图路由；歧义股票卡片确认 |
 | 四维投研 | 基本面、技术面、情绪面、筹码面 ReAct 并行 |
-| 多空辩论 | 设置中可开关 |
+| 多空辩论 | 设置中可开关（投顾默认关，投研默认开） |
 | 新闻快讯 | ≤3s SLA，零 LLM |
 | 持仓管理 | 成本、盈亏、板块、定时刷新 |
-| 风控体检 | VaR、回撤、集中度 + AI 解读 |
+| 风控体检 | VaR、回撤、集中度 + AI 解读（投顾先人话，投研先指标） |
 | 国际化 | 中/英界面；橙黑 / 酒红主题 |
 
 ### 架构
 
 ```
+┌─────────────────────────────────────────────────────┐
+│  模式层  个人投顾 ←→ 专业投研  顶栏切换 · 持久化     │
+├─────────────────────────────────────────────────────┤
+│  呈现层（前端，按模式差异化）                          │
+├─────────────────────────────────────────────────────┤
+│  推理层（后端，模式无关）LangGraph + 四维 ReAct + 辩论 │
+├─────────────────────────────────────────────────────┤
+│  数据层（后端，模式无关）行情 · 新闻 · 财报 · 持仓     │
+└─────────────────────────────────────────────────────┘
+
 浏览器 (:5174)  ──REST/SSE──▶  FastAPI (:8000) + SQLite
-                                    │
-                              LangGraph Orchestrator
-                                    │
-                    行情 · 新闻 · 情绪 · 可选 Tushare
 ```
 
 ### 快速开始
@@ -117,10 +156,10 @@ uv run uvicorn stockresearch.api.app:app --reload --host 127.0.0.1 --port 8000 -
 cd web && npm install && npm run dev
 ```
 
-打开 **http://localhost:5174**。首次进入若未配置大模型会弹出设置；也可随时按 **F5** 打开设置页。保存后自动写入项目根 `.env`（已 gitignore），无需手改 env 文件。支持 [DeepSeek](https://platform.deepseek.com/)、[DashScope 兼容模式](https://help.aliyun.com/zh/model-studio/) 等 OpenAI 兼容接口。
+打开 **http://localhost:5174**。首次进入触发引导：选模式（个人投顾/专业投研）→ 示例持仓已加载 → 配置 LLM（或 Mock 模式先体验）。也可随时按 **F5** 打开设置页。保存后自动写入项目根 `.env`（已 gitignore）。支持 [DeepSeek](https://platform.deepseek.com/)、[DashScope 兼容模式](https://help.aliyun.com/zh/model-studio/) 等 OpenAI 兼容接口。
 
 ```bash
-pytest          # 152 tests
+pytest          # 208 tests
 cd web && npm run build
 ```
 
@@ -141,7 +180,7 @@ cd web && npm run build
 
 ### 文档与贡献
 
-- [PRD v3.0（单用户本机）](docs/PRD.md)
+- [PRD v7.0（双模式）](docs/PRD.md)
 - [初版开发规划](docs/DEVELOPMENT_PLAN.md)
 - 欢迎 Issue 与 PR；开发前请阅读 PRD 路线图
 
@@ -155,20 +194,22 @@ MIT — 见 [LICENSE](LICENSE)。本产品 AI 内容仅供学习与研究，**�
 
 ## English
 
-A **local, single-user Multi-Agent AI research terminal** for China A-share investors. Bloomberg-style web UI, LangGraph orchestration, **SQLite on your machine, BYOK in the browser** — no sign-up, no hosted SaaS, no paywall.
+A **dual-mode local AI investment assistant** for China A-share investors. **Advisor mode** considers your cash flow and risk tolerance, explaining in plain language; **Research mode** focuses on four-dimensional deep analysis with direct terminology, not tied to personal finances. LangGraph orchestration, **SQLite on your machine, BYOK in the browser** — no sign-up, no hosted SaaS, no paywall.
 
 > **Disclaimer**: All AI output is for learning and research only. Not investment advice.
 
 ### Positioning
 
-StockResearch is a **long-term open-source MVP**: a personal research workstation on your PC, not a multi-tenant cloud product.
+StockResearch is a **long-term open-source MVP**: a personal investment assistant on your PC, not a multi-tenant cloud product.
 
 | Principle | Detail |
 |-----------|--------|
+| **Dual mode** | Advisor (default, plain language + proactive) / Research (terms + depth), top-bar toggle |
 | **Local-first** | `venv` + SQLite + `localhost`; no Docker/Redis/Postgres |
 | **Single user** | Fixed local user `mvp`; no login |
-| **Research before battle** | Four dimensions finish independently, then optional debate ([FinGenius](https://github.com/HuaYaoAI/FinGenius)) |
-| **Tool isolation** | Each agent only calls domain tools ([TradingAgents](https://github.com/TauricResearch/TradingAgents)) |
+| **Same data** | Both modes share backend reasoning & data; only presentation and writing style switch |
+| **Research before battle** | Four dimensions finish independently, then optional debate |
+| **Tool isolation** | Each agent only calls domain tools |
 | **Rules vs models** | News/risk thresholds are rule-based; LLM for reasoning |
 | **BYOK** | API keys stay in the browser, never stored server-side |
 
@@ -176,22 +217,30 @@ StockResearch is a **long-term open-source MVP**: a personal research workstatio
 
 | Module | Description |
 |--------|-------------|
+| **Dual-mode toggle** | Top-bar Advisor/Research switch, persisted, fine-tunable per mode |
+| **Onboarding** | Pick mode + demo holdings + LLM config in 3 steps |
 | Chat | Intent routing; ambiguous ticker picker |
 | 4D research | Fundamental, technical, sentiment, chips (parallel ReAct) |
-| Debate | Optional bull/bear rounds + judge |
+| Debate | Optional bull/bear rounds + judge (off in Advisor, on in Research) |
 | News | ≤3s SLA, zero LLM |
 | Portfolio | P&amp;L, sectors, periodic refresh |
-| Risk checkup | VaR, drawdown, concentration + AI summary |
+| Risk checkup | VaR, drawdown, concentration + AI summary (Advisor: plain first; Research: metrics first) |
 | i18n | Chinese / English UI; two themes |
 
 ### Architecture
 
 ```
+┌─────────────────────────────────────────────────────┐
+│  Mode layer  Advisor ←→ Research  top-bar · persist  │
+├─────────────────────────────────────────────────────┤
+│  Presentation (frontend, mode-differentiated)        │
+├─────────────────────────────────────────────────────┤
+│  Reasoning (backend, mode-agnostic) LangGraph + 4D  │
+├─────────────────────────────────────────────────────┤
+│  Data (backend, mode-agnostic) quotes·news·reports  │
+└─────────────────────────────────────────────────────┘
+
 Browser (:5174)  ──REST/SSE──▶  FastAPI (:8000) + SQLite
-                                    │
-                              LangGraph Orchestrator
-                                    │
-                    quotes · news · sentiment · optional Tushare
 ```
 
 ### Quick start
@@ -211,10 +260,10 @@ uv run uvicorn stockresearch.api.app:app --reload --host 127.0.0.1 --port 8000 -
 cd web && npm install && npm run dev
 ```
 
-Open **http://localhost:5174**. If no LLM is configured, a setup dialog appears; press **F5** anytime for Settings. Saving writes to the project root `.env` (gitignored) automatically. Works with [DeepSeek](https://platform.deepseek.com/), [DashScope compatible mode](https://help.aliyun.com/zh/model-studio/), and other OpenAI-compatible APIs.
+Open **http://localhost:5174**. First visit triggers onboarding: pick mode (Advisor/Research) → demo holdings loaded → configure LLM (or Mock mode). Press **F5** anytime for Settings. Saving writes to the project root `.env` (gitignored) automatically. Works with [DeepSeek](https://platform.deepseek.com/), [DashScope compatible mode](https://help.aliyun.com/zh/model-studio/), and other OpenAI-compatible APIs.
 
 ```bash
-pytest          # 152 tests
+pytest          # 208 tests
 cd web && npm run build
 ```
 
@@ -235,7 +284,7 @@ Saving in Settings writes `.env`; the backend reads it on the next request.
 
 ### Docs & contributing
 
-- [PRD v3.0 (local single-user)](docs/PRD.md)
+- [PRD v7.0 (dual mode)](docs/PRD.md)
 - [Initial development plan (baseline)](docs/DEVELOPMENT_PLAN.md)
 - Issues and PRs welcome; read the PRD roadmap before large features
 

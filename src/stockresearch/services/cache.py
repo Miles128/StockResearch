@@ -1,4 +1,16 @@
-"""In-memory cache with TTL support and size limits."""
+"""In-memory cache with TTL support and size limits.
+
+线程安全说明：
+    本模块使用模块级 OrderedDict 作为缓存存储，未加锁。
+    在 CPython 下 OrderedDict 的单个操作（get/set/del）因 GIL 而原子，
+    但复合操作（如 _sweep_expired 的遍历+删除、get 后 move_to_end）在
+    高并发下可能出现竞态（例如两个线程同时淘汰同一 key）。
+    对本应用（单进程 FastAPI + 线程池）影响有限：
+      - 缓存值是幂等的（重复计算不会产生错误结果，只是浪费一次计算）
+      - 最坏情况是缓存项被重复淘汰或短暂重复计算，不会导致数据损坏
+    若未来引入多进程或对缓存一致性有更高要求，需改用 threading.Lock
+    或迁移到 Redis 等外部缓存。
+"""
 
 import json
 import time

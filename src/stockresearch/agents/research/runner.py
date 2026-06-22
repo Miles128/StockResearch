@@ -6,12 +6,12 @@ from typing import Literal
 from stockresearch.agents.research.agents import AGENT_BY_ID, DIMENSION_AGENTS
 from stockresearch.agents.research.context import ResearchContext
 from stockresearch.agents.research.debate import run_debate
-from stockresearch.agents.research.report_builder import build_research_report
 from stockresearch.agents.research.react import (
     DimensionAgent,
     prepare_react_agent,
     run_react_agent,
 )
+from stockresearch.agents.research.report_builder import build_research_report
 from stockresearch.core.schemas import DebateResult, DimensionResult, ResearchReportOut
 from stockresearch.services.text_factor import build_news_text_factor, fetch_symbol_news_snippets
 from stockresearch.utils.llm import LLMClient, get_llm_client

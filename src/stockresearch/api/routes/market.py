@@ -14,8 +14,8 @@ from stockresearch.core.schemas import (
     StockQuoteOut,
 )
 from stockresearch.data.providers.market import TechnicalDataProvider
-from stockresearch.data.registry import get_snapshots
 from stockresearch.data.providers.market_overview import BatchQuoteProvider, MarketOverviewProvider
+from stockresearch.data.registry import get_snapshots
 from stockresearch.db.models import Holding, User
 from stockresearch.db.session import get_db
 

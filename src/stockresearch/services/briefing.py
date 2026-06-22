@@ -5,12 +5,12 @@ from datetime import UTC, datetime
 from sqlalchemy.orm import Session
 
 from stockresearch.agents.news.agent import get_news_for_user
-from stockresearch.services.text_factor import build_news_text_factor, news_from_out
 from stockresearch.core.constants import DISCLAIMER
 from stockresearch.core.schemas import BriefingOut, BriefingSection
 from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.data.providers.market_overview import MarketOverviewProvider
 from stockresearch.db.models import Holding, RiskAlertRecord
+from stockresearch.services.text_factor import build_news_text_factor, news_from_out
 from stockresearch.utils.llm import LLMClient
 
 

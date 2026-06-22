@@ -1,0 +1,457 @@
+{
+  "PE": {
+    "en": "Price-to-Earnings Ratio",
+    "short": "市盈率",
+    "def": "股价 ÷ 每股收益，衡量估值高低",
+    "analogy": "花多少钱买1元年利润",
+    "context_template": "当前 {stock} PE 为 {value}，行业均值 {industry_avg}，{assessment}"
+  },
+  "PB": {
+    "en": "Price-to-Book Ratio",
+    "short": "市净率",
+    "def": "股价 ÷ 每股净资产，衡量市值与账面价值关系",
+    "analogy": "花多少钱买1元净资产",
+    "context_template": "当前 {stock} PB 为 {value}，行业均值 {industry_avg}，{assessment}"
+  },
+  "ROE": {
+    "en": "Return on Equity",
+    "short": "净资产收益率",
+    "def": "净利润 ÷ 净资产，衡量赚钱效率",
+    "analogy": "每100元本金一年能赚多少",
+    "context_template": "当前 {stock} ROE 为 {value}%，行业均值 {industry_avg}%"
+  },
+  "ROA": {
+    "en": "Return on Assets",
+    "short": "总资产收益率",
+    "def": "净利润 ÷ 总资产，衡量资产使用效率",
+    "analogy": "每100元资产一年能赚多少",
+    "context_template": "当前 {stock} ROA 为 {value}%"
+  },
+  "EPS": {
+    "en": "Earnings Per Share",
+    "short": "每股收益",
+    "def": "净利润 ÷ 总股本，衡量每股盈利水平",
+    "analogy": "每持有一股能分到多少利润",
+    "context_template": "当前 {stock} EPS 为 {value} 元"
+  },
+  "VaR": {
+    "en": "Value at Risk",
+    "short": "风险价值",
+    "def": "在给定置信度下的最大可能亏损",
+    "analogy": "95%概率不会亏超过这个数",
+    "context_template": "未来一天，95%概率亏损不超过 ¥{amount}（VaR {pct}%）"
+  },
+  "CVaR": {
+    "en": "Conditional Value at Risk",
+    "short": "条件风险价值",
+    "def": "超过 VaR 阈值后的平均亏损，衡量尾部风险",
+    "analogy": "最坏5%的情况下平均亏多少",
+    "context_template": "极端情况下平均亏损 ¥{amount}（CVaR {pct}%）"
+  },
+  "MACD": {
+    "en": "Moving Average Convergence Divergence",
+    "short": "指数平滑异同移动平均线",
+    "def": "快慢均线差值，判断趋势方向与动量强弱",
+    "analogy": "短期趋势和长期趋势的'拉锯'程度",
+    "context_template": "MACD {value}，{assessment}"
+  },
+  "RSI": {
+    "en": "Relative Strength Index",
+    "short": "相对强弱指标",
+    "def": "0-100区间，衡量近期涨跌力度对比",
+    "analogy": "近期涨得多的力度 vs 跌得多的力度",
+    "context_template": "RSI {value}，{assessment}"
+  },
+  "KDJ": {
+    "en": "Stochastic Oscillator",
+    "short": "随机指标",
+    "def": "基于最高价/最低价/收盘价的超买超卖指标",
+    "analogy": "当前价格在近期区间中的相对位置",
+    "context_template": "KDJ {value}，{assessment}"
+  },
+  "BOLL": {
+    "en": "Bollinger Bands",
+    "short": "布林带",
+    "def": "均线±2倍标准差构成的通道，判断波动范围",
+    "analogy": "价格的'正常波动走廊'",
+    "context_template": "BOLL {value}，{assessment}"
+  },
+  "夏普比率": {
+    "en": "Sharpe Ratio",
+    "short": "夏普比率",
+    "def": "超额收益 ÷ 波动率，衡量风险调整后收益",
+    "analogy": "每承担1份风险能换来多少超额回报",
+    "context_template": "夏普比率 {value}，{assessment}"
+  },
+  "索提诺比率": {
+    "en": "Sortino Ratio",
+    "short": "索提诺比率",
+    "def": "超额收益 ÷ 下行波动率，只惩罚亏损波动",
+    "analogy": "只看亏钱风险时的回报效率",
+    "context_template": "索提诺比率 {value}，{assessment}"
+  },
+  "最大回撤": {
+    "en": "Maximum Drawdown",
+    "short": "最大回撤",
+    "def": "从峰值到谷值的最大跌幅",
+    "analogy": "最惨一次从最高跌到最低亏了多少",
+    "context_template": "最大回撤 {value}%，{assessment}"
+  },
+  "波动率": {
+    "en": "Volatility",
+    "short": "年化波动率",
+    "def": "日收益率标准差×√252，衡量价格波动幅度",
+    "analogy": "价格上下跳动的剧烈程度",
+    "context_template": "年化波动率 {value}%，{assessment}"
+  },
+  "集中度": {
+    "en": "Concentration Ratio",
+    "short": "行业集中度",
+    "def": "最大行业权重占比，衡量组合分散程度",
+    "analogy": "鸡蛋放在几个篮子里",
+    "context_template": "行业集中度 {value}%，{assessment}"
+  },
+  "北向资金": {
+    "en": "Northbound Capital",
+    "short": "北向资金",
+    "def": "通过港股通流入A股的资金，常被视为聪明钱",
+    "analogy": "从香港过来买A股的资金",
+    "context_template": "北向资金 {value}，{assessment}"
+  },
+  "换手率": {
+    "en": "Turnover Rate",
+    "short": "换手率",
+    "def": "当日成交量 ÷ 流通股本，衡量交易活跃度",
+    "analogy": "今天有多少比例的股票换了主人",
+    "context_template": "换手率 {value}%，{assessment}"
+  },
+  "量比": {
+    "en": "Volume Ratio",
+    "short": "量比",
+    "def": "当前成交量 ÷ 过去5日同时段均量，衡量放量程度",
+    "analogy": "今天的交易量是平时几倍",
+    "context_template": "量比 {value}，{assessment}"
+  },
+  "市销率": {
+    "en": "Price-to-Sales Ratio",
+    "short": "市销率",
+    "def": "市值 ÷ 年营收，衡量每元营收的定价",
+    "analogy": "花多少钱买1元销售额",
+    "context_template": "市销率 {value}，{assessment}"
+  },
+  "毛利率": {
+    "en": "Gross Margin",
+    "short": "毛利率",
+    "def": "(营收-成本) ÷ 营收，衡量产品盈利能力",
+    "analogy": "每100元收入扣掉成本还剩多少",
+    "context_template": "毛利率 {value}%，{assessment}"
+  },
+  "净利率": {
+    "en": "Net Margin",
+    "short": "净利率",
+    "def": "净利润 ÷ 营收，衡量最终盈利能力",
+    "analogy": "每100元收入最终能留下多少利润",
+    "context_template": "净利率 {value}%，{assessment}"
+  },
+  "资产负债率": {
+    "en": "Debt-to-Asset Ratio",
+    "short": "资产负债率",
+    "def": "总负债 ÷ 总资产，衡量财务杠杆水平",
+    "analogy": "每100元资产中有多少是借来的",
+    "context_template": "资产负债率 {value}%，{assessment}"
+  },
+  "自由现金流": {
+    "en": "Free Cash Flow",
+    "short": "自由现金流",
+    "def": "经营现金流-资本支出，企业可自由支配的现金",
+    "analogy": "扣掉必须花的钱后，企业真正能自由使用的现金",
+    "context_template": "自由现金流 {value} 亿，{assessment}"
+  },
+  "股息率": {
+    "en": "Dividend Yield",
+    "short": "股息率",
+    "def": "年度每股分红 ÷ 股价，衡量分红回报",
+    "analogy": "每年靠分红能回收百分之几的投资",
+    "context_template": "股息率 {value}%，{assessment}"
+  },
+  "Beta": {
+    "en": "Beta Coefficient",
+    "short": "贝塔系数",
+    "def": "个股波动率 ÷ 大盘波动率，衡量系统性风险暴露",
+    "analogy": "大盘涨1%它涨多少%",
+    "context_template": "Beta {value}，{assessment}"
+  },
+  "Alpha": {
+    "en": "Alpha",
+    "short": "超额收益",
+    "def": "超越基准的收益部分，衡量主动管理能力",
+    "analogy": "比大盘多赚（或少亏）的部分",
+    "context_template": "Alpha {value}%，{assessment}"
+  },
+  "Calmar比率": {
+    "en": "Calmar Ratio",
+    "short": "Calmar比率",
+    "def": "年化收益 ÷ 最大回撤，衡量回撤风险下的收益效率",
+    "analogy": "每承受1%最大回撤换来多少年化收益",
+    "context_template": "Calmar比率 {value}，{assessment}"
+  },
+  "信息比率": {
+    "en": "Information Ratio",
+    "short": "信息比率",
+    "def": "超额收益 ÷ 跟踪误差，衡量主动管理效率",
+    "analogy": "偏离基准的收益是否值得承担偏离风险",
+    "context_template": "信息比率 {value}，{assessment}"
+  },
+  "EMA": {
+    "en": "Exponential Moving Average",
+    "short": "指数移动平均线",
+    "def": "对近期价格赋予更高权重的均线，反应更快",
+    "analogy": "更关注近期走势的平均线",
+    "context_template": "EMA{period} {value}，{assessment}"
+  },
+  "MA": {
+    "en": "Moving Average",
+    "short": "移动平均线",
+    "def": "过去N日收盘价的算术平均，判断趋势方向",
+    "analogy": "过去N天价格的平均水平",
+    "context_template": "MA{period} {value}，{assessment}"
+  },
+  "金叉": {
+    "en": "Golden Cross",
+    "short": "金叉",
+    "def": "短期均线上穿长期均线，技术面看涨信号",
+    "analogy": "短期趋势向上穿越长期趋势，可能是上涨信号",
+    "context_template": "金叉形成，{assessment}"
+  },
+  "死叉": {
+    "en": "Death Cross",
+    "short": "死叉",
+    "def": "短期均线下穿长期均线，技术面看跌信号",
+    "analogy": "短期趋势向下跌破长期趋势，可能是下跌信号",
+    "context_template": "死叉形成，{assessment}"
+  },
+  "支撑位": {
+    "en": "Support Level",
+    "short": "支撑位",
+    "def": "价格下跌时可能止跌的价位区间",
+    "analogy": "价格的'地板'，跌到这里可能反弹",
+    "context_template": "支撑位 {value}，{assessment}"
+  },
+  "压力位": {
+    "en": "Resistance Level",
+    "short": "压力位",
+    "def": "价格上涨时可能受阻回落的价位区间",
+    "analogy": "价格的'天花板'，涨到这里可能回落",
+    "context_template": "压力位 {value}，{assessment}"
+  },
+  "龙虎榜": {
+    "en": "Dragon-Tiger List",
+    "short": "龙虎榜",
+    "def": "交易所公布的大额买卖营业部明细",
+    "analogy": "大资金当天买了什么卖了什么的公开记录",
+    "context_template": "龙虎榜数据显示，{assessment}"
+  },
+  "限售解禁": {
+    "en": "Lock-up Expiry",
+    "short": "限售解禁",
+    "def": "原本限制交易的股票可以在二级市场流通",
+    "analogy": "之前不让卖的股票现在可以卖了，可能增加抛压",
+    "context_template": "解禁规模 {value}，{assessment}"
+  },
+  "融资融券": {
+    "en": "Margin Trading & Short Selling",
+    "short": "融资融券",
+    "def": "借入资金买入(融资)或借入股票卖出(融券)",
+    "analogy": "借钱买股票 或 借股票来卖",
+    "context_template": "融资余额 {value}，{assessment}"
+  },
+  "涨跌停": {
+    "en": "Price Limit",
+    "short": "涨跌停",
+    "def": "A股主板日涨跌幅限制±10%，ST股±5%，创业板/科创板±20%",
+    "analogy": "一天最多涨或跌多少就被'锁住'",
+    "context_template": "涨跌停 {value}，{assessment}"
+  },
+  "市盈率TTM": {
+    "en": "Trailing PE",
+    "short": "滚动市盈率",
+    "def": "基于最近4个季度利润计算的市盈率",
+    "analogy": "用最近一年真实利润算出的PE",
+    "context_template": "PE(TTM) {value}，{assessment}"
+  },
+  "PEG": {
+    "en": "PEG Ratio",
+    "short": "市盈率相对盈利增长比率",
+    "def": "PE ÷ 盈利增速，衡量估值与成长的匹配度",
+    "analogy": "PE除以增速，<1可能被低估",
+    "context_template": "PEG {value}，{assessment}"
+  },
+  "止损": {
+    "en": "Stop Loss",
+    "short": "止损",
+    "def": "预设亏损比例/金额，触及后执行卖出以控制风险",
+    "analogy": "给自己设一条'红线'，亏到就离场",
+    "context_template": "止损线 {value}%，{assessment}"
+  },
+  "止损关注线": {
+    "en": "Stop Loss Alert Line",
+    "short": "止损关注线",
+    "def": "接近止损线时的预警线，提示关注但尚未触发",
+    "analogy": "离止损线很近了，需要开始留意",
+    "context_template": "距止损关注线 {value}%，{assessment}"
+  },
+  "持仓": {
+    "en": "Position / Holding",
+    "short": "持仓",
+    "def": "当前持有的证券组合",
+    "analogy": "你手里正在持有的股票",
+    "context_template": "持仓 {value}，{assessment}"
+  },
+  "仓位": {
+    "en": "Position Size",
+    "short": "仓位",
+    "def": "某只股票或整体在组合中的资金占比",
+    "analogy": "把钱分配给这只股票的比例",
+    "context_template": "仓位 {value}%，{assessment}"
+  },
+  "回撤": {
+    "en": "Drawdown",
+    "short": "回撤",
+    "def": "从峰值到当前价格的跌幅",
+    "analogy": "从最高点跌下来的幅度",
+    "context_template": "回撤 {value}%，{assessment}"
+  },
+  "多空比": {
+    "en": "Bull-Bear Ratio",
+    "short": "多空比",
+    "def": "看多与看空观点的比例，反映市场情绪方向",
+    "analogy": "看涨的人和看跌的人的比例",
+    "context_template": "多空比 {value}，{assessment}"
+  },
+  "估值": {
+    "en": "Valuation",
+    "short": "估值",
+    "def": "衡量股票价格是否合理，常用PE/PB/PEG等指标",
+    "analogy": "这只股票卖得贵不贵",
+    "context_template": "估值 {assessment}"
+  },
+  "基本面": {
+    "en": "Fundamentals",
+    "short": "基本面",
+    "def": "公司经营状况、财务数据等决定内在价值的因素",
+    "analogy": "公司的'身体素质'——赚钱能力、财务健康等",
+    "context_template": "基本面 {assessment}"
+  },
+  "技术面": {
+    "en": "Technical Analysis",
+    "short": "技术面",
+    "def": "基于价格、成交量等历史数据的走势分析方法",
+    "analogy": "通过价格走势图形判断未来方向",
+    "context_template": "技术面 {assessment}"
+  },
+  "情绪面": {
+    "en": "Sentiment",
+    "short": "情绪面",
+    "def": "市场参与者情绪与预期的综合分析",
+    "analogy": "大家是乐观还是悲观",
+    "context_template": "情绪面 {assessment}"
+  },
+  "筹码面": {
+    "en": "Chip / Money Flow",
+    "short": "筹码面",
+    "def": "资金流向、主力持仓变化等分析",
+    "analogy": "大资金在买还是在卖",
+    "context_template": "筹码面 {assessment}"
+  },
+  "净流入": {
+    "en": "Net Inflow",
+    "short": "净流入",
+    "def": "流入资金-流出资金，正值代表资金净买入",
+    "analogy": "买的人花的钱比卖的人拿走的钱多",
+    "context_template": "净流入 {value} 亿，{assessment}"
+  },
+  "净流出": {
+    "en": "Net Outflow",
+    "short": "净流出",
+    "def": "流出资金-流入资金，正值代表资金净卖出",
+    "analogy": "卖的人拿走的钱比买的人花的钱多",
+    "context_template": "净流出 {value} 亿，{assessment}"
+  },
+  "预期收益": {
+    "en": "Expected Return",
+    "short": "预期收益",
+    "def": "基于概率加权计算的平均可能收益",
+    "analogy": "综合考虑各种可能性的平均回报预期",
+    "context_template": "预期收益 {value}%，{assessment}"
+  },
+  "期望损失": {
+    "en": "Expected Loss",
+    "short": "期望损失",
+    "def": "基于概率加权计算的平均可能亏损",
+    "analogy": "综合考虑各种可能性的平均亏损预期",
+    "context_template": "期望损失 ¥{amount}（{pct}%），{assessment}"
+  },
+  "压力测试": {
+    "en": "Stress Test",
+    "short": "压力测试",
+    "def": "模拟极端市场情况下组合的可能亏损",
+    "analogy": "如果市场崩盘，你会亏多少",
+    "context_template": "压力测试：{scenario}，{assessment}"
+  },
+  "情景分析": {
+    "en": "Scenario Analysis",
+    "short": "情景分析",
+    "def": "在不同假设情景下分析组合表现",
+    "analogy": "如果发生A情况会怎样，发生B情况会怎样",
+    "context_template": "情景分析：{assessment}"
+  },
+  "再平衡": {
+    "en": "Rebalancing",
+    "short": "再平衡",
+    "def": "调整持仓权重回到目标配置",
+    "analogy": "把偏离的仓位调回原定比例",
+    "context_template": "再平衡建议：{assessment}"
+  },
+  "相关性": {
+    "en": "Correlation",
+    "short": "相关性",
+    "def": "两个资产收益率变动的同步程度，-1到1",
+    "analogy": "两只股票同涨同跌的程度",
+    "context_template": "相关性 {value}，{assessment}"
+  },
+  "黑天鹅": {
+    "en": "Black Swan",
+    "short": "黑天鹅事件",
+    "def": "极低概率但影响巨大的不可预测事件",
+    "analogy": "几乎不可能发生但一旦发生就很严重的事",
+    "context_template": "黑天鹅风险：{assessment}"
+  },
+  "流动性风险": {
+    "en": "Liquidity Risk",
+    "short": "流动性风险",
+    "def": "无法以合理价格及时买卖的风险",
+    "analogy": "想卖的时候卖不掉，或者只能贱卖",
+    "context_template": "流动性风险：{assessment}"
+  },
+  "VaR 95%": {
+    "en": "Value at Risk (95% Confidence)",
+    "short": "VaR 95%",
+    "def": "95%置信度下的最大可能亏损",
+    "analogy": "95%的情况下不会亏超过这个数",
+    "context_template": "95%概率亏损不超过 ¥{amount}（VaR {pct}%）"
+  },
+  "置信度": {
+    "en": "Confidence Level",
+    "short": "置信度",
+    "def": "统计推断的概率保证程度，如95%表示100次中95次正确",
+    "analogy": "预测的可信程度",
+    "context_template": "置信度 {value}%"
+  },
+  "置信区间": {
+    "en": "Confidence Interval",
+    "short": "置信区间",
+    "def": "参数真值以给定概率落入的区间",
+    "analogy": "真值大概率落在这个范围内",
+    "context_template": "置信区间 [{lower}, {upper}]"
+  }
+}

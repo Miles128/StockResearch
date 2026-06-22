@@ -10,6 +10,7 @@ from urllib.parse import quote
 
 import akshare as ak
 import httpx
+
 try:
     from curl_cffi.requests import Session as CurlSession
 
@@ -18,7 +19,7 @@ except ImportError:
     _HAS_CURL_CFFI = False
 
 from stockresearch.core.config import get_settings
-from stockresearch.utils.llm import get_llm_client
+from stockresearch.utils.llm import _httpx_client_kwargs, get_llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +148,7 @@ class NewsProvider:
                 ],
                 "temperature": 0.3,
             }
-            async with httpx.AsyncClient(timeout=15.0) as client:
+            async with httpx.AsyncClient(**_httpx_client_kwargs()) as client:
                 resp = await client.post(
                     settings.llm_base_url.strip(),
                     headers=headers,

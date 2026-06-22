@@ -30,6 +30,16 @@ import { stripDisclaimer } from "./disclaimerText";
 import { applyStreamEvent, emptyStreamState } from "./streamEvents";
 import { normalizeStreamEvent } from "./streamI18n";
 import { TabNav } from "./TabNav";
+import { ModeSwitcher } from "./ModeSwitcher";
+import { Onboarding } from "./Onboarding";
+import { AssetAllocationPanel } from "./AssetAllocationPanel";
+import {
+  loadModeSettings,
+  saveModeSettings,
+  switchMode,
+  type AppMode,
+  type ModeSettings,
+} from "./modeSettings";
 
 export class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -70,13 +80,6 @@ export default function App() {
     ],
     [t, locale],
   );
-  const pageTitles: Record<Tab, string> = {
-    chat: t("page.chat"),
-    news: t("page.news"),
-    portfolio: t("page.portfolio"),
-    risk: t("page.risk"),
-    settings: t("page.settings"),
-  };
   const numLocale = locale === "zh" ? "zh-CN" : "en-US";
   const ratioGrade = (v: number, excellent: number, good: number) =>
     v > excellent ? t("rating.excellent") : v > good ? t("rating.good") : v > 0 ? t("rating.fair") : t("rating.poor");
@@ -113,6 +116,8 @@ export default function App() {
   const [sectorSaving, setSectorSaving] = useState(false);
   const [isDemo, setIsDemo] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
+  const [modeSettings, setModeSettings] = useState<ModeSettings>(() => loadModeSettings());
+  const [onboardingOpen, setOnboardingOpen] = useState(() => !loadModeSettings().onboarded);
   const settingsRequired = llmCheckDone && !llmConfigured;
 
   const chatExamples = useMemo(
@@ -163,6 +168,25 @@ export default function App() {
 
   function toggleLocale() {
     setLocale(locale === "zh" ? "en" : "zh");
+  }
+
+  function handleSwitchMode(mode: AppMode) {
+    const next = switchMode(modeSettings, mode);
+    setModeSettings(next);
+    saveModeSettings(next);
+  }
+
+  function handleOnboardingComplete(next: ModeSettings) {
+    setModeSettings(next);
+    saveModeSettings(next);
+    setOnboardingOpen(false);
+  }
+
+  function handleOnboardingSkip() {
+    const next: ModeSettings = { ...modeSettings, onboarded: true };
+    setModeSettings(next);
+    saveModeSettings(next);
+    setOnboardingOpen(false);
   }
 
   useEffect(() => {
@@ -561,7 +585,7 @@ export default function App() {
         <div className="chrome-left">
           <span className="bbg-logo">StockResearch</span>
           <span className="chrome-sep">·</span>
-          <span className="chrome-page-title">{pageTitles[tab]}</span>
+          <ModeSwitcher settings={modeSettings} onSwitch={handleSwitchMode} />
         </div>
         <p className="chrome-disclaimer">{t("chat.disclaimer")}</p>
         <div className="chrome-meta">
@@ -600,6 +624,9 @@ export default function App() {
         onConfigured={handleLlmConfigured}
         variant="modal"
       />
+      {onboardingOpen && (
+        <Onboarding onComplete={handleOnboardingComplete} onSkip={handleOnboardingSkip} />
+      )}
 
       <div className={`app-body${settingsRequired ? " app-locked" : ""}`}>
         <aside className="sidebar">
@@ -689,16 +716,24 @@ export default function App() {
           )}
 
           {tab === "risk" && (
-            <RiskPanel
-              holdings={holdings}
-              risk={risk}
-              loading={riskLoading}
-              numLocale={numLocale}
-              ratioGrade={ratioGrade}
-              alertHoldingTags={alertHoldingTags}
-              onRunRisk={() => void runRisk()}
-              onGoPortfolio={() => setTab("portfolio")}
-            />
+            <>
+              {modeSettings.mode === "advisor" && (
+                <AssetAllocationPanel
+                  riskTolerance={modeSettings.riskTolerance}
+                  monthlyIncome={modeSettings.monthlyIncome}
+                />
+              )}
+              <RiskPanel
+                holdings={holdings}
+                risk={risk}
+                loading={riskLoading}
+                numLocale={numLocale}
+                ratioGrade={ratioGrade}
+                alertHoldingTags={alertHoldingTags}
+                onRunRisk={() => void runRisk()}
+                onGoPortfolio={() => setTab("portfolio")}
+              />
+            </>
           )}
 
           {tab === "settings" && (

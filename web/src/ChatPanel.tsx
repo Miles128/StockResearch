@@ -9,7 +9,7 @@ import {
 } from "./researchReportView";
 import { isResearchTurn } from "./disclaimerText";
 import { useI18n } from "./i18n";
-import { simpleMarkdown } from "./simpleMarkdown";
+import { MarkdownContent } from "./MarkdownContent";
 import { StreamFeed } from "./StreamFeed";
 import type { StreamState } from "./streamEvents";
 
@@ -75,7 +75,7 @@ export function ChatPanel({
           <div key={i} className="chat-turn">
             {m.role === "user" ? (
               <div className="message user">
-                <div className="markdown-body" dangerouslySetInnerHTML={{ __html: simpleMarkdown(m.content) }} />
+                <MarkdownContent text={m.content} />
               </div>
             ) : (
               <>
@@ -114,7 +114,7 @@ export function ChatPanel({
                 {m.content.trim() && (
                   <div className="message assistant conclusion-panel">
                     <p className="process-panel-title">{t("chat.conclusion")}</p>
-                    <div className="markdown-body" dangerouslySetInnerHTML={{ __html: simpleMarkdown(m.content) }} />
+                    <MarkdownContent text={m.content} />
                   </div>
                 )}
                 {m.cards?.map((c, j) =>

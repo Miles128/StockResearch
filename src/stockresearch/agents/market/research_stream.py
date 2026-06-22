@@ -27,7 +27,6 @@ from stockresearch.agents.research.stream import (
     _build_report,
     _parse_research_judge,
 )
-from stockresearch.services.text_factor import build_news_text_factor, fetch_market_news_snippets
 from stockresearch.agents.stream_typewriter import (
     iter_llm_stream_events,
     iter_queue_merged_events,
@@ -37,6 +36,7 @@ from stockresearch.agents.voice import DEBATE_ROUNDS, DEBATE_VOICE
 from stockresearch.core.schemas import DebateResult, DebateRound, DimensionResult
 from stockresearch.data.providers.market_overview import MarketOverviewProvider
 from stockresearch.i18n.status_events import status_event
+from stockresearch.services.text_factor import build_news_text_factor, fetch_market_news_snippets
 from stockresearch.utils.llm import LLMClient, get_llm_client
 
 _BULL_SYSTEM = f"你是 A 股大盘看多分析师（Bull Agent）。{DEBATE_VOICE} 基于宏观/行业/技术/情绪四维，阐述看多逻辑。"

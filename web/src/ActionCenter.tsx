@@ -19,6 +19,7 @@ export function ActionCenter({ onNavigate, onChatQuery }: ActionCenterProps) {
   const { t } = useI18n();
   const [data, setData] = useState<DailyActionCenter | null>(null);
   const [loading, setLoading] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -29,24 +30,31 @@ export function ActionCenter({ onNavigate, onChatQuery }: ActionCenterProps) {
       .finally(() => setLoading(false));
   }, []);
 
+  function renderHeader(extra?: React.ReactNode) {
+    return (
+      <div className="action-center-header" onClick={() => setCollapsed((c) => !c)} role="button" tabIndex={0}>
+        <span className="action-center-title">{t("actionCenter.title")}</span>
+        <span className="action-center-header-right">
+          {extra}
+          <span className={`action-center-chevron ${collapsed ? "collapsed" : ""}`}>▾</span>
+        </span>
+      </div>
+    );
+  }
+
   if (loading && !data) {
     return (
-      <div className="action-center">
-        <div className="action-center-header">
-          <span className="action-center-title">{t("actionCenter.title")}</span>
-          <span className="action-center-loading">{t("actionCenter.loading")}</span>
-        </div>
+    <div className={`action-center${collapsed ? " collapsed" : ""}`}>
+      {renderHeader(<span className="action-center-loading">{t("actionCenter.loading")}</span>)}
       </div>
     );
   }
 
   if (!data || data.signals.length === 0) {
     return (
-      <div className="action-center">
-        <div className="action-center-header">
-          <span className="action-center-title">{t("actionCenter.title")}</span>
-        </div>
-        <div className="action-center-empty">{data?.summary || t("actionCenter.empty")}</div>
+      <div className={`action-center${collapsed ? " collapsed" : ""}`}>
+        {renderHeader()}
+        {!collapsed && <div className="action-center-empty">{data?.summary || t("actionCenter.empty")}</div>}
       </div>
     );
   }
@@ -62,34 +70,37 @@ export function ActionCenter({ onNavigate, onChatQuery }: ActionCenterProps) {
   }
 
   return (
-    <div className="action-center">
-      <div className="action-center-header">
-        <span className="action-center-title">{t("actionCenter.title")}</span>
+    <div className={`action-center${collapsed ? " collapsed" : ""}`}>
+      {renderHeader(
         <span className="action-center-count">
           {t("actionCenter.signalCount", { n: String(data.signals.length) })}
         </span>
-      </div>
-      <div className="action-center-signals">
-        {data.signals.map((signal, i) => (
-          <div
-            key={i}
-            className={`action-signal action-signal-${signal.severity}`}
-            onClick={() => handleSignalClick(signal)}
-            role="button"
-            tabIndex={0}
-          >
-            <span className="signal-icon">{signalIcon(signal.type, signal.severity)}</span>
-            <div className="signal-body">
-              <span className="signal-title">{signal.title}</span>
-              {signal.detail && <span className="signal-detail">{signal.detail}</span>}
-            </div>
-            {signal.action && (
-              <span className="signal-action">{signal.action}</span>
-            )}
+      )}
+      {!collapsed && (
+        <>
+          <div className="action-center-signals">
+            {data.signals.map((signal, i) => (
+              <div
+                key={i}
+                className={`action-signal action-signal-${signal.severity}`}
+                onClick={() => handleSignalClick(signal)}
+                role="button"
+                tabIndex={0}
+              >
+                <span className="signal-icon">{signalIcon(signal.type, signal.severity)}</span>
+                <div className="signal-body">
+                  <span className="signal-title">{signal.title}</span>
+                  {signal.detail && <span className="signal-detail">{signal.detail}</span>}
+                </div>
+                {signal.action && (
+                  <span className="signal-action">{signal.action}</span>
+                )}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-      <div className="action-center-summary">{data.summary}</div>
+          <div className="action-center-summary">{data.summary}</div>
+        </>
+      )}
     </div>
   );
 }

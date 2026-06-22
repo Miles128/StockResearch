@@ -3,7 +3,8 @@
 import asyncio
 import logging
 from collections.abc import AsyncIterator
-from stockresearch.agents.research.report_builder import build_research_report
+
+from stockresearch.agents.research.context import ResearchContext
 from stockresearch.agents.research.debate import (
     iter_battle_vote_events,
     iter_multi_round_debate_events,
@@ -11,7 +12,7 @@ from stockresearch.agents.research.debate import (
     summarize_situation,
     transcript_from_rounds,
 )
-from stockresearch.agents.research.context import ResearchContext
+from stockresearch.agents.research.report_builder import build_research_report
 from stockresearch.agents.research.runner import (
     build_chips,
     build_fundamental,
@@ -30,8 +31,8 @@ from stockresearch.agents.stream_typewriter import (
 from stockresearch.agents.structured_output import ResearchJudgeOut
 from stockresearch.agents.voice import DEBATE_ROUNDS, DEBATE_VOICE, JUDGE_VOICE
 from stockresearch.core.schemas import DebateResult, DebateRound, DimensionResult, ResearchReportOut
-from stockresearch.services.text_factor import build_news_text_factor, fetch_symbol_news_snippets
 from stockresearch.i18n.status_events import status_event
+from stockresearch.services.text_factor import build_news_text_factor, fetch_symbol_news_snippets
 from stockresearch.utils.llm import LLMClient, get_llm_client
 from stockresearch.utils.symbols import resolve_name
 

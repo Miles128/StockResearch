@@ -9,12 +9,12 @@ import akshare as ak
 
 from stockresearch.core.config import get_settings
 from stockresearch.core.exceptions import DataProviderError
-from stockresearch.services.cache import get_cached
 from stockresearch.data.providers.akshare_quote import fetch_akshare_hist_quotes
 from stockresearch.data.providers.news import _fetch_em_symbol_news_sync
 from stockresearch.data.providers.sina_quote import fetch_sina_quotes
 from stockresearch.data.providers.tushare_financial import fetch_daily_basic_sync
 from stockresearch.data.registry import record_quote_fetch, record_symbol_sources
+from stockresearch.services.cache import get_cached
 from stockresearch.utils.symbols import resolve_name
 
 logger = logging.getLogger(__name__)

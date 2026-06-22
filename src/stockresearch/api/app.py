@@ -15,6 +15,7 @@ from slowapi.errors import RateLimitExceeded
 from stockresearch.api.rate_limit import limiter
 from stockresearch.api.routes import (
     action_center,
+    advisor,
     briefing,
     chat,
     market,
@@ -27,7 +28,7 @@ from stockresearch.api.routes import (
 from stockresearch.core.config import get_settings
 from stockresearch.core.constants import DISCLAIMER
 from stockresearch.core.data_source_config import clear_data_source_context, set_tushare_token
-from stockresearch.core.exceptions import StockResearchError
+from stockresearch.core.exceptions import NotFoundError, StockResearchError
 from stockresearch.db.session import init_db
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -60,9 +61,14 @@ def create_app() -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-    # CORS — restrict origins in production
+    # CORS — restrict origins in production.
+    # 浏览器规范禁止 allow_origins=["*"] 与 allow_credentials=True 同时使用，
+    # 因此未配置 cors_allowed_origins 时回退到本机开发常用源（而非通配 *）。
     cfg = get_settings()
-    allowed_origins = cfg.cors_allowed_origins.split(",") if cfg.cors_allowed_origins else ["*"]
+    if cfg.cors_allowed_origins:
+        allowed_origins = [o.strip() for o in cfg.cors_allowed_origins.split(",") if o.strip()]
+    else:
+        allowed_origins = ["http://localhost:5174", "http://127.0.0.1:5174"]
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
@@ -122,9 +128,21 @@ def create_app() -> FastAPI:
     app.include_router(chat.router, prefix="/api/v1")
     app.include_router(settings.router, prefix="/api/v1")
     app.include_router(action_center.router, prefix="/api/v1")
+    app.include_router(advisor.router, prefix="/api/v1")
 
     if _WEB_DIST.is_dir():
-        app.mount("/", StaticFiles(directory=str(_WEB_DIST), html=True), name="frontend")
+        # 拦截 /api 下的未匹配路径，返回 JSON 404 而非前端 index.html。
+        # 必须在 StaticFiles 挂载之前注册，否则 /api/v1/xxx 的 404 会被 StaticFiles 吞掉。
+        @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+        def api_not_found(rest: str) -> dict[str, str]:
+            raise NotFoundError(f"API endpoint not found: /api/{rest}")
+
+        # 挂载前端静态资源。/api 路径已被上面的 catch-all 拦截，不会落到这里。
+        app.mount(
+            "/",
+            StaticFiles(directory=str(_WEB_DIST), html=True),
+            name="frontend",
+        )
     else:
 
         @app.get("/")

@@ -10,11 +10,11 @@ from stockresearch.agents.stream_typewriter import (
     iter_queue_merged_events,
     pump_llm_stream_events_to_queue,
 )
-from stockresearch.agents.voice import DEBATE_ROUNDS, DEBATE_VOICE, JUDGE_VOICE
 from stockresearch.agents.structured_output import VoteLabelOut
+from stockresearch.agents.voice import DEBATE_ROUNDS, DEBATE_VOICE, JUDGE_VOICE
 from stockresearch.core.schemas import DebateResult, DebateRound, DimensionResult
-from stockresearch.utils.disclaimer import strip_disclaimer
 from stockresearch.i18n.status_events import status_event
+from stockresearch.utils.disclaimer import strip_disclaimer
 from stockresearch.utils.llm import LLMClient
 
 _BULL_SYSTEM = f"""你是 A 股看多分析师（Bull Agent）。

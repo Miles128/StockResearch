@@ -43,11 +43,16 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = D
   }
 }
 
-async function fetchWithRetry(url: string, options: RequestInit, retries = RETRY_COUNT): Promise<Response> {
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  retries = RETRY_COUNT,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<Response> {
   let lastError: Error | null = null;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const resp = await fetchWithTimeout(url, options);
+      const resp = await fetchWithTimeout(url, options, timeoutMs);
       if (resp.status >= 500 && attempt < retries) {
         await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
         continue;
@@ -92,7 +97,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 /** Like request() but also sends LLM credentials — use only for LLM-dependent endpoints. */
-async function requestWithLlm<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function requestWithLlm<T>(
+  path: string,
+  options: RequestInit = {},
+  timeoutMs?: number,
+): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...llmRequestHeaders(),
@@ -100,7 +109,7 @@ async function requestWithLlm<T>(path: string, options: RequestInit = {}): Promi
     ...(options.headers as Record<string, string>),
   };
 
-  const resp = await fetchWithRetry(`${API}${path}`, { ...options, headers });
+  const resp = await fetchWithRetry(`${API}${path}`, { ...options, headers }, RETRY_COUNT, timeoutMs);
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ detail: resp.statusText }));
     throw new Error(formatApiDetail(err.detail) || "请求失败");
@@ -319,10 +328,30 @@ export const api = {
   researchStream: (symbol: string, onEvent?: (event: AgentStreamEvent) => void) =>
     streamResearch(symbol, onEvent),
   riskCheckup: () =>
-    requestWithLlm<RiskCheckup>("/risk/checkup", {
-      method: "POST",
-      body: JSON.stringify({ ...analysisBodyField() }),
-    }),
+    requestWithLlm<RiskCheckup>(
+      "/risk/checkup",
+      {
+        method: "POST",
+        body: JSON.stringify({ ...analysisBodyField() }),
+      },
+      120_000,
+    ),
+  advisorAllocation: (
+    riskTolerance: "conservative" | "moderate" | "aggressive",
+    monthlyIncome?: number,
+  ) =>
+    requestWithLlm<AssetAllocation>(
+      "/advisor/allocation",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          risk_tolerance: riskTolerance,
+          monthly_income: monthlyIncome,
+          ...analysisBodyField(),
+        }),
+      },
+      60_000,
+    ),
   marketOverview: () => request<MarketOverview>("/market/overview"),
   stockQuotes: (symbols: string) => request<StockQuoteOut[]>(`/market/quotes?symbols=${symbols}`),
   dataSourceStatus: () => request<DataSourceStatus>("/market/data-status"),
@@ -603,6 +632,16 @@ export interface RiskCheckup {
     cvar_pct: number;
     holdings_var: { name: string; weight: number; var_value: number }[];
   };
+}
+
+export interface AssetAllocation {
+  risk_tolerance: "conservative" | "moderate" | "aggressive";
+  risk_label: string;
+  allocation: Record<string, number>;
+  rationale: string;
+  cash_flow_impact?: string;
+  emergency_fund_note?: string;
+  disclaimer: string;
 }
 
 export interface MarketOverview {

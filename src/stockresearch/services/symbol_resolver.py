@@ -4,7 +4,7 @@ import re
 
 from stockresearch.core.constants import NAME_TO_SYMBOL, SYMBOL_NAMES
 from stockresearch.core.exceptions import ValidationError
-from stockresearch.services.stock_lookup import clean_stock_query, resolve_local
+from stockresearch.services.stock_lookup import resolve_local
 
 _SYMBOL_RE = re.compile(r"^\d{6}$")
 

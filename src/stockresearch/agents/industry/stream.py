@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncIterator
+
 from sqlalchemy.orm import Session
 
 from stockresearch.agents.industry.context import SectorResearchContext
@@ -18,7 +19,6 @@ from stockresearch.agents.industry.dimensions import (
     prepare_valuation,
 )
 from stockresearch.agents.industry.leaders import iter_leader_analysis_events
-from stockresearch.agents.research.report_builder import build_research_report
 from stockresearch.agents.research.debate import (
     iter_battle_vote_events,
     iter_multi_round_debate_events,
@@ -26,14 +26,25 @@ from stockresearch.agents.research.debate import (
     summarize_situation,
     transcript_from_rounds,
 )
-from stockresearch.agents.stream_typewriter import iter_llm_stream_events, iter_queue_merged_events, pump_dimension_llm_stream
+from stockresearch.agents.research.report_builder import build_research_report
+from stockresearch.agents.stream_typewriter import (
+    iter_llm_stream_events,
+    iter_queue_merged_events,
+    pump_dimension_llm_stream,
+)
 from stockresearch.agents.structured_output import ResearchJudgeOut
 from stockresearch.agents.voice import DEBATE_ROUNDS, DEBATE_VOICE, JUDGE_VOICE
-from stockresearch.core.schemas import DebateResult, DebateRound, DimensionResult, ResearchReportOut, SectorLeaderBrief
-from stockresearch.services.text_factor import build_news_text_factor, news_from_title
+from stockresearch.core.schemas import (
+    DebateResult,
+    DebateRound,
+    DimensionResult,
+    ResearchReportOut,
+    SectorLeaderBrief,
+)
 from stockresearch.data.providers.sector import SectorDataProvider
 from stockresearch.db.models import Holding, NewsItem
 from stockresearch.i18n.status_events import status_event
+from stockresearch.services.text_factor import build_news_text_factor, news_from_title
 from stockresearch.utils.llm import LLMClient, get_llm_client
 
 _BULL_SYSTEM = f"你是 A 股板块看多分析师。{DEBATE_VOICE}"
