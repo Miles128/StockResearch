@@ -19,7 +19,14 @@ interface Dict {
 
 const zh: Dict = {
   brand: { tagline: "AI 投研终端" },
-  nav: { aria: "功能导航", chat: "对话", news: "新闻", portfolio: "持仓", risk: "风控", settings: "设置" },
+  nav: {
+    aria: "画布视角",
+    portfolio: "持仓",
+    risk: "风控",
+    market: "市场",
+    news: "新闻·研报",
+    copilot: "Copilot",
+  },
   mode: {
     advisor: "个人投顾",
     research: "专业投研",
@@ -178,6 +185,13 @@ const zh: Dict = {
     disclaimer: "以下内容由 AI 生成，仅供参考，不构成投资建议。",
     connecting: "正在连接…",
     streamFailed: "流式连接失败，切换同步模式…",
+    newThread: "新对话",
+    threadEmpty: "新研究线程",
+    userContext: "长期上下文",
+    pageContext: "画布上下文",
+    noPageContext: "未附加画布",
+    contextNotice: "画布上下文显式附加，不会暗中替换当前研究对象。",
+    holdingsContext: "{n} 只持仓 · {mode}",
     analysisDone: "分析完成",
     selectedMode: "已选择：{mode}，正在分析…",
     pickStock: "请确认要分析的股票",
@@ -664,7 +678,14 @@ const zh: Dict = {
 
 const en: Dict = {
   brand: { tagline: "AI Research Terminal" },
-  nav: { aria: "Navigation", chat: "Chat", news: "News", portfolio: "Portfolio", risk: "Risk", settings: "Settings" },
+  nav: {
+    aria: "Canvas views",
+    portfolio: "Holdings",
+    risk: "Risk",
+    market: "Market",
+    news: "News · Reports",
+    copilot: "Copilot",
+  },
   mode: {
     advisor: "Advisor",
     research: "Research",
@@ -824,6 +845,13 @@ const en: Dict = {
     disclaimer: "All AI output is for learning only — not investment advice.",
     connecting: "Connecting…",
     streamFailed: "Stream failed, falling back to sync mode…",
+    newThread: "New thread",
+    threadEmpty: "New research thread",
+    userContext: "User context",
+    pageContext: "Canvas context",
+    noPageContext: "No canvas attached",
+    contextNotice: "Canvas context is explicit and never silently replaces the research subject.",
+    holdingsContext: "{n} holdings · {mode}",
     analysisDone: "Analysis complete",
     selectedMode: "Selected: {mode}, analyzing…",
     pickStock: "Confirm which stock to analyze",

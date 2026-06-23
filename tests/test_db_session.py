@@ -14,6 +14,7 @@ def test_init_db_creates_tables() -> None:
     assert "holdings" in table_names
     assert "watchlist" in table_names
     assert "conversations" in table_names
+    assert "schema_migrations" in table_names
 
 
 def test_session_local_works() -> None:

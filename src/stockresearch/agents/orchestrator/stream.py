@@ -25,8 +25,9 @@ from stockresearch.agents.risk.stream import run_risk_checkup_stream
 from stockresearch.core.constants import INTENT_RISK
 from stockresearch.core.exceptions import LLMConfigError
 from stockresearch.core.schemas import CardPayload, ChatResponse, ResearchReportOut, RiskCheckupOut
-from stockresearch.db.models import Conversation, Holding
+from stockresearch.db.models import Holding
 from stockresearch.i18n.status_events import status_event
+from stockresearch.services.chat_response import finalize_chat_reply, save_conversation
 from stockresearch.services.message_stock import (
     ResolvedStock,
     match_holding_in_message,
@@ -35,7 +36,6 @@ from stockresearch.services.message_stock import (
 )
 from stockresearch.services.stock_lookup import StockLookupResult
 from stockresearch.services.stream_checkpoint import clear_checkpoint, save_checkpoint
-from stockresearch.utils.disclaimer import strip_disclaimer
 from stockresearch.utils.llm import LLMClient, get_llm_client
 from stockresearch.utils.llm_usage import get_usage, reset_usage, usage_to_out
 
@@ -98,7 +98,12 @@ async def run_chat_stream(
                     cards = list(response.get("cards", []))
                     intent = str(response.get("intent", intent))
                     partial = bool(response.get("partial", False))
-            yield event
+            if not (
+                isinstance(event, dict)
+                and event.get("type") == "done"
+                and "response" in event
+            ):
+                yield event
     except LLMConfigError as exc:
         logger.warning("LLM config error in chat stream: %s", exc)
         yield {
@@ -108,10 +113,7 @@ async def run_chat_stream(
         }
         return
 
-    if partial:
-        reply += "\n\n（部分分析未完成）"
-
-    reply = strip_disclaimer(reply)
+    reply = finalize_chat_reply(reply, partial=partial)
 
     response = ChatResponse(
         session_id=sid,
@@ -123,7 +125,7 @@ async def run_chat_stream(
     )
     clear_checkpoint(db, user_id, sid)
 
-    _save_conversation_async(db, user_id, sid, message, reply)
+    save_conversation(db, user_id, sid, message, reply)
 
     yield {"type": "done", "response": response.model_dump(mode="json")}
 
@@ -565,29 +567,3 @@ def _merge_plan_cards(
             if not any(c.get("type") == ctype for c in merged):
                 merged.append(card)
     return merged
-
-
-def _save_conversation_async(
-    db: Session, user_id: int, session_id: str, user_msg: str, reply: str,
-) -> None:
-    try:
-        conv = db.query(Conversation).filter(
-            Conversation.session_id == session_id,
-        ).first()
-        if conv is None:
-            conv = Conversation(user_id=user_id, session_id=session_id, messages=[])
-            db.add(conv)
-        messages = list(conv.messages)
-        messages.append({"role": "user", "content": user_msg})
-        messages.append({"role": "assistant", "content": reply})
-        conv.messages = messages[-20:]
-        db.commit()
-    except Exception:
-        logger.warning(
-            "Failed to save streaming conversation for session %s",
-            session_id, exc_info=True,
-        )
-        try:
-            db.rollback()
-        except Exception:
-            pass

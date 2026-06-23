@@ -1,8 +1,8 @@
 # StockResearch
 
-**[中文](#中文) · [English](#english)** · [PRD v7.0](docs/PRD.md)
+**[中文](#中文) · [English](#english)** · [PRD v8.2](docs/PRD.md)
 
-[![Tests](https://img.shields.io/badge/tests-208%20passed-brightgreen)](.)
+[![Tests](https://img.shields.io/badge/backend-235%20passed-brightgreen)](.)
 [![Python](https://img.shields.io/badge/python-3.12+-blue)](pyproject.toml)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
@@ -13,7 +13,30 @@
 
 ---
 
-## 双模式 · Dual Mode ★
+## 本地 AI 原生投资研究 MVP
+
+StockResearch 不是准备上线运营的股票服务，也不是传统终端再加一个聊天框。它是一个本地联网运行的产品原型，用来展示 AI 如何把持仓、行情、新闻、风险和多 Agent 研究组织成易理解、可追问的完整体验。
+
+核心入口是“今天与我有关的变化”和自然语言任务，而不是密集菜单、指标矩阵与全市场扫描器。
+
+```text
+┌──────────────────────────────────────────────────────────┐
+│ 上证  沪深300  深证  创业板       模式 / 数据 / 设置       │
+├──────────────────────────────────────────────────────────┤
+│ [持仓] [风控] [市场] [新闻·研报]              [Copilot] │
+├───────────────────────────────────────┬──────────────────┤
+│               单一主画布               │ Copilot          │
+└───────────────────────────────────────┴──────────────────┘
+```
+
+Copilot 在所有工作区共用，但不会把所有内容混成一锅：
+
+- 持仓、风险偏好和模式属于全局用户上下文；
+- 连续问答与研究对象属于当前线程；
+- 当前股票、新闻、组合或报告作为可见、可移除的临时页面上下文；
+- 切换页面保留线程，但不会偷偷替换当前研究对象。
+
+## 双模式 · Dual Mode
 
 **个人投顾**（默认）考虑你的现金流和风险承受能力，用大白话解释；**专业投研**专注四维深度分析，术语直出，不结合个人财务。顶栏一键切换，同一份数据，两种视角。
 
@@ -21,7 +44,7 @@
 ┌──────────────────────────────────────────────────────┐
 │ StockResearch   [个人投顾] [专业投研]   中/EN  ⚙️    │
 ├──────────────────────────────────────────────────────┤
-│  [F1对话] [F2新闻] [F3持仓] [F4风控] [F5设置]       │
+│      [持仓] [风控] [市场] [新闻·研报] [Copilot]     │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -90,7 +113,7 @@ BYOK 大模型、可选 Tushare、辩论开关、报告导出、模式微调。
 
 ## 中文
 
-面向 A 股个人投资者的 **双模式本机 AI 投资助手**。个人投顾帮你看懂"今天该关注什么"，专业投研给你四维深度分析。LangGraph 编排专用 Agent，**单用户、SQLite、浏览器 BYOK**——不注册、不上线、不收费。
+面向 A 股个人投资者的 **双模式本机 AI 投资助手**。个人投顾帮你看懂“今天发生了什么、为什么与我有关”，专业投研提供可展开的四维研究。项目只在本机运行，单用户、SQLite、BYOK，不注册、不上线、不连接交易。
 
 > **免责声明**：所有 AI 输出仅供学习与研究参考，不构成任何投资建议。
 
@@ -107,13 +130,15 @@ StockResearch 是**长期开源 MVP**：跑在你自己电脑上的投资助手�
 | **Research 先于 Battle** | 四维研究完成后再可选多空辩论 |
 | **工具隔离** | 各维度 Agent 仅调用本域工具 |
 | **规则与模型分工** | 快讯/风控走规则；LLM 负责推理与生成 |
-| **BYOK** | API Key 仅存浏览器，不经服务端数据库 |
+| **BYOK** | Key 不进入数据库；可保存在浏览器，或由用户明确写入本机 `.env` |
+| **真实联网** | 默认连接真实行情和新闻；Mock 仅用于演示和显式降级 |
 
 ### 功能一览
 
 | 模块 | 说明 |
 |------|------|
 | **双模式切换** | 顶栏个人投顾/专业投研一键切换，持久化，模式内可微调 |
+| **全局 Copilot** | 所有工作区共享外壳；线程延续，页面上下文显式附加 |
 | **首次引导** | 选模式 + 示例持仓 + LLM 配置，3 步完成 |
 | 智能对话 | 个股/市场意图路由；歧义股票卡片确认 |
 | 四维投研 | 基本面、技术面、情绪面、筹码面 ReAct 并行 |
@@ -159,8 +184,11 @@ cd web && npm install && npm run dev
 打开 **http://localhost:5174**。首次进入触发引导：选模式（个人投顾/专业投研）→ 示例持仓已加载 → 配置 LLM（或 Mock 模式先体验）。也可随时按 **F5** 打开设置页。保存后自动写入项目根 `.env`（已 gitignore）。支持 [DeepSeek](https://platform.deepseek.com/)、[DashScope 兼容模式](https://help.aliyun.com/zh/model-studio/) 等 OpenAI 兼容接口。
 
 ```bash
-pytest          # 208 tests
-cd web && npm run build
+pytest          # 235 tests
+cd web && npm run lint && npm run build && npm test
+
+# 显式验证真实新浪 / 东方财富等外网 Provider
+RUN_LIVE_TESTS=1 pytest -m live
 ```
 
 ### 环境变量
@@ -180,7 +208,7 @@ cd web && npm run build
 
 ### 文档与贡献
 
-- [PRD v7.0（双模式）](docs/PRD.md)
+- [PRD v8.2（单画布 + 顶部视角栏）](docs/PRD.md)
 - [初版开发规划](docs/DEVELOPMENT_PLAN.md)
 - 欢迎 Issue 与 PR；开发前请阅读 PRD 路线图
 
@@ -263,8 +291,8 @@ cd web && npm install && npm run dev
 Open **http://localhost:5174**. First visit triggers onboarding: pick mode (Advisor/Research) → demo holdings loaded → configure LLM (or Mock mode). Press **F5** anytime for Settings. Saving writes to the project root `.env` (gitignored) automatically. Works with [DeepSeek](https://platform.deepseek.com/), [DashScope compatible mode](https://help.aliyun.com/zh/model-studio/), and other OpenAI-compatible APIs.
 
 ```bash
-pytest          # 208 tests
-cd web && npm run build
+pytest          # 235 tests
+cd web && npm run lint && npm run build && npm test
 ```
 
 ### Environment
@@ -284,7 +312,7 @@ Saving in Settings writes `.env`; the backend reads it on the next request.
 
 ### Docs & contributing
 
-- [PRD v7.0 (dual mode)](docs/PRD.md)
+- [PRD v8.2 (single canvas + top view bar)](docs/PRD.md)
 - [Initial development plan (baseline)](docs/DEVELOPMENT_PLAN.md)
 - Issues and PRs welcome; read the PRD roadmap before large features
 

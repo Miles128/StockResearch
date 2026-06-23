@@ -62,9 +62,11 @@ def macd_series(closes: list[float]) -> dict[str, list[float | None]]:
     macd_values: list[float] = []
     macd_indices: list[int] = []
     for i in range(n):
-        if ema12[i] is None or ema26[i] is None:
+        fast = ema12[i]
+        slow = ema26[i]
+        if fast is None or slow is None:
             continue
-        val = round(ema12[i] - ema26[i], 4)
+        val = round(fast - slow, 4)
         macd_line[i] = val
         macd_values.append(val)
         macd_indices.append(i)
@@ -75,7 +77,9 @@ def macd_series(closes: list[float]) -> dict[str, list[float | None]]:
             signal_line[idx] = signal_ema[j]
     histogram: list[float | None] = [None] * n
     for i in range(n):
-        if macd_line[i] is None or signal_line[i] is None:
+        macd_value = macd_line[i]
+        signal_value = signal_line[i]
+        if macd_value is None or signal_value is None:
             continue
-        histogram[i] = round(macd_line[i] - signal_line[i], 4)
+        histogram[i] = round(macd_value - signal_value, 4)
     return {"macd": macd_line, "signal": signal_line, "histogram": histogram}

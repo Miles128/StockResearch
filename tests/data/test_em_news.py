@@ -10,6 +10,7 @@ def test_clean_em_news_text_strips_markup() -> None:
     assert _clean_em_news_text(raw) == "茅台发布年报 增长"
 
 
+@pytest.mark.live
 def test_fetch_em_symbol_news_sync_returns_items_when_api_works() -> None:
     items = _fetch_em_symbol_news_sync("贵州茅台", limit=3)
     if not items:

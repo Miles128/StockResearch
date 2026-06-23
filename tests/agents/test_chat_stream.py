@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from stockresearch.agents.orchestrator.stream import run_chat_stream
+from stockresearch.agents.output_style import output_style_scope
 from stockresearch.db.models import User
 
 @pytest.mark.asyncio
@@ -51,11 +52,36 @@ async def test_chat_stream_returns_reply(db_session: Session) -> None:
 
     types = [str(e.get("type")) for e in events]
     assert "status" in types
+    assert types.count("done") == 1
     assert types[-1] == "done"
     done = events[-1]
     response = done.get("response")
     assert isinstance(response, dict)
     assert response.get("reply")
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_uses_shared_reply_finalization(db_session: Session) -> None:
+    user = User(username="stream-finalize", password_hash="")
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    with output_style_scope(reading_mode="friendly", locale="zh"):
+        events = [
+            event
+            async for event in run_chat_stream(
+                db_session,
+                user.id,
+                "请直接回答：建议买入这只股票",
+                execution_preference="react",
+            )
+        ]
+
+    response = events[-1].get("response")
+    assert isinstance(response, dict)
+    reply = str(response.get("reply", ""))
+    assert "建议买入" not in reply
 
 
 @pytest.mark.asyncio

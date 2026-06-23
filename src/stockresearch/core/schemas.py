@@ -1,6 +1,6 @@
 """Pydantic schemas for API and agents."""
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -519,7 +519,7 @@ class NewsAnalysisOut(BaseModel):
 
 
 class ActionSignal(BaseModel):
-    type: Literal["price", "news", "risk", "fundamental"] = "info"
+    type: Literal["price", "news", "risk", "fundamental"] = "fundamental"
     severity: Literal["critical", "warning", "info"] = "info"
     title: str
     detail: str = ""

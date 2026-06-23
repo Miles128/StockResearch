@@ -1,7 +1,6 @@
 """LangGraph StateGraph orchestrator — direct / debate / plan-execute / risk."""
 
 import asyncio
-import logging
 import uuid
 from typing import Annotated, TypedDict
 
@@ -25,18 +24,12 @@ from stockresearch.agents.risk.engine import run_risk_checkup
 from stockresearch.core.config import get_settings
 from stockresearch.core.constants import INTENT_CHAT, INTENT_RISK
 from stockresearch.core.schemas import CardPayload, ChatResponse, RiskCheckupOut
-from stockresearch.db.models import Conversation, Holding
+from stockresearch.db.models import Holding
+from stockresearch.services.chat_response import finalize_chat_reply, save_conversation
 from stockresearch.services.message_stock import resolve_message_stock, stock_choice_card
 from stockresearch.services.stock_lookup import StockLookupResult
-from stockresearch.agents.orchestrator.balance_check import check_balance
-from stockresearch.agents.output_style import get_reading_mode
-from stockresearch.services.glossary import mark_terms
-from stockresearch.services.neutral_guard import neutral_guard
-from stockresearch.utils.disclaimer import strip_disclaimer
 from stockresearch.utils.llm import LLMClient, get_llm_client
 from stockresearch.utils.llm_usage import get_usage, reset_usage, usage_to_out
-
-logger = logging.getLogger(__name__)
 
 
 def _append(current: list, update: list) -> list:
@@ -202,16 +195,19 @@ class Orchestrator:
         reset_usage(model=str(getattr(self._llm, "_model", "") or ""))
         final_state = await self._graph.ainvoke(initial_state)
 
-        reply = strip_disclaimer(final_state["reply"])
-        # Apply neutral guard → balance check → glossary marking
-        reply = neutral_guard(reply)
-        reply = check_balance(reply)
-        if get_reading_mode() == "professional":
-            reply = mark_terms(reply)
-        if final_state["partial"]:
-            reply += "\n\n（部分分析未完成）"
+        reply = finalize_chat_reply(
+            final_state["reply"],
+            partial=final_state["partial"],
+        )
 
-        await asyncio.to_thread(self._save_conversation, user_id, sid, message, reply)
+        await asyncio.to_thread(
+            save_conversation,
+            self._db,
+            user_id,
+            sid,
+            message,
+            reply,
+        )
 
         return ChatResponse(
             session_id=sid,
@@ -221,25 +217,6 @@ class Orchestrator:
             partial=final_state["partial"],
             llm_usage=usage_to_out(get_usage()),
         )
-
-    def _save_conversation(self, user_id: int, session_id: str, user_msg: str, reply: str) -> None:
-        try:
-            conv = self._db.query(Conversation).filter(Conversation.session_id == session_id).first()
-            if conv is None:
-                conv = Conversation(user_id=user_id, session_id=session_id, messages=[])
-                self._db.add(conv)
-            messages = list(conv.messages)
-            messages.append({"role": "user", "content": user_msg})
-            messages.append({"role": "assistant", "content": reply})
-            conv.messages = messages[-20:]
-            self._db.commit()
-        except Exception:
-            logger.warning("Failed to save conversation for session %s", session_id, exc_info=True)
-            try:
-                self._db.rollback()
-            except Exception:
-                pass
-
 
 # ── Research modes ───────────────────────────────────────
 async def _run_stock_research(

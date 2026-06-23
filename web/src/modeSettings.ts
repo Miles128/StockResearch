@@ -154,9 +154,7 @@ export function lossToIncomeRatio(lossAmount: number, settings: ModeSettings): s
   return `${ratio.toFixed(1)}%`;
 }
 
-/** 模式默认首页（投顾模式未来是 Action Center，当前先回 chat） */
-export function defaultTabForMode(mode: AppMode): Tab {
-  // PRD §4.1: 投顾默认 Action Center，投研默认 Chat
-  // 当前 Action Center 未实现，两者都回 chat
-  return "chat";
+/** Both modes open on the holdings canvas; mode changes presentation depth. */
+export function defaultTabForMode(_mode: AppMode): Tab {
+  return "portfolio";
 }

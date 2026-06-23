@@ -40,6 +40,9 @@ packages = ["src/stockresearch"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "live: requires access to real third-party internet services",
+]
 
 [tool.ruff]
 line-length = 100
