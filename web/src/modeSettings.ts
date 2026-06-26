@@ -5,11 +5,12 @@
  * 2. 投顾模式用大白话，投研模式术语直出
  *
  * 模式是预设包，模式内单项可微调（Settings）。
- * 持久化到 localStorage，下次打开记住选择。
+ * 持久化到 localStorage + 后端 SQLite；localStorage 作为启动缓存。
  */
 
 import type { Tab } from "./appTypes";
 import type { ReadingMode } from "./analysisSettings";
+import { createLocalStorageStore } from "./settingsStore";
 
 export type AppMode = "advisor" | "research";
 
@@ -36,6 +37,45 @@ export interface ModeSettings {
 }
 
 const STORAGE_KEY = "stockresearch.mode.settings";
+
+function migrateModeSettings(parsed: unknown): Partial<ModeSettings> {
+  if (!parsed || typeof parsed !== "object") return {};
+  const partial = parsed as Partial<ModeSettings>;
+  const mode: AppMode = partial.mode === "research" ? "research" : "advisor";
+  const preset = mode === "advisor" ? ADVISOR_PRESET : RESEARCH_PRESET;
+  return {
+    mode,
+    riskTolerance:
+      partial.riskTolerance === "conservative" ||
+      partial.riskTolerance === "moderate" ||
+      partial.riskTolerance === "aggressive"
+        ? partial.riskTolerance
+        : preset.riskTolerance,
+    monthlyIncome:
+      typeof partial.monthlyIncome === "number" && partial.monthlyIncome > 0
+        ? partial.monthlyIncome
+        : undefined,
+    readingMode:
+      partial.readingMode === "professional" || partial.readingMode === "friendly"
+        ? partial.readingMode
+        : preset.readingMode,
+    enableDebate: typeof partial.enableDebate === "boolean" ? partial.enableDebate : preset.enableDebate,
+    enableGlossary: typeof partial.enableGlossary === "boolean" ? partial.enableGlossary : preset.enableGlossary,
+    maxSignals: typeof partial.maxSignals === "number" ? partial.maxSignals : preset.maxSignals,
+    onboarded: typeof partial.onboarded === "boolean" ? partial.onboarded : false,
+  };
+}
+
+export interface ModeSettingsApiPayload {
+  mode: AppMode;
+  risk_tolerance: RiskTolerance;
+  monthly_income?: number | null;
+  reading_mode: ReadingMode;
+  enable_debate: boolean;
+  enable_glossary: boolean;
+  max_signals: number;
+  onboarded: boolean;
+}
 
 /** 投顾模式默认预设 */
 export const ADVISOR_PRESET: Omit<ModeSettings, "onboarded"> = {
@@ -65,6 +105,12 @@ export const DEFAULT_MODE_SETTINGS: ModeSettings = {
   onboarded: false,
 };
 
+const modeSettingsStore = createLocalStorageStore<ModeSettings>({
+  key: STORAGE_KEY,
+  defaults: DEFAULT_MODE_SETTINGS,
+  migrate: migrateModeSettings,
+});
+
 /** 按模式获取预设（保留用户已填的 riskTolerance/monthlyIncome） */
 export function presetForMode(
   mode: AppMode,
@@ -92,40 +138,53 @@ export function isPristinePreset(settings: ModeSettings): boolean {
 }
 
 export function loadModeSettings(): ModeSettings {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_MODE_SETTINGS };
-    const parsed = JSON.parse(raw) as Partial<ModeSettings>;
-    // 合并默认值，确保新字段有兜底
-    const mode: AppMode = parsed.mode === "research" ? "research" : "advisor";
-    const preset = mode === "advisor" ? ADVISOR_PRESET : RESEARCH_PRESET;
-    return {
-      mode,
-      riskTolerance:
-        parsed.riskTolerance === "conservative" ||
-        parsed.riskTolerance === "moderate" ||
-        parsed.riskTolerance === "aggressive"
-          ? parsed.riskTolerance
-          : preset.riskTolerance,
-      monthlyIncome:
-        typeof parsed.monthlyIncome === "number" && parsed.monthlyIncome > 0
-          ? parsed.monthlyIncome
-          : undefined,
-      readingMode: parsed.readingMode === "professional" || parsed.readingMode === "friendly"
-        ? parsed.readingMode
-        : preset.readingMode,
-      enableDebate: typeof parsed.enableDebate === "boolean" ? parsed.enableDebate : preset.enableDebate,
-      enableGlossary: typeof parsed.enableGlossary === "boolean" ? parsed.enableGlossary : preset.enableGlossary,
-      maxSignals: typeof parsed.maxSignals === "number" ? parsed.maxSignals : preset.maxSignals,
-      onboarded: typeof parsed.onboarded === "boolean" ? parsed.onboarded : false,
-    };
-  } catch {
-    return { ...DEFAULT_MODE_SETTINGS };
-  }
+  return modeSettingsStore.load();
 }
 
 export function saveModeSettings(settings: ModeSettings): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  modeSettingsStore.save(settings);
+}
+
+export function modeSettingsToApiPayload(settings: ModeSettings): ModeSettingsApiPayload {
+  return {
+    mode: settings.mode,
+    risk_tolerance: settings.riskTolerance,
+    monthly_income: settings.monthlyIncome ?? null,
+    reading_mode: settings.readingMode,
+    enable_debate: settings.enableDebate,
+    enable_glossary: settings.enableGlossary,
+    max_signals: settings.maxSignals,
+    onboarded: settings.onboarded,
+  };
+}
+
+export function modeSettingsFromApiPayload(payload: Partial<ModeSettingsApiPayload>): ModeSettings {
+  const mode: AppMode = payload.mode === "research" ? "research" : "advisor";
+  const preset = mode === "advisor" ? ADVISOR_PRESET : RESEARCH_PRESET;
+  return {
+    mode,
+    riskTolerance:
+      payload.risk_tolerance === "conservative" ||
+      payload.risk_tolerance === "moderate" ||
+      payload.risk_tolerance === "aggressive"
+        ? payload.risk_tolerance
+        : preset.riskTolerance,
+    monthlyIncome:
+      typeof payload.monthly_income === "number" && payload.monthly_income > 0
+        ? payload.monthly_income
+        : undefined,
+    readingMode:
+      payload.reading_mode === "professional" || payload.reading_mode === "friendly"
+        ? payload.reading_mode
+        : preset.readingMode,
+    enableDebate:
+      typeof payload.enable_debate === "boolean" ? payload.enable_debate : preset.enableDebate,
+    enableGlossary:
+      typeof payload.enable_glossary === "boolean" ? payload.enable_glossary : preset.enableGlossary,
+    maxSignals:
+      typeof payload.max_signals === "number" ? payload.max_signals : preset.maxSignals,
+    onboarded: typeof payload.onboarded === "boolean" ? payload.onboarded : false,
+  };
 }
 
 /** 切换模式：应用新模式的预设，保留 riskTolerance/monthlyIncome（投顾专属字段） */

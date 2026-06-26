@@ -6,6 +6,7 @@ from stockresearch.core.schemas import DebateResult, DimensionResult, ResearchRe
 
 _BIAS_LABEL = {"bullish": "偏多", "bearish": "偏空", "neutral": "中性"}
 _CONF_LABEL = {"high": "高", "medium": "中", "low": "低"}
+_FACTOR_STATUS_LABEL = {"verified": "已验证", "partial": "部分验证", "missing": "未验证"}
 
 
 def _dim_section(key: str, dim: DimensionResult) -> list[str]:
@@ -56,6 +57,22 @@ def report_to_markdown(report: ResearchReportOut) -> str:
         lines.extend(["## 文本因子·总结", report.text_factor_summary, ""])
     if report.news_text_factor:
         lines.extend(["## 文本因子·新闻", report.news_text_factor, ""])
+    if report.ashare_factors:
+        lines.append("## A 股因子检查")
+        for factor in report.ashare_factors:
+            lines.append(
+                f"- **{factor.category}｜{factor.name}**：{_FACTOR_STATUS_LABEL.get(factor.status, factor.status)}"
+            )
+            if factor.evidence:
+                lines.append(f"  - 证据：{'；'.join(factor.evidence)}")
+            if factor.missing:
+                lines.append(f"  - 缺口：{'；'.join(factor.missing)}")
+            if factor.source_details:
+                source_text = "；".join(
+                    f"{src.layer}/{src.provider}/{src.label}/{src.status}" for src in factor.source_details
+                )
+                lines.append(f"  - 来源：{source_text}")
+        lines.append("")
     lines.append("## 四维分析")
     for key, dim in report.dimensions.items():
         lines.extend(_dim_section(key, dim))
@@ -122,6 +139,12 @@ def report_to_pdf(report: ResearchReportOut) -> bytes:
     write_line(f"{report.name}（{report.symbol}）投研报告", size=16, bold=True)
     write_line(f"综合评分：{report.composite_score}/10 · 倾向：{bias} · 置信度：{conf}")
     write_line(report.summary)
+    if report.ashare_factors:
+        write_line("A 股因子检查", size=13, bold=True)
+        for factor in report.ashare_factors:
+            write_line(
+                f"{factor.category}｜{factor.name}：{_FACTOR_STATUS_LABEL.get(factor.status, factor.status)}"
+            )
     write_line("四维分析", size=13, bold=True)
     for key, dim in report.dimensions.items():
         write_line(f"{dim.agent}（{key}）— {dim.score}/10", bold=True)

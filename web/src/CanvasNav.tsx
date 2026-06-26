@@ -37,7 +37,7 @@ export function CanvasNav({
           className={`canvas-tool-btn copilot-trigger${copilotOpen ? " active" : ""}`}
           onClick={onCopilot}
         >
-          AI · {copilotLabel}
+          {copilotLabel}
         </button>
       </div>
     </nav>

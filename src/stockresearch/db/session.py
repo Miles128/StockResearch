@@ -6,6 +6,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import NullPool, StaticPool
 
 from stockresearch.core.config import get_settings
 from stockresearch.db.models import Base
@@ -23,7 +24,21 @@ def _resolve_database_url(url: str) -> str:
 _settings = get_settings()
 _db_url = _resolve_database_url(_settings.database_url)
 _connect_args = {"check_same_thread": False} if _db_url.startswith("sqlite") else {}
-engine = create_engine(_db_url, connect_args=_connect_args)
+
+if _db_url == "sqlite://":
+    # 内存数据库（测试）：必须共享同一连接，否则每次连接都是新的空库。
+    engine = create_engine(_db_url, connect_args=_connect_args, poolclass=StaticPool)
+elif _db_url.startswith("sqlite"):
+    # 本地文件 SQLite 单用户 MVP：避免 QueuePool 耗尽，每个请求独立连接。
+    engine = create_engine(_db_url, connect_args=_connect_args, poolclass=NullPool)
+else:
+    engine = create_engine(
+        _db_url,
+        pool_size=10,
+        max_overflow=20,
+        pool_timeout=30,
+    )
+
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 
@@ -40,8 +55,29 @@ def _migration_001_conversation_checkpoint(conn: Connection) -> None:
         conn.execute(text("ALTER TABLE conversations ADD COLUMN checkpoint JSON"))
 
 
+def _migration_002_user_preferences(conn: Connection) -> None:
+    conn.execute(
+        text(
+            "CREATE TABLE IF NOT EXISTS user_preferences ("
+            "id INTEGER NOT NULL PRIMARY KEY, "
+            "user_id INTEGER NOT NULL UNIQUE, "
+            "mode_settings JSON NOT NULL, "
+            "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, "
+            "FOREIGN KEY(user_id) REFERENCES users(id)"
+            ")"
+        )
+    )
+    conn.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS ix_user_preferences_user_id "
+            "ON user_preferences (user_id)"
+        )
+    )
+
+
 _SQLITE_MIGRATIONS: list[tuple[int, str, Callable[[Connection], None]]] = [
     (1, "conversation_checkpoint", _migration_001_conversation_checkpoint),
+    (2, "user_preferences", _migration_002_user_preferences),
 ]
 
 

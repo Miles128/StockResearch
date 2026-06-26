@@ -1,4 +1,4 @@
-import { Component, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import {
   api,
   AgentStreamEvent,
@@ -17,6 +17,7 @@ import type { CopilotContext, Message, Tab } from "./appTypes";
 import { ChatPanel } from "./ChatPanel";
 import { CanvasNav } from "./CanvasNav";
 import { CopilotPanel } from "./CopilotPanel";
+import { DataSourceDetails } from "./DataSourceDetails";
 import { DemoBanner } from "./DemoBanner";
 import { ActionCenter } from "./ActionCenter";
 import { useI18n } from "./i18n";
@@ -37,6 +38,8 @@ import { Onboarding } from "./Onboarding";
 import { AssetAllocationPanel } from "./AssetAllocationPanel";
 import {
   loadModeSettings,
+  modeSettingsFromApiPayload,
+  modeSettingsToApiPayload,
   saveModeSettings,
   switchMode,
   type AppMode,
@@ -111,6 +114,7 @@ export default function App() {
   const [llmConfigured, setLlmConfigured] = useState(false);
   const [llmCheckDone, setLlmCheckDone] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
+  const [dataDetailsOpen, setDataDetailsOpen] = useState(false);
   const [dataStatus, setDataStatus] = useState<DataSourceStatus | null>(null);
   const [marketOverview, setMarketOverview] = useState<MarketOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
@@ -174,22 +178,27 @@ export default function App() {
     setLocale(locale === "zh" ? "en" : "zh");
   }
 
-  function handleSwitchMode(mode: AppMode) {
-    const next = switchMode(modeSettings, mode);
+  function persistModeSettings(next: ModeSettings) {
     setModeSettings(next);
     saveModeSettings(next);
+    void api.saveModeSettings(modeSettingsToApiPayload(next)).catch(() => {
+      // localStorage remains the startup cache if the API is temporarily unavailable.
+    });
+  }
+
+  function handleSwitchMode(mode: AppMode) {
+    const next = switchMode(modeSettings, mode);
+    persistModeSettings(next);
   }
 
   function handleOnboardingComplete(next: ModeSettings) {
-    setModeSettings(next);
-    saveModeSettings(next);
+    persistModeSettings(next);
     setOnboardingOpen(false);
   }
 
   function handleOnboardingSkip() {
     const next: ModeSettings = { ...modeSettings, onboarded: true };
-    setModeSettings(next);
-    saveModeSettings(next);
+    persistModeSettings(next);
     setOnboardingOpen(false);
   }
 
@@ -223,6 +232,24 @@ export default function App() {
   }
 
   useEffect(() => {
+    const cachedModeSettings = loadModeSettings();
+    void api
+      .modeSettings()
+      .then((remote) => {
+        const remoteSettings = modeSettingsFromApiPayload(remote);
+        if (!remoteSettings.onboarded && cachedModeSettings.onboarded) {
+          persistModeSettings(cachedModeSettings);
+          setOnboardingOpen(false);
+          return;
+        }
+        setModeSettings(remoteSettings);
+        saveModeSettings(remoteSettings);
+        setOnboardingOpen(!remoteSettings.onboarded);
+      })
+      .catch(() => {
+        setModeSettings(cachedModeSettings);
+        setOnboardingOpen(!cachedModeSettings.onboarded);
+      });
     void loadOverview();
     void loadHoldings().then(() => {
       api.demoStatus().then((s) => setIsDemo(s.demo)).catch(() => {});
@@ -285,10 +312,10 @@ export default function App() {
     return () => clearInterval(id);
   }, [tab]);
 
-  function showError(msg: string) {
+  const showError = useCallback((msg: string) => {
     setError(msg);
     setTimeout(() => setError(""), 4000);
-  }
+  }, []);
 
   async function loadHoldings() {
     try {
@@ -625,14 +652,16 @@ export default function App() {
         </div>
         <p className="chrome-disclaimer">{t("chat.disclaimer")}</p>
         <div className="chrome-meta">
-          <span
+          <button
+            type="button"
             className={`data-source-badge${
               dataStatus && (dataStatus.quotes?.degraded || dataStatus.overview?.degraded) ? " degraded" : ""
             }`}
             title={dataStatus?.overview?.message || dataStatus?.quotes?.message || dataSourceLabel()}
+            onClick={() => setDataDetailsOpen(true)}
           >
             {dataSourceLabel()}
-          </span>
+          </button>
           {headerUsage && (
             <span className="chrome-usage" title={formatLlmUsage(headerUsage, t)}>
               {formatHeaderUsage(headerUsage, t)}
@@ -680,8 +709,10 @@ export default function App() {
         }}
         required={settingsRequired}
         onConfigured={handleLlmConfigured}
+        onModeSettingsChange={persistModeSettings}
         variant="modal"
       />
+      {dataDetailsOpen && <DataSourceDetails status={dataStatus} onClose={() => setDataDetailsOpen(false)} />}
       {onboardingOpen && (
         <Onboarding onComplete={handleOnboardingComplete} onSkip={handleOnboardingSkip} />
       )}

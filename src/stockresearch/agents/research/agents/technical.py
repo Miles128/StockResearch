@@ -6,7 +6,7 @@ from stockresearch.agents.research.react import DimensionAgent, ResearchTool
 from stockresearch.agents.voice import AGENT_VOICE
 from stockresearch.core.constants import CONFIDENCE_MEDIUM
 from stockresearch.core.schemas import DimensionResult
-from stockresearch.data.providers.market import QuoteProvider, TechnicalDataProvider
+from stockresearch.data.providers.market import MarketRuleProvider, QuoteProvider, TechnicalDataProvider
 
 _SYSTEM = f"你是 A 股技术分析师。{AGENT_VOICE} 不要给出买入卖出建议。"
 
@@ -27,6 +27,10 @@ async def _tool_quote(ctx: ResearchContext) -> dict[str, object]:
         "change_pct": quote.change_pct,
         "volume": quote.volume,
     }
+
+
+async def _tool_trading_rules(ctx: ResearchContext) -> dict[str, object]:
+    return await MarketRuleProvider().get_trading_rules(ctx.symbol)
 
 
 def _build(data: dict[str, object], analysis: str) -> DimensionResult:
@@ -56,7 +60,7 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
         confidence=as_confidence(CONFIDENCE_MEDIUM),
         highlights=[analysis.strip()] if analysis.strip() else [f"RSI {indicators['rsi']}"],
         risks=[f"支撑位参考 MA20={ma20:.2f}"],
-        data_sources=["akshare_kline", "sina_quote"],
+        data_sources=["akshare_kline", "sina_quote", "sina_trading_rules"],
     )
 
 
@@ -67,6 +71,7 @@ TECHNICAL_AGENT = DimensionAgent(
     tools=(
         ResearchTool("akshare_kline", "K 线与 MACD/RSI", _tool_kline),
         ResearchTool("sina_quote", "实时行情", _tool_quote),
+        ResearchTool("sina_trading_rules", "涨跌停 / ST / 停复牌状态", _tool_trading_rules),
     ),
     build=_build,
 )

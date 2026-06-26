@@ -29,6 +29,22 @@ class User(Base):
     sector_preferences: Mapped[list["UserSectorPreference"]] = relationship(
         back_populates="user", cascade="all, delete"
     )
+    preferences: Mapped["UserPreference | None"] = relationship(
+        back_populates="user", cascade="all, delete", uselist=False
+    )
+
+
+class UserPreference(Base):
+    __tablename__ = "user_preferences"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    mode_settings: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["User"] = relationship(back_populates="preferences")
 
 
 class UserSectorPreference(Base):

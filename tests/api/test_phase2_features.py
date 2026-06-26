@@ -1,6 +1,9 @@
 """Phase 2 feature API tests."""
 
-from stockresearch.core.schemas import DebateResult, DimensionResult, ResearchReportOut
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+
+from stockresearch.core.schemas import AshareFactorOut, DebateResult, DimensionResult, FactorSourceOut, ResearchReportOut
 from stockresearch.services.report_export import report_to_markdown, report_to_pdf
 from stockresearch.services.research_memory import search_research_memory
 
@@ -31,10 +34,28 @@ def _sample_report() -> ResearchReportOut:
             final_bias="bullish",
             confidence="medium",
         ),
+        ashare_factors=[
+            AshareFactorOut(
+                category="资金与筹码",
+                name="龙虎榜与游资席位",
+                status="verified",
+                impact="sentiment",
+                evidence=["龙虎榜数据：akshare_lhb"],
+                source_details=[
+                    FactorSourceOut(
+                        key="akshare_lhb",
+                        label="龙虎榜",
+                        layer="L2",
+                        provider="akshare",
+                        status="verified",
+                    )
+                ],
+            )
+        ],
     )
 
 
-def test_report_to_pdf_bytes(client, db_session) -> None:
+def test_report_to_pdf_bytes(client: TestClient, db_session: Session) -> None:
     from stockresearch.api.routes.research import persist_report
     from stockresearch.services.local_user import get_or_create_mvp_user
 
@@ -49,7 +70,14 @@ def test_report_to_pdf_bytes(client, db_session) -> None:
     assert resp.content[:4] == b"%PDF"
 
 
-def test_memory_search(client, db_session) -> None:
+def test_report_markdown_includes_ashare_factors() -> None:
+    md = report_to_markdown(_sample_report())
+    assert "A 股因子检查" in md
+    assert "龙虎榜与游资席位" in md
+    assert "L2/akshare/龙虎榜/verified" in md
+
+
+def test_memory_search(client: TestClient, db_session: Session) -> None:
     from stockresearch.api.routes.research import persist_report
     from stockresearch.services.local_user import get_or_create_mvp_user
 
@@ -64,7 +92,7 @@ def test_memory_search(client, db_session) -> None:
     assert len(resp.json()["hits"]) == 1
 
 
-def test_signal_backtest_endpoint(client, db_session) -> None:
+def test_signal_backtest_endpoint(client: TestClient, db_session: Session) -> None:
     from stockresearch.api.routes.research import persist_report
     from stockresearch.services.local_user import get_or_create_mvp_user
 
@@ -78,7 +106,7 @@ def test_signal_backtest_endpoint(client, db_session) -> None:
     assert len(body["horizons"]) == 3
 
 
-def test_briefing_generate(client) -> None:
+def test_briefing_generate(client: TestClient) -> None:
     resp = client.post("/api/v1/briefing/generate?kind=morning")
     assert resp.status_code == 200
     body = resp.json()
@@ -86,7 +114,7 @@ def test_briefing_generate(client) -> None:
     assert body["sections"]
 
 
-def test_industry_research_endpoint(client, db_session) -> None:
+def test_industry_research_endpoint(client: TestClient, db_session: Session) -> None:
     resp = client.post(
         "/api/v1/research/industry",
         json={"sector": "白酒", "query": "白酒板块深度研究"},

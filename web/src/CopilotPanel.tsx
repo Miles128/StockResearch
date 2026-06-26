@@ -30,7 +30,7 @@ export function CopilotPanel({
     <aside className="copilot-panel">
       <div className="copilot-header">
         <div>
-          <span className="copilot-eyebrow">AI · COPILOT</span>
+          <span className="copilot-eyebrow">{t("nav.copilot")}</span>
           <strong>{threadTitle || t("chat.threadEmpty")}</strong>
         </div>
         <div className="copilot-header-actions">

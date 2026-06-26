@@ -4,7 +4,8 @@ import pytest
 
 from stockresearch.core.config import Settings
 from stockresearch.data.providers import market as market_mod
-from stockresearch.data.providers.market import QuoteProvider
+from stockresearch.data.providers.market import MarketRuleProvider, QuoteProvider
+from stockresearch.data.providers.sina_quote import QuoteRow
 
 
 @pytest.fixture
@@ -21,7 +22,7 @@ async def test_batch_quotes_use_sina_only(
     monkeypatch: pytest.MonkeyPatch,
     live_market_settings: None,
 ) -> None:
-    def fake_sina(symbols: list[str]) -> dict[str, dict[str, float | str]]:
+    def fake_sina(symbols: list[str]) -> dict[str, QuoteRow]:
         from datetime import UTC, datetime
 
         return {
@@ -50,10 +51,10 @@ async def test_quotes_fallback_to_akshare_when_sina_fails(
     monkeypatch: pytest.MonkeyPatch,
     live_market_settings: None,
 ) -> None:
-    def sina_fail(_symbols: list[str]) -> dict[str, dict[str, float | str]]:
+    def sina_fail(_symbols: list[str]) -> dict[str, QuoteRow]:
         raise RuntimeError("sina down")
 
-    def fake_ak(symbols: list[str]) -> dict[str, dict[str, float | str]]:
+    def fake_ak(symbols: list[str]) -> dict[str, QuoteRow]:
         from datetime import UTC, datetime
 
         return {
@@ -76,3 +77,75 @@ async def test_quotes_fallback_to_akshare_when_sina_fails(
     quotes = await QuoteProvider().get_quotes(["600519"])
     assert quotes["600519"].price == 99.0
     assert quotes["600519"].name == "Ak600519"
+
+
+@pytest.mark.asyncio
+async def test_trading_rules_detect_limit_up(
+    monkeypatch: pytest.MonkeyPatch,
+    live_market_settings: None,
+) -> None:
+    def fake_sina(_symbols: list[str]) -> dict[str, QuoteRow]:
+        from datetime import UTC, datetime
+
+        return {
+            "600519": {
+                "symbol": "600519",
+                "name": "贵州茅台",
+                "price": 110.0,
+                "prev_close": 100.0,
+                "open": 105.0,
+                "change_pct": 10.0,
+                "high": 110.0,
+                "low": 100.0,
+                "volume": 100.0,
+                "updated_at": datetime.now(UTC),
+            }
+        }
+
+    monkeypatch.setattr(market_mod, "fetch_sina_quotes", fake_sina)
+
+    rules = await MarketRuleProvider().get_trading_rules("600519")
+    assert rules["verified"] is True
+    assert rules["status"] == "limit_up"
+    assert rules["is_limit_up"] is True
+    assert rules["limit_pct"] == 10.0
+
+
+@pytest.mark.asyncio
+async def test_trading_rules_detect_st_and_suspended(
+    monkeypatch: pytest.MonkeyPatch,
+    live_market_settings: None,
+) -> None:
+    def fake_sina(_symbols: list[str]) -> dict[str, QuoteRow]:
+        from datetime import UTC, datetime
+
+        return {
+            "600000": {
+                "symbol": "600000",
+                "name": "*ST测试",
+                "price": 0.0,
+                "prev_close": 10.0,
+                "open": 0.0,
+                "change_pct": 0.0,
+                "high": 0.0,
+                "low": 0.0,
+                "volume": 0.0,
+                "updated_at": datetime.now(UTC),
+            }
+        }
+
+    monkeypatch.setattr(market_mod, "fetch_sina_quotes", fake_sina)
+
+    rules = await MarketRuleProvider().get_trading_rules("600000")
+    assert rules["is_st"] is True
+    assert rules["is_suspended"] is True
+    assert rules["status"] == "suspended"
+    assert rules["limit_pct"] == 5.0
+
+
+def test_trading_rule_limit_pct_by_board() -> None:
+    provider = MarketRuleProvider()
+    assert provider._limit_pct("300750", "宁德时代") == 20.0
+    assert provider._limit_pct("688001", "华兴源创") == 20.0
+    assert provider._limit_pct("830000", "北交所样本") == 30.0
+    assert provider._limit_pct("600000", "浦发银行") == 10.0

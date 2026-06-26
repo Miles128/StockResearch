@@ -1,5 +1,7 @@
 """Market data routes."""
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -7,6 +9,7 @@ from stockresearch.api.deps import get_current_user
 from stockresearch.core.config import get_settings
 from stockresearch.core.data_source_config import get_tushare_token
 from stockresearch.core.schemas import (
+    DataSourceDetailOut,
     DataSourceStatusOut,
     KlineChartOut,
     MarketOverviewOut,
@@ -15,7 +18,7 @@ from stockresearch.core.schemas import (
 )
 from stockresearch.data.providers.market import TechnicalDataProvider
 from stockresearch.data.providers.market_overview import BatchQuoteProvider, MarketOverviewProvider
-from stockresearch.data.registry import get_snapshots
+from stockresearch.data.registry import ProviderSnapshot, get_snapshots
 from stockresearch.db.models import Holding, User
 from stockresearch.db.session import get_db
 
@@ -61,40 +64,118 @@ async def data_source_status(
     snapshots = get_snapshots()
     quotes = snapshots.get("quotes")
     overview = snapshots.get("overview")
+    use_mock = get_settings().use_mock_market_data
+    tushare_configured = bool(get_tushare_token())
+    tushare_available = _tushare_runtime_available()
+    quote_status = _provider_status(quotes) if quotes else None
+    overview_status = _provider_status(overview) if overview else None
     return DataSourceStatusOut(
-        quotes=ProviderStatusOut(
-            domain=quotes.domain,
-            primary=quotes.primary,
-            fallback=quotes.fallback,
-            primary_count=quotes.primary_count,
-            fallback_count=quotes.fallback_count,
-            degraded=quotes.degraded,
-            message=quotes.message,
-            updated_at=quotes.updated_at,
-        )
-        if quotes
-        else None,
-        overview=ProviderStatusOut(
-            domain=overview.domain,
-            primary=overview.primary,
-            fallback=overview.fallback,
-            primary_count=overview.primary_count,
-            fallback_count=overview.fallback_count,
-            degraded=overview.degraded,
-            message=overview.message,
-            updated_at=overview.updated_at,
-        )
-        if overview
-        else None,
-        use_mock=get_settings().use_mock_market_data,
-        tushare_configured=bool(get_tushare_token()),
-        tushare_available=_tushare_runtime_available(),
+        quotes=quote_status,
+        overview=overview_status,
+        details=_data_source_details(
+            quote_status,
+            overview_status,
+            use_mock=use_mock,
+            tushare_configured=tushare_configured,
+            tushare_available=tushare_available,
+        ),
+        use_mock=use_mock,
+        tushare_configured=tushare_configured,
+        tushare_available=tushare_available,
     )
+
+
+def _provider_status(snapshot: ProviderSnapshot) -> ProviderStatusOut:
+    confidence: Literal["verified", "single_source", "delayed", "cached", "conflict", "missing"] = "single_source"
+    if snapshot.degraded:
+        confidence = "missing" if snapshot.fallback_count == 0 else "cached"
+    return ProviderStatusOut(
+        domain=snapshot.domain,
+        primary=snapshot.primary,
+        fallback=snapshot.fallback,
+        primary_count=snapshot.primary_count,
+        fallback_count=snapshot.fallback_count,
+        degraded=snapshot.degraded,
+        message=snapshot.message,
+        updated_at=snapshot.updated_at,
+        layer="L1",
+        is_cached=False,
+        is_mock=False,
+        degraded_reason=snapshot.message if snapshot.degraded else None,
+        confidence=confidence,
+    )
+
+
+def _data_source_details(
+    quotes: ProviderStatusOut | None,
+    overview: ProviderStatusOut | None,
+    *,
+    use_mock: bool,
+    tushare_configured: bool,
+    tushare_available: bool,
+) -> list[DataSourceDetailOut]:
+    details: list[DataSourceDetailOut] = []
+    for item, label in ((overview, "市场概览"), (quotes, "行情报价")):
+        if item is None:
+            details.append(
+                DataSourceDetailOut(
+                    domain=label,
+                    label=label,
+                    layer="L1",
+                    source="未获取",
+                    degraded=True,
+                    degraded_reason="本次会话尚未获取该类数据",
+                    confidence="missing",
+                    status="missing",
+                )
+            )
+            continue
+        source = item.primary if not item.fallback else f"{item.primary} → {item.fallback}"
+        details.append(
+            DataSourceDetailOut(
+                domain=item.domain,
+                label=label,
+                layer=item.layer,
+                source=source,
+                fetched_at=item.updated_at,
+                latency_ms=item.latency_ms,
+                is_cached=item.is_cached,
+                is_mock=item.is_mock,
+                degraded=item.degraded,
+                degraded_reason=item.degraded_reason or item.message,
+                confidence=item.confidence,
+                status="degraded" if item.degraded else "ok",
+            )
+        )
+    details.append(
+        DataSourceDetailOut(
+            domain="mock",
+            label="Mock 演示数据",
+            layer="L0",
+            source="local",
+            is_mock=use_mock,
+            confidence="single_source",
+            status="mock" if use_mock else "not_configured",
+        )
+    )
+    details.append(
+        DataSourceDetailOut(
+            domain="tushare",
+            label="Tushare Pro 增强数据",
+            layer="L3",
+            source="tushare",
+            degraded=tushare_configured and not tushare_available,
+            degraded_reason="Python 运行环境未安装 tushare" if tushare_configured and not tushare_available else None,
+            confidence="single_source" if tushare_configured else "missing",
+            status="configured" if tushare_configured and tushare_available else "not_configured",
+        )
+    )
+    return details
 
 
 def _tushare_runtime_available() -> bool:
     try:
-        import tushare  # noqa: F401
+        import tushare  # type: ignore[import-untyped]  # noqa: F401
     except ImportError:
         return False
     return True

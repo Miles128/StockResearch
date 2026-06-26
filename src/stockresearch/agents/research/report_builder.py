@@ -15,6 +15,7 @@ from stockresearch.core.schemas import (
     ResearchReportOut,
     SectorLeaderBrief,
 )
+from stockresearch.services.ashare_factors import build_ashare_factor_checklist
 from stockresearch.services.text_factor import build_text_factor_summary
 
 
@@ -72,5 +73,9 @@ def build_research_report(
         leaders=leaders or [],
         news_text_factor=news_text_factor,
         text_factor_summary=text_factor_summary,
+        ashare_factors=build_ashare_factor_checklist(
+            dimensions,
+            news_text_factor=news_text_factor,
+        ),
         dimension_weights=weights,
     )

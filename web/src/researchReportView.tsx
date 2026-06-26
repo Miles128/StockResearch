@@ -1,4 +1,4 @@
-import type { DebateResult, DimensionResult, ResearchReport } from "./api";
+import type { AshareFactor, DebateResult, DimensionResult, ResearchReport } from "./api";
 import { useI18n } from "./i18n";
 
 function biasLabel(bias: string, t: (key: string) => string): string {
@@ -159,6 +159,61 @@ function ResearchDebateBlock({
   );
 }
 
+function factorStatusLabel(status: AshareFactor["status"], t: (key: string) => string): string {
+  if (status === "verified") return t("card.factorVerified");
+  if (status === "partial") return t("card.factorPartial");
+  return t("card.factorMissing");
+}
+
+function ResearchAshareFactorsBlock({
+  factors,
+  t,
+}: {
+  factors?: AshareFactor[];
+  t: (key: string) => string;
+}) {
+  if (!factors?.length) return null;
+  return (
+    <details className="ashare-factor-block">
+      <summary>{t("card.ashareFactors")}</summary>
+      <div className="ashare-factor-grid">
+        {factors.map((factor) => (
+          <article className={`ashare-factor-card ${factor.status}`} key={`${factor.category}-${factor.name}`}>
+            <div className="ashare-factor-head">
+              <div>
+                <span>{factor.category}</span>
+                <strong>{factor.name}</strong>
+              </div>
+              <em>{factorStatusLabel(factor.status, t)}</em>
+            </div>
+            {factor.evidence.length > 0 && (
+              <p>
+                <strong>{t("card.evidence")}：</strong>
+                {factor.evidence.join("；")}
+              </p>
+            )}
+            {factor.missing.length > 0 && (
+              <p className="muted">
+                <strong>{t("card.missing")}：</strong>
+                {factor.missing.join("；")}
+              </p>
+            )}
+            {factor.source_details?.length > 0 && (
+              <div className="ashare-factor-sources" aria-label={t("card.sourceDetails")}>
+                {factor.source_details.map((source) => (
+                  <span className={`factor-source-pill ${source.status}`} key={source.key} title={source.note || source.key}>
+                    {source.layer} · {source.provider} · {source.label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </article>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 export function ResearchReportDetails({
   report,
   showDimensions = true,
@@ -199,6 +254,7 @@ export function ResearchReportDetails({
       {showDebate && report.debate && (
         <ResearchDebateBlock debate={report.debate} labels={debateLabels} />
       )}
+      <ResearchAshareFactorsBlock factors={report.ashare_factors} t={t} />
       {report.text_factor_summary && (
         <details className="text-factor-block">
           <summary>{t("card.textFactorSummary")}</summary>

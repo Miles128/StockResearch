@@ -1,12 +1,23 @@
 """User-facing LLM settings metadata; keys default to project root .env locally."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
+from stockresearch.api.deps import get_current_user
 from stockresearch.api.llm_deps import resolve_llm_client
 from stockresearch.core.config import get_settings
 from stockresearch.core.llm_config import LlmOverrides
-from stockresearch.core.schemas import LlmSettingsOut, LlmTestOut, LlmUserSettings
+from stockresearch.core.schemas import (
+    LlmSettingsOut,
+    LlmTestOut,
+    LlmUserSettings,
+    ModeSettingsOut,
+    ModeSettingsUpdate,
+)
+from stockresearch.db.models import User
+from stockresearch.db.session import get_db
 from stockresearch.services.env_file import save_llm_env
+from stockresearch.services.user_preferences import get_mode_settings, save_mode_settings
 from stockresearch.utils.llm import MockLLMClient
 from stockresearch.utils.llm_test import verify_llm_connection
 
@@ -39,6 +50,25 @@ def get_llm_settings() -> LlmSettingsOut:
         server_configured=configured,
         server_has_api_key=has_key,
     )
+
+
+@router.get("/mode", response_model=ModeSettingsOut)
+def get_user_mode_settings(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ModeSettingsOut:
+    """Return persisted local user mode/risk questionnaire settings."""
+    return get_mode_settings(db, user.id)
+
+
+@router.put("/mode", response_model=ModeSettingsOut)
+def save_user_mode_settings(
+    payload: ModeSettingsUpdate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ModeSettingsOut:
+    """Persist local user mode/risk questionnaire settings to SQLite."""
+    return save_mode_settings(db, user.id, payload)
 
 
 @router.put("/llm", response_model=LlmSettingsOut)

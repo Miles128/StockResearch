@@ -168,6 +168,25 @@ class DebateResult(BaseModel):
     manager_thesis: str | None = None
 
 
+class FactorSourceOut(BaseModel):
+    key: str
+    label: str
+    layer: str = "L1"
+    provider: str
+    status: Literal["verified", "missing"]
+    note: str | None = None
+
+
+class AshareFactorOut(BaseModel):
+    category: str
+    name: str
+    status: Literal["verified", "partial", "missing"]
+    impact: Literal["liquidity", "sentiment", "fundamental", "valuation", "event", "technical"]
+    evidence: list[str] = Field(default_factory=list)
+    missing: list[str] = Field(default_factory=list)
+    source_details: list[FactorSourceOut] = Field(default_factory=list)
+
+
 class SectorLeaderBrief(BaseModel):
     symbol: str
     name: str
@@ -189,6 +208,7 @@ class ResearchReportOut(BaseModel):
     leaders: list[SectorLeaderBrief] = Field(default_factory=list)
     news_text_factor: str | None = None
     text_factor_summary: str | None = None
+    ashare_factors: list[AshareFactorOut] = Field(default_factory=list)
     dimension_weights: dict[str, float] = Field(default_factory=dict)
     disclaimer: str = DISCLAIMER
     cached: bool = False
@@ -280,6 +300,21 @@ class LlmSettingsOut(BaseModel):
     server_use_mock: bool
     server_configured: bool
     server_has_api_key: bool
+
+
+class ModeSettingsOut(BaseModel):
+    mode: Literal["advisor", "research"] = "advisor"
+    risk_tolerance: Literal["conservative", "moderate", "aggressive"] = "moderate"
+    monthly_income: float | None = Field(default=None, gt=0)
+    reading_mode: Literal["professional", "friendly"] = "friendly"
+    enable_debate: bool = False
+    enable_glossary: bool = True
+    max_signals: int = Field(default=5, ge=1, le=50)
+    onboarded: bool = False
+
+
+class ModeSettingsUpdate(ModeSettingsOut):
+    pass
 
 
 class LlmTestOut(BaseModel):
@@ -388,11 +423,34 @@ class ProviderStatusOut(BaseModel):
     degraded: bool = False
     message: str | None = None
     updated_at: datetime | None = None
+    layer: str = "L1"
+    latency_ms: int | None = None
+    is_cached: bool = False
+    is_mock: bool = False
+    degraded_reason: str | None = None
+    confidence: Literal["verified", "single_source", "delayed", "cached", "conflict", "missing"] = "single_source"
+
+
+class DataSourceDetailOut(BaseModel):
+    domain: str
+    label: str
+    layer: str
+    source: str
+    fetched_at: datetime | None = None
+    latency_ms: int | None = None
+    is_cached: bool = False
+    is_mock: bool = False
+    degraded: bool = False
+    degraded_reason: str | None = None
+    confidence: Literal["verified", "single_source", "delayed", "cached", "conflict", "missing"] = "single_source"
+    conflict_with: list[str] = Field(default_factory=list)
+    status: Literal["ok", "degraded", "missing", "mock", "configured", "not_configured"] = "ok"
 
 
 class DataSourceStatusOut(BaseModel):
     quotes: ProviderStatusOut | None = None
     overview: ProviderStatusOut | None = None
+    details: list[DataSourceDetailOut] = Field(default_factory=list)
     use_mock: bool = False
     tushare_configured: bool = False
     tushare_available: bool = False

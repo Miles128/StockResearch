@@ -18,4 +18,6 @@ async def test_run_research_four_dimensions() -> None:
     assert "新闻文本因子" in report.news_text_factor
     assert report.text_factor_summary
     assert "文本因子·总结" in report.text_factor_summary
+    assert report.ashare_factors
+    assert any(factor.name == "K 线、均线与技术指标" for factor in report.ashare_factors)
     assert report.dimension_weights
