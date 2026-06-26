@@ -1,4 +1,4 @@
-import { Component, useEffect, useMemo, useState, type ErrorInfo, type ReactNode } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import {
   api,
   AgentStreamEvent,
@@ -13,14 +13,18 @@ import {
   SectorPreferences,
   StockLookupOut,
 } from "./api";
-import type { Message, Tab } from "./appTypes";
+import type { CopilotContext, Message, Tab } from "./appTypes";
 import { ChatPanel } from "./ChatPanel";
+import { CanvasNav } from "./CanvasNav";
+import { CopilotPanel } from "./CopilotPanel";
+import { DataSourceDetails } from "./DataSourceDetails";
 import { DemoBanner } from "./DemoBanner";
 import { ActionCenter } from "./ActionCenter";
 import { useI18n } from "./i18n";
 import { isLlmConfiguredLocally, isServerLlmConfigured } from "./llmSettings";
 import { formatHeaderUsage, formatLlmUsage } from "./llmUsageFormat";
 import { MarketTicker } from "./MarketTicker";
+import { MarketPanel } from "./MarketPanel";
 import { NewsPanel } from "./NewsPanel";
 import { computePortfolioSummary, computeSectorConcentration } from "./portfolioHelpers";
 import { PortfolioPanel } from "./PortfolioPanel";
@@ -29,12 +33,13 @@ import { SettingsPanel } from "./SettingsPanel";
 import { stripDisclaimer } from "./disclaimerText";
 import { applyStreamEvent, emptyStreamState } from "./streamEvents";
 import { normalizeStreamEvent } from "./streamI18n";
-import { TabNav } from "./TabNav";
 import { ModeSwitcher } from "./ModeSwitcher";
 import { Onboarding } from "./Onboarding";
 import { AssetAllocationPanel } from "./AssetAllocationPanel";
 import {
   loadModeSettings,
+  modeSettingsFromApiPayload,
+  modeSettingsToApiPayload,
   saveModeSettings,
   switchMode,
   type AppMode,
@@ -72,11 +77,10 @@ export default function App() {
   const { t, locale, setLocale } = useI18n();
   const navItems = useMemo(
     () => [
-      { key: "chat" as Tab, label: t("nav.chat"), fn: "F1" },
-      { key: "news" as Tab, label: t("nav.news"), fn: "F2" },
-      { key: "portfolio" as Tab, label: t("nav.portfolio"), fn: "F3" },
-      { key: "risk" as Tab, label: t("nav.risk"), fn: "F4" },
-      { key: "settings" as Tab, label: t("nav.settings"), fn: "F5" },
+      { key: "portfolio" as Tab, label: t("nav.portfolio") },
+      { key: "risk" as Tab, label: t("nav.risk") },
+      { key: "market" as Tab, label: t("nav.market") },
+      { key: "news" as Tab, label: t("nav.news") },
     ],
     [t, locale],
   );
@@ -84,7 +88,9 @@ export default function App() {
   const ratioGrade = (v: number, excellent: number, good: number) =>
     v > excellent ? t("rating.excellent") : v > good ? t("rating.good") : v > 0 ? t("rating.fair") : t("rating.poor");
 
-  const [tab, setTab] = useState<Tab>("chat");
+  const [tab, setTab] = useState<Tab>("portfolio");
+  const [copilotOpen, setCopilotOpen] = useState(false);
+  const [pageContext, setPageContext] = useState<CopilotContext | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string>();
@@ -108,6 +114,7 @@ export default function App() {
   const [llmConfigured, setLlmConfigured] = useState(false);
   const [llmCheckDone, setLlmCheckDone] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
+  const [dataDetailsOpen, setDataDetailsOpen] = useState(false);
   const [dataStatus, setDataStatus] = useState<DataSourceStatus | null>(null);
   const [marketOverview, setMarketOverview] = useState<MarketOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
@@ -116,6 +123,7 @@ export default function App() {
   const [sectorSaving, setSectorSaving] = useState(false);
   const [isDemo, setIsDemo] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
+  const autoDemoLoadRequested = useRef(false);
   const [modeSettings, setModeSettings] = useState<ModeSettings>(() => loadModeSettings());
   const [onboardingOpen, setOnboardingOpen] = useState(() => !loadModeSettings().onboarded);
   const settingsRequired = llmCheckDone && !llmConfigured;
@@ -170,22 +178,27 @@ export default function App() {
     setLocale(locale === "zh" ? "en" : "zh");
   }
 
-  function handleSwitchMode(mode: AppMode) {
-    const next = switchMode(modeSettings, mode);
+  function persistModeSettings(next: ModeSettings) {
     setModeSettings(next);
     saveModeSettings(next);
+    void api.saveModeSettings(modeSettingsToApiPayload(next)).catch(() => {
+      // localStorage remains the startup cache if the API is temporarily unavailable.
+    });
+  }
+
+  function handleSwitchMode(mode: AppMode) {
+    const next = switchMode(modeSettings, mode);
+    persistModeSettings(next);
   }
 
   function handleOnboardingComplete(next: ModeSettings) {
-    setModeSettings(next);
-    saveModeSettings(next);
+    persistModeSettings(next);
     setOnboardingOpen(false);
   }
 
   function handleOnboardingSkip() {
     const next: ModeSettings = { ...modeSettings, onboarded: true };
-    setModeSettings(next);
-    saveModeSettings(next);
+    persistModeSettings(next);
     setOnboardingOpen(false);
   }
 
@@ -219,6 +232,24 @@ export default function App() {
   }
 
   useEffect(() => {
+    const cachedModeSettings = loadModeSettings();
+    void api
+      .modeSettings()
+      .then((remote) => {
+        const remoteSettings = modeSettingsFromApiPayload(remote);
+        if (!remoteSettings.onboarded && cachedModeSettings.onboarded) {
+          persistModeSettings(cachedModeSettings);
+          setOnboardingOpen(false);
+          return;
+        }
+        setModeSettings(remoteSettings);
+        saveModeSettings(remoteSettings);
+        setOnboardingOpen(!remoteSettings.onboarded);
+      })
+      .catch(() => {
+        setModeSettings(cachedModeSettings);
+        setOnboardingOpen(!cachedModeSettings.onboarded);
+      });
     void loadOverview();
     void loadHoldings().then(() => {
       api.demoStatus().then((s) => setIsDemo(s.demo)).catch(() => {});
@@ -258,11 +289,10 @@ export default function App() {
 
   useEffect(() => {
     const fnMap: Partial<Record<string, Tab>> = {
-      F1: "chat",
-      F2: "news",
-      F3: "portfolio",
-      F4: "risk",
-      F5: "settings",
+      F1: "portfolio",
+      F2: "risk",
+      F3: "market",
+      F4: "news",
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -282,10 +312,10 @@ export default function App() {
     return () => clearInterval(id);
   }, [tab]);
 
-  function showError(msg: string) {
+  const showError = useCallback((msg: string) => {
     setError(msg);
     setTimeout(() => setError(""), 4000);
-  }
+  }, []);
 
   async function loadHoldings() {
     try {
@@ -293,7 +323,8 @@ export default function App() {
       const data = await api.holdingsEnriched();
       setHoldings(data);
       refreshDataStatus();
-      if (data.length === 0) {
+      if (data.length === 0 && !autoDemoLoadRequested.current) {
+        autoDemoLoadRequested.current = true;
         try {
           await api.loadDemo();
           setHoldings(await api.holdingsEnriched());
@@ -309,14 +340,22 @@ export default function App() {
     }
   }
 
-  async function executeChat(query: string, options?: ChatStreamOptions) {
+  async function executeChat(
+    query: string,
+    options?: ChatStreamOptions,
+    contextOverride?: CopilotContext | null,
+  ) {
     setChatLoading(true);
     setStatusMsg(t("chat.connecting"));
     setChatStream(emptyStreamState());
     let processSnapshot = emptyStreamState();
+    const activeContext = contextOverride === undefined ? pageContext : contextOverride;
+    const requestQuery = activeContext
+      ? `${query}\n\n[当前画布上下文：${activeContext.label}${activeContext.detail ? `；${activeContext.detail}` : ""}]`
+      : query;
     try {
       const resp = await api.chatStream(
-        query,
+        requestQuery,
         sessionId,
         (event: AgentStreamEvent) => {
           if (
@@ -366,7 +405,7 @@ export default function App() {
     } catch {
       try {
         setStatusMsg(t("chat.streamFailed"));
-        const resp = await api.chat(query, sessionId, options);
+        const resp = await api.chat(requestQuery, sessionId, options);
         setSessionId(resp.session_id);
         setMessages((m) => [
           ...m,
@@ -387,12 +426,15 @@ export default function App() {
     }
   }
 
-  function startChatQuery(query: string, opts?: { switchTab?: boolean }) {
+  function startChatQuery(
+    query: string,
+    opts?: { switchTab?: boolean; context?: CopilotContext | null },
+  ) {
     if (!query.trim() || chatLoading) return;
-    if (opts?.switchTab) setTab("chat");
+    if (opts?.switchTab) setCopilotOpen(true);
     setInput("");
     setMessages((m) => [...m, { role: "user", content: query }]);
-    void executeChat(query);
+    void executeChat(query, undefined, opts?.context);
   }
 
   function sendChat() {
@@ -402,12 +444,43 @@ export default function App() {
 
   function analyzeHolding(h: HoldingEnriched) {
     const q = locale === "zh" ? `分析${h.name}` : `Analyze ${h.name}`;
-    startChatQuery(q, { switchTab: true });
+    const context: CopilotContext = {
+      kind: "stock",
+      label: `${h.name} ${h.symbol}`,
+      detail: `${h.sector} · ${h.quantity}股`,
+    };
+    setPageContext(context);
+    setCopilotOpen(true);
+    startChatQuery(q, { switchTab: true, context });
   }
 
   function onTickerIndexClick(_name: string) {
-    setTab("chat");
+    setTab("market");
+    setPageContext({ kind: "market", label: _name });
+    setCopilotOpen(true);
     setInput(t("chat.exampleMarketQuery"));
+  }
+
+  function askCopilot(query: string, context: CopilotContext) {
+    setPageContext(context);
+    setCopilotOpen(true);
+    startChatQuery(query, { context });
+  }
+
+  function newCopilotThread() {
+    setMessages([]);
+    setSessionId(undefined);
+    setChatStream(emptyStreamState());
+    setStatusMsg("");
+    setInput("");
+  }
+
+  function handleActionNavigate(target: string) {
+    if (target === "risk") setTab("risk");
+    else if (target === "news") setTab("news");
+    else {
+      setCopilotOpen(true);
+    }
   }
 
   async function toggleNewsSector(sector: string) {
@@ -571,16 +644,6 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <TabNav
-        className="tab-nav-mobile"
-        compact
-        tab={tab}
-        onTab={setTab}
-        items={navItems}
-        ariaLabel={t("nav.aria")}
-        locale={locale}
-        onLocaleToggle={toggleLocale}
-      />
       <div className="app-chrome">
         <div className="chrome-left">
           <span className="bbg-logo">StockResearch</span>
@@ -589,20 +652,36 @@ export default function App() {
         </div>
         <p className="chrome-disclaimer">{t("chat.disclaimer")}</p>
         <div className="chrome-meta">
-          <span
+          <button
+            type="button"
             className={`data-source-badge${
               dataStatus && (dataStatus.quotes?.degraded || dataStatus.overview?.degraded) ? " degraded" : ""
             }`}
             title={dataStatus?.overview?.message || dataStatus?.quotes?.message || dataSourceLabel()}
+            onClick={() => setDataDetailsOpen(true)}
           >
             {dataSourceLabel()}
-          </span>
+          </button>
           {headerUsage && (
             <span className="chrome-usage" title={formatLlmUsage(headerUsage, t)}>
               {formatHeaderUsage(headerUsage, t)}
             </span>
           )}
           <span className="terminal-clock">{clock}</span>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setSetupOpen(true)}
+          >
+            {t("header.settings")}
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={toggleLocale}
+          >
+            {locale === "zh" ? "EN" : "中"}
+          </button>
         </div>
       </div>
       <MarketTicker
@@ -615,6 +694,14 @@ export default function App() {
         onRefresh={() => void loadOverview()}
         onIndexClick={onTickerIndexClick}
       />
+      <CanvasNav
+        tab={tab}
+        items={navItems}
+        copilotOpen={copilotOpen}
+        copilotLabel={t("nav.copilot")}
+        onTab={setTab}
+        onCopilot={() => setCopilotOpen((open) => !open)}
+      />
       <SettingsPanel
         open={setupOpen}
         onClose={() => {
@@ -622,25 +709,15 @@ export default function App() {
         }}
         required={settingsRequired}
         onConfigured={handleLlmConfigured}
+        onModeSettingsChange={persistModeSettings}
         variant="modal"
       />
+      {dataDetailsOpen && <DataSourceDetails status={dataStatus} onClose={() => setDataDetailsOpen(false)} />}
       {onboardingOpen && (
         <Onboarding onComplete={handleOnboardingComplete} onSkip={handleOnboardingSkip} />
       )}
 
-      <div className={`app-body${settingsRequired ? " app-locked" : ""}`}>
-        <aside className="sidebar">
-          <TabNav
-            className="tab-nav-desktop"
-            tab={tab}
-            onTab={setTab}
-            items={navItems}
-            ariaLabel={t("nav.aria")}
-            locale={locale}
-            onLocaleToggle={toggleLocale}
-          />
-        </aside>
-
+      <div className={`app-body canvas-shell${copilotOpen ? " copilot-open" : ""}${settingsRequired ? " app-locked" : ""}`}>
         <div className="main">
           {error && <div className="error">{error}</div>}
           {holdings.length === 0 && !isDemo && (
@@ -656,27 +733,6 @@ export default function App() {
             />
           )}
 
-          {tab === "chat" && (
-            <>
-              <ActionCenter onNavigate={(t) => setTab(t as Tab)} onChatQuery={(q) => startChatQuery(q)} />
-              <ChatPanel
-              messages={messages}
-              loading={chatLoading}
-              statusMsg={statusMsg}
-              chatStream={chatStream}
-              input={input}
-              onInputChange={setInput}
-              chatExamples={chatExamples}
-              holdings={holdings}
-              onStartQuery={(q) => startChatQuery(q)}
-              onSend={sendChat}
-              onAnalyzeHolding={analyzeHolding}
-              onConfirmStock={confirmChatStock}
-              onConfirmRoute={confirmChatRoute}
-            />
-            </>
-          )}
-
           {tab === "news" && (
             <NewsPanel
               news={news}
@@ -689,30 +745,41 @@ export default function App() {
           )}
 
           {tab === "portfolio" && (
-            <PortfolioPanel
-              holdings={holdings}
-              holdingsLoading={holdingsLoading}
-              portfolioSummary={portfolioSummary}
-              sectorMix={sectorMix}
-              numLocale={numLocale}
-              holdingInput={holdingInput}
-              holdingCost={holdingCost}
-              holdingLots={holdingLots}
-              holdingDate={holdingDate}
-              lookupResult={lookupResult}
-              lookupPrice={lookupPrice}
-              lookupLoading={lookupLoading}
-              onHoldingInputChange={setHoldingInput}
-              onHoldingCostChange={setHoldingCost}
-              onHoldingLotsChange={setHoldingLots}
-              onHoldingDateChange={setHoldingDate}
-              onClearLookup={() => setLookupResult(null)}
-              onLoadHoldings={() => void loadHoldings()}
-              onLookupAndAdd={() => void lookupAndAdd()}
-              onConfirmCandidate={(symbol, name) => void confirmCandidate(symbol, name)}
-              onDeleteHolding={(id) => void deleteHolding(id)}
-              onAnalyzeHolding={analyzeHolding}
-            />
+            <>
+              <ActionCenter onNavigate={handleActionNavigate} onChatQuery={(query) => {
+                const context: CopilotContext = {
+                  kind: "portfolio",
+                  label: locale === "zh" ? "我的持仓" : "My holdings",
+                };
+                setPageContext(context);
+                setCopilotOpen(true);
+                startChatQuery(query, { context });
+              }} />
+              <PortfolioPanel
+                holdings={holdings}
+                holdingsLoading={holdingsLoading}
+                portfolioSummary={portfolioSummary}
+                sectorMix={sectorMix}
+                numLocale={numLocale}
+                holdingInput={holdingInput}
+                holdingCost={holdingCost}
+                holdingLots={holdingLots}
+                holdingDate={holdingDate}
+                lookupResult={lookupResult}
+                lookupPrice={lookupPrice}
+                lookupLoading={lookupLoading}
+                onHoldingInputChange={setHoldingInput}
+                onHoldingCostChange={setHoldingCost}
+                onHoldingLotsChange={setHoldingLots}
+                onHoldingDateChange={setHoldingDate}
+                onClearLookup={() => setLookupResult(null)}
+                onLoadHoldings={() => void loadHoldings()}
+                onLookupAndAdd={() => void lookupAndAdd()}
+                onConfirmCandidate={(symbol, name) => void confirmCandidate(symbol, name)}
+                onDeleteHolding={(id) => void deleteHolding(id)}
+                onAnalyzeHolding={analyzeHolding}
+              />
+            </>
           )}
 
           {tab === "risk" && (
@@ -736,12 +803,50 @@ export default function App() {
             </>
           )}
 
-          {tab === "settings" && (
-            <div className="panel settings-page-panel">
-              <SettingsPanel open variant="inline" onClose={() => setTab("chat")} onConfigured={handleLlmConfigured} />
-            </div>
+          {tab === "market" && (
+            <MarketPanel
+              overview={marketOverview}
+              loading={overviewLoading}
+              onRefresh={() => void loadOverview()}
+              onAskCopilot={(query) =>
+                askCopilot(query, {
+                  kind: "market",
+                  label: locale === "zh" ? "当前市场" : "Current market",
+                  detail: marketOverview?.data_status,
+                })
+              }
+            />
           )}
         </div>
+
+        <CopilotPanel
+          open={copilotOpen}
+          threadTitle={messages.find((message) => message.role === "user")?.content || ""}
+          userContext={t("chat.holdingsContext", {
+            n: String(holdings.length),
+            mode: t(`mode.${modeSettings.mode}`),
+          })}
+          pageContext={pageContext}
+          onClose={() => setCopilotOpen(false)}
+          onNewThread={newCopilotThread}
+          onRemoveContext={() => setPageContext(null)}
+        >
+          <ChatPanel
+            messages={messages}
+            loading={chatLoading}
+            statusMsg={statusMsg}
+            chatStream={chatStream}
+            input={input}
+            onInputChange={setInput}
+            chatExamples={chatExamples}
+            holdings={holdings}
+            onStartQuery={(query) => startChatQuery(query)}
+            onSend={sendChat}
+            onAnalyzeHolding={analyzeHolding}
+            onConfirmStock={confirmChatStock}
+            onConfirmRoute={confirmChatRoute}
+          />
+        </CopilotPanel>
       </div>
     </div>
   );

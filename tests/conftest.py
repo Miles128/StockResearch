@@ -19,6 +19,15 @@ from stockresearch.db.session import get_db  # noqa: E402
 from stockresearch.services.cache import CacheService  # noqa: E402
 
 
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    if os.environ.get("RUN_LIVE_TESTS") == "1":
+        return
+    skip_live = pytest.mark.skip(reason="set RUN_LIVE_TESTS=1 to test real internet providers")
+    for item in items:
+        if "live" in item.keywords:
+            item.add_marker(skip_live)
+
+
 @pytest.fixture()
 def db_session() -> object:
     engine = create_engine(

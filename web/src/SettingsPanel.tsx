@@ -45,6 +45,7 @@ interface SettingsPanelProps {
   onClose: () => void;
   required?: boolean;
   onConfigured?: () => void;
+  onModeSettingsChange?: (settings: ModeSettings) => void;
   /** inline = F5 设置页；modal = 首次配置弹层 */
   variant?: "inline" | "modal";
 }
@@ -59,6 +60,7 @@ export function SettingsPanel({
   onClose,
   required = false,
   onConfigured,
+  onModeSettingsChange,
   variant = "modal",
 }: SettingsPanelProps) {
   const { t, locale, setLocale } = useI18n();
@@ -137,6 +139,7 @@ export function SettingsPanel({
     const mode = loadModeSettings();
     const nextMode: ModeSettings = { ...mode, enableDebate: enabled };
     saveModeSettings(nextMode);
+    onModeSettingsChange?.(nextMode);
   }
 
   function selectReadingMode(readingMode: ReadingMode) {
@@ -147,6 +150,7 @@ export function SettingsPanel({
     const mode = loadModeSettings();
     const nextMode: ModeSettings = { ...mode, readingMode };
     saveModeSettings(nextMode);
+    onModeSettingsChange?.(nextMode);
   }
 
   const readingModeOptions: { id: ReadingMode; labelKey: string; hintKey: string }[] = [

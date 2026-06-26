@@ -92,8 +92,7 @@ export function StockChoiceCardView({
 
 export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
   const { t } = useI18n();
-  try {
-    if (card.type === "research" && card.data && "composite_score" in card.data) {
+  if (card.type === "research" && card.data && "composite_score" in card.data) {
       const d = card.data as unknown as ResearchReport;
       return (
         <div className="card">
@@ -109,7 +108,7 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
             </span>
           </div>
           <p>{d.summary}</p>
-          {d.symbol && <StockChart symbol={d.symbol} compact />}
+          {/^\d{6}$/.test(d.symbol) && <StockChart symbol={d.symbol} compact />}
         </div>
       );
     }
@@ -319,13 +318,6 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
           <MarkdownContent text={content} />
         </div>
       );
-    }
-  } catch {
-    return (
-      <div className="card">
-        <p>{t("card.parseError")}</p>
-      </div>
-    );
   }
   return null;
 }

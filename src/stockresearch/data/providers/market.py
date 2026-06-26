@@ -1,17 +1,18 @@
 """Market data providers — Sina quotes on hot path, mock for tests."""
 
-import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any, cast
 
-import akshare as ak
+import akshare as ak  # type: ignore[import-untyped]
 
 from stockresearch.core.config import get_settings
 from stockresearch.core.exceptions import DataProviderError
 from stockresearch.data.providers.akshare_quote import fetch_akshare_hist_quotes
+from stockresearch.data.providers.base import run_async_fetch, run_sync_fetch
 from stockresearch.data.providers.news import _fetch_em_symbol_news_sync
-from stockresearch.data.providers.sina_quote import fetch_sina_quotes
+from stockresearch.data.providers.sina_quote import QuoteRow, fetch_sina_quotes
 from stockresearch.data.providers.tushare_financial import fetch_daily_basic_sync
 from stockresearch.data.registry import record_quote_fetch, record_symbol_sources
 from stockresearch.services.cache import get_cached
@@ -24,6 +25,19 @@ _DATA_TIMEOUT_SEC = 8.0
 
 _POSITIVE_NEWS = ("增长", "利好", "超预期", "分红", "回购", "上涨", "突破", "中标")
 _NEGATIVE_NEWS = ("下滑", "亏损", "减持", "问询", "立案", "下调", "警示", "违规", "解禁")
+
+
+def _as_float(value: object, default: float = 0.0) -> float:
+    if isinstance(value, datetime):
+        return default
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_datetime(value: object) -> datetime:
+    return value if isinstance(value, datetime) else datetime.now(UTC)
 
 
 def _market_code(symbol: str) -> str:
@@ -65,43 +79,40 @@ class QuoteProvider:
 
     async def _fetch_quote_rows(
         self, symbols: list[str]
-    ) -> dict[str, dict[str, float | str]]:
-        raw: dict[str, dict[str, float | str]] = {}
+    ) -> dict[str, QuoteRow]:
+        raw: dict[str, QuoteRow] = {}
         sina_error: str | None = None
 
-        try:
-            sina_rows = await asyncio.wait_for(
-                asyncio.to_thread(fetch_sina_quotes, symbols),
-                timeout=_QUOTE_TIMEOUT_SEC,
-            )
+        sina_rows = await run_sync_fetch(
+            "sina batch quotes",
+            lambda: fetch_sina_quotes(symbols),
+            timeout=_QUOTE_TIMEOUT_SEC,
+            fallback=None,
+        )
+        if sina_rows is None:
+            sina_error = "新浪行情不可用或超时"
+        else:
             for sym, row in sina_rows.items():
                 raw[sym] = {**row, "_source": "sina"}
-        except TimeoutError:
-            sina_error = "新浪行情请求超时"
-            logger.warning(sina_error)
-        except Exception as exc:
-            sina_error = "新浪行情不可用"
-            logger.warning("Sina batch quote failed: %s", exc)
 
         missing = [sym for sym in symbols if sym not in raw]
         ak_count = 0
         if missing:
-            try:
-                ak_rows = await asyncio.wait_for(
-                    asyncio.to_thread(fetch_akshare_hist_quotes, missing),
-                    timeout=max(_QUOTE_TIMEOUT_SEC, 12.0),
-                )
-                for sym, row in ak_rows.items():
-                    raw[sym] = {**row, "_source": "akshare"}
-                ak_count = len(ak_rows)
-                logger.info("AkShare hist fallback filled %d symbols", ak_count)
-            except Exception as exc:
-                logger.warning("AkShare hist quote fallback failed: %s", exc)
+            ak_rows = await run_sync_fetch(
+                "akshare hist quote fallback",
+                lambda: fetch_akshare_hist_quotes(missing),
+                timeout=max(_QUOTE_TIMEOUT_SEC, 12.0),
+                fallback=None,
+            )
+            if ak_rows is None:
                 if not raw:
                     detail = sina_error or "行情获取失败"
-                    raise DataProviderError(
-                        f"{detail}，AkShare 备用源也不可用"
-                    ) from exc
+                    raise DataProviderError(f"{detail}，AkShare 备用源也不可用")
+            else:
+                for sym, ak_row in ak_rows.items():
+                    raw[sym] = cast(QuoteRow, {**ak_row, "_source": "akshare"})
+                ak_count = len(ak_rows)
+                logger.info("AkShare hist fallback filled %d symbols", ak_count)
 
         if not raw:
             raise DataProviderError(sina_error or "行情数据不可用")
@@ -120,18 +131,18 @@ class QuoteProvider:
 
     @staticmethod
     def _rows_to_quotes(
-        raw: dict[str, dict[str, float | str]],
+        raw: dict[str, QuoteRow],
     ) -> dict[str, Quote]:
         return {
             sym: Quote(
                 symbol=str(row["symbol"]),
                 name=str(row["name"]),
-                price=float(row["price"]),
-                change_pct=float(row["change_pct"]),
-                high=float(row["high"]),
-                low=float(row["low"]),
-                volume=float(row["volume"]),
-                updated_at=row["updated_at"],  # type: ignore[arg-type]
+                price=_as_float(row["price"]),
+                change_pct=_as_float(row["change_pct"]),
+                high=_as_float(row["high"]),
+                low=_as_float(row["low"]),
+                volume=_as_float(row["volume"]),
+                updated_at=_as_datetime(row["updated_at"]),
             )
             for sym, row in raw.items()
         }
@@ -157,29 +168,117 @@ class QuoteProvider:
         )
 
 
+class MarketRuleProvider:
+    async def get_trading_rules(self, symbol: str) -> dict[str, object]:
+        if get_settings().use_mock_market_data:
+            return self._mock_trading_rules(symbol)
+        rows = await run_sync_fetch(
+            f"sina trading rules {symbol}",
+            lambda: fetch_sina_quotes([symbol]),
+            timeout=_QUOTE_TIMEOUT_SEC,
+            fallback={},
+        )
+        row = rows.get(symbol) if rows else None
+        if not row:
+            return {
+                "source": "sina_quote",
+                "verified": False,
+                "status": "unknown",
+                "is_st": False,
+                "is_suspended": False,
+                "is_limit_up": False,
+                "is_limit_down": False,
+                "limit_pct": self._limit_pct(symbol, ""),
+                "missing": ["无法获取涨跌停、ST、停复牌状态"],
+            }
+        return self._row_to_trading_rules(symbol, row, source="sina_quote")
+
+    def _row_to_trading_rules(
+        self,
+        symbol: str,
+        row: QuoteRow,
+        *,
+        source: str,
+    ) -> dict[str, object]:
+        name = str(row.get("name", resolve_name(symbol)))
+        price = _as_float(row.get("price"))
+        prev_close = _as_float(row.get("prev_close"))
+        open_price = _as_float(row.get("open"))
+        volume = _as_float(row.get("volume"))
+        is_st = "ST" in name.upper() or "退" in name
+        is_suspended = price <= 0 or (open_price <= 0 and volume <= 0)
+        limit_pct = self._limit_pct(symbol, name)
+        upper = prev_close * (1 + limit_pct / 100) if prev_close else 0
+        lower = prev_close * (1 - limit_pct / 100) if prev_close else 0
+        tolerance = max(0.01, prev_close * 0.001)
+        is_limit_up = bool(prev_close and price and price >= upper - tolerance)
+        is_limit_down = bool(prev_close and price and price <= lower + tolerance)
+        status = "suspended" if is_suspended else "limit_up" if is_limit_up else "limit_down" if is_limit_down else "normal"
+        return {
+            "source": source,
+            "verified": True,
+            "status": status,
+            "name": name,
+            "is_st": is_st,
+            "is_suspended": is_suspended,
+            "is_limit_up": is_limit_up,
+            "is_limit_down": is_limit_down,
+            "limit_pct": limit_pct,
+            "prev_close": prev_close,
+            "price": price,
+            "upper_limit": round(upper, 2) if upper else None,
+            "lower_limit": round(lower, 2) if lower else None,
+            "missing": [],
+        }
+
+    @staticmethod
+    def _limit_pct(symbol: str, name: str) -> float:
+        upper_name = name.upper()
+        if "ST" in upper_name or "退" in name:
+            return 5.0
+        if symbol.startswith(("300", "301", "688", "689")):
+            return 20.0
+        if symbol.startswith(("4", "8")):
+            return 30.0
+        return 10.0
+
+    def _mock_trading_rules(self, symbol: str) -> dict[str, object]:
+        name = resolve_name(symbol)
+        return {
+            "source": "mock",
+            "verified": True,
+            "status": "normal",
+            "name": name,
+            "is_st": "ST" in name.upper(),
+            "is_suspended": False,
+            "is_limit_up": False,
+            "is_limit_down": False,
+            "limit_pct": self._limit_pct(symbol, name),
+            "missing": [],
+        }
+
+
 class FinancialDataProvider:
     async def get_financials(self, symbol: str) -> dict[str, float | str]:
         if get_settings().use_mock_market_data:
             return self._mock_financials(symbol)
-        try:
-            df = await asyncio.wait_for(
-                asyncio.to_thread(ak.stock_financial_analysis_indicator, symbol=symbol),
-                timeout=8.0,
-            )
-            if df.empty:
-                return self._mock_financials(symbol)
-            row = df.iloc[0]
-            return {
-                "revenue_yoy": float(row.get("营业收入同比增长率", 0.0)) / 100 if row.get("营业收入同比增长率") else 0.0,
-                "net_margin": float(row.get("销售净利率", 0.0)) / 100 if row.get("销售净利率") else 0.0,
-                "roe": float(row.get("净资产收益率", 0.0)) / 100 if row.get("净资产收益率") else 0.0,
-                "pe_percentile": 0.50,
-                "debt_ratio": float(row.get("资产负债率", 0.35)) / 100 if row.get("资产负债率") else 0.35,
-                "goodwill_ratio": 0.03,
-            }
-        except Exception as exc:
-            logger.warning("AkShare financials failed for %s: %s", symbol, exc)
+        df = await run_sync_fetch(
+            f"akshare financials {symbol}",
+            lambda: ak.stock_financial_analysis_indicator(symbol=symbol),
+            timeout=8.0,
+            fallback=self._mock_financials(symbol),
+        )
+        if df is None or df.empty:
             return self._mock_financials(symbol)
+        row = df.iloc[0]
+        return {
+            "revenue_yoy": float(row.get("营业收入同比增长率", 0.0)) / 100 if row.get("营业收入同比增长率") else 0.0,
+            "net_margin": float(row.get("销售净利率", 0.0)) / 100 if row.get("销售净利率") else 0.0,
+            "roe": float(row.get("净资产收益率", 0.0)) / 100 if row.get("净资产收益率") else 0.0,
+            "pe_percentile": 0.50,
+            "debt_ratio": float(row.get("资产负债率", 0.35)) / 100 if row.get("资产负债率") else 0.35,
+            "goodwill_ratio": 0.03,
+        }
 
     def _mock_financials(self, symbol: str) -> dict[str, float | str]:
         mock: dict[str, dict[str, float | str]] = {
@@ -192,33 +291,37 @@ class FinancialDataProvider:
         }
         return mock.get(symbol, default)
 
-    async def get_valuation(self, symbol: str) -> dict[str, float]:
+    async def get_valuation(self, symbol: str) -> dict[str, float | str]:
         if get_settings().use_mock_market_data:
             fin = await self.get_financials(symbol)
             pe = float(fin.get("pe_percentile", 0.5)) * 40
             return {"pe_ttm": pe, "pe_percentile": float(fin.get("pe_percentile", 0.5))}
-        try:
-            df = await asyncio.wait_for(
-                asyncio.to_thread(ak.stock_a_indicator_lg, symbol=symbol),
-                timeout=8.0,
-            )
-            if df.empty:
-                return {"pe_ttm": 20.0, "pe_percentile": 0.5}
+        df = await run_sync_fetch(
+            f"akshare valuation {symbol}",
+            lambda: ak.stock_a_indicator_lg(symbol=symbol),
+            timeout=8.0,
+            fallback=None,
+        )
+        if df is not None and not df.empty:
             row = df.iloc[-1]
             pe_ttm = float(row.get("pe", 20.0))
             return {"pe_ttm": pe_ttm, "pe_percentile": 0.5}
-        except Exception as exc:
-            logger.warning("AkShare valuation failed for %s: %s", symbol, exc)
-            tushare = await asyncio.to_thread(fetch_daily_basic_sync, symbol)
-            if tushare:
-                pe = float(tushare.get("pe_ttm", 20.0))
-                return {
-                    "pe_ttm": pe,
-                    "pe_percentile": 0.5,
-                    "pb": float(tushare.get("pb", 0)),
-                    "source": str(tushare.get("source", "tushare")),
-                }
-            return {"pe_ttm": 20.0, "pe_percentile": 0.5}
+
+        tushare = await run_sync_fetch(
+            f"tushare valuation {symbol}",
+            lambda: fetch_daily_basic_sync(symbol),
+            timeout=_DATA_TIMEOUT_SEC,
+            fallback=None,
+        )
+        if tushare:
+            pe = float(tushare.get("pe_ttm", 20.0))
+            return {
+                "pe_ttm": pe,
+                "pe_percentile": 0.5,
+                "pb": float(tushare.get("pb", 0)),
+                "source": str(tushare.get("source", "tushare")),
+            }
+        return {"pe_ttm": 20.0, "pe_percentile": 0.5}
 
     async def get_industry_peers(self, symbol: str) -> list[str]:
         sector_peers: dict[str, list[str]] = {
@@ -232,42 +335,39 @@ class TechnicalDataProvider:
     async def get_kline_bars(self, symbol: str, days: int = 60) -> list[dict[str, float | str]]:
         if get_settings().use_mock_market_data:
             return await self._mock_kline_bars(symbol, days)
-        try:
-            end_date = datetime.now(UTC).strftime("%Y%m%d")
-            now = datetime.now(UTC)
-            if now.month > 2:
-                start = now.replace(month=now.month - 2)
-            else:
-                start = now.replace(year=now.year - 1, month=now.month + 10)
-            start_date = start.strftime("%Y%m%d")
-            df = await asyncio.wait_for(
-                asyncio.to_thread(
-                    ak.stock_zh_a_hist,
-                    symbol=symbol,
-                    period="daily",
-                    start_date=start_date,
-                    end_date=end_date,
-                    adjust="qfq",
-                ),
-                timeout=10.0,
-            )
-            if df.empty:
-                return await self._mock_kline_bars(symbol, days)
-            recent = df.tail(days)
-            return [
-                {
-                    "date": str(row["日期"])[:10],
-                    "open": float(row["开盘"]),
-                    "high": float(row["最高"]),
-                    "low": float(row["最低"]),
-                    "close": float(row["收盘"]),
-                    "volume": float(row["成交量"]),
-                }
-                for _, row in recent.iterrows()
-            ]
-        except Exception as exc:
-            logger.warning("AkShare kline failed for %s: %s", symbol, exc)
+        end_date = datetime.now(UTC).strftime("%Y%m%d")
+        now = datetime.now(UTC)
+        if now.month > 2:
+            start = now.replace(month=now.month - 2)
+        else:
+            start = now.replace(year=now.year - 1, month=now.month + 10)
+        start_date = start.strftime("%Y%m%d")
+        df = await run_sync_fetch(
+            f"akshare kline {symbol}",
+            lambda: ak.stock_zh_a_hist(
+                symbol=symbol,
+                period="daily",
+                start_date=start_date,
+                end_date=end_date,
+                adjust="qfq",
+            ),
+            timeout=10.0,
+            fallback=None,
+        )
+        if df is None or df.empty:
             return await self._mock_kline_bars(symbol, days)
+        recent = df.tail(days)
+        return [
+            {
+                "date": str(row["日期"])[:10],
+                "open": float(row["开盘"]),
+                "high": float(row["最高"]),
+                "low": float(row["最低"]),
+                "close": float(row["收盘"]),
+                "volume": float(row["成交量"]),
+            }
+            for _, row in recent.iterrows()
+        ]
 
     async def get_kline(self, symbol: str, days: int = 60) -> list[dict[str, float]]:
         bars = await self.get_kline_bars(symbol, days)
@@ -341,7 +441,7 @@ def _xueqiu_market_code(symbol: str) -> str:
     return f"SZ{symbol}"
 
 
-def _lookup_xueqiu_row(df, code: str, name: str):
+def _lookup_xueqiu_row(df: Any, code: str, name: str) -> Any | None:
     if df is None or df.empty or "股票代码" not in df.columns:
         return None
     matches = df[df["股票代码"].astype(str) == code]
@@ -454,14 +554,13 @@ class SentimentDataProvider:
                 items = batch
                 break
         if not items:
-            try:
-                raw = await asyncio.wait_for(
-                    asyncio.to_thread(_fetch_em_symbol_news_sync, name or symbol, limit),
-                    timeout=_DATA_TIMEOUT_SEC,
-                )
-                items = raw
-            except Exception as exc:
-                logger.warning("Direct EM news failed for %s: %s", symbol, exc)
+            raw = await run_sync_fetch(
+                f"em symbol news {symbol}",
+                lambda: _fetch_em_symbol_news_sync(name or symbol, limit),
+                timeout=_DATA_TIMEOUT_SEC,
+                fallback=[],
+            )
+            items = raw or []
         return [{"title": item.title, "source": item.source} for item in items[:limit]]
 
     def score_titles(self, titles: list[str]) -> float:
@@ -486,14 +585,11 @@ class SentimentDataProvider:
                 "source": "mock",
                 "available": True,
             }
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(_fetch_xueqiu_hot_sync, symbol, name or resolve_name(symbol)),
-                timeout=_DATA_TIMEOUT_SEC * 3,
-            )
-        except Exception as exc:
-            logger.warning("Xueqiu hot fetch failed for %s: %s", symbol, exc)
-            return {
+        return await run_sync_fetch(
+            f"xueqiu hot {symbol}",
+            lambda: _fetch_xueqiu_hot_sync(symbol, name or resolve_name(symbol)),
+            timeout=_DATA_TIMEOUT_SEC * 3,
+            fallback={
                 "heat_score": 0,
                 "post_count": 0,
                 "bull_ratio": 0.5,
@@ -501,7 +597,8 @@ class SentimentDataProvider:
                 "attention_index": 0.0,
                 "source": "unavailable",
                 "available": False,
-            }
+            },
+        )
 
     async def get_news_sentiment_score(self, symbol: str, name: str = "") -> float:
         news = await self.get_symbol_news(symbol, name)
@@ -512,26 +609,22 @@ class ChipsDataProvider:
     async def get_dragon_tiger(self, symbol: str) -> dict[str, str | float | int]:
         if get_settings().use_mock_market_data:
             return self._mock_dragon_tiger()
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(self._fetch_dragon_tiger_sync, symbol),
-                timeout=_DATA_TIMEOUT_SEC,
-            )
-        except Exception as exc:
-            logger.warning("AkShare LHB failed for %s: %s", symbol, exc)
-            return {"appearances": 0, "net_buy": 0.0, "institution_ratio": 0.0, "signal": "暂无数据", "source": "akshare_lhb"}
+        return await run_sync_fetch(
+            f"akshare lhb {symbol}",
+            lambda: self._fetch_dragon_tiger_sync(symbol),
+            timeout=_DATA_TIMEOUT_SEC,
+            fallback={"appearances": 0, "net_buy": 0.0, "institution_ratio": 0.0, "signal": "暂无数据", "source": "akshare_lhb"},
+        )
 
     async def get_fund_flow(self, symbol: str) -> dict[str, float | str]:
         if get_settings().use_mock_market_data:
             return {"main_net_inflow": 5.0e7, "main_net_pct": 2.5, "days_positive": 3, "source": "mock"}
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(self._fetch_fund_flow_sync, symbol),
-                timeout=_DATA_TIMEOUT_SEC,
-            )
-        except Exception as exc:
-            logger.warning("AkShare fund flow failed for %s: %s", symbol, exc)
-            return {"main_net_inflow": 0.0, "main_net_pct": 0.0, "days_positive": 0, "source": "akshare_fund_flow"}
+        return await run_sync_fetch(
+            f"akshare fund flow {symbol}",
+            lambda: self._fetch_fund_flow_sync(symbol),
+            timeout=_DATA_TIMEOUT_SEC,
+            fallback={"main_net_inflow": 0.0, "main_net_pct": 0.0, "days_positive": 0, "source": "akshare_fund_flow"},
+        )
 
     async def get_northbound_flow(self, symbol: str) -> dict[str, float | str]:
         fund = await self.get_fund_flow(symbol)
@@ -546,26 +639,22 @@ class ChipsDataProvider:
     async def get_holder_count(self, symbol: str) -> dict[str, float | str]:
         if get_settings().use_mock_market_data:
             return {"holder_count": 125000, "qoq_change": -0.02, "source": "mock"}
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(self._fetch_holder_count_sync, symbol),
-                timeout=_DATA_TIMEOUT_SEC,
-            )
-        except Exception as exc:
-            logger.warning("AkShare holder count failed for %s: %s", symbol, exc)
-            return {"holder_count": 0.0, "qoq_change": 0.0, "source": "akshare_gdhs"}
+        return await run_sync_fetch(
+            f"akshare holder count {symbol}",
+            lambda: self._fetch_holder_count_sync(symbol),
+            timeout=_DATA_TIMEOUT_SEC,
+            fallback={"holder_count": 0.0, "qoq_change": 0.0, "source": "akshare_gdhs"},
+        )
 
     async def get_lockup(self, symbol: str) -> dict[str, str | float | int]:
         if get_settings().use_mock_market_data:
             return {"upcoming_count": 0, "next_date": "", "ratio_pct": 0.0, "source": "mock"}
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(self._fetch_lockup_sync, symbol),
-                timeout=_DATA_TIMEOUT_SEC,
-            )
-        except Exception as exc:
-            logger.warning("AkShare lockup failed for %s: %s", symbol, exc)
-            return {"upcoming_count": 0, "next_date": "", "ratio_pct": 0.0, "source": "akshare_lockup"}
+        return await run_sync_fetch(
+            f"akshare lockup {symbol}",
+            lambda: self._fetch_lockup_sync(symbol),
+            timeout=_DATA_TIMEOUT_SEC,
+            fallback={"upcoming_count": 0, "next_date": "", "ratio_pct": 0.0, "source": "akshare_lockup"},
+        )
 
     def _mock_dragon_tiger(self) -> dict[str, str | float | int]:
         return {

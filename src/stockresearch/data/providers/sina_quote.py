@@ -2,6 +2,7 @@
 
 import logging
 from datetime import UTC, datetime
+from typing import TypeAlias
 
 import httpx
 
@@ -11,6 +12,7 @@ from stockresearch.utils.symbols import resolve_name
 logger = logging.getLogger(__name__)
 
 _SINA_TIMEOUT_SEC = 5.0
+QuoteRow: TypeAlias = dict[str, float | str | datetime]
 
 
 def _sina_code(symbol: str) -> str:
@@ -18,7 +20,7 @@ def _sina_code(symbol: str) -> str:
     return f"{prefix}{symbol}"
 
 
-def fetch_sina_quotes(symbols: list[str]) -> dict[str, dict[str, float | str]]:
+def fetch_sina_quotes(symbols: list[str]) -> dict[str, QuoteRow]:
     unique = list(dict.fromkeys(symbols))
     if not unique:
         return {}
@@ -33,7 +35,7 @@ def fetch_sina_quotes(symbols: list[str]) -> dict[str, dict[str, float | str]]:
         resp.raise_for_status()
         text = resp.content.decode("gbk", errors="ignore")
 
-    results: dict[str, dict[str, float | str]] = {}
+    results: dict[str, QuoteRow] = {}
     for line in text.strip().split(";"):
         if "hq_str_" not in line:
             continue
@@ -58,6 +60,8 @@ def fetch_sina_quotes(symbols: list[str]) -> dict[str, dict[str, float | str]]:
             "symbol": symbol,
             "name": fields[0] or resolve_name(symbol),
             "price": price,
+            "prev_close": prev_close,
+            "open": float(fields[1] or 0),
             "change_pct": round(change_pct, 2),
             "high": float(fields[4] or 0),
             "low": float(fields[5] or 0),

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 from typing import Literal
 
 ReadingMode = Literal["professional", "friendly"]
@@ -63,15 +63,17 @@ def normalize_reading_mode(value: str | None) -> ReadingMode:
     - "friendly" → "friendly" (unchanged)
     """
     if value in _READING_MODE_INSTRUCTIONS:
-        return value  # type: ignore[return-value]
+        return value
     if value == "standard":
         return "professional"
     return DEFAULT_READING_MODE
 
 
 def normalize_locale(value: str | None) -> OutputLocale:
-    if value in ("zh", "en"):
-        return value  # type: ignore[return-value]
+    if value == "zh":
+        return "zh"
+    if value == "en":
+        return "en"
     return DEFAULT_LOCALE
 
 
@@ -90,7 +92,7 @@ def set_output_style(
     tone: str | None = None,
     reading_mode: str | None = None,
     locale: str | None = None,
-) -> tuple[ContextVar.Token[ReadingMode], ContextVar.Token[OutputLocale]]:
+) -> tuple[Token[ReadingMode], Token[OutputLocale]]:
     """Set the output style context variables.
 
     Accepts both `tone` (legacy) and `reading_mode` (new) parameters.
@@ -103,7 +105,7 @@ def set_output_style(
 
 
 def reset_output_style(
-    tokens: tuple[ContextVar.Token[ReadingMode], ContextVar.Token[OutputLocale]],
+    tokens: tuple[Token[ReadingMode], Token[OutputLocale]],
 ) -> None:
     mode_token, locale_token = tokens
     _reading_mode_var.reset(mode_token)

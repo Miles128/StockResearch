@@ -8,6 +8,8 @@ import {
   type LlmTestResult,
   type LlmUserSettings,
 } from "./llmSettings";
+import type { ModeSettingsApiPayload } from "./modeSettings";
+import { createJsonSseStream } from "./apiSse";
 
 export type { LlmSettingsMeta };
 
@@ -119,6 +121,7 @@ async function requestWithLlm<T>(
 
 export interface AgentStreamEvent {
   type: string;
+  [key: string]: unknown;
   message?: string;
   message_key?: string;
   message_params?: Record<string, string | number | boolean>;
@@ -169,68 +172,6 @@ export interface HoldingAction {
 
 export type StreamEvent = AgentStreamEvent;
 
-async function consumeSse(
-  resp: Response,
-  onEvent?: (event: AgentStreamEvent) => void,
-  signal?: AbortSignal,
-): Promise<void> {
-  if (!resp.body) {
-    throw new Error("流式请求失败");
-  }
-  const reader = resp.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  const SSE_TIMEOUT_MS = 60_000;
-  let lastData = Date.now();
-  let timedOut = false;
-
-  const onAbort = () => {
-    timedOut = true;
-    reader.cancel().catch(() => {});
-  };
-  signal?.addEventListener("abort", onAbort, { once: true });
-
-  try {
-    while (true) {
-      if (timedOut) break;
-      const readPromise = reader.read();
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => {
-          reject(new Error("SSE connection timed out — no data received for 60s"));
-        }, SSE_TIMEOUT_MS);
-      });
-
-      try {
-        const { done, value } = await Promise.race([readPromise, timeoutPromise]);
-        if (done) break;
-        lastData = Date.now();
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const jsonStr = line.slice(6).trim();
-          if (!jsonStr || jsonStr === "[DONE]") continue;
-          try {
-            const event = JSON.parse(jsonStr) as AgentStreamEvent;
-            onEvent?.(event);
-          } catch {
-            // skip malformed JSON
-          }
-        }
-      } catch (err) {
-        // Timeout — cancel reader and break
-        reader.cancel().catch(() => {});
-        if (err instanceof Error && err.message.includes("timed out")) break;
-        throw err;
-      }
-    }
-  } finally {
-    signal?.removeEventListener("abort", onAbort);
-    try { reader.releaseLock(); } catch { /* already released */ }
-  }
-}
-
 export type ExecutionPreference = "react" | "plan_execute" | "preset" | "auto";
 
 export interface ChatStreamOptions {
@@ -239,42 +180,13 @@ export interface ChatStreamOptions {
   executionPreference?: ExecutionPreference;
 }
 
-async function streamChat(
-  message: string,
-  sessionId?: string,
-  onEvent?: (event: AgentStreamEvent) => void,
-  options?: ChatStreamOptions,
-  signal?: AbortSignal,
-): Promise<ChatResponse | null> {
-  const resp = await fetch(apiUrl("/chat/stream"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...llmRequestHeaders() },
-    body: JSON.stringify({
-      message,
-      session_id: sessionId,
-      confirmed_symbol: options?.confirmedSymbol,
-      confirmed_name: options?.confirmedName,
-      execution_preference: options?.executionPreference,
-      ...analysisBodyField(),
-      ...llmBodyField(),
-    }),
-    signal,
-  });
-  if (!resp.ok) {
-    throw new Error("流式请求失败");
-  }
-
-  let finalResponse: ChatResponse | null = null;
-  await consumeSse(resp, (event) => {
-    onEvent?.(event);
-    if (event.type === "done" && event.response) {
-      finalResponse = event.response as ChatResponse;
-    }
-  }, signal);
-  return finalResponse;
-}
-
 export const api = {
+  modeSettings: () => request<ModeSettingsApiPayload>("/settings/mode"),
+  saveModeSettings: (payload: ModeSettingsApiPayload) =>
+    request<ModeSettingsApiPayload>("/settings/mode", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
   llmSettings: () => request<LlmSettingsMeta>("/settings/llm"),
   saveLlmSettings: (form: LlmUserSettings) =>
     requestWithLlm<LlmSettingsMeta>("/settings/llm", {
@@ -304,7 +216,24 @@ export const api = {
     sessionId?: string,
     onEvent?: (event: AgentStreamEvent) => void,
     options?: ChatStreamOptions,
-  ) => streamChat(message, sessionId, onEvent, options),
+  ) =>
+    createJsonSseStream<ChatResponse, AgentStreamEvent>({
+      url: apiUrl("/chat/stream"),
+      method: "POST",
+      headers: llmRequestHeaders(),
+      body: {
+        message,
+        session_id: sessionId,
+        confirmed_symbol: options?.confirmedSymbol,
+        confirmed_name: options?.confirmedName,
+        execution_preference: options?.executionPreference,
+        ...analysisBodyField(),
+        ...llmBodyField(),
+      },
+      onEvent,
+      extractResult: (event) =>
+        event.type === "done" && event.response ? (event.response as ChatResponse) : undefined,
+    }),
   holdings: () => request<Holding[]>("/portfolio/holdings"),
   holdingsEnriched: () => request<HoldingEnriched[]>("/portfolio/holdings/enriched"),
   addHolding: (h: HoldingCreatePayload) =>
@@ -326,7 +255,13 @@ export const api = {
   ingestNews: () => request<NewsIngestOut>("/news/ingest?limit=10", { method: "POST" }),
   research: (symbol: string) => request<ResearchReport>(`/research/analyze?symbol=${symbol}`),
   researchStream: (symbol: string, onEvent?: (event: AgentStreamEvent) => void) =>
-    streamResearch(symbol, onEvent),
+    createJsonSseStream<ResearchReport, AgentStreamEvent>({
+      url: apiUrl(`/research/analyze/stream?symbol=${symbol}`),
+      headers: llmRequestHeaders(),
+      onEvent,
+      extractResult: (event) =>
+        event.type === "done" && event.result ? (event.result as unknown as ResearchReport) : undefined,
+    }),
   riskCheckup: () =>
     requestWithLlm<RiskCheckup>(
       "/risk/checkup",
@@ -378,51 +313,16 @@ export const api = {
     symbol: string,
     onEvent?: (event: AgentStreamEvent) => void,
     signal?: AbortSignal,
-  ) => streamNewsAnalysis(newsId, symbol, onEvent, signal),
+  ) =>
+    createJsonSseStream<NewsAnalysis, AgentStreamEvent>({
+      url: apiUrl(`/news/${newsId}/analyze/stream?symbol=${symbol}`),
+      headers: llmRequestHeaders(),
+      signal,
+      onEvent,
+      extractResult: (event) =>
+        event.type === "done" && event.result ? (event.result as unknown as NewsAnalysis) : undefined,
+    }),
 };
-
-async function streamResearch(
-  symbol: string,
-  onEvent?: (event: AgentStreamEvent) => void,
-): Promise<ResearchReport | null> {
-  const resp = await fetchWithTimeout(apiUrl(`/research/analyze/stream?symbol=${symbol}`), {
-    headers: llmRequestHeaders(),
-  });
-  if (!resp.ok) {
-    throw new Error("投研流式请求失败");
-  }
-  let report: ResearchReport | null = null;
-  await consumeSse(resp, (event) => {
-    onEvent?.(event);
-    if (event.type === "done" && event.result) {
-      report = event.result as unknown as ResearchReport;
-    }
-  });
-  return report;
-}
-
-async function streamNewsAnalysis(
-  newsId: number,
-  symbol: string,
-  onEvent?: (event: AgentStreamEvent) => void,
-  signal?: AbortSignal,
-): Promise<NewsAnalysis | null> {
-  const resp = await fetch(apiUrl(`/news/${newsId}/analyze/stream?symbol=${symbol}`), {
-    headers: llmRequestHeaders(),
-    signal,
-  });
-  if (!resp.ok) {
-    throw new Error("新闻深度分析请求失败");
-  }
-  let analysis: NewsAnalysis | null = null;
-  await consumeSse(resp, (event) => {
-    onEvent?.(event);
-    if (event.type === "done" && event.result) {
-      analysis = event.result as unknown as NewsAnalysis;
-    }
-  }, signal);
-  return analysis;
-}
 
 export interface LlmUsage {
   prompt_tokens: number;
@@ -577,6 +477,23 @@ export interface DebateResult {
   manager_thesis?: string | null;
 }
 
+export interface AshareFactor {
+  category: string;
+  name: string;
+  status: "verified" | "partial" | "missing";
+  impact: "liquidity" | "sentiment" | "fundamental" | "valuation" | "event" | "technical";
+  evidence: string[];
+  missing: string[];
+  source_details: {
+    key: string;
+    label: string;
+    layer: string;
+    provider: string;
+    status: "verified" | "missing";
+    note?: string | null;
+  }[];
+}
+
 export interface ResearchReport {
   symbol: string;
   name: string;
@@ -586,6 +503,7 @@ export interface ResearchReport {
   summary: string;
   news_text_factor?: string | null;
   text_factor_summary?: string | null;
+  ashare_factors?: AshareFactor[];
   dimension_weights?: Record<string, number>;
   dimensions: Record<string, DimensionResult>;
   debate?: DebateResult | null;
@@ -662,11 +580,38 @@ export interface ProviderStatus {
   degraded: boolean;
   message: string | null;
   updated_at: string | null;
+  layer?: string;
+  latency_ms?: number | null;
+  is_cached?: boolean;
+  is_mock?: boolean;
+  degraded_reason?: string | null;
+  confidence?: DataConfidence;
+}
+
+export type DataConfidence = "verified" | "single_source" | "delayed" | "cached" | "conflict" | "missing";
+
+export type DataSourceDetailStatus = "ok" | "degraded" | "missing" | "mock" | "configured" | "not_configured";
+
+export interface DataSourceDetail {
+  domain: string;
+  label: string;
+  layer: string;
+  source: string;
+  fetched_at: string | null;
+  latency_ms: number | null;
+  is_cached: boolean;
+  is_mock: boolean;
+  degraded: boolean;
+  degraded_reason: string | null;
+  confidence: DataConfidence;
+  conflict_with: string[];
+  status: DataSourceDetailStatus;
 }
 
 export interface DataSourceStatus {
   quotes: ProviderStatus | null;
   overview: ProviderStatus | null;
+  details: DataSourceDetail[];
   use_mock: boolean;
   tushare_configured?: boolean;
   tushare_available?: boolean;

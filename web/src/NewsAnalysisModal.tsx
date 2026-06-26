@@ -34,11 +34,10 @@ export function NewsAnalysisModal({
   const [stockImpact, setStockImpact] = useState<NewsAnalysisStockImpact | null>(null);
   const [analysis, setAnalysis] = useState<NewsAnalysis | null>(null);
   const [error, setError] = useState("");
-  const [dimmed, setDimmed] = useState(false);
+  const [dimmed, setDimmed] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    setDimmed(true);
     const raf = requestAnimationFrame(() => setDimmed(false));
     return () => cancelAnimationFrame(raf);
   }, []);

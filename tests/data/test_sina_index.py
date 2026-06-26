@@ -1,8 +1,11 @@
 """Sina index provider tests."""
 
+import pytest
+
 from stockresearch.data.providers.sina_index import fetch_sina_indices
 
 
+@pytest.mark.live
 def test_fetch_sina_indices_realistic_shanghai() -> None:
     quotes = fetch_sina_indices()
     sh = next(q for q in quotes if q.name == "上证指数")

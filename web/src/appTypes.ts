@@ -1,7 +1,13 @@
 import type { ChatResponse, LlmUsage } from "./api";
 import type { StreamState } from "./streamEvents";
 
-export type Tab = "chat" | "news" | "portfolio" | "risk" | "settings";
+export type Tab = "portfolio" | "risk" | "market" | "news";
+
+export interface CopilotContext {
+  kind: "portfolio" | "risk" | "market" | "news" | "stock" | "report";
+  label: string;
+  detail?: string;
+}
 
 export interface Message {
   role: "user" | "assistant";

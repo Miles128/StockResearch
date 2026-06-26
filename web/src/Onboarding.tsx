@@ -25,21 +25,29 @@ type Step = "pickMode" | "questionnaire" | "done";
 interface QuestionDef {
   /** i18n key，如 onboarding.q1.title */
   key: string;
-  options: { id: string; score: number }[];
+  options: { id: "a" | "b" | "c"; labelKey: "optA" | "optB" | "optC"; score: number }[];
 }
 
 const QUESTIONS: QuestionDef[] = [
-  { key: "q1", options: [{ id: "a", score: 1 }, { id: "b", score: 2 }, { id: "c", score: 3 }] },
-  { key: "q2", options: [{ id: "a", score: 1 }, { id: "b", score: 2 }, { id: "c", score: 3 }] },
-  { key: "q3", options: [{ id: "a", score: 1 }, { id: "b", score: 2 }, { id: "c", score: 3 }] },
-  { key: "q4", options: [{ id: "a", score: 1 }, { id: "b", score: 2 }, { id: "c", score: 3 }] },
-  { key: "q5", options: [{ id: "a", score: 1 }, { id: "b", score: 2 }, { id: "c", score: 3 }] },
-  { key: "q6", options: [{ id: "a", score: 1 }, { id: "b", score: 2 }, { id: "c", score: 3 }] },
-  { key: "q7", options: [{ id: "a", score: 1 }, { id: "b", score: 2 }, { id: "c", score: 3 }] },
-  { key: "q8", options: [{ id: "a", score: 1 }, { id: "b", score: 2 }, { id: "c", score: 3 }] },
-  { key: "q9", options: [{ id: "a", score: 1 }, { id: "b", score: 2 }, { id: "c", score: 3 }] },
-  { key: "q10", options: [{ id: "a", score: 1 }, { id: "b", score: 2 }, { id: "c", score: 3 }] },
+  { key: "q1", options: buildOptions() },
+  { key: "q2", options: buildOptions() },
+  { key: "q3", options: buildOptions() },
+  { key: "q4", options: buildOptions() },
+  { key: "q5", options: buildOptions() },
+  { key: "q6", options: buildOptions() },
+  { key: "q7", options: buildOptions() },
+  { key: "q8", options: buildOptions() },
+  { key: "q9", options: buildOptions() },
+  { key: "q10", options: buildOptions() },
 ];
+
+function buildOptions(): QuestionDef["options"] {
+  return [
+    { id: "a", labelKey: "optA", score: 1 },
+    { id: "b", labelKey: "optB", score: 2 },
+    { id: "c", labelKey: "optC", score: 3 },
+  ];
+}
 
 /** 总分映射风险等级 */
 function scoreToTolerance(total: number): RiskTolerance {
@@ -189,7 +197,7 @@ export function Onboarding({ onComplete, onSkip }: OnboardingProps) {
                       onChange={() => selectAnswer(currentQ, opt.id)}
                     />
                     <span className="onboarding-question-option-text">
-                      {t(`onboarding.${currentQuestion.key}.opt${opt.id}`)}
+                      {t(`onboarding.${currentQuestion.key}.${opt.labelKey}`)}
                     </span>
                   </label>
                 ))}

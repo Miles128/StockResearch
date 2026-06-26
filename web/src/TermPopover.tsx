@@ -93,7 +93,7 @@ export function renderTermMarkup(
     lastIdx = regex.lastIndex;
   }
   if (lastIdx < html.length) {
-    parts.push(<span key={key++}>{html.slice(lastIdx)}</span>);
+    parts.push(<span key={key}>{html.slice(lastIdx)}</span>);
   }
   return parts;
 }
