@@ -17,6 +17,7 @@ import type { CopilotContext, Message, Tab } from "./appTypes";
 import { copilotContextToPayload } from "./chatContext";
 import { ChatPanel } from "./ChatPanel";
 import { CopilotPanel, type CopilotLayout } from "./CopilotPanel";
+import { GlossaryProvider } from "./GlossaryContext";
 import { useCopilotThreads } from "./hooks/useCopilotThreads";
 import { DailyScanPanel } from "./DailyScanPanel";
 import { DataSourceDetails } from "./DataSourceDetails";
@@ -34,6 +35,7 @@ import { PortfolioPanel } from "./PortfolioPanel";
 import { RiskPanel } from "./RiskPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { stripDisclaimer } from "./disclaimerText";
+import { seedGlossaryCache } from "./TermPopover";
 import { applyStreamEvent, emptyStreamState } from "./streamEvents";
 import { normalizeStreamEvent } from "./streamI18n";
 import { formatBriefingMarkdown, localizeBriefing } from "./uiLabels";
@@ -302,6 +304,7 @@ export default function App() {
       .then((list) => {
         const map: Record<string, GlossaryTerm> = {};
         for (const item of list) map[item.id] = item;
+        seedGlossaryCache(map);
         setGlossary(map);
       })
       .catch(() => setGlossary({}));
@@ -652,6 +655,10 @@ export default function App() {
   }
 
   return (
+    <GlossaryProvider
+      enabled={modeSettings.mode === "advisor" && modeSettings.enableGlossary}
+      terms={glossary}
+    >
     <div className="app-shell" data-mode={modeSettings.mode}>
       <div className="app-chrome">
         <div className="chrome-left">
@@ -897,9 +904,7 @@ export default function App() {
             onInputChange={setInput}
             chatExamples={chatExamples}
             holdings={holdings}
-            enableGlossary={modeSettings.mode === "advisor" && modeSettings.enableGlossary}
             appMode={modeSettings.mode}
-            glossary={glossary}
             onStartQuery={(query) => startChatQuery(query)}
             onSend={sendChat}
             onAnalyzeHolding={analyzeHolding}
@@ -909,5 +914,6 @@ export default function App() {
         </CopilotPanel>
       </div>
     </div>
+    </GlossaryProvider>
   );
 }

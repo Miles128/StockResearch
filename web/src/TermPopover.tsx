@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useI18n } from "./i18n";
 import { api, type GlossaryTerm } from "./api";
 
@@ -7,51 +8,90 @@ interface TermPopoverProps {
   children: ReactNode;
 }
 
+interface PopoverPosition {
+  top: number;
+  left: number;
+}
+
 /** 投顾模式专有名词弹窗：点击术语展开通俗解释 + 类比。 */
 export function TermPopover({ term, children }: TermPopoverProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
+  const [position, setPosition] = useState<PopoverPosition | null>(null);
+  const triggerRef = useRef<HTMLSpanElement>(null);
   const { t } = useI18n();
 
-  // 点击外部关闭
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const popoverWidth = 280;
+    const left = Math.min(
+      Math.max(12, rect.left + rect.width / 2 - popoverWidth / 2),
+      window.innerWidth - popoverWidth - 12,
+    );
+    setPosition({ top: rect.top - 8, left: left + popoverWidth / 2 });
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      if (triggerRef.current && !triggerRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     }
+    function handleScroll() {
+      setOpen(false);
+    }
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    window.addEventListener("scroll", handleScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      window.removeEventListener("scroll", handleScroll, true);
+    };
   }, [open]);
 
   return (
-    <span
-      ref={ref}
-      className="term-inline"
-      onClick={() => setOpen((v) => !v)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") setOpen((v) => !v);
-      }}
-    >
-      {children}
-      {open && (
-        <span className="term-popover" role="tooltip">
-          <span className="term-popover-title">
-            {term.short}
-            {term.en && <span className="term-popover-en">{term.en}</span>}
-          </span>
-          <span className="term-popover-def">{term.def}</span>
-          {term.analogy && (
-            <span className="term-popover-analogy">
-              💡 {t("termAnalogyLabel")}：{term.analogy}
+    <>
+      <span
+        ref={triggerRef}
+        className="term-inline"
+        onClick={() => setOpen((v) => !v)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setOpen((v) => !v);
+          }
+        }}
+      >
+        {children}
+      </span>
+      {open &&
+        position &&
+        createPortal(
+          <span
+            className="term-popover term-popover-fixed"
+            role="tooltip"
+            style={{
+              top: position.top,
+              left: position.left,
+            }}
+          >
+            <span className="term-popover-title">
+              {term.short}
+              {term.en && <span className="term-popover-en">{term.en}</span>}
             </span>
-          )}
-        </span>
-      )}
-    </span>
+            <span className="term-popover-def">{term.def}</span>
+            {term.analogy && (
+              <span className="term-popover-analogy">
+                💡 {t("termAnalogyLabel")}：{term.analogy}
+              </span>
+            )}
+          </span>,
+          document.body,
+        )}
+    </>
   );
 }
 
@@ -59,6 +99,10 @@ export function TermPopover({ term, children }: TermPopoverProps) {
 
 let _glossaryCache: Record<string, GlossaryTerm> | null = null;
 let _glossaryPromise: Promise<Record<string, GlossaryTerm>> | null = null;
+
+export function seedGlossaryCache(terms: Record<string, GlossaryTerm>): void {
+  _glossaryCache = terms;
+}
 
 function fetchGlossary(): Promise<Record<string, GlossaryTerm>> {
   if (_glossaryCache) return Promise.resolve(_glossaryCache);
@@ -72,7 +116,6 @@ function fetchGlossary(): Promise<Record<string, GlossaryTerm>> {
         return map;
       })
       .catch(() => {
-        // 失败则允许下次重试
         _glossaryPromise = null;
         return {};
       });
@@ -82,9 +125,7 @@ function fetchGlossary(): Promise<Record<string, GlossaryTerm>> {
 
 /** 获取词库映射；首次挂载时异步拉取，之后命中模块缓存。 */
 export function useGlossary(): Record<string, GlossaryTerm> | null {
-  const [glossary, setGlossary] = useState<Record<string, GlossaryTerm> | null>(
-    _glossaryCache,
-  );
+  const [glossary, setGlossary] = useState<Record<string, GlossaryTerm> | null>(_glossaryCache);
   useEffect(() => {
     if (_glossaryCache) return;
     let active = true;

@@ -1,5 +1,6 @@
 from stockresearch.agents.output_style import output_style_scope
-from stockresearch.services.chat_response import finalize_chat_reply
+from stockresearch.core.schemas import DimensionResult, ResearchReportOut
+from stockresearch.services.chat_response import finalize_cards, finalize_chat_reply, finalize_research_report
 
 
 def test_finalize_chat_reply_applies_neutrality_and_partial_marker() -> None:
@@ -42,3 +43,51 @@ def test_finalize_no_marking_when_reading_mode_professional_without_glossary() -
     with output_style_scope(reading_mode="professional", locale="zh", enable_glossary=False):
         reply = finalize_chat_reply("ROE 32.1%")
     assert "<term" not in reply
+
+
+def test_finalize_research_report_marks_summary() -> None:
+    with output_style_scope(reading_mode="friendly", locale="zh", enable_glossary=True):
+        report = finalize_research_report(
+            ResearchReportOut(
+                symbol="600519",
+                name="贵州茅台",
+                dimensions={
+                    "fundamental": DimensionResult(
+                        agent="fundamental",
+                        score=8.0,
+                        confidence="high",
+                        highlights=["ROE 32.1%"],
+                        risks=["PE 偏高"],
+                        data_sources=["akshare"],
+                    )
+                },
+                composite_score=8.0,
+                composite_confidence="high",
+                bias="bullish",
+                summary="当前 PE 35.2，ROE 32.1%。",
+            )
+        )
+    assert '<term data-id="PE">PE</term>' in report.summary
+    assert '<term data-id="ROE">ROE</term>' in report.dimensions["fundamental"].highlights[0]
+
+
+def test_finalize_cards_marks_research_card() -> None:
+    with output_style_scope(reading_mode="friendly", locale="zh", enable_glossary=True):
+        cards = finalize_cards(
+            [
+                {
+                    "type": "research",
+                    "data": ResearchReportOut(
+                        symbol="600519",
+                        name="贵州茅台",
+                        dimensions={},
+                        composite_score=8.0,
+                        composite_confidence="high",
+                        bias="bullish",
+                        summary="ROE 32.1%",
+                    ).model_dump(mode="json"),
+                }
+            ]
+        )
+    summary = cards[0]["data"]["summary"]
+    assert '<term data-id="ROE">ROE</term>' in summary

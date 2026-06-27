@@ -1,4 +1,4 @@
-import type { ExecutionPreference, GlossaryTerm, HoldingEnriched, RouteChoiceCardData, StockChoiceCardData } from "./api";
+import type { ExecutionPreference, HoldingEnriched, RouteChoiceCardData, StockChoiceCardData } from "./api";
 import type { Message } from "./appTypes";
 import type { AppMode } from "./modeSettings";
 import { CardView, RouteChoiceCardView, StockChoiceCardView } from "./chatCards";
@@ -23,9 +23,7 @@ interface ChatPanelProps {
   onInputChange: (value: string) => void;
   chatExamples: { label: string; query: string }[];
   holdings: HoldingEnriched[];
-  enableGlossary: boolean;
   appMode: AppMode;
-  glossary: Record<string, GlossaryTerm>;
   onStartQuery: (query: string) => void;
   onSend: () => void;
   onAnalyzeHolding: (h: HoldingEnriched) => void;
@@ -42,9 +40,7 @@ export function ChatPanel({
   onInputChange,
   chatExamples,
   holdings,
-  enableGlossary,
   appMode,
-  glossary,
   onStartQuery,
   onSend,
   onAnalyzeHolding,
@@ -52,7 +48,6 @@ export function ChatPanel({
   onConfirmRoute,
 }: ChatPanelProps) {
   const { t } = useI18n();
-  const markdownProps = { enableGlossary, glossary };
 
   function renderAssistantContent(m: Message) {
     const showConclusionShell = isResearchTurn(m.cards, m.intent);
@@ -63,11 +58,11 @@ export function ChatPanel({
           (showConclusionShell ? (
             <div className="message assistant conclusion-panel">
               <p className="process-panel-title">{t("chat.conclusion")}</p>
-              <MarkdownContent text={m.content} {...markdownProps} />
+              <MarkdownContent text={m.content} />
             </div>
           ) : (
             <div className="message assistant">
-              <MarkdownContent text={m.content} {...markdownProps} />
+              <MarkdownContent text={m.content} />
             </div>
           ))}
       </>
@@ -103,7 +98,7 @@ export function ChatPanel({
           <div key={i} className="chat-turn">
             {m.role === "user" ? (
               <div className="message user">
-                <MarkdownContent text={m.content} {...markdownProps} />
+                <MarkdownContent text={m.content} />
               </div>
             ) : (
               <>

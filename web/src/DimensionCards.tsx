@@ -73,16 +73,19 @@ export function DimensionCards({ items, labels, defaultOpen = false }: Dimension
                 </div>
               ) : null}
               {(item.highlights?.length ?? 0) > 0 && (
-                <p>
+                <div className="dimension-highlights">
                   <strong>{labels.highlights}：</strong>
-                  {item.highlights!.join("；")}
-                </p>
+                  <MarkdownContent
+                    className="markdown-inline"
+                    text={item.highlights!.join("；")}
+                  />
+                </div>
               )}
               {(item.risks?.length ?? 0) > 0 && (
-                <p className="muted">
+                <div className="dimension-risks muted">
                   <strong>{labels.risks}：</strong>
-                  {item.risks!.join("；")}
-                </p>
+                  <MarkdownContent className="markdown-inline" text={item.risks!.join("；")} />
+                </div>
               )}
             </div>
           </details>

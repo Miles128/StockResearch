@@ -576,6 +576,28 @@ export function SettingsPanel({
               {t("settings.addCustomMaster")}
             </button>
 
+            {modeSettingsState.mode === "advisor" && (
+              <>
+                <h4 className="settings-section-title">{t("settings.glossary")}</h4>
+                <p className="settings-hint">{t("settings.glossaryHint")}</p>
+                <label className="settings-check">
+                  <input
+                    type="checkbox"
+                    checked={modeSettingsState.enableGlossary}
+                    onChange={(e) =>
+                      persistModeSettings({ ...modeSettingsState, enableGlossary: e.target.checked })
+                    }
+                  />
+                  <span>{t("settings.enableGlossary")}</span>
+                </label>
+                <p className="settings-muted settings-analysis-note">
+                  {modeSettingsState.enableGlossary
+                    ? t("settings.glossaryOnNote")
+                    : t("settings.glossaryOffNote")}
+                </p>
+              </>
+            )}
+
             <h4 className="settings-section-title">{t("settings.readingMode")}</h4>
             <p className="settings-hint">{t("settings.readingModeHint")}</p>
             <p className="settings-muted settings-analysis-note">

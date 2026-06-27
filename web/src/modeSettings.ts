@@ -334,7 +334,7 @@ export function chatBodyField(): {
   return {
     enable_debate: settings.enableDebate,
     enable_master_commentary: settings.enableMasterCommentary,
-    enable_glossary: settings.enableGlossary,
+    enable_glossary: settings.mode === "advisor" && settings.enableGlossary,
     reading_mode: settings.readingMode,
     output_locale: loadLocale(),
   };

@@ -1,13 +1,27 @@
 import { describe, it, expect } from "vitest";
 import type { ComponentProps } from "react";
-import { render } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { MarkdownContent } from "../MarkdownContent";
+import { GlossaryProvider } from "../GlossaryContext";
 import { I18nProvider } from "../i18n";
+import type { GlossaryTerm } from "../api";
+
+const sampleTerms: Record<string, GlossaryTerm> = {
+  PE: {
+    id: "PE",
+    short: "市盈率",
+    en: "Price-to-Earnings Ratio",
+    def: "股价 ÷ 每股收益，衡量估值高低",
+    analogy: "花多少钱买1元年利润",
+  },
+};
 
 function renderMarkdown(text: string, props: Partial<ComponentProps<typeof MarkdownContent>> = {}) {
   return render(
     <I18nProvider>
-      <MarkdownContent text={text} {...props} />
+      <GlossaryProvider enabled terms={sampleTerms}>
+        <MarkdownContent text={text} {...props} />
+      </GlossaryProvider>
     </I18nProvider>,
   );
 }
@@ -57,17 +71,23 @@ describe("MarkdownContent", () => {
   it("strips javascript: protocol links (XSS protection)", () => {
     const { container } = renderMarkdown('<a href="javascript:alert(1)">click</a>');
     const link = container.querySelector("a");
-    // sanitize 移除危险协议链接，href 不应包含 javascript:
     const href = link?.getAttribute("href") ?? "";
     expect(href).not.toContain("javascript:");
   });
 
   it("renders server glossary <term> markup as styled span", () => {
-    const { container } = renderMarkdown('<term data-id="pe">市盈率</term> 是关键');
+    const { container } = renderMarkdown('<term data-id="PE">PE</term> 是关键');
     const span = container.querySelector("span.term-inline");
     expect(span).not.toBeNull();
-    expect(span?.getAttribute("data-term-id")).toBe("pe");
-    expect(span?.textContent).toContain("市盈率");
+    expect(span?.textContent).toContain("PE");
+  });
+
+  it("opens term popover on click", () => {
+    renderMarkdown('<term data-id="PE">PE</term> 是关键');
+    fireEvent.click(screen.getByRole("button", { name: "PE" }));
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip.textContent).toContain("市盈率");
+    expect(tooltip.textContent).toContain("花多少钱买1元年利润");
   });
 
   it("strips <iframe> (XSS protection)", () => {

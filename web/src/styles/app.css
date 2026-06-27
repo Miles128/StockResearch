@@ -3811,6 +3811,19 @@ input:focus {
   flex-wrap: wrap;
 }
 
+.markdown-inline {
+  display: inline;
+}
+
+.markdown-inline > .markdown-body {
+  display: inline;
+}
+
+.markdown-inline p {
+  display: inline;
+  margin: 0;
+}
+
 /* ── Term popover (professional reading mode) ── */
 
 .term-inline {
@@ -3862,6 +3875,14 @@ input:focus {
 .term-popover-analogy {
   color: var(--bbg-amber);
   font-size: 12px;
+}
+
+.term-popover-fixed {
+  position: fixed;
+  bottom: auto;
+  transform: translate(-50%, -100%);
+  z-index: 1200;
+  pointer-events: auto;
 }
 
 /* ── 双模式切换器（顶栏） ── */

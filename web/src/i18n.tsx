@@ -581,6 +581,11 @@ const zh: Dict = {
     analysis: "分析模式",
     analysisHint: "股票/市场相关问题默认进行多维投研；开关控制是否追加多空辩论与投资大师点评。",
     enableDebate: "开启多空辩论",
+    enableGlossary: "术语弹窗（点击下划线查看解释）",
+    glossary: "专业名词词库",
+    glossaryHint: "个人模式下，AI 输出中的 PE、ROE、VaR 等术语会显示虚线下划线，点击可弹出通俗解释卡片。",
+    glossaryOnNote: "已开启：对话与研究卡中的专业术语可点击查看解释。",
+    glossaryOffNote: "已关闭：术语不再标记为可点击链接。",
     debateOnNote: "开启：股票或市场走势相关问题 → 四维分析 + 三轮多空交锋 + 投票 + Research Manager + 裁判总结。",
     debateOffNote: "关闭：股票或市场走势相关问题 → 仅多维分析（基本面/技术面/情绪面/筹码面），不进入辩论。",
     enableMasterCommentary: "开启投资大师点评",
@@ -1387,6 +1392,11 @@ const en: Dict = {
     analysisHint:
       "Stock/market questions use multi-dimensional research by default; toggles add bull/bear debate and master commentary.",
     enableDebate: "Enable bull/bear debate",
+    enableGlossary: "Term popovers (click underlined terms)",
+    glossary: "Financial glossary",
+    glossaryHint: "In Personal mode, terms like PE, ROE, and VaR appear with a dotted underline; click to see a plain-language card.",
+    glossaryOnNote: "On: terms in chat and research cards are clickable for explanations.",
+    glossaryOffNote: "Off: terms are no longer marked as clickable links.",
     debateOnNote:
       "On: stock or market questions → four dimensions + 3 debate rounds + vote + Research Manager + judge summary.",
     debateOffNote: "Off: stock or market questions → multi-dim analysis only (no debate).",

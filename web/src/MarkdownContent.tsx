@@ -2,12 +2,11 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
+import { useGlossaryContext } from "./GlossaryContext";
 import { TermPopover, useGlossary } from "./TermPopover";
 
 // 扩展默认 sanitize schema：允许服务端 glossary 生成的 <term data-id> 标签。
-// 默认 schema 已禁止 script/iframe/event handler/javascript: 协议，安全基线保留。
-// 注意：hast 属性名使用 camelCase（property-information 约定），data-id → dataId。
 const sanitizeSchema = {
   ...defaultSchema,
   tagNames: [...(defaultSchema.tagNames ?? []), "term"],
@@ -24,42 +23,50 @@ interface MarkdownContentProps {
   className?: string;
 }
 
-export function MarkdownContent({ text, className = "markdown-body" }: MarkdownContentProps) {
-  // 投顾模式后端会标记 <term>；投研模式不标记，glossary 拉取后也无处使用。
-  // 模块级缓存保证全应用只拉取一次。
-  const glossary = useGlossary();
+function resolveTermId(props: Record<string, unknown>): string {
+  const node = props.node as { properties?: Record<string, unknown> } | undefined;
+  const properties = node?.properties ?? {};
+  return String(
+    properties.dataId ?? properties["data-id"] ?? props.dataId ?? props["data-id"] ?? "",
+  );
+}
 
-  // react-markdown 的 Components 类型不包含自定义 <term> 标签，
-  // 用类型断言绕过；运行时 react-markdown 会将 <term> 节点传给该渲染器。
-  // hast 将 data-id 属性存储为 dataId 属性（property-information camelCase 约定）。
-  const components = {
-    a: ({ href, children }: { href?: string; children?: ReactNode }) => (
-      <a href={href} target="_blank" rel="noreferrer">
-        {children}
-      </a>
-    ),
-    term: (props: Record<string, unknown>) => {
-      const node = props.node as { properties?: Record<string, unknown> } | undefined;
-      const properties = node?.properties ?? {};
-      const dataId = String(
-        properties.dataId ??
-          properties["data-id"] ??
-          props.dataId ??
-          props["data-id"] ??
-          "",
-      );
-      const termInfo = glossary?.[dataId];
+export function MarkdownContent({ text, className = "markdown-body" }: MarkdownContentProps) {
+  const { enabled, terms: contextTerms } = useGlossaryContext();
+  const fetchedTerms = useGlossary();
+  const glossary = useMemo(() => {
+    if (Object.keys(contextTerms).length > 0) return contextTerms;
+    return fetchedTerms ?? {};
+  }, [contextTerms, fetchedTerms]);
+
+  const components = useMemo(() => {
+    const renderTerm = (props: Record<string, unknown>) => {
+      const dataId = resolveTermId(props);
+      const child = props.children as ReactNode;
+      if (!enabled) {
+        return <span>{child}</span>;
+      }
+      const termInfo = glossary[dataId];
       if (!termInfo) {
-        // 词库未加载完成或词条缺失：降级为带下划线的纯文本，保持可读。
         return (
           <span className="term-inline" data-term-id={dataId}>
-            {props.children as ReactNode}
+            {child}
           </span>
         );
       }
-      return <TermPopover term={termInfo}>{props.children as ReactNode}</TermPopover>;
-    },
-  } as unknown as Components;
+      return <TermPopover term={termInfo}>{child}</TermPopover>;
+    };
+
+    return {
+      a: ({ href, children }: { href?: string; children?: ReactNode }) => (
+        <a href={href} target="_blank" rel="noreferrer">
+          {children}
+        </a>
+      ),
+      term: renderTerm,
+    } as unknown as Components;
+  }, [enabled, glossary]);
+
   return (
     <div className={className}>
       <ReactMarkdown
