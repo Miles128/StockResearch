@@ -1,0 +1,489 @@
+/* Route A — terminal polish (radius, shadow, motion) */
+
+.btn,
+.chrome-nav-btn,
+.canvas-tool-btn,
+.nav-btn,
+.example-chip,
+.holdings-pill,
+.stat-pill,
+.context-chip,
+.sector-chip,
+input,
+textarea,
+select {
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.app-chrome {
+  min-height: 44px;
+  padding: 0 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.chrome-nav-btn,
+.canvas-tool-btn {
+  border-radius: var(--radius-sm);
+}
+
+.chrome-nav-btn.active {
+  border-radius: var(--radius);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--header-fg) 35%, transparent);
+}
+
+.btn {
+  border-radius: var(--radius-sm);
+}
+
+.btn-sm {
+  border-radius: var(--radius-sm);
+}
+
+.panel,
+.card,
+.confirm-card,
+.dimension-card,
+.holding-card,
+.holding-trade-row,
+.action-signal-card,
+.news-card,
+.modal-panel {
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.panel {
+  box-shadow: var(--shadow-sm);
+}
+
+.message {
+  border-radius: var(--radius-lg);
+}
+
+.message.user {
+  border-radius: var(--radius-lg);
+}
+
+.message.conclusion-panel,
+.message.process-panel,
+.message.stream-live-panel {
+  border-radius: var(--radius);
+}
+
+.stat-pill,
+.example-chip,
+.holdings-pill,
+.alert-holding-tag {
+  border-radius: var(--radius-sm);
+}
+
+input,
+textarea,
+select {
+  border-radius: var(--radius-sm);
+}
+
+.market-ticker-wrap {
+  background: var(--bbg-black);
+}
+
+.market-ticker-wrap.market-ticker-oneline {
+  padding: 0;
+}
+
+.market-ticker-oneline .ticker-strip {
+  gap: 0;
+  padding: 0;
+  mask-image: none;
+}
+
+.ticker-card {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--bbg-border);
+  background: var(--bbg-panel);
+  box-shadow: var(--shadow-sm);
+  margin: 0;
+}
+
+.ticker-card-btn:hover {
+  border-color: var(--bbg-border-bright);
+  background: var(--bbg-panel-2);
+}
+
+.portfolio-panel .card.portfolio-block {
+  margin-bottom: 12px;
+  border: 1px solid var(--bbg-border);
+  border-radius: var(--radius);
+  background: var(--bbg-panel);
+  box-shadow: var(--shadow-sm);
+}
+
+.portfolio-panel .card.portfolio-block:last-of-type {
+  border-bottom: 1px solid var(--bbg-border);
+  margin-bottom: 0;
+}
+
+.card-header {
+  padding: 8px 12px 4px;
+}
+
+.card-body {
+  padding: 8px 14px 14px;
+}
+
+.action-center {
+  margin-bottom: 12px;
+  border: 1px solid var(--bbg-border);
+  border-radius: var(--radius);
+  background: var(--bbg-panel);
+  box-shadow: var(--shadow-sm);
+}
+
+.action-center-header {
+  padding: 8px 12px 6px;
+}
+
+.action-signal-card {
+  border-radius: var(--radius-sm);
+  border-left-width: 3px;
+  border-left-style: solid;
+}
+
+.action-signal-critical {
+  border-left-color: var(--bbg-down);
+}
+
+.action-signal-warning {
+  border-left-color: var(--bbg-warn);
+}
+
+.action-signal-info {
+  border-left-color: var(--bbg-blue);
+}
+
+.action-signal-card:hover {
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.signal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--bbg-muted);
+}
+
+.action-signal-critical .signal-icon {
+  color: var(--bbg-down);
+}
+
+.action-signal-warning .signal-icon {
+  color: var(--bbg-warn);
+}
+
+.action-signal-info .signal-icon {
+  color: var(--bbg-blue);
+}
+
+.copilot-panel {
+  background: color-mix(in srgb, var(--bbg-panel) 92%, transparent);
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.25);
+}
+
+.copilot-panel.layout-vertical {
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.holdings-table tbody tr {
+  transition: background 120ms ease;
+}
+
+.holdings-table tbody tr:hover {
+  background: var(--nav-hover-bg);
+}
+
+.holding-card:hover {
+  border-color: var(--bbg-border-bright);
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.skeleton-block {
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--bbg-panel-2) 0%,
+    color-mix(in srgb, var(--bbg-border) 55%, var(--bbg-panel-2)) 50%,
+    var(--bbg-panel-2) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+.action-center-skeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+  padding: 0 14px 12px;
+}
+
+.action-center-skeleton .skeleton-block {
+  height: 64px;
+}
+
+.ticker-skeleton {
+  display: inline-flex;
+  gap: 8px;
+  padding: 6px 12px;
+}
+
+.ticker-skeleton .skeleton-block {
+  width: 108px;
+  height: 28px;
+}
+
+.ui-icon {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.copilot-layout-toggle .ui-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.app-chrome .copilot-trigger.active {
+  background: var(--header-fg);
+  color: var(--header-bg);
+  border-color: var(--header-fg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--header-bg) 25%, transparent);
+}
+
+.ticker-card-btn {
+  position: relative;
+  overflow: hidden;
+  min-width: 148px;
+}
+
+.ticker-sparkline {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.ticker-card-content {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dimension-cards-grid {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+
+.dimension-card-fold {
+  border: 1px solid var(--bbg-border);
+  border-radius: var(--radius-sm);
+  background: var(--bbg-panel-2);
+  box-shadow: var(--shadow-sm);
+}
+
+.dimension-card-fold > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.dimension-card-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dimension-card-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.dimension-card-title {
+  font-weight: 600;
+  color: var(--bbg-orange);
+  letter-spacing: 0.04em;
+}
+
+.dimension-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.holdings-table th.num,
+.holdings-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.holdings-table th.actions,
+.holdings-table td.actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.holdings-view-picker,
+.locale-picker {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.holdings-view-option {
+  padding: 8px 12px;
+  border: 1px solid var(--bbg-border);
+  border-radius: var(--radius-sm);
+  background: var(--bbg-panel-2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.holdings-view-option.active {
+  border-color: var(--bbg-orange);
+  color: var(--bbg-orange);
+}
+
+.light-research-summary .markdown-body {
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+/* Unified card + quote data surfaces */
+.ui-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--bbg-border);
+  background: var(--bbg-panel-2);
+  color: var(--text);
+  text-align: left;
+}
+
+button.ui-card {
+  font: inherit;
+  width: 100%;
+  cursor: pointer;
+}
+
+button.ui-card:hover {
+  border-color: var(--bbg-orange);
+}
+
+.ui-card-active {
+  border-color: var(--bbg-orange);
+}
+
+.ui-card-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.ui-card-title {
+  color: var(--bbg-muted);
+  font-size: 11.5px;
+}
+
+.ui-card-body {
+  width: 100%;
+}
+
+.ui-quote-price {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--bbg-dim);
+}
+
+.ui-quote-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.ui-quote-stack-inline {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.ui-quote-change {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.market-chart-panel {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid var(--bbg-border);
+  background: var(--bbg-panel-2);
+}
+
+.market-chart-panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.market-index-card.ui-card .ui-quote-price {
+  font-size: 20px;
+}
+
+[data-theme="paper-white"] .terminal-header {
+  border-bottom: 2px solid var(--bbg-orange);
+}
+
+[data-theme="paper-white"] .app-chrome .copilot-trigger.active {
+  background: var(--header-btn-bg);
+  color: var(--bbg-orange);
+  border: 1px solid var(--bbg-border);
+}
+
+[data-theme="wine-red-white"] .ticker-card,
+[data-theme="paper-white"] .ticker-card,
+[data-theme="warm-cream"] .ticker-card {
+  background: var(--bbg-black);
+}

@@ -1,9 +1,11 @@
 import type { ResearchReport } from "./api";
+import { DimensionCards, dimensionItemsFromResults } from "./DimensionCards";
 import { useI18n } from "./i18n";
 import type { AppMode } from "./modeSettings";
+import { MarkdownContent } from "./MarkdownContent";
+import { normalizeResearchConclusion, researchExpandHintsFromReport } from "./researchText";
 import { ResearchReportDetails } from "./researchReportView";
-
-const VIEWPOINT_KEYS = ["fundamental", "technical", "sentiment", "chips", "risk"] as const;
+import { localizeAgentDisplay } from "./uiLabels";
 
 interface LightResearchCardProps {
   report: ResearchReport;
@@ -32,28 +34,26 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
           </span>
         </div>
       </div>
-      <p className="light-research-summary">{report.summary}</p>
-      {isExpert && dimensions.length > 0 && (
-        <div className="light-research-dimensions">
-          {dimensions.map(([key, dim]) => (
-            <span className="stat-pill" key={key}>
-              {dim.agent || key} {dim.score}/10
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="light-research-viewpoints">
-        {VIEWPOINT_KEYS.map((key) => {
-          const text = report.viewpoints?.[key];
-          if (!text) return null;
-          return (
-            <div key={key} className="light-viewpoint-row">
-              <strong>{t(`card.viewpoint.${key}`)}</strong>
-              <span>{text}</span>
-            </div>
-          );
-        })}
+      <div className="light-research-summary">
+        <MarkdownContent
+          text={normalizeResearchConclusion(report.summary, {
+            expandHints: researchExpandHintsFromReport(report),
+          })}
+        />
       </div>
+      {dimensions.length > 0 && (
+        <DimensionCards
+          defaultOpen={false}
+          labels={{
+            confidence: t("card.confidence"),
+            highlights: t("card.highlights"),
+            risks: t("card.risks"),
+          }}
+          items={dimensionItemsFromResults(report.dimensions ?? {}, (key, agent) =>
+            localizeAgentDisplay(key, agent, t),
+          )}
+        />
+      )}
       {report.data_gaps && report.data_gaps.length > 0 && (
         <p className="muted light-research-gaps">
           <strong>{t("card.dataGaps")}：</strong>
@@ -76,11 +76,7 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
       )}
       <details className="light-research-details">
         <summary>{isExpert ? t("card.expandSources") : t("card.expandProfessional")}</summary>
-        <ResearchReportDetails
-          report={report}
-          showDimensions={!isExpert}
-          showDebate={isExpert}
-        />
+        <ResearchReportDetails report={report} showDimensions={false} showDebate={isExpert} />
       </details>
     </div>
   );

@@ -98,12 +98,6 @@ export function useCopilotChat({
             ...processSnapshot,
             streamStatus: processSnapshot.streamStatus || statusMsg || t("chat.analysisDone"),
           };
-          const hasResearchCard = resp.cards?.some((c) => c.type === "research");
-          const hasProcessTrail =
-            processSnapshot.streamLog.length > 0 ||
-            processSnapshot.agentSteps.length > 0 ||
-            processSnapshot.debateRounds.length > 0 ||
-            processSnapshot.judgeVerdict != null;
           setMessages((m) => [
             ...m,
             {
@@ -113,7 +107,6 @@ export function useCopilotChat({
               intent: resp.intent,
               followUpQuestions: resp.follow_up_questions ?? [],
               llmUsage: resp.llm_usage ?? null,
-              process: hasProcessTrail || hasResearchCard ? processSnapshot : undefined,
             },
           ]);
         }

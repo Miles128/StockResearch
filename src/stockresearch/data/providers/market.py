@@ -302,6 +302,9 @@ class FinancialDataProvider:
         return sector_peers.get(symbol, [])
 
 
+_INDEX_KLINE_SYMBOLS = frozenset({"000001", "399001", "399006", "000300"})
+
+
 class TechnicalDataProvider:
     async def get_kline_bars(self, symbol: str, days: int = 60) -> list[dict[str, float | str]]:
         end_date = datetime.now(UTC).strftime("%Y%m%d")
@@ -311,18 +314,31 @@ class TechnicalDataProvider:
         else:
             start = now.replace(year=now.year - 1, month=now.month + 10)
         start_date = start.strftime("%Y%m%d")
-        df = await run_sync_fetch(
-            f"akshare kline {symbol}",
-            lambda: ak.stock_zh_a_hist(
-                symbol=symbol,
-                period="daily",
-                start_date=start_date,
-                end_date=end_date,
-                adjust="qfq",
-            ),
-            timeout=10.0,
-            fallback=None,
-        )
+        if symbol in _INDEX_KLINE_SYMBOLS:
+            df = await run_sync_fetch(
+                f"akshare index kline {symbol}",
+                lambda: ak.index_zh_a_hist(
+                    symbol=symbol,
+                    period="daily",
+                    start_date=start_date,
+                    end_date=end_date,
+                ),
+                timeout=10.0,
+                fallback=None,
+            )
+        else:
+            df = await run_sync_fetch(
+                f"akshare kline {symbol}",
+                lambda: ak.stock_zh_a_hist(
+                    symbol=symbol,
+                    period="daily",
+                    start_date=start_date,
+                    end_date=end_date,
+                    adjust="qfq",
+                ),
+                timeout=10.0,
+                fallback=None,
+            )
         if df is None or df.empty:
             return []
         recent = df.tail(days)

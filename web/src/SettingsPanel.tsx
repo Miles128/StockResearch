@@ -45,7 +45,7 @@ interface SettingsPanelProps {
   required?: boolean;
   onConfigured?: () => void;
   onModeSettingsChange?: (settings: ModeSettings) => void;
-  /** inline = F5 设置页；modal = 首次配置弹层 */
+  /** inline = 设置页内嵌；modal = 首次配置弹层 */
   variant?: "inline" | "modal";
 }
 
@@ -277,6 +277,8 @@ export function SettingsPanel({
   const themeOptions: { id: AppTheme; label: string; hint: string }[] = [
     { id: "orange-black", label: t("settings.themeOrange"), hint: t("settings.themeOrangeHint") },
     { id: "wine-red-white", label: t("settings.themeWine"), hint: t("settings.themeWineHint") },
+    { id: "paper-white", label: t("settings.themePaper"), hint: t("settings.themePaperHint") },
+    { id: "warm-cream", label: t("settings.themeWarm"), hint: t("settings.themeWarmHint") },
   ];
 
   const visibleTabs = tabs.filter((tab) => !(required && tab.hideWhenRequired));
@@ -339,6 +341,20 @@ export function SettingsPanel({
                   onClick={() => selectLocale(id)}
                 >
                   {id === "zh" ? t("settings.langZh") : t("settings.langEn")}
+                </button>
+              ))}
+            </div>
+            <h4 className="settings-section-title">{t("settings.holdingsViewTitle")}</h4>
+            <p className="settings-hint">{t("settings.holdingsViewHint")}</p>
+            <div className="holdings-view-picker">
+              {(["table", "cards"] as const).map((view) => (
+                <button
+                  key={view}
+                  type="button"
+                  className={`holdings-view-option${modeSettingsState.holdingsView === view ? " active" : ""}`}
+                  onClick={() => persistModeSettings({ ...modeSettingsState, holdingsView: view })}
+                >
+                  {view === "table" ? t("settings.holdingsViewTable") : t("settings.holdingsViewCards")}
                 </button>
               ))}
             </div>

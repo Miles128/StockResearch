@@ -140,21 +140,21 @@ StockResearch 是**长期开源 MVP**：跑在你自己电脑上的投资助手�
 | 模块 | 说明 |
 |------|------|
 | **双模式切换** | 顶栏个人/专家一键切换，持久化，模式内可微调 |
-| **全局 AI 对话** | 所有工作区共享外壳；横/竖排布局可切换，宽度可调；线程延续，页面上下文显式附加 |
+| **全局 AI 对话** | 所有工作区共享外壳；横/竖排布局可切换，宽度可调；**流式结束后仅保留结论**；Copilot 打开时顶栏按钮反色高亮 |
 | **首次引导** | 选模式 + 示例持仓 + LLM 配置，3 步完成 |
 | 智能对话 | 个股/市场意图路由；歧义股票卡片确认 |
-| 四维投研 | 基本面、技术面、情绪面、筹码面 ReAct 并行 |
+| 四维投研 | 基本面、技术面、情绪面、筹码面 ReAct 并行；**维度默认折叠为 4 卡片**；新闻已并入情绪维度，**不再单独展示新闻文本因子** |
 | A 股因子检查 | 研究报告可展开查看涨跌停/ST、龙虎榜、资金、解禁、财务、技术结构等验证状态和来源明细 |
 | 多空辩论 | 设置中可开关（个人默认关，专家默认开） |
 | 新闻快讯 | ≤3s SLA，零 LLM；博查 AI 联网搜索兜底 |
 | 巨潮公告 | 上市公司公告 provider |
 | 研报中心 | 东方财富研报 provider |
-| 持仓管理 | 成本、盈亏、板块、定时刷新；收盘后停止刷新 |
+| 持仓管理 | 成本、盈亏、板块、定时刷新；收盘后停止刷新；**设置可选表格/卡片** |
 | 风控体检 | VaR、回撤、集中度 + AI 解读（个人先人话，专家先指标） |
 | 数据源详情 | 顶栏点击数据状态，查看真实源、缓存、Mock、降级和增强数据配置 |
 | 后端健康监控 | 后端不可用时顶部红色横幅提示，避免误判前端 bug |
 | 简报定时任务 | APScheduler 盘前 09:00 / 收盘 15:30，仅 A 股交易日执行 |
-| 国际化 | 中/英界面；橙黑 / 酒红主题 |
+| 国际化 | 中/英界面；橙黑 / 酒红主题；顶栏指数卡片带**背景行情线** |
 
 ### 架构
 
@@ -189,7 +189,7 @@ uv run uvicorn stockresearch.api.app:app --reload --host 127.0.0.1 --port 8000 -
 cd web && npm install && npm run dev
 ```
 
-打开 **http://localhost:5174**。首次进入触发引导：选模式（个人/专家）→ 示例持仓已加载 → 配置 LLM（或 Mock 模式先体验）。也可随时按 **F5** 打开设置页。保存后自动写入项目根 `.env`（已 gitignore）。支持 [DeepSeek](https://platform.deepseek.com/)、[DashScope 兼容模式](https://help.aliyun.com/zh/model-studio/) 等 OpenAI 兼容接口。
+打开 **http://localhost:5174**。首次进入触发引导：选模式（个人/专家）→ 示例持仓已加载 → 配置 LLM（或 Mock 模式先体验）。也可随时点击顶栏 **设置** 打开配置页。保存后自动写入项目根 `.env`（已 gitignore）。支持 [DeepSeek](https://platform.deepseek.com/)、[DashScope 兼容模式](https://help.aliyun.com/zh/model-studio/) 等 OpenAI 兼容接口。
 
 ```bash
 pytest          # 246 tests
@@ -259,10 +259,12 @@ StockResearch is a **long-term open-source MVP**: a personal investment assistan
 | Module | Description |
 |--------|-------------|
 | **Dual-mode toggle** | Top-bar Advisor/Research switch, persisted, fine-tunable per mode |
-| **Global AI chat** | Shared shell across workspaces; horizontal/vertical layout toggle, resizable; thread continues, page context explicit |
+| **Global AI chat** | Shared shell across workspaces; horizontal/vertical layout toggle, resizable; thread continues, page context explicit; thinking steps hide after stream completes |
+| **Index ticker** | Index cards with background sparkline from daily change |
+| **Holdings layout** | Settings: table (default) or cards for portfolio detail |
 | **Onboarding** | Pick mode + demo holdings + LLM config in 3 steps |
 | Chat | Intent routing; ambiguous ticker picker |
-| 4D research | Fundamental, technical, sentiment, chips (parallel ReAct) |
+| 4D research | Four collapsible dimension cards (default folded); full report text; news text factor removed (covered in sentiment dimension) |
 | Debate | Optional bull/bear rounds + judge (off in Advisor, on in Research) |
 | News | ≤3s SLA, zero LLM; Bocha AI search fallback |
 | CNInfo announcements | Listed-company announcement provider |
@@ -307,7 +309,7 @@ uv run uvicorn stockresearch.api.app:app --reload --host 127.0.0.1 --port 8000 -
 cd web && npm install && npm run dev
 ```
 
-Open **http://localhost:5174**. First visit triggers onboarding: pick mode (Advisor/Research) → demo holdings loaded → configure LLM (or Mock mode). Press **F5** anytime for Settings. Saving writes to the project root `.env` (gitignored) automatically. Works with [DeepSeek](https://platform.deepseek.com/), [DashScope compatible mode](https://help.aliyun.com/zh/model-studio/), and other OpenAI-compatible APIs.
+Open **http://localhost:5174**. First visit triggers onboarding: pick mode (Advisor/Research) → demo holdings loaded → configure LLM (or Mock mode). Use the header **Settings** button anytime. Saving writes to the project root `.env` (gitignored) automatically. Works with [DeepSeek](https://platform.deepseek.com/), [DashScope compatible mode](https://help.aliyun.com/zh/model-studio/), and other OpenAI-compatible APIs.
 
 ```bash
 pytest          # 246 tests

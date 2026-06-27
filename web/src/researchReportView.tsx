@@ -1,5 +1,8 @@
-import type { AshareFactor, DebateResult, DimensionResult, ResearchReport } from "./api";
+import type { AshareFactor, DebateResult, ResearchReport } from "./api";
+import { DimensionCards, dimensionItemsFromResults } from "./DimensionCards";
+import { MarkdownContent } from "./MarkdownContent";
 import { useI18n } from "./i18n";
+import { localizeAgentDisplay } from "./uiLabels";
 
 function biasLabel(bias: string, t: (key: string) => string): string {
   const key = `card.${bias}` as const;
@@ -42,50 +45,6 @@ export function hasDimensionStream(process?: {
   ]);
   return process.agentSteps.some(
     (s) => ids.has(s.agent_id) && s.status !== "pending",
-  );
-}
-
-function ResearchDimensionsBlock({
-  dimensions,
-  labels,
-}: {
-  dimensions: Record<string, DimensionResult>;
-  labels: {
-    section: string;
-    confidence: string;
-    highlights: string;
-    risks: string;
-  };
-}) {
-  const entries = Object.entries(dimensions);
-  if (!entries.length) return null;
-  return (
-    <div className="research-dimensions">
-      {entries.map(([key, dim]) => (
-        <div key={key} className="dimension-card dimension-done research-dim-card">
-          <div className="dimension-card-head">
-            <strong>{dim.agent || key}</strong>
-            <span className="stat-pill">
-              {dim.score}/10 · {labels.confidence} {dim.confidence}
-            </span>
-          </div>
-          <div className="dimension-card-body">
-            {dim.highlights?.length > 0 && (
-              <p>
-                <strong>{labels.highlights}：</strong>
-                {dim.highlights.join("；")}
-              </p>
-            )}
-            {dim.risks?.length > 0 && (
-              <p className="muted">
-                <strong>{labels.risks}：</strong>
-                {dim.risks.join("；")}
-              </p>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -163,6 +122,10 @@ function factorStatusLabel(status: AshareFactor["status"], t: (key: string) => s
   return t("card.factorMissing");
 }
 
+function isNewsTextFactor(factor: AshareFactor): boolean {
+  return factor.name.includes("新闻") || factor.category.includes("新闻");
+}
+
 function ResearchAshareFactorsBlock({
   factors,
   t,
@@ -170,12 +133,13 @@ function ResearchAshareFactorsBlock({
   factors?: AshareFactor[];
   t: (key: string) => string;
 }) {
-  if (!factors?.length) return null;
+  const visible = factors?.filter((factor) => !isNewsTextFactor(factor)) ?? [];
+  if (!visible.length) return null;
   return (
     <details className="ashare-factor-block">
       <summary>{t("card.ashareFactors")}</summary>
       <div className="ashare-factor-grid">
-        {factors.map((factor) => (
+        {visible.map((factor) => (
           <article className={`ashare-factor-card ${factor.status}`} key={`${factor.category}-${factor.name}`}>
             <div className="ashare-factor-head">
               <div>
@@ -222,12 +186,11 @@ export function ResearchReportDetails({
   showDebate?: boolean;
 }) {
   const { t } = useI18n();
-  const labels = {
-    section: t("card.fourDim"),
-    confidence: t("card.confidence"),
-    highlights: t("card.highlights"),
-    risks: t("card.risks"),
-  };
+  const dimEntries = Object.entries(report.dimensions ?? {});
+  const allSources = Array.from(
+    new Set(dimEntries.flatMap(([, d]) => d.data_sources ?? [])),
+  ).filter(Boolean);
+
   const debateLabels = {
     section: t("card.debateSection"),
     long: t("card.long"),
@@ -244,11 +207,6 @@ export function ResearchReportDetails({
     bias: (value: string) => biasLabel(value, t),
   };
 
-  const dimEntries = Object.entries(report.dimensions ?? {});
-  const allSources = Array.from(
-    new Set(dimEntries.flatMap(([, d]) => d.data_sources ?? [])),
-  ).filter(Boolean);
-
   return (
     <div className="research-report-details">
       {allSources.length > 0 && (
@@ -258,10 +216,17 @@ export function ResearchReportDetails({
         </p>
       )}
       {showDimensions && dimEntries.length > 0 && (
-        <details className="research-dimensions-details">
-          <summary>{t("card.fourDim")}</summary>
-          <ResearchDimensionsBlock dimensions={report.dimensions ?? {}} labels={labels} />
-        </details>
+        <DimensionCards
+          defaultOpen={false}
+          labels={{
+            confidence: t("card.confidence"),
+            highlights: t("card.highlights"),
+            risks: t("card.risks"),
+          }}
+          items={dimensionItemsFromResults(report.dimensions ?? {}, (key, agent) =>
+            localizeAgentDisplay(key, agent, t),
+          )}
+        />
       )}
       {showDebate && report.debate && (
         <details className="research-debate-details">
@@ -270,12 +235,6 @@ export function ResearchReportDetails({
         </details>
       )}
       <ResearchAshareFactorsBlock factors={report.ashare_factors} t={t} />
-      {report.text_factor_summary && (
-        <details className="text-factor-block">
-          <summary>{t("card.textFactorSummary")}</summary>
-          <pre className="text-factor-pre">{report.text_factor_summary}</pre>
-        </details>
-      )}
     </div>
   );
 }

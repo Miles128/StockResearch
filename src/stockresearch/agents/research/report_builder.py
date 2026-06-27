@@ -17,6 +17,19 @@ from stockresearch.core.schemas import (
 )
 from stockresearch.services.ashare_factors import build_ashare_factor_checklist
 from stockresearch.services.text_factor import build_text_factor_summary
+from stockresearch.agents.research.summary_length import normalize_summary
+
+
+def _dimension_expand_parts(dimensions: dict[str, DimensionResult]) -> list[str]:
+    parts: list[str] = []
+    for dim in dimensions.values():
+        for highlight in dim.highlights[:2]:
+            line = highlight.strip()
+            if line and line not in parts:
+                parts.append(line)
+        if len(parts) >= 6:
+            break
+    return parts
 
 
 def build_research_report(
@@ -48,6 +61,10 @@ def build_research_report(
             else "中性"
         )
         summary += f" 裁判{judge_label}：{debate.consensus}"
+    expand_parts = _dimension_expand_parts(dimensions)
+    if debate and debate.core_divergence.strip():
+        expand_parts.append(debate.core_divergence.strip())
+    summary = normalize_summary(summary, expand_parts=expand_parts)
 
     text_factor_summary = build_text_factor_summary(
         subject=name if not sector else f"「{sector}」板块",

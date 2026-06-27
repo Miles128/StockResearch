@@ -66,19 +66,12 @@ export function useChat(onSwitchTab?: (tab: "chat") => void): ChatState {
             ...processSnapshot,
             streamStatus: processSnapshot.streamStatus || statusMsg || t("chat.analysisDone"),
           };
-          const hasResearchCard = resp.cards?.some((c) => c.type === "research");
-          const hasProcessTrail =
-            processSnapshot.streamLog.length > 0 ||
-            processSnapshot.agentSteps.length > 0 ||
-            processSnapshot.debateRounds.length > 0 ||
-            processSnapshot.judgeVerdict != null;
           const assistantMsg: Message = {
             role: "assistant",
             content: stripDisclaimer(resp.reply),
             cards: resp.cards,
             intent: resp.intent,
             llmUsage: resp.llm_usage ?? null,
-            process: hasProcessTrail || hasResearchCard ? processSnapshot : undefined,
           };
           setMessages((m) => [...m, assistantMsg]);
         }

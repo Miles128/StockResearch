@@ -31,8 +31,8 @@ def test_build_viewpoints_from_dimensions_and_debate() -> None:
         final_bias="neutral",
         confidence="medium",
     )
-    viewpoints = build_viewpoints(dimensions, debate, news_text_factor="政策面偏暖")
+    viewpoints = build_viewpoints(dimensions, debate)
     assert viewpoints["fundamental"] == "盈利质量较好"
     assert viewpoints["technical"] == "均线多头排列"
-    assert viewpoints["sentiment"] == "政策面偏暖"
     assert viewpoints["risk"] == "多空分歧不大，但需关注估值"
+    assert "sentiment" not in viewpoints

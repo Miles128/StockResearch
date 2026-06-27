@@ -1,17 +1,25 @@
 import type { ReactNode } from "react";
 import type { CopilotContext } from "./appTypes";
+import type { CopilotThread } from "./copilotThreads";
+import { CopilotThreadList } from "./CopilotThreadList";
 import { useI18n } from "./i18n";
+import { IconPanelBottom, IconPanelSide } from "./ui/Icons";
 
 export type CopilotLayout = "horizontal" | "vertical";
 
 interface CopilotPanelProps {
   open: boolean;
   threadTitle: string;
+  threads: CopilotThread[];
+  activeThreadId: string;
   userContext: CopilotContext | null;
   layout: CopilotLayout;
   children: ReactNode;
   onClose: () => void;
   onNewThread: () => void;
+  onSelectThread: (id: string) => void;
+  onRenameThread: (id: string, title: string) => void;
+  onDeleteThread: (id: string) => void;
   onRemoveContext: () => void;
   onToggleLayout: () => void;
   onResizeStart: (axis: "x" | "y") => void;
@@ -20,12 +28,17 @@ interface CopilotPanelProps {
 export function CopilotPanel({
   open,
   threadTitle,
-  userContext,
+  threads,
+  activeThreadId,
+  userContext: _userContext,
   layout,
   children,
   onClose,
   onNewThread,
-  onRemoveContext,
+  onSelectThread,
+  onRenameThread,
+  onDeleteThread,
+  onRemoveContext: _onRemoveContext,
   onToggleLayout,
   onResizeStart,
 }: CopilotPanelProps) {
@@ -40,50 +53,49 @@ export function CopilotPanel({
 
   return (
     <aside className={`copilot-panel layout-${layout}`}>
-      <div
-        className={`copilot-resize-handle ${axis === "y" ? "row-axis" : "col-axis"}`}
-        onMouseDown={(e) => {
-          e.preventDefault();
-          onResizeStart(axis);
-        }}
-        role="separator"
-        aria-orientation={axis === "y" ? "horizontal" : "vertical"}
+      <CopilotThreadList
+        threads={threads}
+        activeId={activeThreadId}
+        onSelect={onSelectThread}
+        onNew={onNewThread}
+        onRename={onRenameThread}
+        onDelete={onDeleteThread}
       />
-      <div className="copilot-header">
-        <div>
-          <span className="copilot-eyebrow">{t("nav.copilot")}</span>
-          <strong>{threadTitle || t("chat.threadEmpty")}</strong>
-        </div>
-        <div className="copilot-header-actions">
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm copilot-layout-toggle"
-            onClick={onToggleLayout}
-            title={layoutToggleTitle}
-            aria-label={layoutToggleTitle}
-          >
-            {layout === "horizontal" ? "⤓" : "⤔"}
-          </button>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onNewThread}>
-            {t("chat.newThread")}
-          </button>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>
-            ×
-          </button>
-        </div>
-      </div>
-      {userContext ? (
-        <div className="copilot-contexts">
-          <div className="copilot-context-row">
-            <span>{t("chat.userContext")}</span>
-            <button type="button" className="context-chip active" onClick={onRemoveContext}>
-              {userContext.label} <span>×</span>
+      <div className="copilot-panel-main">
+        <div
+          className={`copilot-resize-handle ${axis === "y" ? "row-axis" : "col-axis"}`}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            onResizeStart(axis);
+          }}
+          role="separator"
+          aria-orientation={axis === "y" ? "horizontal" : "vertical"}
+        />
+        <div className="copilot-header">
+          <div>
+            <span className="copilot-eyebrow">{t("nav.copilot")}</span>
+            <strong>{threadTitle || t("chat.threadEmpty")}</strong>
+          </div>
+          <div className="copilot-header-actions">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm copilot-layout-toggle"
+              onClick={onToggleLayout}
+              title={layoutToggleTitle}
+              aria-label={layoutToggleTitle}
+            >
+              {layout === "horizontal" ? <IconPanelBottom /> : <IconPanelSide />}
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onNewThread}>
+              {t("chat.newThread")}
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>
+              ×
             </button>
           </div>
-          <p className="copilot-context-notice">{t("chat.contextNotice")}</p>
         </div>
-      ) : null}
-      <div className="copilot-content">{children}</div>
+        <div className="copilot-content">{children}</div>
+      </div>
     </aside>
   );
 }

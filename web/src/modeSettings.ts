@@ -10,6 +10,7 @@ import { createLocalStorageStore } from "./settingsStore";
 export type AppMode = "advisor" | "research";
 export type ReadingMode = "professional" | "friendly";
 export type RiskTolerance = "conservative" | "moderate" | "aggressive";
+export type HoldingsView = "table" | "cards";
 
 export const BUILTIN_MASTER_IDS = ["buffett", "munger", "burry"] as const;
 export type BuiltinMasterId = (typeof BUILTIN_MASTER_IDS)[number];
@@ -32,6 +33,7 @@ export interface ModeSettings {
   enableMasterCommentary: boolean;
   selectedMasters: string[];
   customMasters: CustomMaster[];
+  holdingsView: HoldingsView;
 }
 
 const STORAGE_KEY = "stockresearch.mode.settings";
@@ -135,6 +137,10 @@ function migrateModeSettings(parsed: unknown): Partial<ModeSettings> {
           : legacy.enableMasterCommentary ?? preset.enableMasterCommentary,
     selectedMasters: selectedMasters.length > 0 ? selectedMasters : [...BUILTIN_MASTER_IDS],
     customMasters: migrateCustomMasters(partial.customMasters ?? partial.custom_masters),
+    holdingsView:
+      partial.holdingsView === "cards" || partial.holdingsView === "table"
+        ? partial.holdingsView
+        : "table",
   };
 }
 
@@ -169,6 +175,7 @@ export const ADVISOR_PRESET: Omit<ModeSettings, "onboarded"> = {
   enableMasterCommentary: false,
   selectedMasters: [...BUILTIN_MASTER_IDS],
   customMasters: [],
+  holdingsView: "table",
 };
 
 export const RESEARCH_PRESET: Omit<ModeSettings, "onboarded"> = {
@@ -182,6 +189,7 @@ export const RESEARCH_PRESET: Omit<ModeSettings, "onboarded"> = {
   enableMasterCommentary: false,
   selectedMasters: [...BUILTIN_MASTER_IDS],
   customMasters: [],
+  holdingsView: "table",
 };
 
 export const DEFAULT_MODE_SETTINGS: ModeSettings = {
@@ -285,6 +293,7 @@ export function modeSettingsFromApiPayload(payload: Partial<ModeSettingsApiPaylo
         ? payload.selected_masters
         : [...BUILTIN_MASTER_IDS],
     customMasters: migrateCustomMasters(payload.custom_masters),
+    holdingsView: "table",
   };
 }
 

@@ -1,7 +1,9 @@
 import type { MarketOverview } from "./api";
-import { formatPrice, formatSignedPct, signedClass } from "./holdingDisplay";
+import { signedClass } from "./holdingDisplay";
+import { QuoteValues } from "./ui/DataValue";
 import { useI18n } from "./i18n";
 import { localizeIndexName } from "./indexLabels";
+import { TickerSparkline } from "./TickerSparkline";
 
 export function MarketTicker({
   overview,
@@ -23,54 +25,59 @@ export function MarketTicker({
   onIndexClick: (name: string) => void;
 }) {
   const { t } = useI18n();
-  const hasMeta =
-    overview?.northbound_net_yi != null ||
-    (overview?.advancers != null && overview?.decliners != null);
 
   return (
-    <div className="market-ticker-wrap">
+    <div className="market-ticker-wrap market-ticker-oneline">
       <div className="ticker-strip">
         {(overview?.indices ?? []).map((idx) => {
           const label = localizeIndexName(idx.symbol, idx.name, t);
           return (
-          <button
-            key={idx.symbol ?? idx.name}
-            type="button"
-            className="ticker-card ticker-card-btn"
-            onClick={() => onIndexClick(label)}
-            title={label}
-          >
-            <span className="ticker-name">{label}</span>
-            <span className="ticker-price mono">{formatPrice(idx.price)}</span>
-            <span className={`ticker-change mono ${signedClass(idx.change_pct)}`}>
-              {formatSignedPct(idx.change_pct)}
-            </span>
-          </button>
+            <button
+              key={idx.symbol ?? idx.name}
+              type="button"
+              className="ticker-card ticker-card-btn"
+              onClick={() => onIndexClick(label)}
+              title={label}
+            >
+              <TickerSparkline changePct={idx.change_pct ?? 0} />
+              <span className="ticker-card-content">
+                <span className="ticker-name">{label}</span>
+                <QuoteValues
+                  inline
+                  price={idx.price}
+                  changePct={idx.change_pct ?? 0}
+                  priceClassName="ticker-price"
+                />
+              </span>
+            </button>
           );
         })}
-        {!overview?.indices?.length && (
-          <div className="ticker-card ticker-card-empty">
-            <span className="muted">{loading ? "…" : "—"}</span>
+        {!overview?.indices?.length && loading && (
+          <div className="ticker-skeleton" aria-busy="true">
+            <div className="skeleton-block" />
+            <div className="skeleton-block" />
+            <div className="skeleton-block" />
           </div>
+        )}
+        {!overview?.indices?.length && !loading && (
+          <div className="ticker-card ticker-card-empty">
+            <span className="muted">—</span>
+          </div>
+        )}
+        {overview?.northbound_net_yi != null && (
+          <span className={`ticker-inline-meta ${signedClass(overview.northbound_net_yi)}`}>
+            {northboundLabel.replace("{v}", overview.northbound_net_yi.toFixed(1))}
+          </span>
+        )}
+        {overview?.advancers != null && overview?.decliners != null && (
+          <span className="ticker-inline-meta muted">
+            {breadthLabel
+              .replace("{up}", String(overview.advancers))
+              .replace("{down}", String(overview.decliners))}
+          </span>
         )}
         <span className="ticker-session-inline">{sessionLabel}</span>
       </div>
-      {hasMeta && (
-        <div className="ticker-meta">
-          {overview?.northbound_net_yi != null && (
-            <span className={signedClass(overview.northbound_net_yi)}>
-              {northboundLabel.replace("{v}", overview.northbound_net_yi.toFixed(1))}
-            </span>
-          )}
-          {overview?.advancers != null && overview?.decliners != null && (
-            <span className="muted">
-              {breadthLabel
-                .replace("{up}", String(overview.advancers))
-                .replace("{down}", String(overview.decliners))}
-            </span>
-          )}
-        </div>
-      )}
       <button
         type="button"
         className="ticker-refresh-hidden"

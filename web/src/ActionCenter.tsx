@@ -1,18 +1,11 @@
 import { useEffect, useState } from "react";
 import { api, type DailyActionCenter, type ActionSignal } from "./api";
 import { useI18n } from "./i18n";
+import { SignalIcon } from "./ui/Icons";
 
 interface ActionCenterProps {
   onNavigate: (tab: string) => void;
   onChatQuery: (query: string) => void;
-}
-
-function signalIcon(type: string, severity: string): string {
-  if (type === "risk" && severity === "critical") return "⚠";
-  if (type === "risk" && severity === "warning") return "⚡";
-  if (type === "news") return "📰";
-  if (type === "price") return "📊";
-  return "📋";
 }
 
 export function ActionCenter({ onNavigate, onChatQuery }: ActionCenterProps) {
@@ -44,8 +37,15 @@ export function ActionCenter({ onNavigate, onChatQuery }: ActionCenterProps) {
 
   if (loading && !data) {
     return (
-    <div className={`action-center${collapsed ? " collapsed" : ""}`}>
-      {renderHeader(undefined, <span className="action-center-loading">{t("actionCenter.loading")}</span>)}
+      <div className={`action-center${collapsed ? " collapsed" : ""}`}>
+        {renderHeader(undefined, <span className="action-center-loading skeleton-block" style={{ width: 48, height: 10 }} aria-hidden="true" />)}
+        {!collapsed && (
+          <div className="action-center-skeleton" aria-busy="true" aria-label={t("actionCenter.loading")}>
+            <div className="skeleton-block" />
+            <div className="skeleton-block" />
+            <div className="skeleton-block" />
+          </div>
+        )}
       </div>
     );
   }
@@ -87,7 +87,9 @@ export function ActionCenter({ onNavigate, onChatQuery }: ActionCenterProps) {
               tabIndex={0}
             >
               <div className="signal-card-header">
-                <span className="signal-icon">{signalIcon(signal.type, signal.severity)}</span>
+                <span className="signal-icon">
+                  <SignalIcon type={signal.type} severity={signal.severity} />
+                </span>
                 <span className="signal-title">{signal.title}</span>
               </div>
               {signal.detail && <p className="signal-detail">{signal.detail}</p>}

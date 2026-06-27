@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StockResearch · 配色 Mock v2（深色 A/C + 浅色改版，确认后再落地）</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, "PingFang SC", sans-serif; background: #080808; color: #ccc; }
+    .head { position: sticky; top: 0; z-index: 5; padding: 16px 20px; background: rgba(8,8,8,.94); border-bottom: 1px solid #222; backdrop-filter: blur(8px); }
+    .head h1 { margin: 0 0 6px; font-size: 18px; }
+    .head p { margin: 0; color: #888; font-size: 13px; max-width: 820px; line-height: 1.5; }
+    section.block { padding: 16px 20px 8px; }
+    section.block h2 { margin: 0 0 12px; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; color: #666; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+    .card { border: 1px solid #252525; border-radius: 10px; overflow: hidden; background: #0e0e0e; }
+    .card-head { padding: 10px 12px; border-bottom: 1px solid #222; }
+    .card-head h3 { margin: 0 0 3px; font-size: 14px; }
+    .card-head p { margin: 0; font-size: 12px; color: #777; }
+    .tag { display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+    .mock { font-size: 12px; }
+    .bar, .ticker, .body, .sw { background: var(--bg); color: var(--text); }
+    .bar { display: flex; justify-content: space-between; align-items: center; padding: 9px 11px; font-family: "JetBrains Mono", monospace; font-size: 11px; font-weight: 700; background: var(--header-bg); color: var(--header-fg); border-bottom: 1px solid var(--border); }
+    .bar .btns { display: flex; gap: 5px; }
+    .pill { padding: 3px 7px; border-radius: 4px; font-size: 10px; border: 1px solid transparent; }
+    .pill.on { background: var(--accent); color: var(--accent-fg); }
+    .pill.ghost { border-color: var(--border); color: var(--muted); }
+    .ticker { display: flex; align-items: center; min-height: 32px; border-bottom: 1px solid var(--border); font-family: "JetBrains Mono", monospace; font-size: 10.5px; white-space: nowrap; overflow: hidden; }
+    .ticker .i { padding: 3px 8px; border-right: 1px solid var(--border); display: inline-flex; gap: 5px; align-items: baseline; }
+    .ticker .n { color: var(--muted); font-size: 9px; }
+    .ticker .p { color: var(--dim); font-weight: 700; }
+    .ticker .m { padding: 0 8px; color: var(--muted); border-left: 1px solid var(--border); }
+    .ticker .s { margin-left: auto; padding: 0 8px; color: var(--muted); }
+    .up { color: var(--up); } .down { color: var(--down); }
+    .body { display: grid; grid-template-columns: 96px 1fr; min-height: 168px; }
+    .nav { border-right: 1px solid var(--border); padding: 6px 0; }
+    .nav div { padding: 7px 10px; color: var(--muted); font-size: 11px; }
+    .nav div.on { color: var(--text); background: var(--nav-active); box-shadow: inset 2px 0 0 var(--accent); }
+    .main { padding: 10px; }
+    .panel { border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); padding: 8px 10px; margin-bottom: 6px; }
+    .panel b { display: block; font-size: 11px; margin-bottom: 4px; }
+    .panel span { color: var(--muted); font-size: 10.5px; line-height: 1.45; }
+    .threads { display: flex; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--border); background: var(--panel-2); }
+    .threads i { flex: 0 0 auto; padding: 4px 6px; border-radius: 4px; font-size: 9px; font-style: normal; border: 1px solid var(--border); color: var(--muted); }
+    .threads i.on { background: var(--nav-active); color: var(--text); border-color: var(--accent); }
+    .sw { display: flex; flex-wrap: wrap; gap: 5px; padding: 8px 10px 10px; border-top: 1px solid var(--border); }
+    .sw i { width: 46px; text-align: center; font-size: 8px; color: #666; font-style: normal; }
+    .sw i b { display: block; height: 14px; border-radius: 3px; margin-bottom: 3px; border: 1px solid rgba(0,0,0,.06); }
+
+    /* Dark A */
+    .a { --bg:#0b0d10; --panel:#12151a; --panel-2:#181c24; --border:#2a303c; --text:#e8eaed; --muted:#9aa3b2; --dim:#6b7280; --accent:#818cf8; --accent-fg:#0b0d10; --up:#34d399; --down:#f87171; --header-bg:#12151a; --header-fg:#e8eaed; --nav-active:#1c2330; --radius:8px; }
+    .a .tag { background: rgba(129,140,248,.14); color: #c7d2fe; }
+    /* Dark C */
+    .c { --bg:#0c0c0c; --panel:#141414; --panel-2:#1a1a1a; --border:#2d2d2d; --text:#ececec; --muted:#9a9a9a; --dim:#6e6e6e; --accent:#f59e0b; --accent-fg:#111; --up:#22c55e; --down:#ef4444; --header-bg:#151515; --header-fg:#f5f5f5; --nav-active:#1f1a12; --radius:4px; }
+    .c .tag { background: rgba(245,158,11,.12); color: #fcd34d; }
+    .c .bar { box-shadow: inset 0 -1px 0 rgba(245,158,11,.22); }
+    /* Light D — Wine refined */
+    .d { --bg:#f8f6f7; --panel:#ffffff; --panel-2:#f3eef0; --border:#e4d6da; --text:#24181a; --muted:#6f585c; --dim:#9a8488; --accent:#8b2942; --accent-fg:#fff; --up:#15803d; --down:#dc2626; --header-bg:#8b2942; --header-fg:#fff; --nav-active:#f0e4e8; --radius:8px; }
+    .d .tag { background: rgba(139,41,66,.1); color: #8b2942; }
+    /* Light E — Paper neutral */
+    .e { --bg:#fafafa; --panel:#ffffff; --panel-2:#f4f4f5; --border:#e4e4e7; --text:#18181b; --muted:#71717a; --dim:#a1a1aa; --accent:#2563eb; --accent-fg:#fff; --up:#16a34a; --down:#dc2626; --header-bg:#ffffff; --header-fg:#18181b; --nav-active:#eef2ff; --radius:8px; }
+    .e .tag { background: #eef2ff; color: #2563eb; }
+    .e .bar { border-bottom: 2px solid #2563eb; }
+    /* Light F — Cool slate */
+    .f { --bg:#f1f5f9; --panel:#ffffff; --panel-2:#e8eef4; --border:#cbd5e1; --text:#0f172a; --muted:#64748b; --dim:#94a3b8; --accent:#0ea5e9; --accent-fg:#082f49; --up:#059669; --down:#e11d48; --header-bg:#0f172a; --header-fg:#f8fafc; --nav-active:#e0f2fe; --radius:8px; }
+    .f .tag { background: #e0f2fe; color: #0369a1; }
+    /* Light G — Warm cream */
+    .g { --bg:#faf8f5; --panel:#fffcf8; --panel-2:#f5f0e8; --border:#e8dfd3; --text:#2c2419; --muted:#7a6f63; --dim:#a89888; --accent:#b45309; --accent-fg:#fff; --up:#15803d; --down:#c2410c; --header-bg:#2c2419; --header-fg:#faf8f5; --nav-active:#f5ead8; --radius:10px; }
+    .g .tag { background: #ffedd5; color: #b45309; }
+  </style>
+</head>
+<body>
+  <div class="head">
+    <h1>配色 Mock v2 · 先选方案，再写入 tokens.css</h1>
+    <p>深色：<strong>A 石板靛蓝</strong>、<strong>C 暖石墨</strong>。浅色：改版酒红 <strong>D</strong>，以及三种白底方向 <strong>E 纸张中性 / F 冷灰蓝 / G 暖米白</strong>。均含单行指数条 + 对话线程侧栏示意。</p>
+  </div>
+
+  <section class="block">
+    <h2>深色方案</h2>
+    <div class="grid" id="dark-grid"></div>
+  </section>
+  <section class="block">
+    <h2>浅色方案</h2>
+    <div class="grid" id="light-grid"></div>
+  </section>
+
+  <script>
+    const schemes = [
+      { cls: "a", grid: "dark-grid", name: "A · 石板靛蓝", desc: "AI/SaaS 产品感，靛蓝强调，顶栏深色。", tag: "深色推荐" },
+      { cls: "c", grid: "dark-grid", name: "C · 暖石墨", desc: "保留终端基因，琥珀点缀，对比更柔和。", tag: "深色保守升级" },
+      { cls: "d", grid: "light-grid", name: "D · 酒红改版", desc: "在现有酒红白基础上：降低粉紫灰、提高对比、顶栏酒红更稳。", tag: "浅色 · 品牌延续" },
+      { cls: "e", grid: "light-grid", name: "E · 纸张白", desc: "中性白底 + 蓝色强调，阅读最干净。", tag: "浅色 · 通用" },
+      { cls: "f", grid: "light-grid", name: "F · 冷灰蓝", desc: "Slack/Notion 式冷灰底，专业研报气质。", tag: "浅色 · 专业" },
+      { cls: "g", grid: "light-grid", name: "G · 暖米白", desc: "暖白纸张 + 深棕顶栏，长时间阅读友好。", tag: "浅色 · 温和" },
+    ];
+
+    function mock(cls, name, desc, tag) {
+      return `<article class="card ${cls}"><div class="card-head"><h3>${name}</h3><p>${desc}</p><span class="tag">${tag}</span></div><div class="mock">
+        <div class="bar"><span>STOCKRESEARCH</span><div class="btns"><span class="pill ghost">设置</span><span class="pill on">AI 对话</span></div></div>
+        <div class="ticker"><span class="i"><span class="n">上证</span><span class="p">3245.12</span><span class="up">+0.52%</span></span><span class="i"><span class="n">深成</span><span class="p">10521.8</span><span class="down">-0.18%</span></span><span class="m up">北向+12.3亿</span><span class="m">2841/1923</span><span class="s">14:32</span></div>
+        <div class="body"><nav class="nav"><div class="on">持仓</div><div>市场</div><div>新闻</div></nav><main class="main">
+          <div class="threads"><i class="on">分析宁德时代</i><i>市场解读</i><i>新对话</i></div>
+          <div class="panel"><b>综合结论</b><span>加权综合 7.2/10，倾向偏多。基本面盈利质量改善，情绪面偏暖，技术面均线多头但量能一般。</span></div>
+          <div class="panel"><b>四维分析</b><span>基本面 · 技术面 · 情绪面 · 筹码面（默认折叠）</span></div>
+        </main></div>
+        <div class="sw"><i><b style="background:var(--bg)"></b>bg</i><i><b style="background:var(--accent)"></b>accent</i><i><b style="background:var(--up)"></b>up</i><i><b style="background:var(--down)"></b>down</i><i><b style="background:var(--muted)"></b>muted</i></div>
+      </div></article>`;
+    }
+
+    for (const s of schemes) {
+      document.getElementById(s.grid).insertAdjacentHTML("beforeend", mock(s.cls, s.name, s.desc, s.tag));
+    }
+  </script>
+</body>
+</html>

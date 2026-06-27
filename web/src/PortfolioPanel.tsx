@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { type HoldingEnriched } from "./api";
-import { formatPrice, formatSignedMoney, formatSignedPct, signedClass } from "./holdingDisplay";
+import { formatMoney, formatPrice, formatSignedMoney, formatSignedPct, signedClass } from "./holdingDisplay";
+import type { HoldingsView } from "./modeSettings";
 import { HoldingTradeModal } from "./HoldingTradeModal";
 import { getBriefingKind } from "./briefingKind";
 import { useI18n } from "./i18n";
@@ -13,6 +14,7 @@ interface PortfolioPanelProps {
   portfolioSummary: PortfolioSummary;
   sectorMix: SectorWeight[];
   numLocale: string;
+  holdingsView?: HoldingsView;
   chatLoading?: boolean;
   onLoadHoldings: () => void;
   onDeleteHolding: (id: number) => void;
@@ -69,6 +71,7 @@ export function PortfolioPanel({
   portfolioSummary,
   sectorMix,
   numLocale,
+  holdingsView = "table",
   chatLoading = false,
   onLoadHoldings,
   onDeleteHolding,
@@ -97,6 +100,161 @@ export function PortfolioPanel({
   const briefingKind = useMemo(() => getBriefingKind(), []);
   const briefingQuery =
     briefingKind === "intraday" ? t("portfolio.briefingIntraday") : t("portfolio.briefingPostMarket");
+
+  function holdingMarketValue(h: HoldingEnriched): number | null {
+    if (!h.quote_available || h.price == null) return null;
+    return h.price * h.quantity;
+  }
+
+  function holdingWeight(mv: number | null): number | null {
+    if (mv == null || portfolioSummary.totalValue <= 0) return null;
+    return (mv / portfolioSummary.totalValue) * 100;
+  }
+
+  function renderHoldingsTable() {
+    return (
+      <div className="holdings-table-wrap">
+        <table className="holdings-table">
+          <thead>
+            <tr>
+              <th>{t("portfolio.stock")}</th>
+              <th className="num">{t("portfolio.marketValueCol")}</th>
+              <th className="num">{t("portfolio.weightCol")}</th>
+              <th className="num">{t("portfolio.latestPriceCol")}</th>
+              <th className="num">{t("portfolio.dayChangeCol")}</th>
+              <th className="num">{t("portfolio.totalPnlCol")}</th>
+              <th className="num">{t("portfolio.totalPnlPctCol")}</th>
+              <th className="actions">{t("portfolio.actionsCol")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {holdings.map((h) => {
+              const mv = holdingMarketValue(h);
+              const weight = holdingWeight(mv);
+              return (
+                <tr key={h.id}>
+                  <td>
+                    <div className="holding-name">{h.name}</div>
+                    <div className="holding-meta muted">
+                      {h.symbol} · {h.sector}
+                    </div>
+                  </td>
+                  <td className="mono num">{h.quote_available ? formatMoney(mv, numLocale) : "—"}</td>
+                  <td className="mono num">{weight != null ? `${weight.toFixed(1)}%` : "—"}</td>
+                  <td className="mono num">
+                    {h.quote_available ? formatPrice(h.price ?? null) : "—"}
+                  </td>
+                  <td className={`mono num ${signedClass(h.change_pct)}`}>
+                    {h.quote_available ? formatSignedPct(h.change_pct ?? null) : "—"}
+                  </td>
+                  <td className={`mono num ${signedClass(h.profit_amount)}`}>
+                    {h.quote_available ? formatSignedMoney(h.profit_amount ?? null) : "—"}
+                  </td>
+                  <td className={`mono num ${signedClass(h.profit_pct)}`}>
+                    {h.quote_available ? formatSignedPct(h.profit_pct ?? null) : "—"}
+                  </td>
+                  <td className="actions">
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => onAnalyzeHolding(h)}>
+                      {t("portfolio.analyze")}
+                    </button>{" "}
+                    <button
+                      type="button"
+                      className={`btn btn-ghost btn-sm${chartSymbol === h.symbol ? " active" : ""}`}
+                      onClick={() => setChartSymbol(chartSymbol === h.symbol ? null : h.symbol)}
+                    >
+                      {t("portfolio.chart")}
+                    </button>
+                    {editMode && h.id != null ? (
+                      <>
+                        {" "}
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm holding-delete-btn"
+                          onClick={() => onDeleteHolding(h.id!)}
+                        >
+                          {t("portfolio.deleteHolding")}
+                        </button>
+                      </>
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  function renderHoldingsCards() {
+    return (
+      <div className="holdings-grid">
+        {holdings.map((h) => (
+          <div key={h.id} className={`holding-card ${signedClass(h.profit_pct)}`}>
+            <div className="holding-title">
+              <div>
+                <div className="holding-name">{h.name}</div>
+                <div className="holding-symbol muted">
+                  {h.symbol} · {h.sector}
+                </div>
+              </div>
+              <div className="holding-title-actions">
+                {h.quote_available && h.change_pct != null && (
+                  <span className={`holding-badge ${signedClass(h.change_pct)}`}>
+                    {formatSignedPct(h.change_pct)}
+                  </span>
+                )}
+                {editMode && h.id != null && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm holding-delete-btn"
+                    onClick={() => onDeleteHolding(h.id!)}
+                  >
+                    {t("portfolio.deleteHolding")}
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="holding-price mono">
+              {h.quote_available ? formatPrice(h.price ?? null) : "—"}
+            </div>
+            <div className="holding-tags">
+              <span className="holding-tag">
+                {t("portfolio.marketValueCol")}:{" "}
+                {h.quote_available ? formatMoney(holdingMarketValue(h), numLocale) : "—"}
+              </span>
+              <span className="holding-tag">
+                {t("portfolio.weightCol")}:{" "}
+                {holdingWeight(holdingMarketValue(h)) != null
+                  ? `${holdingWeight(holdingMarketValue(h))!.toFixed(1)}%`
+                  : "—"}
+              </span>
+            </div>
+            <div className="holding-pnl">
+              <span className={`amt mono ${signedClass(h.profit_amount)}`}>
+                {h.quote_available ? formatSignedMoney(h.profit_amount ?? null) : "—"}
+              </span>
+              <span className={`pct mono ${signedClass(h.profit_pct)}`}>
+                {h.quote_available ? formatSignedPct(h.profit_pct ?? null) : "—"}
+              </span>
+            </div>
+            <div className="holding-actions">
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => onAnalyzeHolding(h)}>
+                {t("portfolio.analyze")}
+              </button>
+              <button
+                type="button"
+                className={`btn btn-ghost btn-sm${chartSymbol === h.symbol ? " active" : ""}`}
+                onClick={() => setChartSymbol(chartSymbol === h.symbol ? null : h.symbol)}
+              >
+                {t("portfolio.chart")}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="panel portfolio-panel">
@@ -197,64 +355,10 @@ export function PortfolioPanel({
         <div className="card-body">
           {holdings.length === 0 ? (
             <p className="muted holdings-empty">{t("portfolio.empty")}</p>
+          ) : holdingsView === "table" ? (
+            renderHoldingsTable()
           ) : (
-            <div className="holdings-grid">
-              {holdings.map((h) => (
-                <div key={h.id} className={`holding-card ${signedClass(h.profit_pct)}`}>
-                  <div className="holding-title">
-                    <div>
-                      <div className="holding-name">{h.name}</div>
-                      <div className="holding-symbol muted">
-                        {h.symbol} · {h.sector}
-                      </div>
-                    </div>
-                    <div className="holding-title-actions">
-                      {h.quote_available && h.change_pct != null && (
-                        <span className={`holding-badge ${signedClass(h.change_pct)}`}>
-                          {formatSignedPct(h.change_pct)}
-                        </span>
-                      )}
-                      {editMode && h.id != null && (
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm holding-delete-btn"
-                          onClick={() => onDeleteHolding(h.id!)}
-                        >
-                          {t("portfolio.deleteHolding")}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="holding-price mono">
-                    {h.quote_available ? formatPrice(h.price ?? null) : "—"}
-                  </div>
-                  <div className="holding-tags">
-                    <span className="holding-tag">{t("portfolio.qty")}: {h.quantity}</span>
-                    <span className="holding-tag">{t("portfolio.costCol")}: {h.cost_price.toFixed(2)}</span>
-                  </div>
-                  <div className="holding-pnl">
-                    <span className={`amt mono ${signedClass(h.profit_amount)}`}>
-                      {h.quote_available ? formatSignedMoney(h.profit_amount ?? null) : "—"}
-                    </span>
-                    <span className={`pct mono ${signedClass(h.profit_pct)}`}>
-                      {h.quote_available ? formatSignedPct(h.profit_pct ?? null) : "—"}
-                    </span>
-                  </div>
-                  <div className="holding-actions">
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => onAnalyzeHolding(h)}>
-                      {t("portfolio.analyze")}
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn btn-ghost btn-sm${chartSymbol === h.symbol ? " active" : ""}`}
-                      onClick={() => setChartSymbol(chartSymbol === h.symbol ? null : h.symbol)}
-                    >
-                      {t("portfolio.chart")}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            renderHoldingsCards()
           )}
         </div>
       </div>

@@ -17,6 +17,7 @@ import type { CopilotContext, Message, Tab } from "./appTypes";
 import { copilotContextToPayload } from "./chatContext";
 import { ChatPanel } from "./ChatPanel";
 import { CopilotPanel, type CopilotLayout } from "./CopilotPanel";
+import { useCopilotThreads } from "./hooks/useCopilotThreads";
 import { DailyScanPanel } from "./DailyScanPanel";
 import { DataSourceDetails } from "./DataSourceDetails";
 import { DemoBanner } from "./DemoBanner";
@@ -24,8 +25,9 @@ import { ActionCenter } from "./ActionCenter";
 import { useI18n } from "./i18n";
 import { isLlmConfiguredLocally, isServerLlmConfigured } from "./llmSettings";
 import { formatHeaderUsage, formatLlmUsage } from "./llmUsageFormat";
+import { indexSymbolKey, localizeIndexName } from "./indexLabels";
 import { MarketTicker } from "./MarketTicker";
-import { MarketPanel } from "./MarketPanel";
+import { MarketPanel, type SelectedMarketIndex } from "./MarketPanel";
 import { NewsPanel } from "./NewsPanel";
 import { computePortfolioSummary, computeSectorConcentration } from "./portfolioHelpers";
 import { PortfolioPanel } from "./PortfolioPanel";
@@ -94,13 +96,26 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("portfolio");
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [pageContext, setPageContext] = useState<CopilotContext | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [sessionId, setSessionId] = useState<string>();
+  const {
+    threads: copilotThreads,
+    activeId: activeThreadId,
+    activeThread,
+    messages,
+    sessionId,
+    input,
+    setInput,
+    chatStream,
+    setChatStream,
+    switchThread,
+    newThread: newCopilotThread,
+    renameThread,
+    deleteThread,
+    appendMessages,
+    setSessionId,
+  } = useCopilotThreads({ defaultTitle: t("copilot.untitledThread") });
   const [chatLoading, setChatLoading] = useState(false);
   const [riskLoading, setRiskLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
-  const [chatStream, setChatStream] = useState(emptyStreamState());
   const [news, setNews] = useState<NewsItem[]>([]);
   const [holdings, setHoldings] = useState<HoldingEnriched[]>([]);
   const [holdingsLoading, setHoldingsLoading] = useState(false);
@@ -114,6 +129,7 @@ export default function App() {
   const [dataDetailsOpen, setDataDetailsOpen] = useState(false);
   const [dataStatus, setDataStatus] = useState<DataSourceStatus | null>(null);
   const [marketOverview, setMarketOverview] = useState<MarketOverview | null>(null);
+  const [marketChartIndex, setMarketChartIndex] = useState<SelectedMarketIndex | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [newsSectors, setNewsSectors] = useState<SectorPreferences | null>(null);
   const [sectorSaving, setSectorSaving] = useState(false);
@@ -122,7 +138,7 @@ export default function App() {
   const autoDemoLoadRequested = useRef(false);
   const [modeSettings, setModeSettings] = useState<ModeSettings>(() => loadModeSettings());
   const [onboardingOpen, setOnboardingOpen] = useState(() => !loadModeSettings().onboarded);
-  const [copilotWidth, setCopilotWidth] = useState(430);
+  const [copilotWidth, setCopilotWidth] = useState(580);
   const [copilotHeight, setCopilotHeight] = useState(360);
   const [copilotLayout, setCopilotLayout] = useState<CopilotLayout>("horizontal");
   const [glossary, setGlossary] = useState<Record<string, GlossaryTerm>>({});
@@ -316,25 +332,6 @@ export default function App() {
   }, [tab]);
 
   useEffect(() => {
-    const fnMap: Partial<Record<string, Tab>> = {
-      F1: "portfolio",
-      F2: "daily_scan",
-      F3: "risk",
-      F4: "market",
-      F5: "news",
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      const next = fnMap[e.key];
-      if (!next) return;
-      e.preventDefault();
-      setTab(next);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
-
-  useEffect(() => {
     if (tab !== "portfolio") return;
     let timeoutId = 0;
 
@@ -428,12 +425,6 @@ export default function App() {
           ...processSnapshot,
           streamStatus: processSnapshot.streamStatus || statusMsg || t("chat.analysisDone"),
         };
-        const hasResearchCard = resp.cards?.some((c) => c.type === "research");
-        const hasProcessTrail =
-          processSnapshot.streamLog.length > 0 ||
-          processSnapshot.agentSteps.length > 0 ||
-          processSnapshot.debateRounds.length > 0 ||
-          processSnapshot.judgeVerdict != null;
         const assistantMsg: Message = {
           role: "assistant",
           content: stripDisclaimer(resp.reply),
@@ -441,19 +432,15 @@ export default function App() {
           intent: resp.intent,
           followUpQuestions: resp.follow_up_questions ?? [],
           llmUsage: resp.llm_usage ?? null,
-          process:
-            hasProcessTrail || hasResearchCard
-              ? processSnapshot
-              : undefined,
         };
-        setMessages((m) => [...m, assistantMsg]);
+        appendMessages((m) => [...m, assistantMsg]);
       }
     } catch {
       try {
         setStatusMsg(t("chat.streamFailed"));
         const resp = await api.chat(query, sessionId, chatOptions);
         setSessionId(resp.session_id);
-        setMessages((m) => [
+        appendMessages((m) => [
           ...m,
           {
             role: "assistant",
@@ -465,7 +452,7 @@ export default function App() {
           },
         ]);
       } catch (e) {
-        setMessages((m) => [...m, { role: "assistant", content: `Error: ${String(e)}` }]);
+        appendMessages((m) => [...m, { role: "assistant", content: `Error: ${String(e)}` }]);
       }
     } finally {
       setChatLoading(false);
@@ -480,7 +467,7 @@ export default function App() {
     if (!query.trim() || chatLoading) return;
     if (opts?.switchTab) setCopilotOpen(true);
     setInput("");
-    setMessages((m) => [...m, { role: "user", content: query }]);
+    appendMessages((m) => [...m, { role: "user", content: query }]);
     void executeChat(query, undefined, opts?.context);
   }
 
@@ -501,11 +488,19 @@ export default function App() {
     startChatQuery(q, { switchTab: true, context });
   }
 
-  function onTickerIndexClick(_name: string) {
+  function onTickerIndexClick(name: string) {
     setTab("market");
-    setPageContext({ kind: "market", label: _name });
-    setCopilotOpen(true);
-    setInput(t("chat.exampleMarketQuery"));
+    const match = marketOverview?.indices.find(
+      (idx) => localizeIndexName(idx.symbol, idx.name, t) === name,
+    );
+    if (match) {
+      const symbol = indexSymbolKey(match.symbol, match.name);
+      if (symbol) {
+        setMarketChartIndex({ symbol, name: localizeIndexName(match.symbol, match.name, t) });
+        return;
+      }
+    }
+    setMarketChartIndex(null);
   }
 
   function askCopilot(
@@ -527,30 +522,22 @@ export default function App() {
     if (chatLoading) return;
     setInput("");
     setChatStream(emptyStreamState());
-    setMessages((m) => [...m, { role: "user", content: userLabel }]);
+    appendMessages((m) => [...m, { role: "user", content: userLabel }]);
     setChatLoading(true);
     setStatusMsg(t("portfolio.briefingLoading"));
     try {
       const raw = await api.generateBriefing(kind);
       const briefing = localizeBriefing(raw, t);
-      setMessages((m) => [
+      appendMessages((m) => [
         ...m,
         { role: "assistant", content: formatBriefingMarkdown(briefing) },
       ]);
     } catch (e) {
-      setMessages((m) => [...m, { role: "assistant", content: `Error: ${String(e)}` }]);
+      appendMessages((m) => [...m, { role: "assistant", content: `Error: ${String(e)}` }]);
     } finally {
       setChatLoading(false);
       setStatusMsg("");
     }
-  }
-
-  function newCopilotThread() {
-    setMessages([]);
-    setSessionId(undefined);
-    setChatStream(emptyStreamState());
-    setStatusMsg("");
-    setInput("");
   }
 
   function handleActionNavigate(target: string) {
@@ -585,7 +572,7 @@ export default function App() {
 
   function confirmChatStock(originalMessage: string, symbol: string, name: string) {
     if (chatLoading) return;
-    setMessages((m) => [...m, { role: "user", content: `${name}（${symbol}）` }]);
+    appendMessages((m) => [...m, { role: "user", content: `${name}（${symbol}）` }]);
     void executeChat(originalMessage, { confirmedSymbol: symbol, confirmedName: name });
   }
 
@@ -597,7 +584,7 @@ export default function App() {
       preset: t("chat.routePreset"),
       auto: t("chat.routeAuto"),
     };
-    setMessages((m) => [
+    appendMessages((m) => [
       ...m,
       { role: "user", content: t("chat.selectedMode", { mode: labels[preference] }) },
     ]);
@@ -810,6 +797,7 @@ export default function App() {
                 portfolioSummary={portfolioSummary}
                 sectorMix={sectorMix}
                 numLocale={numLocale}
+                holdingsView={modeSettings.holdingsView}
                 chatLoading={chatLoading}
                 onLoadHoldings={() => void loadHoldings()}
                 onDeleteHolding={(id) => void deleteHolding(id)}
@@ -856,6 +844,8 @@ export default function App() {
               overview={marketOverview}
               loading={overviewLoading}
               onRefresh={() => void loadOverview()}
+              selectedIndex={marketChartIndex}
+              onSelectIndex={setMarketChartIndex}
               onAskCopilot={(query) =>
                 askCopilot(query, {
                   kind: "market",
@@ -877,11 +867,16 @@ export default function App() {
 
         <CopilotPanel
           open={copilotOpen}
-          threadTitle={messages.find((message) => message.role === "user")?.content || ""}
+          threadTitle={activeThread?.title || ""}
+          threads={copilotThreads}
+          activeThreadId={activeThreadId}
           userContext={pageContext}
           layout={copilotLayout}
           onClose={() => setCopilotOpen(false)}
           onNewThread={newCopilotThread}
+          onSelectThread={switchThread}
+          onRenameThread={renameThread}
+          onDeleteThread={deleteThread}
           onRemoveContext={() => setPageContext(null)}
           onToggleLayout={() =>
             setCopilotLayout((prev) => (prev === "horizontal" ? "vertical" : "horizontal"))

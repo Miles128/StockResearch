@@ -19,6 +19,7 @@ describe("modeSettings API conversion", () => {
       enableMasterCommentary: true,
       selectedMasters: ["buffett", "munger"],
       customMasters: [{ id: "dalio", name: "Dalio", systemPrompt: "Macro cycles and risk parity." }],
+      holdingsView: "table",
     };
 
     expect(modeSettingsToApiPayload(settings)).toEqual({
@@ -63,6 +64,7 @@ describe("modeSettings API conversion", () => {
       enableMasterCommentary: false,
       selectedMasters: ["burry"],
       customMasters: [],
+      holdingsView: "table",
     });
   });
 });

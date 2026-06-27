@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DimensionCards, type DimensionCardItem } from "./DimensionCards";
 import { parseDebateSpeech } from "./debateText";
 import { stripDisclaimer } from "./disclaimerText";
 import { MarkdownContent } from "./MarkdownContent";
@@ -62,57 +63,6 @@ interface StreamFeedProps {
 
 const DEBATE_ROLES = new Set(["bull", "bear", "aggressive", "neutral", "conservative", "vote"]);
 const SUMMARY_ROLES = new Set(["manager", "judge"]);
-
-function DimensionCard({
-  step,
-  streaming,
-  startedLabel,
-  doneLabel,
-  pendingLabel,
-  analyzingLabel,
-  typingLabel,
-}: {
-  step: AgentStep;
-  streaming: boolean;
-  startedLabel: string;
-  doneLabel: string;
-  pendingLabel: string;
-  analyzingLabel: string;
-  typingLabel: string;
-}) {
-  const statusLabel =
-    step.status === "done"
-      ? doneLabel
-      : step.status === "running"
-        ? startedLabel
-        : pendingLabel;
-  const showBody = step.status !== "pending";
-  return (
-    <div className={`dimension-card dimension-${step.status}`}>
-      <div className="dimension-card-head">
-        <strong>{step.agent_name}</strong>
-        <span className={`dimension-status dimension-status-${step.status}`}>{statusLabel}</span>
-      </div>
-      {showBody && (
-        <div className="dimension-card-body">
-          {step.status === "running" && !step.content && (
-            <p className="muted dimension-card-hint">{analyzingLabel}</p>
-          )}
-          {step.content && (
-            <div className="stream-msg-body">
-              <MarkdownContent text={stripDisclaimer(step.content)} />
-              {streaming && <span className="stream-cursor">▍</span>}
-            </div>
-          )}
-          {step.status === "running" && step.content && streaming && (
-            <span className="muted dimension-card-hint">{typingLabel}</span>
-          )}
-          {step.status === "done" && <p className="muted dimension-card-done">{doneLabel}</p>}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function managerStep(steps: AgentStep[]): AgentStep | undefined {
   return steps.find((step) => step.role === "manager" || step.agent_id === "research_manager");
@@ -282,18 +232,30 @@ export function StreamFeed({
       {showDimensionGrid && (
         <div className="dimension-grid">
           <p className="stream-section-title">{t("stream.fourDim")}</p>
-          {dimensionSteps.map((step) => (
-            <DimensionCard
-              key={step.agent_id}
-              step={step}
-              streaming={isTyping(step.agent_id)}
-              startedLabel={t("stream.dimStarted")}
-              doneLabel={t("stream.dimDone")}
-              pendingLabel={t("stream.dimPending")}
-              analyzingLabel={t("stream.analyzing")}
-              typingLabel={t("stream.typing")}
-            />
-          ))}
+          <DimensionCards
+            defaultOpen={false}
+            labels={{
+              confidence: t("card.confidence"),
+              highlights: t("card.highlights"),
+              risks: t("card.risks"),
+              analyzing: t("stream.analyzing"),
+            }}
+            items={dimensionSteps.map(
+              (step): DimensionCardItem => ({
+                id: step.agent_id,
+                title: localizeAgentDisplay(step.agent_id, step.agent_name, t),
+                status: step.status,
+                statusLabel:
+                  step.status === "done"
+                    ? t("stream.dimDone")
+                    : step.status === "running"
+                      ? t("stream.dimStarted")
+                      : t("stream.dimPending"),
+                body: step.content ? stripDisclaimer(step.content) : undefined,
+                streaming: isTyping(step.agent_id),
+              }),
+            )}
+          />
         </div>
       )}
 

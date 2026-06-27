@@ -4,7 +4,7 @@ interface TabNavProps {
   className: string;
   tab: Tab;
   onTab: (key: Tab) => void;
-  items: { key: Tab; label: string; fn: string }[];
+  items: { key: Tab; label: string }[];
   ariaLabel: string;
   compact?: boolean;
   locale?: "zh" | "en";
@@ -29,9 +29,7 @@ export function TabNav({
           type="button"
           className={`nav-btn${tab === n.key ? " active" : ""}`}
           onClick={() => onTab(n.key)}
-          aria-keyshortcuts={compact ? undefined : n.fn}
         >
-          {!compact && <span className="fn-key">{n.fn}</span>}
           <span className="nav-label">{n.label}</span>
         </button>
       ))}
@@ -43,7 +41,6 @@ export function TabNav({
           title={locale === "zh" ? "English" : "中文"}
           aria-label={locale === "zh" ? "Switch to English" : "切换为中文"}
         >
-          {!compact && <span className="fn-key" aria-hidden="true"> </span>}
           <span className="nav-label">{locale === "zh" ? "EN" : "中"}</span>
         </button>
       )}

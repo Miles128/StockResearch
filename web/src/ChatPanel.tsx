@@ -54,6 +54,26 @@ export function ChatPanel({
   const { t } = useI18n();
   const markdownProps = { enableGlossary, glossary };
 
+  function renderAssistantContent(m: Message) {
+    const showConclusionShell = isResearchTurn(m.cards, m.intent);
+
+    return (
+      <>
+        {m.content.trim() &&
+          (showConclusionShell ? (
+            <div className="message assistant conclusion-panel">
+              <p className="process-panel-title">{t("chat.conclusion")}</p>
+              <MarkdownContent text={m.content} {...markdownProps} />
+            </div>
+          ) : (
+            <div className="message assistant">
+              <MarkdownContent text={m.content} {...markdownProps} />
+            </div>
+          ))}
+      </>
+    );
+  }
+
   return (
     <div className="panel chat-panel">
       <div className="chat-messages">
@@ -87,33 +107,7 @@ export function ChatPanel({
               </div>
             ) : (
               <>
-                {(() => {
-                  const researchReport = findResearchReport(m.cards);
-                  if (!m.process && !researchReport) return null;
-                  return (
-                    <div className="message assistant process-panel">
-                      <p className="process-panel-title">{t("chat.processTitle")}</p>
-                      {m.process && (
-                        <StreamFeed
-                          streamStatus={m.process.streamStatus}
-                          streamLog={m.process.streamLog}
-                          agentSteps={m.process.agentSteps}
-                          debateRounds={m.process.debateRounds}
-                          judgeVerdict={m.process.judgeVerdict}
-                          voteTally={m.process.voteTally}
-                          activeStreamIds={[]}
-                          masterCommentary={m.process.masterCommentary}
-                        />
-                      )}
-                    </div>
-                  );
-                })()}
-                {m.content.trim() && (
-                  <div className="message assistant conclusion-panel">
-                    <p className="process-panel-title">{t("chat.conclusion")}</p>
-                    <MarkdownContent text={m.content} {...markdownProps} />
-                  </div>
-                )}
+                {renderAssistantContent(m)}
                 {(() => {
                   const researchReport = findResearchReport(m.cards);
                   if (researchReport) {
@@ -172,9 +166,6 @@ export function ChatPanel({
               voteTally={chatStream.voteTally}
               activeStreamIds={chatStream.activeStreamIds}
             />
-            <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
-              {t("chat.researchStreamHint")}
-            </p>
           </div>
         )}
       </div>
