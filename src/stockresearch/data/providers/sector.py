@@ -8,8 +8,6 @@ from dataclasses import dataclass
 
 import httpx
 
-from stockresearch.core.config import get_settings
-
 logger = logging.getLogger(__name__)
 
 _INDUSTRY_BOARD_URL = (
@@ -72,15 +70,13 @@ def _normalize_symbol(raw: object) -> str:
 
 class SectorDataProvider:
     async def fetch_industry_boards(self) -> list[SectorBoard]:
-        if get_settings().use_mock_market_data:
-            return _mock_boards()
         try:
             async with httpx.AsyncClient(timeout=12.0) as client:
                 resp = await client.get(_INDUSTRY_BOARD_URL, headers=_HEADERS)
                 resp.raise_for_status()
             payload = _parse_jsonp(resp.text)
             if not payload:
-                return _mock_boards()
+                return []
             diff = payload.get("data", {})
             if isinstance(diff, dict):
                 rows = diff.get("diff", [])
@@ -88,7 +84,7 @@ class SectorDataProvider:
                 rows = []
             boards: list[SectorBoard] = []
             if not isinstance(rows, list):
-                return _mock_boards()
+                return []
             for row in rows:
                 if not isinstance(row, dict):
                     continue
@@ -105,10 +101,10 @@ class SectorDataProvider:
                         leader_change_pct=_pct(row.get("f136")),
                     )
                 )
-            return boards or _mock_boards()
+            return boards
         except Exception as exc:
             logger.warning("Sector board fetch failed: %s", exc)
-            return _mock_boards()
+            return []
 
     async def resolve_board(self, sector: str) -> SectorBoard | None:
         boards = await self.fetch_industry_boards()
@@ -124,7 +120,7 @@ class SectorDataProvider:
     async def get_sector_leaders(self, sector: str, *, limit: int = 3) -> list[SectorLeader]:
         board = await self.resolve_board(sector)
         if board is None:
-            return _mock_leaders(sector, limit)
+            return []
         leaders: list[SectorLeader] = []
         if board.leader_symbol and board.leader_name:
             leaders.append(
@@ -135,41 +131,7 @@ class SectorDataProvider:
                     role="board_leader",
                 )
             )
-        # Pad with sector-themed mock peers when only one leader from board API
-        if len(leaders) < limit:
-            for extra in _mock_leaders(sector, limit):
-                if extra.symbol not in {x.symbol for x in leaders}:
-                    leaders.append(extra)
-                if len(leaders) >= limit:
-                    break
         return leaders[:limit]
-
-
-def _mock_boards() -> list[SectorBoard]:
-    return [
-        SectorBoard("BK0475", "半导体", 1.25, "中芯国际", "688981", 2.1),
-        SectorBoard("BK0896", "白酒", -0.45, "贵州茅台", "600519", -0.3),
-        SectorBoard("BK0493", "新能源", 0.88, "宁德时代", "300750", 1.2),
-        SectorBoard("BK0477", "医药", 0.15, "恒瑞医药", "600276", 0.5),
-    ]
-
-
-def _mock_leaders(sector: str, limit: int) -> list[SectorLeader]:
-    catalog: dict[str, list[tuple[str, str, float]]] = {
-        "半导体": [("688981", "中芯国际", 2.1), ("002371", "北方华创", 1.8), ("603501", "韦尔股份", 1.2)],
-        "白酒": [("600519", "贵州茅台", -0.3), ("000858", "五粮液", -0.5), ("000568", "泸州老窖", 0.1)],
-        "新能源": [("300750", "宁德时代", 1.2), ("002594", "比亚迪", 0.9), ("601012", "隆基绿能", 0.4)],
-    }
-    for key, rows in catalog.items():
-        if key in sector or sector in key:
-            return [
-                SectorLeader(symbol=s, name=n, change_pct=c, role="mock_leader")
-                for s, n, c in rows[:limit]
-            ]
-    return [
-        SectorLeader("600519", "贵州茅台", 0.0, role="mock_leader"),
-        SectorLeader("300750", "宁德时代", 0.0, role="mock_leader"),
-    ][:limit]
 
 
 async def fetch_sector_snapshot(sector: str) -> dict[str, object]:

@@ -454,6 +454,132 @@
     "analogy": "真值大概率落在这个范围内",
     "context_template": "置信区间 [{lower}, {upper}]"
   },
+  "板块轮动": {
+    "en": "Sector Rotation",
+    "short": "板块轮动",
+    "def": "市场资金在不同行业板块间切换",
+    "analogy": "热点从这一个行业换到那一个行业",
+    "context_template": "当前板块轮动：{assessment}"
+  },
+  "轮动效应": {
+    "en": "Rotation Effect",
+    "short": "轮动效应",
+    "def": "不同板块或风格之间出现资金接力、涨跌交替的现象",
+    "analogy": "不同选手接力领跑，跑完一棒交给下一个",
+    "context_template": "轮动效应：{assessment}"
+  },
+  "风格切换": {
+    "en": "Style Rotation",
+    "short": "风格切换",
+    "def": "市场偏好从一种投资风格转向另一种，如价值股与成长股之间切换",
+    "analogy": "大家忽然从喜欢稳重的股票，改成喜欢高成长的股票",
+    "context_template": "风格切换：{assessment}"
+  },
+  "资金切换": {
+    "en": "Capital Rotation",
+    "short": "资金切换",
+    "def": "资金从一类资产或板块撤出，流入另一类",
+    "analogy": "钱从一个口袋挪到另一个口袋",
+    "context_template": "资金切换：{assessment}"
+  },
+  "龙头": {
+    "en": "Sector Leader",
+    "short": "龙头股",
+    "def": "某个行业里市值大、影响力强、往往能带动板块涨跌的股票",
+    "analogy": "一个班里的尖子生，成绩好还能带动全班气氛",
+    "context_template": "龙头 {stock}：{assessment}"
+  },
+  "市值": {
+    "en": "Market Capitalization",
+    "short": "市值",
+    "def": "公司总价值 = 股价 × 总股本",
+    "analogy": "按当前股价把整个公司买下来需要多少钱",
+    "context_template": "市值 {value} 亿，{assessment}"
+  },
+  "估值修复": {
+    "en": "Valuation Recovery",
+    "short": "估值修复",
+    "def": "原本被低估的资产价格回升到合理水平",
+    "analogy": "打折商品卖回原价",
+    "context_template": "估值修复：{assessment}"
+  },
+  "反弹": {
+    "en": "Rebound",
+    "short": "反弹",
+    "def": "下跌后出现的一波上涨，通常是对前期跌幅的部分修复",
+    "analogy": "球掉地上弹起来一下",
+    "context_template": "反弹：{assessment}"
+  },
+  "回调": {
+    "en": "Pullback",
+    "short": "回调",
+    "def": "上涨趋势中暂时的小幅下跌",
+    "analogy": "爬楼梯时停下来歇一步",
+    "context_template": "回调：{assessment}"
+  },
+  "趋势": {
+    "en": "Trend",
+    "short": "趋势",
+    "def": "价格在一段时间内的运行方向",
+    "analogy": "河流的流向",
+    "context_template": "趋势：{assessment}"
+  },
+  "放量": {
+    "en": "High Volume",
+    "short": "放量",
+    "def": "成交量明显高于近期平均水平",
+    "analogy": "比平时多了很多人参与交易",
+    "context_template": "放量：{assessment}"
+  },
+  "缩量": {
+    "en": "Low Volume",
+    "short": "缩量",
+    "def": "成交量明显低于近期平均水平",
+    "analogy": "参与交易的人变少了",
+    "context_template": "缩量：{assessment}"
+  },
+  "量价齐升": {
+    "en": "Rising Price and Volume",
+    "short": "量价齐升",
+    "def": "价格上涨同时成交量放大，通常视为上涨动能较强",
+    "analogy": "涨价还有人抢着买，说明势头好",
+    "context_template": "量价齐升：{assessment}"
+  },
+  "量价背离": {
+    "en": "Price-Volume Divergence",
+    "short": "量价背离",
+    "def": "价格与成交量走势不一致，可能预示趋势将变",
+    "analogy": "价格上涨但没人跟着买，像唱独角戏",
+    "context_template": "量价背离：{assessment}"
+  },
+  "筑底": {
+    "en": "Bottoming",
+    "short": "筑底",
+    "def": "价格下跌到低位后反复震荡，逐步形成底部",
+    "analogy": "在地板上反复磨蹭，试图站稳",
+    "context_template": "筑底：{assessment}"
+  },
+  "破位": {
+    "en": "Breakdown",
+    "short": "破位",
+    "def": "价格跌破重要支撑位",
+    "analogy": "跌破了大家心里的底线",
+    "context_template": "破位：{assessment}"
+  },
+  "缺口": {
+    "en": "Price Gap",
+    "short": "缺口",
+    "def": "相邻两根 K 线之间没有重叠的价格区间",
+    "analogy": "价格「跳」过去、中间没成交的区域",
+    "context_template": "{stock} 出现{assessment}缺口"
+  },
+  "震荡": {
+    "en": "Consolidation",
+    "short": "震荡",
+    "def": "价格在一个区间内反复波动，没有明确方向",
+    "analogy": "在原地来回踱步",
+    "context_template": "震荡：{assessment}"
+  },
   "陆股通": {
     "en": "Stock Connect (Northbound)",
     "short": "陆股通",
@@ -502,20 +628,6 @@
     "def": "按分红送股调整历史价格，便于看真实涨跌",
     "analogy": "把历史价格「对齐」到今天的股本",
     "context_template": "K 线使用前复权价格"
-  },
-  "缺口": {
-    "en": "Price Gap",
-    "short": "缺口",
-    "def": "相邻两根 K 线之间没有重叠的价格区间",
-    "analogy": "价格「跳」过去、中间没成交的区域",
-    "context_template": "{stock} 出现{assessment}缺口"
-  },
-  "板块轮动": {
-    "en": "Sector Rotation",
-    "short": "板块轮动",
-    "def": "市场资金在不同行业板块间切换",
-    "analogy": "热点从这一个行业换到那一个行业",
-    "context_template": "当前板块轮动：{assessment}"
   },
   "市场宽度": {
     "en": "Market Breadth",

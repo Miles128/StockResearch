@@ -3,7 +3,10 @@
 import asyncio
 import logging
 from collections.abc import AsyncIterator
+from typing import Any
 
+from stockresearch.agents.master_commentary.context import build_risk_context
+from stockresearch.agents.master_commentary.stream import stream_master_commentary
 from stockresearch.agents.research.debate import (
     iter_triangular_debate_events,
     triangular_transcript,
@@ -37,6 +40,7 @@ from stockresearch.agents.stream_typewriter import (
 from stockresearch.agents.voice import DEBATE_ROUNDS, JUDGE_VOICE
 from stockresearch.core.schemas import (
     LLMRiskAnalysis,
+    MasterCommentaryItem,
     PortfolioMetricsOut,
     RiskAlertOut,
     RiskCheckupOut,
@@ -112,6 +116,8 @@ def _context_block(
 async def run_risk_checkup_stream(
     holdings: list[Holding],
     llm: LLMClient | None = None,
+    *,
+    enable_master_commentary: bool = False,
 ) -> AsyncIterator[dict[str, object]]:
     client = llm or get_llm_client()
 
@@ -356,4 +362,20 @@ async def run_risk_checkup_stream(
         metrics=metrics_out,
         var_result=var_out,
     )
+
+    if enable_master_commentary:
+        commentary_context = build_risk_context(result)
+        commentary: list[dict[str, Any]] = []
+        async for mc_event in stream_master_commentary(
+            client, subject="组合风险分析", context=commentary_context
+        ):
+            yield mc_event
+            if mc_event.get("type") == "master_commentary" and isinstance(
+                mc_event.get("commentary"), list
+            ):
+                commentary = mc_event["commentary"]
+        result.master_commentary = [
+            MasterCommentaryItem.model_validate(item) for item in commentary
+        ]
+
     yield {"type": "done", "result": result.model_dump(mode="json")}

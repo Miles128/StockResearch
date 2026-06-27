@@ -11,6 +11,7 @@ interface NewsPanelProps {
   sectorSaving: boolean;
   onLoadNews: () => void;
   onToggleSector: (sector: string) => void;
+  onAskCopilot?: (query: string) => void;
 }
 
 export function NewsPanel({
@@ -20,6 +21,7 @@ export function NewsPanel({
   sectorSaving,
   onLoadNews,
   onToggleSector,
+  onAskCopilot,
 }: NewsPanelProps) {
   const { t } = useI18n();
   const [briefing, setBriefing] = useState<Briefing | null>(null);
@@ -62,12 +64,14 @@ export function NewsPanel({
         <div className="briefing-card">
           <h4>{b.title}</h4>
           <p>{b.summary}</p>
-          {b.sections.map((s) => (
-            <div key={s.title}>
-              <strong>{s.title}</strong>
-              <pre className="briefing-section">{s.content}</pre>
-            </div>
-          ))}
+          <div className="briefing-vertical-list">
+            {b.sections.map((s) => (
+              <div key={s.title} className="briefing-point">
+                <strong>{s.title}</strong>
+                <pre className="briefing-section">{s.content}</pre>
+              </div>
+            ))}
+          </div>
         </div>
         );
       })()}
@@ -117,6 +121,27 @@ export function NewsPanel({
                   {localizeSentiment(n.sentiment, t)} · {localizeImpactLevel(n.impact_level, t)}
                   {n.related_to_user ? ` · ${t("news.related")}` : ""}
                 </span>
+                {onAskCopilot && (
+                  <div
+                    className="ai-action-row news-action-row"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => onAskCopilot(`${t("news.askExplain")}：${n.title}`)}
+                    >
+                      {t("news.askExplain")}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => onAskCopilot(`${t("news.askImpact")}：${n.title}`)}
+                    >
+                      {t("news.askImpact")}
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

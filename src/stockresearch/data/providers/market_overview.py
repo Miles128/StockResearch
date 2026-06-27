@@ -6,7 +6,6 @@ from datetime import UTC, datetime
 
 import akshare as ak
 
-from stockresearch.core.config import get_settings
 from stockresearch.core.schemas import IndexQuoteOut, MarketOverviewOut, StockQuoteOut
 from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.data.providers.sina_index import fetch_sina_indices
@@ -23,11 +22,6 @@ _OVERVIEW_TIMEOUT_SEC = 8.0
 
 class MarketOverviewProvider:
     async def get_overview(self) -> MarketOverviewOut:
-        if get_settings().use_mock_market_data:
-            overview = self._mock_overview()
-            record_overview_fetch(source="mock", degraded=False, message=overview.message)
-            return overview
-
         try:
             overview = await asyncio.wait_for(
                 asyncio.to_thread(self._fetch_sina_overview),
@@ -140,23 +134,6 @@ class MarketOverviewProvider:
             updated_at=datetime.now(UTC),
         )
 
-    def _mock_overview(self) -> MarketOverviewOut:
-        return MarketOverviewOut(
-            indices=[
-                IndexQuoteOut(name="上证指数", symbol="000001", price=3120.5, change_pct=0.35),
-                IndexQuoteOut(name="深证成指", symbol="399001", price=9850.2, change_pct=-0.12),
-                IndexQuoteOut(name="创业板指", symbol="399006", price=1920.8, change_pct=-0.58),
-                IndexQuoteOut(name="沪深300", symbol="000300", price=3650.0, change_pct=0.22),
-            ],
-            northbound_net_yi=32.5,
-            advancers=2850,
-            decliners=1980,
-            source="mock",
-            data_status="mock",
-            message="当前为演示数据，非真实行情。请在 .env 设置 USE_MOCK_MARKET_DATA=false",
-            updated_at=datetime.now(UTC),
-        )
-
 
 class BatchQuoteProvider:
     def __init__(self) -> None:
@@ -172,9 +149,7 @@ class BatchQuoteProvider:
             logger.warning("Batch quotes failed: %s", exc)
             quote_map = {}
 
-        use_mock = get_settings().use_mock_market_data
         results: list[StockQuoteOut] = []
-        quote_source = "mock" if use_mock else "sina"
         sector_symbols = [symbol for symbol in unique if symbol in quote_map]
         sector_values = await asyncio.gather(
             *[
@@ -187,7 +162,7 @@ class BatchQuoteProvider:
             q = quote_map.get(symbol)
             if q is None:
                 continue
-            sym_source = get_symbol_source(symbol) or quote_source
+            sym_source = get_symbol_source(symbol) or "sina"
             results.append(
                 StockQuoteOut(
                     symbol=q.symbol,

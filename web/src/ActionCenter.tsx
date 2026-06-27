@@ -31,8 +31,8 @@ export function ActionCenter({ onNavigate, onChatQuery }: ActionCenterProps) {
 
   function renderHeader(extra?: React.ReactNode) {
     return (
-      <div className="action-center-header" onClick={() => setCollapsed((c) => !c)} role="button" tabIndex={0}>
-        <span className="action-center-title">{t("actionCenter.title")}</span>
+      <div className="action-center-header card-header" onClick={() => setCollapsed((c) => !c)} role="button" tabIndex={0}>
+        <span className="card-header-title">{t("actionCenter.title")}</span>
         <span className="action-center-header-right">
           {extra}
           <span className={`action-center-chevron ${collapsed ? "collapsed" : ""}`}>▾</span>
@@ -81,19 +81,17 @@ export function ActionCenter({ onNavigate, onChatQuery }: ActionCenterProps) {
             {data.signals.map((signal, i) => (
               <div
                 key={i}
-                className={`action-signal action-signal-${signal.severity}`}
+                className={`action-signal-card action-signal-${signal.severity}`}
                 onClick={() => handleSignalClick(signal)}
                 role="button"
                 tabIndex={0}
               >
-                <span className="signal-icon">{signalIcon(signal.type, signal.severity)}</span>
-                <div className="signal-body">
+                <div className="signal-card-header">
+                  <span className="signal-icon">{signalIcon(signal.type, signal.severity)}</span>
                   <span className="signal-title">{signal.title}</span>
-                  {signal.detail && <span className="signal-detail">{signal.detail}</span>}
                 </div>
-                {signal.action && (
-                  <span className="signal-action">{signal.action}</span>
-                )}
+                {signal.detail && <p className="signal-detail">{signal.detail}</p>}
+                {signal.action && <span className="signal-action">{signal.action}</span>}
               </div>
             ))}
           </div>

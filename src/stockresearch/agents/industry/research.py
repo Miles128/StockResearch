@@ -15,6 +15,7 @@ async def run_industry_research(
     message: str,
     *,
     with_debate: bool = False,
+    enable_master_commentary: bool = False,
 ) -> tuple[str, list[dict[str, object]]]:
     report: ResearchReportOut | None = None
     async for event in run_industry_research_stream(
@@ -24,6 +25,7 @@ async def run_industry_research(
         message,
         llm,
         with_debate=with_debate,
+        enable_master_commentary=enable_master_commentary,
     ):
         if event.get("type") == "done":
             raw = event.get("result")

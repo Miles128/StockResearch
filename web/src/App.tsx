@@ -1,21 +1,22 @@
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import {
   api,
+  AgentStreamEvent,
+  ChatStreamOptions,
+  ExecutionPreference,
   DataSourceStatus,
-  GlossaryTerm,
   HoldingEnriched,
   LlmUsage,
+  GlossaryTerm,
   MarketOverview,
   NewsItem,
   RiskCheckup,
   SectorPreferences,
-  StockLookupOut,
 } from "./api";
-import type { CopilotContext, Tab } from "./appTypes";
-import { BackendHealthBanner } from "./BackendHealthBanner";
+import type { CopilotContext, Message, Tab } from "./appTypes";
 import { ChatPanel } from "./ChatPanel";
-import { CanvasNav } from "./CanvasNav";
-import { CopilotPanel } from "./CopilotPanel";
+import { CopilotPanel, type CopilotLayout } from "./CopilotPanel";
+import { DailyScanPanel } from "./DailyScanPanel";
 import { DataSourceDetails } from "./DataSourceDetails";
 import { DemoBanner } from "./DemoBanner";
 import { ActionCenter } from "./ActionCenter";
@@ -29,10 +30,13 @@ import { computePortfolioSummary, computeSectorConcentration } from "./portfolio
 import { PortfolioPanel } from "./PortfolioPanel";
 import { RiskPanel } from "./RiskPanel";
 import { SettingsPanel } from "./SettingsPanel";
+import { stripDisclaimer } from "./disclaimerText";
+import { applyStreamEvent, emptyStreamState } from "./streamEvents";
+import { normalizeStreamEvent } from "./streamI18n";
 import { ModeSwitcher } from "./ModeSwitcher";
 import { Onboarding } from "./Onboarding";
 import { AssetAllocationPanel } from "./AssetAllocationPanel";
-import { useCopilotChat } from "./hooks/useCopilotChat";
+import { BackendHealthBanner } from "./BackendHealthBanner";
 import {
   loadModeSettings,
   modeSettingsFromApiPayload,
@@ -88,24 +92,18 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("portfolio");
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [pageContext, setPageContext] = useState<CopilotContext | null>(null);
-  const chat = useCopilotChat({
-    pageContext,
-    onOpenCopilot: () => setCopilotOpen(true),
-    onSetPageContext: setPageContext,
-    locale,
-  });
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [sessionId, setSessionId] = useState<string>();
+  const [chatLoading, setChatLoading] = useState(false);
   const [riskLoading, setRiskLoading] = useState(false);
+  const [statusMsg, setStatusMsg] = useState("");
+  const [chatStream, setChatStream] = useState(emptyStreamState());
   const [news, setNews] = useState<NewsItem[]>([]);
   const [holdings, setHoldings] = useState<HoldingEnriched[]>([]);
   const [holdingsLoading, setHoldingsLoading] = useState(false);
   const [risk, setRisk] = useState<RiskCheckup | null>(null);
   const [error, setError] = useState("");
-  const [holdingInput, setHoldingInput] = useState("");
-  const [holdingCost, setHoldingCost] = useState("");
-  const [holdingLots, setHoldingLots] = useState("");
-  const [holdingDate, setHoldingDate] = useState("");
-  const [lookupResult, setLookupResult] = useState<StockLookupOut | null>(null);
-  const [lookupLoading, setLookupLoading] = useState(false);
   const [newsLoading, setNewsLoading] = useState(false);
   const [clock, setClock] = useState("");
   const [llmConfigured, setLlmConfigured] = useState(false);
@@ -115,16 +113,49 @@ export default function App() {
   const [dataStatus, setDataStatus] = useState<DataSourceStatus | null>(null);
   const [marketOverview, setMarketOverview] = useState<MarketOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
-  const [lookupPrice, setLookupPrice] = useState<number | null>(null);
   const [newsSectors, setNewsSectors] = useState<SectorPreferences | null>(null);
   const [sectorSaving, setSectorSaving] = useState(false);
   const [isDemo, setIsDemo] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
   const autoDemoLoadRequested = useRef(false);
   const [modeSettings, setModeSettings] = useState<ModeSettings>(() => loadModeSettings());
-  const [glossary, setGlossary] = useState<Record<string, GlossaryTerm>>({});
   const [onboardingOpen, setOnboardingOpen] = useState(() => !loadModeSettings().onboarded);
+  const [copilotWidth, setCopilotWidth] = useState(430);
+  const [copilotHeight, setCopilotHeight] = useState(360);
+  const [copilotLayout, setCopilotLayout] = useState<CopilotLayout>("horizontal");
+  const [glossary, setGlossary] = useState<Record<string, GlossaryTerm>>({});
+  const resizingRef = useRef(false);
+  const resizingAxisRef = useRef<"x" | "y">("x");
   const settingsRequired = llmCheckDone && !llmConfigured;
+
+  useEffect(() => {
+    function onMove(e: MouseEvent) {
+      if (!resizingRef.current) return;
+      if (resizingAxisRef.current === "y") {
+        const minH = 200;
+        const maxH = window.innerHeight - 80;
+        const next = window.innerHeight - e.clientY;
+        setCopilotHeight(Math.max(minH, Math.min(maxH, next)));
+      } else {
+        const minW = 360;
+        const maxW = window.innerWidth;
+        const next = window.innerWidth - e.clientX;
+        setCopilotWidth(Math.max(minW, Math.min(maxW, next)));
+      }
+    }
+    function onUp() {
+      if (!resizingRef.current) return;
+      resizingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []);
 
   const chatExamples = useMemo(
     () => [
@@ -140,14 +171,14 @@ export default function App() {
   const marketSessionLabel =
     holdings[0]?.market_session === "trading" ? t("ticker.trading") : t("ticker.closed");
   const headerUsage = useMemo((): LlmUsage | null => {
-    for (let i = chat.messages.length - 1; i >= 0; i -= 1) {
-      const m = chat.messages[i];
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i];
       if (m.role === "assistant" && m.llmUsage && m.llmUsage.total_tokens > 0) {
         return m.llmUsage;
       }
     }
     return null;
-  }, [chat.messages]);
+  }, [messages]);
 
   function refreshDataStatus() {
     void api.dataSourceStatus().then(setDataStatus).catch(() => setDataStatus(null));
@@ -155,16 +186,16 @@ export default function App() {
 
   function dataSourceLabel(): string {
     if (!dataStatus) return t("header.dataUnknown");
-    if (dataStatus.use_mock) return t("header.dataMock");
     const overview = dataStatus.overview;
     const quotes = dataStatus.quotes;
     const primary = overview?.primary || quotes?.primary || "sina";
-    const fallback = overview?.fallback || quotes?.fallback;
+    const fallback = overview?.fallback || quotes?.fallback || "akshare";
     const degraded = Boolean(overview?.degraded || quotes?.degraded);
-    if (degraded && fallback) {
+    if (degraded) {
       return t("header.dataDegraded").replace("{primary}", primary).replace("{fallback}", fallback);
     }
-    return t("header.dataLive").replace("{primary}", primary);
+    // 默认并列展示主源 + 备源，让用户看到完整源链路
+    return t("header.dataLiveMulti").replace("{primary}", primary).replace("{fallback}", fallback);
   }
 
   function handleLlmConfigured() {
@@ -248,7 +279,14 @@ export default function App() {
         setModeSettings(cachedModeSettings);
         setOnboardingOpen(!cachedModeSettings.onboarded);
       });
-    void api.glossary().then(setGlossary).catch(() => setGlossary({}));
+    void api
+      .glossary()
+      .then((list) => {
+        const map: Record<string, GlossaryTerm> = {};
+        for (const item of list) map[item.id] = item;
+        setGlossary(map);
+      })
+      .catch(() => setGlossary({}));
     void loadOverview();
     void loadHoldings().then(() => {
       api.demoStatus().then((s) => setIsDemo(s.demo)).catch(() => {});
@@ -276,22 +314,12 @@ export default function App() {
   }, [tab]);
 
   useEffect(() => {
-    if (lookupResult?.status !== "confirmed" || !lookupResult.symbol) {
-      setLookupPrice(null);
-      return;
-    }
-    void api
-      .stockQuotes(lookupResult.symbol)
-      .then((quotes) => setLookupPrice(quotes[0]?.price ?? null))
-      .catch(() => setLookupPrice(null));
-  }, [lookupResult]);
-
-  useEffect(() => {
     const fnMap: Partial<Record<string, Tab>> = {
       F1: "portfolio",
-      F2: "risk",
-      F3: "market",
-      F4: "news",
+      F2: "daily_scan",
+      F3: "risk",
+      F4: "market",
+      F5: "news",
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -306,9 +334,20 @@ export default function App() {
 
   useEffect(() => {
     if (tab !== "portfolio") return;
-    void loadHoldings();
-    const id = setInterval(() => void loadHoldings(), 30_000);
-    return () => clearInterval(id);
+    let timeoutId = 0;
+
+    async function tick() {
+      const data = await loadHoldings();
+      // 已收盘或没有持仓时停止自动轮询，盘中每 30 秒刷新一次
+      if (data[0]?.market_session === "trading") {
+        timeoutId = window.setTimeout(tick, 30_000);
+      }
+    }
+
+    void tick();
+    return () => {
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
   }, [tab]);
 
   const showError = useCallback((msg: string) => {
@@ -316,7 +355,7 @@ export default function App() {
     setTimeout(() => setError(""), 4000);
   }, []);
 
-  async function loadHoldings() {
+  async function loadHoldings(): Promise<HoldingEnriched[]> {
     try {
       setHoldingsLoading(true);
       const data = await api.holdingsEnriched();
@@ -326,24 +365,158 @@ export default function App() {
         autoDemoLoadRequested.current = true;
         try {
           await api.loadDemo();
-          setHoldings(await api.holdingsEnriched());
+          const demoData = await api.holdingsEnriched();
+          setHoldings(demoData);
           setIsDemo(true);
+          return demoData;
         } catch {
           // ignore auto-load failures
         }
       }
+      return data;
     } catch (e) {
       showError(String(e));
+      return holdings;
     } finally {
       setHoldingsLoading(false);
     }
+  }
+
+  async function executeChat(
+    query: string,
+    options?: ChatStreamOptions,
+    contextOverride?: CopilotContext | null,
+  ) {
+    setChatLoading(true);
+    setStatusMsg(t("chat.connecting"));
+    setChatStream(emptyStreamState());
+    let processSnapshot = emptyStreamState();
+    const activeContext = contextOverride === undefined ? pageContext : contextOverride;
+    const requestQuery = activeContext
+      ? `${query}\n\n[当前画布上下文：${activeContext.label}${activeContext.detail ? `；${activeContext.detail}` : ""}]`
+      : query;
+    try {
+      const resp = await api.chatStream(
+        requestQuery,
+        sessionId,
+        (event: AgentStreamEvent) => {
+          if (
+            event.type === "analysis_choice" ||
+            event.type === "stock_choice" ||
+            event.type === "route_choice"
+          ) {
+            return;
+          }
+          const normalized = normalizeStreamEvent(event, t);
+          setChatStream((prev) => {
+            const next = applyStreamEvent(prev, normalized, t);
+            processSnapshot = next;
+            return next;
+          });
+          if (normalized.type === "status" && normalized.message) {
+            setStatusMsg(normalized.message);
+          }
+        },
+        options,
+      );
+      if (resp) {
+        setSessionId(resp.session_id);
+        processSnapshot = {
+          ...processSnapshot,
+          streamStatus: processSnapshot.streamStatus || statusMsg || t("chat.analysisDone"),
+        };
+        const hasResearchCard = resp.cards?.some((c) => c.type === "research");
+        const hasProcessTrail =
+          processSnapshot.streamLog.length > 0 ||
+          processSnapshot.agentSteps.length > 0 ||
+          processSnapshot.debateRounds.length > 0 ||
+          processSnapshot.judgeVerdict != null;
+        const assistantMsg: Message = {
+          role: "assistant",
+          content: stripDisclaimer(resp.reply),
+          cards: resp.cards,
+          intent: resp.intent,
+          followUpQuestions: resp.follow_up_questions ?? [],
+          llmUsage: resp.llm_usage ?? null,
+          process:
+            hasProcessTrail || hasResearchCard
+              ? processSnapshot
+              : undefined,
+        };
+        setMessages((m) => [...m, assistantMsg]);
+      }
+    } catch {
+      try {
+        setStatusMsg(t("chat.streamFailed"));
+        const resp = await api.chat(requestQuery, sessionId, options);
+        setSessionId(resp.session_id);
+        setMessages((m) => [
+          ...m,
+          {
+            role: "assistant",
+            content: stripDisclaimer(resp.reply),
+            cards: resp.cards,
+            intent: resp.intent,
+            followUpQuestions: resp.follow_up_questions ?? [],
+            llmUsage: resp.llm_usage ?? null,
+          },
+        ]);
+      } catch (e) {
+        setMessages((m) => [...m, { role: "assistant", content: `Error: ${String(e)}` }]);
+      }
+    } finally {
+      setChatLoading(false);
+      setStatusMsg("");
+    }
+  }
+
+  function startChatQuery(
+    query: string,
+    opts?: { switchTab?: boolean; context?: CopilotContext | null },
+  ) {
+    if (!query.trim() || chatLoading) return;
+    if (opts?.switchTab) setCopilotOpen(true);
+    setInput("");
+    setMessages((m) => [...m, { role: "user", content: query }]);
+    void executeChat(query, undefined, opts?.context);
+  }
+
+  function sendChat() {
+    if (!input.trim() || chatLoading) return;
+    startChatQuery(input.trim());
+  }
+
+  function analyzeHolding(h: HoldingEnriched) {
+    const q = locale === "zh" ? `分析${h.name}` : `Analyze ${h.name}`;
+    const context: CopilotContext = {
+      kind: "stock",
+      label: `${h.name} ${h.symbol}`,
+      detail: `${h.sector} · ${h.quantity}股`,
+    };
+    setPageContext(context);
+    setCopilotOpen(true);
+    startChatQuery(q, { switchTab: true, context });
   }
 
   function onTickerIndexClick(_name: string) {
     setTab("market");
     setPageContext({ kind: "market", label: _name });
     setCopilotOpen(true);
-    chat.setInput(t("chat.exampleMarketQuery"));
+    setInput(t("chat.exampleMarketQuery"));
+  }
+
+  function askCopilot(query: string, context: CopilotContext) {
+    setPageContext(context);
+    setCopilotOpen(true);
+    startChatQuery(query, { context });
+  }
+
+  function newCopilotThread() {
+    setMessages([]);
+    setSessionId(undefined);
+    setChatStream(emptyStreamState());
+    setStatusMsg("");
+    setInput("");
   }
 
   function handleActionNavigate(target: string) {
@@ -374,6 +547,27 @@ export default function App() {
 
   function alertHoldingTags(message: string): HoldingEnriched[] {
     return holdings.filter((h) => message.includes(h.name) || message.includes(h.symbol));
+  }
+
+  function confirmChatStock(originalMessage: string, symbol: string, name: string) {
+    if (chatLoading) return;
+    setMessages((m) => [...m, { role: "user", content: `${name}（${symbol}）` }]);
+    void executeChat(originalMessage, { confirmedSymbol: symbol, confirmedName: name });
+  }
+
+  function confirmChatRoute(originalMessage: string, preference: ExecutionPreference) {
+    if (chatLoading) return;
+    const labels: Record<ExecutionPreference, string> = {
+      react: t("chat.routeReact"),
+      plan_execute: t("chat.routePlan"),
+      preset: t("chat.routePreset"),
+      auto: t("chat.routeAuto"),
+    };
+    setMessages((m) => [
+      ...m,
+      { role: "user", content: t("chat.selectedMode", { mode: labels[preference] }) },
+    ]);
+    void executeChat(originalMessage, { executionPreference: preference });
   }
 
   async function loadDemoHoldings() {
@@ -427,62 +621,6 @@ export default function App() {
     }
   }
 
-  async function lookupAndAdd() {
-    if (!holdingInput.trim()) return;
-    setLookupLoading(true);
-    setLookupResult(null);
-    try {
-      const result = await api.lookupStock(holdingInput.trim());
-      setLookupResult(result);
-      if (result.status === "confirmed" && result.symbol && result.name) {
-        const cost = holdingCost ? parseFloat(holdingCost) : 0;
-        const lots = holdingLots ? parseInt(holdingLots) : 1;
-        if (cost <= 0) {
-          showError(t("portfolio.invalidCost"));
-          return;
-        }
-        await api.addHolding({
-          symbol: result.symbol,
-          name: result.name,
-          cost_price: cost,
-          lots,
-          sector: result.sector || undefined,
-          buy_date: holdingDate || undefined,
-        });
-        await loadHoldings();
-        setHoldingInput("");
-        setHoldingCost("");
-        setHoldingLots("");
-        setHoldingDate("");
-        setLookupResult(null);
-      }
-    } catch (e) {
-      showError(String(e));
-    } finally {
-      setLookupLoading(false);
-    }
-  }
-
-  async function confirmCandidate(symbol: string, name: string) {
-    const cost = holdingCost ? parseFloat(holdingCost) : 0;
-    const lots = holdingLots ? parseInt(holdingLots) : 1;
-    if (cost <= 0) {
-      showError(t("portfolio.invalidCost"));
-      return;
-    }
-    try {
-      await api.addHolding({ symbol, name, cost_price: cost, lots, buy_date: holdingDate || undefined });
-      await loadHoldings();
-      setHoldingInput("");
-      setHoldingCost("");
-      setHoldingLots("");
-      setHoldingDate("");
-      setLookupResult(null);
-    } catch (e) {
-      showError(String(e));
-    }
-  }
-
   async function deleteHolding(id: number) {
     try {
       await api.deleteHolding(id);
@@ -493,13 +631,24 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
-      <BackendHealthBanner />
+    <div className="app-shell" data-mode={modeSettings.mode}>
       <div className="app-chrome">
         <div className="chrome-left">
           <span className="bbg-logo">StockResearch</span>
           <span className="chrome-sep">·</span>
           <ModeSwitcher settings={modeSettings} onSwitch={handleSwitchMode} />
+          <nav className="chrome-nav" aria-label={t("nav.aria")}>
+            {navItems.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={`chrome-nav-btn${tab === item.key ? " active" : ""}`}
+                onClick={() => setTab(item.key)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
         </div>
         <p className="chrome-disclaimer">{t("chat.disclaimer")}</p>
         <div className="chrome-meta">
@@ -528,6 +677,13 @@ export default function App() {
           </button>
           <button
             type="button"
+            className={`canvas-tool-btn copilot-trigger${copilotOpen ? " active" : ""}`}
+            onClick={() => setCopilotOpen((open) => !open)}
+          >
+            {t("nav.copilot")}
+          </button>
+          <button
+            type="button"
             className="btn btn-ghost btn-sm"
             onClick={toggleLocale}
           >
@@ -545,14 +701,6 @@ export default function App() {
         onRefresh={() => void loadOverview()}
         onIndexClick={onTickerIndexClick}
       />
-      <CanvasNav
-        tab={tab}
-        items={navItems}
-        copilotOpen={copilotOpen}
-        copilotLabel={t("nav.copilot")}
-        onTab={setTab}
-        onCopilot={() => setCopilotOpen((open) => !open)}
-      />
       <SettingsPanel
         open={setupOpen}
         onClose={() => {
@@ -568,9 +716,19 @@ export default function App() {
         <Onboarding onComplete={handleOnboardingComplete} onSkip={handleOnboardingSkip} />
       )}
 
-      <div className={`app-body canvas-shell${copilotOpen ? " copilot-open" : ""}${settingsRequired ? " app-locked" : ""}`}>
+      <div
+        className={`app-body canvas-shell${copilotOpen ? " copilot-open" : ""}${copilotOpen && copilotLayout === "vertical" ? " layout-vertical" : ""}${settingsRequired ? " app-locked" : ""}`}
+        style={
+          copilotOpen
+            ? copilotLayout === "vertical"
+              ? { gridTemplateRows: `minmax(0, 1fr) ${copilotHeight}px` }
+              : { gridTemplateColumns: `minmax(0, 1fr) ${copilotWidth}px` }
+            : undefined
+        }
+      >
         <div className="main">
           {error && <div className="error">{error}</div>}
+          <BackendHealthBanner />
           {holdings.length === 0 && !isDemo && (
             <DemoBanner onLoad={loadDemoHoldings} onClear={clearDemoHoldings} isDemo={isDemo} loading={demoLoading} />
           )}
@@ -592,18 +750,25 @@ export default function App() {
               sectorSaving={sectorSaving}
               onLoadNews={() => void loadNews()}
               onToggleSector={(s) => void toggleNewsSector(s)}
+              onAskCopilot={(query) =>
+                askCopilot(query, {
+                  kind: "news",
+                  label: locale === "zh" ? "新闻·研报" : "News",
+                })
+              }
             />
           )}
 
           {tab === "portfolio" && (
             <>
               <ActionCenter onNavigate={handleActionNavigate} onChatQuery={(query) => {
-                chat.startChatQuery(query, {
-                  context: {
-                    kind: "portfolio",
-                    label: locale === "zh" ? "我的持仓" : "My holdings",
-                  },
-                });
+                const context: CopilotContext = {
+                  kind: "portfolio",
+                  label: locale === "zh" ? "我的持仓" : "My holdings",
+                };
+                setPageContext(context);
+                setCopilotOpen(true);
+                startChatQuery(query, { context });
               }} />
               <PortfolioPanel
                 holdings={holdings}
@@ -611,23 +776,15 @@ export default function App() {
                 portfolioSummary={portfolioSummary}
                 sectorMix={sectorMix}
                 numLocale={numLocale}
-                holdingInput={holdingInput}
-                holdingCost={holdingCost}
-                holdingLots={holdingLots}
-                holdingDate={holdingDate}
-                lookupResult={lookupResult}
-                lookupPrice={lookupPrice}
-                lookupLoading={lookupLoading}
-                onHoldingInputChange={setHoldingInput}
-                onHoldingCostChange={setHoldingCost}
-                onHoldingLotsChange={setHoldingLots}
-                onHoldingDateChange={setHoldingDate}
-                onClearLookup={() => setLookupResult(null)}
                 onLoadHoldings={() => void loadHoldings()}
-                onLookupAndAdd={() => void lookupAndAdd()}
-                onConfirmCandidate={(symbol, name) => void confirmCandidate(symbol, name)}
                 onDeleteHolding={(id) => void deleteHolding(id)}
-                onAnalyzeHolding={chat.analyzeHolding}
+                onAnalyzeHolding={analyzeHolding}
+                onAskCopilot={(query) =>
+                  askCopilot(query, {
+                    kind: "portfolio",
+                    label: locale === "zh" ? "我的持仓" : "My holdings",
+                  })
+                }
               />
             </>
           )}
@@ -649,6 +806,12 @@ export default function App() {
                 alertHoldingTags={alertHoldingTags}
                 onRunRisk={() => void runRisk()}
                 onGoPortfolio={() => setTab("portfolio")}
+                onAskCopilot={(query) =>
+                  askCopilot(query, {
+                    kind: "risk",
+                    label: locale === "zh" ? "风控体检" : "Risk checkup",
+                  })
+                }
               />
             </>
           )}
@@ -659,7 +822,7 @@ export default function App() {
               loading={overviewLoading}
               onRefresh={() => void loadOverview()}
               onAskCopilot={(query) =>
-                chat.askCopilot(query, {
+                askCopilot(query, {
                   kind: "market",
                   label: locale === "zh" ? "当前市场" : "Current market",
                   detail: marketOverview?.data_status,
@@ -667,37 +830,55 @@ export default function App() {
               }
             />
           )}
+
+          {tab === "daily_scan" && (
+            <DailyScanPanel
+              holdings={holdings}
+              numLocale={numLocale}
+              onAnalyzeHolding={analyzeHolding}
+            />
+          )}
         </div>
 
         <CopilotPanel
           open={copilotOpen}
-          threadTitle={chat.messages.find((message) => message.role === "user")?.content || ""}
+          threadTitle={messages.find((message) => message.role === "user")?.content || ""}
           userContext={t("chat.holdingsContext", {
             n: String(holdings.length),
             mode: t(`mode.${modeSettings.mode}`),
           })}
           pageContext={pageContext}
+          layout={copilotLayout}
           onClose={() => setCopilotOpen(false)}
-          onNewThread={chat.newCopilotThread}
+          onNewThread={newCopilotThread}
           onRemoveContext={() => setPageContext(null)}
+          onToggleLayout={() =>
+            setCopilotLayout((prev) => (prev === "horizontal" ? "vertical" : "horizontal"))
+          }
+          onResizeStart={(axis) => {
+            resizingRef.current = true;
+            resizingAxisRef.current = axis;
+            document.body.style.cursor = axis === "y" ? "row-resize" : "col-resize";
+            document.body.style.userSelect = "none";
+          }}
         >
           <ChatPanel
-            messages={chat.messages}
-            loading={chat.chatLoading}
-            statusMsg={chat.statusMsg}
-            chatStream={chat.chatStream}
-            input={chat.input}
-            onInputChange={chat.setInput}
+            messages={messages}
+            loading={chatLoading}
+            statusMsg={statusMsg}
+            chatStream={chatStream}
+            input={input}
+            onInputChange={setInput}
             chatExamples={chatExamples}
             holdings={holdings}
             enableGlossary={modeSettings.mode === "advisor" && modeSettings.enableGlossary}
             appMode={modeSettings.mode}
             glossary={glossary}
-            onStartQuery={(query) => chat.startChatQuery(query)}
-            onSend={chat.sendChat}
-            onAnalyzeHolding={chat.analyzeHolding}
-            onConfirmStock={chat.confirmChatStock}
-            onConfirmRoute={chat.confirmChatRoute}
+            onStartQuery={(query) => startChatQuery(query)}
+            onSend={sendChat}
+            onAnalyzeHolding={analyzeHolding}
+            onConfirmStock={confirmChatStock}
+            onConfirmRoute={confirmChatRoute}
           />
         </CopilotPanel>
       </div>

@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from collections.abc import AsyncIterator
+from typing import Any
 
 from stockresearch.agents.research.context import ResearchContext
 from stockresearch.agents.research.debate import (
@@ -12,6 +13,8 @@ from stockresearch.agents.research.debate import (
     summarize_situation,
     transcript_from_rounds,
 )
+from stockresearch.agents.master_commentary.context import build_research_context
+from stockresearch.agents.master_commentary.stream import stream_master_commentary
 from stockresearch.agents.research.report_builder import build_research_report
 from stockresearch.agents.research.runner import (
     build_chips,
@@ -30,7 +33,13 @@ from stockresearch.agents.stream_typewriter import (
 )
 from stockresearch.agents.structured_output import ResearchJudgeOut
 from stockresearch.agents.voice import DEBATE_ROUNDS, DEBATE_VOICE, JUDGE_VOICE
-from stockresearch.core.schemas import DebateResult, DebateRound, DimensionResult, ResearchReportOut
+from stockresearch.core.schemas import (
+    DebateResult,
+    DebateRound,
+    DimensionResult,
+    MasterCommentaryItem,
+    ResearchReportOut,
+)
 from stockresearch.i18n.status_events import status_event
 from stockresearch.services.text_factor import build_news_text_factor, fetch_symbol_news_snippets
 from stockresearch.utils.llm import LLMClient, get_llm_client
@@ -94,6 +103,7 @@ async def run_research_stream(
     llm: LLMClient | None = None,
     *,
     with_debate: bool = True,
+    enable_master_commentary: bool = False,
 ) -> AsyncIterator[dict[str, object]]:
     client = llm or get_llm_client()
     ctx = ResearchContext(symbol=symbol, llm=client)
@@ -235,5 +245,21 @@ async def run_research_stream(
     }
 
     report = _build_report(symbol, name, dimensions, debate, news_text_factor=news_text_factor)
+
+    if enable_master_commentary:
+        commentary_context = build_research_context(report)
+        commentary: list[dict[str, Any]] = []
+        async for mc_event in stream_master_commentary(
+            client, subject=f"{name}({symbol})", context=commentary_context
+        ):
+            yield mc_event
+            if mc_event.get("type") == "master_commentary" and isinstance(
+                mc_event.get("commentary"), list
+            ):
+                commentary = mc_event["commentary"]
+        report.master_commentary = [
+            MasterCommentaryItem.model_validate(item) for item in commentary
+        ]
+
     yield status_event("status.research.report_done")
     yield {"type": "done", "result": report.model_dump(mode="json")}

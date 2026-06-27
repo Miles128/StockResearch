@@ -66,6 +66,35 @@ class HoldingConfirmCreate(BaseModel):
         return self
 
 
+class HoldingTransactionItem(BaseModel):
+    side: Literal["buy", "sell"]
+    symbol: str | None = Field(default=None, min_length=6, max_length=6, pattern=r"^\d{6}$")
+    name: str | None = Field(default=None, min_length=1, max_length=50)
+    query: str | None = Field(default=None, min_length=1, max_length=50)
+    cost_price: float | None = Field(default=None, gt=0, description="买入成交价（元/股）")
+    lots: int = Field(gt=0, le=100000, description="手数")
+    trade_date: date | None = Field(default=None, description="交易日期")
+
+    @model_validator(mode="after")
+    def validate_transaction(self) -> "HoldingTransactionItem":
+        if not (self.query or self.symbol or self.name):
+            raise ValueError("请提供股票代码或名称")
+        if self.side == "buy":
+            if self.cost_price is None:
+                raise ValueError("买入需填写成交价")
+            validate_buy_date(self.trade_date)
+        return self
+
+
+class HoldingTransactionBatch(BaseModel):
+    transactions: list[HoldingTransactionItem] = Field(min_length=1, max_length=20)
+
+
+class HoldingTransactionResult(BaseModel):
+    applied: int
+    holdings: list["HoldingOut"]
+
+
 class HoldingOut(BaseModel):
     id: int
     symbol: str
@@ -142,6 +171,31 @@ class NewsIngestOut(BaseModel):
     message: str
 
 
+class AnnouncementItemOut(BaseModel):
+    """巨潮公告条目。"""
+    title: str
+    announcement_type: str
+    announcement_time: datetime
+    symbol: str
+    name: str = ""
+    url: str = ""
+    source: str = "cninfo"
+
+
+class ResearchReportItemOut(BaseModel):
+    """东方财富机构研报条目。"""
+    title: str
+    institution: str = ""
+    analyst: str = ""
+    rating: str = ""
+    target_price: float | None = None
+    publish_date: datetime
+    symbol: str
+    name: str = ""
+    summary: str = ""
+    source: str = "eastmoney"
+
+
 class DimensionResult(BaseModel):
     agent: str
     score: float = Field(ge=1, le=10)
@@ -195,6 +249,16 @@ class SectorLeaderBrief(BaseModel):
     brief: str
 
 
+class MasterCommentaryItem(BaseModel):
+    master: str
+    name: str
+    signal: Literal["bullish", "neutral", "bearish"] = "neutral"
+    signal_text: str = "中性"
+    confidence: float = 0.5
+    reasoning: str = ""
+    key_metric: str = ""
+
+
 class ResearchReportOut(BaseModel):
     symbol: str
     name: str
@@ -213,6 +277,7 @@ class ResearchReportOut(BaseModel):
     text_factor_summary: str | None = None
     ashare_factors: list[AshareFactorOut] = Field(default_factory=list)
     dimension_weights: dict[str, float] = Field(default_factory=dict)
+    master_commentary: list[MasterCommentaryItem] = Field(default_factory=list)
     disclaimer: str = DISCLAIMER
     cached: bool = False
 
@@ -279,6 +344,29 @@ class RiskCheckupOut(BaseModel):
     llm_analysis: LLMRiskAnalysis | None = None
     metrics: PortfolioMetricsOut | None = None
     var_result: VaRResultOut | None = None
+    master_commentary: list[MasterCommentaryItem] = Field(default_factory=list)
+    disclaimer: str = DISCLAIMER
+
+
+class DailyScanItem(BaseModel):
+    symbol: str
+    name: str
+    sector: str
+    price: float | None = None
+    change_pct: float | None = None
+    cost_price: float
+    profit_pct: float | None = None
+    technical_score: int = Field(ge=0, le=100)
+    signal: Literal["bullish", "neutral", "bearish"] = "neutral"
+    signal_text: str = "中性"
+    suggestion: str = ""
+    factors: list[str] = Field(default_factory=list)
+
+
+class DailyScanOut(BaseModel):
+    scan_date: date
+    summary: str
+    items: list[DailyScanItem]
     disclaimer: str = DISCLAIMER
 
 
@@ -329,6 +417,7 @@ class RiskCheckupRequest(BaseModel):
     output_tone: Literal["professional", "standard", "friendly"] | None = None
     reading_mode: Literal["professional", "friendly"] | None = None
     output_locale: Literal["zh", "en"] | None = None
+    enable_master_commentary: bool | None = None
 
 
 class ChatRequest(BaseModel):
@@ -337,6 +426,8 @@ class ChatRequest(BaseModel):
     llm: LlmUserSettings | None = None
     analysis_mode: Literal["simple", "complex"] | None = None
     enable_debate: bool | None = None
+    enable_master_commentary: bool | None = None
+    enable_glossary: bool | None = None
     output_tone: Literal["professional", "standard", "friendly"] | None = None
     reading_mode: Literal["professional", "friendly"] | None = None
     output_locale: Literal["zh", "en"] | None = None
@@ -421,8 +512,10 @@ class ProviderStatusOut(BaseModel):
     domain: str
     primary: str
     fallback: str | None = None
+    tertiary: str | None = None
     primary_count: int = 0
     fallback_count: int = 0
+    tertiary_count: int = 0
     degraded: bool = False
     message: str | None = None
     updated_at: datetime | None = None
@@ -483,6 +576,7 @@ class ResearchReportListItem(BaseModel):
 class IndustryResearchRequest(BaseModel):
     sector: str = Field(min_length=1, max_length=50)
     query: str = Field(default="", max_length=500)
+    enable_master_commentary: bool | None = None
 
 
 class BriefingSection(BaseModel):
@@ -497,6 +591,24 @@ class BriefingOut(BaseModel):
     summary: str
     disclaimer: str = DISCLAIMER
     generated_at: datetime
+
+
+class BriefingRecordOut(BaseModel):
+    id: int
+    kind: Literal["morning", "closing"]
+    title: str
+    summary: str
+    sections: list[BriefingSection]
+    generated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class BriefingScheduleStatus(BaseModel):
+    enabled: bool
+    morning_time: str = "09:00"
+    closing_time: str = "15:30"
+    timezone: str = "Asia/Shanghai"
 
 
 class SignalBacktestHorizon(BaseModel):

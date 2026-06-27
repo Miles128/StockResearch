@@ -1,25 +1,19 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useI18n } from "./i18n";
-
-interface TermInfo {
-  id: string;
-  short: string;
-  en: string;
-  def: string;
-  analogy: string;
-}
+import { api, type GlossaryTerm } from "./api";
 
 interface TermPopoverProps {
-  term: TermInfo;
+  term: GlossaryTerm;
   children: ReactNode;
 }
 
+/** 投顾模式专有名词弹窗：点击术语展开通俗解释 + 类比。 */
 export function TermPopover({ term, children }: TermPopoverProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
   const { t } = useI18n();
 
-  // Close on outside click
+  // 点击外部关闭
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
@@ -38,7 +32,9 @@ export function TermPopover({ term, children }: TermPopoverProps) {
       onClick={() => setOpen((v) => !v)}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setOpen((v) => !v); }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") setOpen((v) => !v);
+      }}
     >
       {children}
       {open && (
@@ -50,7 +46,7 @@ export function TermPopover({ term, children }: TermPopoverProps) {
           <span className="term-popover-def">{term.def}</span>
           {term.analogy && (
             <span className="term-popover-analogy">
-              💡 {t("term.analogyLabel")}：{term.analogy}
+              💡 {t("termAnalogyLabel")}：{term.analogy}
             </span>
           )}
         </span>
@@ -59,55 +55,45 @@ export function TermPopover({ term, children }: TermPopoverProps) {
   );
 }
 
-/** Render text containing <term data-id="...">...</term> markup into React elements.
- *  Only used in professional reading mode.
- */
-export function renderTermMarkup(
-  html: string,
-  glossary: Record<string, TermInfo>,
-): ReactNode[] {
-  const parts: ReactNode[] = [];
-  const regex = /<term data-id="([^"]+)">(.*?)<\/term>/g;
-  let lastIdx = 0;
-  let match: RegExpExecArray | null;
-  let key = 0;
+// ── 词库获取（模块级缓存，全应用只拉取一次） ──
 
-  while ((match = regex.exec(html)) !== null) {
-    if (match.index > lastIdx) {
-      parts.push(<span key={key++}>{html.slice(lastIdx, match.index)}</span>);
-    }
-    const termId = match[1];
-    const termText = match[2];
-    const termInfo = glossary[termId] || {
-      id: termId,
-      short: termId,
-      en: "",
-      def: t_ref("term.aiGenerated"),
-      analogy: "",
-    };
-    parts.push(
-      <TermPopover key={key++} term={termInfo}>
-        {termText}
-      </TermPopover>,
-    );
-    lastIdx = regex.lastIndex;
+let _glossaryCache: Record<string, GlossaryTerm> | null = null;
+let _glossaryPromise: Promise<Record<string, GlossaryTerm>> | null = null;
+
+function fetchGlossary(): Promise<Record<string, GlossaryTerm>> {
+  if (_glossaryCache) return Promise.resolve(_glossaryCache);
+  if (!_glossaryPromise) {
+    _glossaryPromise = api
+      .glossary()
+      .then((list) => {
+        const map: Record<string, GlossaryTerm> = {};
+        for (const item of list) map[item.id] = item;
+        _glossaryCache = map;
+        return map;
+      })
+      .catch(() => {
+        // 失败则允许下次重试
+        _glossaryPromise = null;
+        return {};
+      });
   }
-  if (lastIdx < html.length) {
-    parts.push(<span key={key}>{html.slice(lastIdx)}</span>);
-  }
-  return parts;
+  return _glossaryPromise;
 }
 
-// Simple i18n accessor to avoid hook in non-component context
-let _t: ((key: string) => string) | null = null;
-function t_ref(key: string): string {
-  return _t?.(key) ?? key;
-}
-
-// Hook to set the t function for renderTermMarkup
-export function useTermRenderer() {
-  const { t } = useI18n();
+/** 获取词库映射；首次挂载时异步拉取，之后命中模块缓存。 */
+export function useGlossary(): Record<string, GlossaryTerm> | null {
+  const [glossary, setGlossary] = useState<Record<string, GlossaryTerm> | null>(
+    _glossaryCache,
+  );
   useEffect(() => {
-    _t = t;
-  }, [t]);
+    if (_glossaryCache) return;
+    let active = true;
+    fetchGlossary().then((g) => {
+      if (active) setGlossary(g);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  return glossary;
 }

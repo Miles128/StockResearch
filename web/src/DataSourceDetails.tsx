@@ -97,13 +97,9 @@ export function DataSourceDetails({ status, onClose }: DataSourceDetailsProps) {
         <div className={`data-source-summary${degraded ? " degraded" : ""}`}>
           <strong>{degraded ? (locale === "zh" ? "存在降级或缺失" : "Degraded or missing") : locale === "zh" ? "数据状态正常" : "Data status OK"}</strong>
           <span>
-            {status?.use_mock
-              ? locale === "zh"
-                ? "当前启用 Mock 行情"
-                : "Mock market data is enabled"
-              : locale === "zh"
-                ? "当前使用真实外网数据或本地缓存"
-                : "Using live external data or local cache"}
+            {locale === "zh"
+              ? "当前使用真实外网数据或本地缓存"
+              : "Using live external data or local cache"}
           </span>
         </div>
 

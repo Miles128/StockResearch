@@ -1,8 +1,8 @@
 /**
- * 双模式设置：个人投顾（advisor）/ 专业投研（research）
+ * 双模式设置：个人（advisor）/ 专家（research）
  * 核心差异：
- * 1. 投顾模式考虑个人现金流和风险承受能力，投研模式不考虑
- * 2. 投顾模式用大白话，投研模式术语直出
+ * 1. 个人模式考虑个人现金流和风险承受能力，专家模式不考虑
+ * 2. 个人模式用大白话，专家模式术语直出
  *
  * 模式是预设包，模式内单项可微调（Settings）。
  * 持久化到 localStorage + 后端 SQLite；localStorage 作为启动缓存。
@@ -20,17 +20,17 @@ export type RiskTolerance = "conservative" | "moderate" | "aggressive";
 export interface ModeSettings {
   /** 当前模式 */
   mode: AppMode;
-  /** 风险承受能力分级（投顾模式必填，投研模式不启用） */
+  /** 风险承受能力分级（个人模式专属） */
   riskTolerance: RiskTolerance;
-  /** 月收入（可选，投顾模式用于把亏损换算成"相当于月收入 X%"） */
+  /** 月收入（可选，个人模式用于把亏损换算成"相当于月收入 X%"） */
   monthlyIncome?: number;
-  /** 写作风格：投顾默认 friendly（大白话），投研默认 professional（术语） */
+  /** 写作风格：个人默认 friendly（大白话），专家默认 professional（术语） */
   readingMode: ReadingMode;
-  /** 多空辩论：投顾默认关，投研默认开 */
+  /** 多空辩论：个人默认关，专家默认开 */
   enableDebate: boolean;
-  /** 术语弹窗：投顾默认开，投研默认关 */
+  /** 术语弹窗：个人默认开，专家默认关 */
   enableGlossary: boolean;
-  /** 首屏信号数：投顾默认 5，投研默认 20 */
+  /** 首屏信号数：个人默认 5，专家默认 20 */
   maxSignals: number;
   /** 是否已完成首次引导 */
   onboarded: boolean;
@@ -77,7 +77,7 @@ export interface ModeSettingsApiPayload {
   onboarded: boolean;
 }
 
-/** 投顾模式默认预设 */
+/** 个人模式默认预设 */
 export const ADVISOR_PRESET: Omit<ModeSettings, "onboarded"> = {
   mode: "advisor",
   riskTolerance: "moderate",
@@ -88,10 +88,10 @@ export const ADVISOR_PRESET: Omit<ModeSettings, "onboarded"> = {
   maxSignals: 5,
 };
 
-/** 投研模式默认预设 */
+/** 专家模式默认预设 */
 export const RESEARCH_PRESET: Omit<ModeSettings, "onboarded"> = {
   mode: "research",
-  riskTolerance: "moderate", // 投研模式不启用，但保留默认值
+  riskTolerance: "moderate", // 专家模式不启用，但保留默认值
   monthlyIncome: undefined,
   readingMode: "professional",
   enableDebate: true,
@@ -99,7 +99,7 @@ export const RESEARCH_PRESET: Omit<ModeSettings, "onboarded"> = {
   maxSignals: 20,
 };
 
-/** 默认设置：投顾模式（PRD §1.3 主用户 A 默认） */
+/** 默认设置：个人模式（PRD §1.3 主用户 A 默认） */
 export const DEFAULT_MODE_SETTINGS: ModeSettings = {
   ...ADVISOR_PRESET,
   onboarded: false,

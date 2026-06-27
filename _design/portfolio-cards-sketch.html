@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>持仓面板 · 卡片式重设计草图</title>
+  <style>
+    :root {
+      --bg: #050505;
+      --panel: #0a0a0a;
+      --panel-2: #111111;
+      --border: #2a2a2a;
+      --border-bright: #3d3d3d;
+      --text: #eeeeee;
+      --muted: #8a8a8a;
+      --dim: #555555;
+      --accent: #ff6600;
+      --accent-dim: #cc5200;
+      --up: #00c853;
+      --down: #ff1744;
+      --warn: #ffab00;
+      --blue: #4fc3f7;
+      --font-ui: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      --font-mono: "SF Mono", Consolas, Menlo, monospace;
+      --radius-a: 0px;
+      --radius-b: 14px;
+      --shadow-a: none;
+      --shadow-b: 0 8px 32px rgba(0,0,0,0.45);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: var(--font-ui);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+      min-height: 100vh;
+    }
+
+    .chrome {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: var(--accent);
+      color: #000;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .chrome-left { display: flex; align-items: center; gap: 12px; }
+    .chrome-title { text-transform: uppercase; letter-spacing: 0.08em; }
+    .style-switch { display: flex; gap: 6px; }
+    .style-switch button {
+      border: 1px solid #000;
+      background: transparent;
+      color: #000;
+      padding: 4px 10px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .style-switch button.active { background: #000; color: var(--accent); }
+
+    .canvas { padding: 16px; max-width: 1200px; margin: 0 auto; }
+
+    .section-title {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin: 28px 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-title:first-child { margin-top: 0; }
+
+    /* ── Variant A: Bloomberg 硬核卡片 ── */
+    .v-a .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-a);
+      box-shadow: var(--shadow-a);
+    }
+    .v-a .card-accent { border-left: 3px solid var(--accent); }
+    .v-a .card-up { border-left: 3px solid var(--up); }
+    .v-a .card-down { border-left: 3px solid var(--down); }
+    .v-a .card-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .v-a .card-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .v-a .card-meta { font-size: 12px; color: var(--muted); }
+    .v-a .card-body { padding: 12px; }
+
+    /* 今日关注 A */
+    .v-a .briefing-lead {
+      font-size: 18px;
+      font-weight: 600;
+      line-height: 1.4;
+      margin: 0 0 14px;
+      color: var(--text);
+    }
+    .v-a .briefing-vertical-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .v-a .briefing-point {
+      padding: 10px 12px;
+      background: var(--panel-2);
+      border-left: 3px solid var(--orange);
+    }
+    .v-a .briefing-point strong {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--accent);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .v-a .briefing-point p {
+      margin: 0;
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    /* 总持仓 A */
+    .v-a .summary-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .v-a .summary-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .v-a .summary-row:last-child { border-bottom: none; }
+    .v-a .summary-row .label {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .v-a .summary-row .value {
+      font-family: var(--font-mono);
+      font-size: 22px;
+      font-weight: 700;
+    }
+    .v-a .summary-row .value.small { font-size: 16px; }
+
+    /* 行业分布 A */
+    .v-a .sector-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .v-a .sector-item {
+      display: grid;
+      grid-template-columns: 84px 1fr 44px;
+      align-items: center;
+      gap: 10px;
+    }
+    .v-a .sector-name {
+      font-size: 12px;
+      color: var(--text);
+    }
+    .v-a .sector-bar {
+      height: 8px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .v-a .sector-fill { height: 100%; background: var(--accent); }
+    .v-a .sector-pct {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      text-align: right;
+      color: var(--muted);
+    }
+
+    /* 持仓个股 A */
+    .v-a .holdings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 10px;
+    }
+    .v-a .holding-card {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 12px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+    }
+    .v-a .holding-card.up { border-top: 3px solid var(--up); }
+    .v-a .holding-card.down { border-top: 3px solid var(--down); }
+    .v-a .holding-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .v-a .holding-name { font-size: 15px; font-weight: 700; }
+    .v-a .holding-symbol {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .v-a .holding-price {
+      font-family: var(--font-mono);
+      font-size: 26px;
+      font-weight: 700;
+    }
+    .v-a .holding-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .v-a .holding-tag {
+      font-size: 11px;
+      padding: 2px 6px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .v-a .holding-pnl {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-top: auto;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+    .v-a .holding-pnl .amt { font-family: var(--font-mono); font-size: 15px; font-weight: 700; }
+    .v-a .holding-pnl .pct { font-family: var(--font-mono); font-size: 13px; }
+
+    /* ── Variant B: 现代金融终端 ── */
+    .v-b .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.02) 100%);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: var(--radius-b);
+      box-shadow: var(--shadow-b);
+      backdrop-filter: blur(10px);
+    }
+    .v-b .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .v-b .card-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--text);
+    }
+    .v-b .card-label::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .v-b .card-meta { font-size: 12px; color: var(--muted); }
+    .v-b .card-body { padding: 16px; }
+
+    /* 今日关注 B */
+    .v-b .briefing-lead {
+      font-size: 20px;
+      font-weight: 600;
+      line-height: 1.45;
+      margin: 0 0 18px;
+    }
+    .v-b .briefing-vertical-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .v-b .briefing-point {
+      padding: 12px 14px;
+      background: rgba(0,0,0,0.22);
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.04);
+      border-left: 3px solid var(--orange);
+    }
+    .v-b .briefing-point strong {
+      display: block;
+      font-size: 11px;
+      color: var(--accent);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .v-b .briefing-point p { margin: 0 0 8px; font-size: 13px; color: #cfcfcf; line-height: 1.45; }
+    .v-b .briefing-point p:last-child { margin-bottom: 0; }
+    .v-b .briefing-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .v-b .briefing-tag {
+      font-size: 10px;
+      padding: 2px 6px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 4px;
+      color: var(--muted);
+    }
+
+    /* 总持仓 B · 竖栏 */
+    .v-b .summary-stack { padding: 4px 0; }
+    .v-b .summary-row-main {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 0;
+      background: transparent;
+      border-radius: 0;
+    }
+    .v-b .summary-cell {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      background: rgba(0,0,0,0.22);
+      border-radius: 10px;
+    }
+    .v-b .summary-cell .label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .v-b .summary-cell .value {
+      font-family: var(--font-mono);
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .v-b .summary-cell .value.small { font-size: 15px; }
+
+    /* 行业分布 B */
+    .v-b .sector-chart {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+    .v-b .donut {
+      width: 140px;
+      height: 140px;
+      flex-shrink: 0;
+    }
+    .v-b .sector-list {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .v-b .sector-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .v-b .sector-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .v-b .sector-name { flex: 1; font-size: 13px; }
+    .v-b .sector-bar {
+      flex: 1.5;
+      height: 6px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .v-b .sector-fill { height: 100%; border-radius: 3px; }
+    .v-b .sector-pct {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--muted);
+      min-width: 40px;
+      text-align: right;
+    }
+
+    /* 总持仓 + 行业分布 合并卡片 B */
+    .v-b .portfolio-sector-card .card-body {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .v-b .portfolio-sector-grid {
+      display: grid;
+      grid-template-columns: 180px 160px 1fr;
+      gap: 24px;
+      align-items: center;
+    }
+    .v-b .portfolio-vertical {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .v-b .portfolio-vertical .summary-cell {
+      background: rgba(0,0,0,0.22);
+      border-radius: 10px;
+    }
+    .v-b .sector-visual {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .v-b .sector-visual .donut {
+      width: 160px;
+      height: 160px;
+    }
+    .v-b .sector-detail-wrap {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      align-content: center;
+    }
+    .v-b .sector-detail-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 10px;
+      background: rgba(0,0,0,0.18);
+      border-radius: 8px;
+      border-left: 3px solid var(--accent);
+    }
+    .v-b .sector-detail-item .left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .v-b .sector-detail-item .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .v-b .sector-detail-item .name {
+      font-size: 12px;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .v-b .sector-detail-item .pct {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .v-b .sector-detail-item .pnl {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    /* 持仓个股 B */
+    .v-b .holdings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 14px;
+    }
+    .v-b .holding-card {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    .v-b .holding-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+    }
+    .v-b .holding-card.up::before { background: var(--up); }
+    .v-b .holding-card.down::before { background: var(--down); }
+    .v-b .holding-title {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .v-b .holding-name { font-size: 16px; font-weight: 700; }
+    .v-b .holding-symbol {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .v-b .holding-badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 3px 7px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.08);
+      color: var(--muted);
+    }
+    .v-b .holding-price {
+      font-family: var(--font-mono);
+      font-size: 28px;
+      font-weight: 700;
+    }
+    .v-b .holding-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .v-b .holding-tag {
+      font-size: 11px;
+      padding: 3px 8px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 4px;
+      color: var(--muted);
+    }
+    .v-b .holding-pnl {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-top: auto;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .v-b .holding-pnl .amt { font-family: var(--font-mono); font-size: 16px; font-weight: 700; }
+    .v-b .holding-pnl .pct { font-family: var(--font-mono); font-size: 13px; }
+
+    /* 通用工具类 */
+    .up { color: var(--up); }
+    .down { color: var(--down); }
+    .warn { color: var(--warn); }
+    .mono { font-family: var(--font-mono); }
+    .muted { color: var(--muted); }
+
+    /* 应用级布局：主面板 + AI 对话窗口 */
+    .app-preview {
+      display: flex;
+      margin: 0 auto;
+      transition: width 0.35s ease;
+      background: var(--bg);
+      container-type: inline-size;
+      container-name: app;
+    }
+    .main-panel {
+      flex: 1;
+      min-width: 0;
+      overflow: auto;
+    }
+    .canvas {
+      padding: 16px;
+      margin: 0 auto;
+      max-width: 1440px;
+    }
+    .copilot-panel {
+      display: none;
+      flex-direction: column;
+      width: 380px;
+      flex-shrink: 0;
+      border-left: 1px solid var(--border);
+      background: var(--panel);
+    }
+    .copilot-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .copilot-meta {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .copilot-body {
+      flex: 1;
+      padding: 14px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .chat-bubble {
+      max-width: 92%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .chat-bubble.user {
+      align-self: flex-end;
+      background: rgba(255, 102, 0, 0.12);
+      border: 1px solid rgba(255, 102, 0, 0.25);
+      color: var(--text);
+    }
+    .chat-bubble.ai {
+      align-self: flex-start;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: #cfcfcf;
+    }
+    .chat-bubble.ai p { margin: 0 0 6px; }
+    .chat-bubble.ai p:last-child { margin-bottom: 0; }
+    .chat-bubble.ai ul { margin: 4px 0; padding-left: 18px; }
+    .chat-bubble.ai li { margin-bottom: 2px; }
+
+    /* 总持仓 + 行业分布 响应式排布 */
+    .dashboard-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+    @container app (min-width: 1200px) {
+      .dashboard-row {
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+    }
+    @container app (min-width: 1700px) {
+      .copilot-panel { display: flex; }
+    }
+
+    /* 响应式 */
+    @media (max-width: 1100px) {
+      .v-b .briefing-vertical-list { flex-direction: column; }
+    }
+    @media (max-width: 900px) {
+      .v-b .portfolio-sector-grid { grid-template-columns: 1fr; gap: 16px; }
+      .v-b .sector-visual { justify-content: flex-start; }
+      .v-b .sector-detail-wrap { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 720px) {
+      .v-a .briefing-vertical-list { flex-direction: column; }
+      .v-b .briefing-vertical-list { flex-direction: column; }
+      .v-b .summary-row-main { grid-template-columns: 1fr; }
+      .v-b .portfolio-sector-grid { grid-template-columns: 1fr; }
+      .v-b .sector-detail-wrap { grid-template-columns: 1fr; }
+      .v-b .sector-chart { flex-direction: column; align-items: stretch; }
+      .v-a .holdings-grid,
+      .v-b .holdings-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="chrome">
+    <div class="chrome-left">
+      <span class="chrome-title">持仓面板重设计草图</span>
+      <span class="muted" style="color:rgba(0,0,0,0.55)">F2 · Portfolio</span>
+    </div>
+    <div class="style-switch">
+      <button id="btn-a" class="active" onclick="setVariant('a')">A · Bloomberg 硬核</button>
+      <button id="btn-b" onclick="setVariant('b')">B · 现代终端</button>
+      <span style="width:1px;height:16px;background:rgba(0,0,0,0.3);margin:0 4px"></span>
+      <button onclick="setViewport(1920)">1920</button>
+      <button class="active" onclick="setViewport(1440)">1440</button>
+      <button onclick="setViewport(1200)">1200</button>
+      <button onclick="setViewport(768)">768</button>
+    </div>
+  </div>
+
+  <div class="app-preview" id="app-preview" style="width:1440px">
+    <div class="main-panel">
+      <div id="app" class="canvas v-a">
+    <!-- 今日关注 -->
+    <div class="section-title" id="briefing-section-title">今日关注 · Morning Briefing</div>
+    <div class="card card-accent">
+      <div class="card-body">
+        <p class="briefing-lead">大盘低开高走，北向回流；持仓整体微涨，白酒板块承压，新能源龙头带动净值回升。</p>
+        <div class="briefing-vertical-list">
+          <div class="briefing-point">
+            <strong>市场概览</strong>
+            <p>大盘低开高走，全天震荡收红。</p>
+            <div class="briefing-tags">
+              <span class="briefing-tag">沪指 +0.42%</span>
+              <span class="briefing-tag">深成 +0.88%</span>
+              <span class="briefing-tag">创业 +1.21%</span>
+            </div>
+          </div>
+          <div class="briefing-point">
+            <strong>持仓快照</strong>
+            <p>8 只持仓中 5 只上涨，整体跑赢大盘。</p>
+            <div class="briefing-tags">
+              <span class="briefing-tag">涨 5</span>
+              <span class="briefing-tag">跌 3</span>
+              <span class="briefing-tag up">盈亏 +¥3,240</span>
+            </div>
+          </div>
+          <div class="briefing-point">
+            <strong>重要新闻</strong>
+            <p>新能源车 6 月销量超预期，产业链订单饱满；隆基绿能海外大单落地。</p>
+            <div class="briefing-tags">
+              <span class="briefing-tag">新能源</span>
+              <span class="briefing-tag">隆基绿能</span>
+            </div>
+          </div>
+          <div class="briefing-point">
+            <strong>关注信号</strong>
+            <p>北向资金连续 2 日净流入，新能源板块获主力加仓。</p>
+            <div class="briefing-tags">
+              <span class="briefing-tag">北向 +28 亿</span>
+              <span class="briefing-tag">主力流入新能源</span>
+            </div>
+          </div>
+          <div class="briefing-point">
+            <strong>风险雷达</strong>
+            <p>白酒仓位占比 32%，集中度偏高；五粮液已跌破 20 日均线。</p>
+            <div class="briefing-tags">
+              <span class="briefing-tag warn">集中度 ⚠</span>
+              <span class="briefing-tag down">五粮液 -1.93%</span>
+            </div>
+          </div>
+          <div class="briefing-point">
+            <strong>操作建议</strong>
+            <p>新能源持仓可继续持有；白酒建议观察止损线，暂不加仓。</p>
+            <div class="briefing-tags">
+              <span class="briefing-tag up">持有新能源</span>
+              <span class="briefing-tag warn">白酒观望</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 总持仓 + 行业分布 合并卡片 -->
+    <div class="section-title">总持仓与行业分布 · Portfolio & Sectors</div>
+    <div class="card portfolio-sector-card">
+      <div class="card-body">
+        <div class="portfolio-sector-grid">
+          <div class="portfolio-vertical" id="portfolio-vertical-b">
+            <div class="summary-cell">
+              <span class="label">总市值</span>
+              <span class="value mono">¥1,248,600</span>
+            </div>
+            <div class="summary-cell">
+              <span class="label">今日盈亏</span>
+              <span class="value mono up">+¥3,240 · +0.26%</span>
+            </div>
+            <div class="summary-cell">
+              <span class="label">持仓数量</span>
+              <span class="value small mono">8 只</span>
+            </div>
+          </div>
+          <div class="sector-visual">
+            <svg class="donut" viewBox="0 0 100 100" id="donut-svg"></svg>
+          </div>
+          <div class="sector-detail-wrap" id="sector-detail-grid"></div>
+        </div>
+        <!-- Variant A will override display via JS -->
+        <div class="sector-list" id="sector-list-a" style="display:none"></div>
+      </div>
+    </div>
+
+    <!-- 持仓个股卡片 -->
+    <div class="section-title">持仓个股 · Holdings</div>
+    <div class="holdings-grid" id="holdings-grid"></div>
+      </div>
+    </div>
+    <div class="copilot-panel">
+      <div class="copilot-header">
+        <span>AI 对话</span>
+        <span class="copilot-meta">Copilot</span>
+      </div>
+      <div class="copilot-body">
+        <div class="chat-bubble user">解释今天盈亏</div>
+        <div class="chat-bubble ai">
+          <p>今天持仓整体上涨 <strong>+0.26%</strong>，主要贡献来自：</p>
+          <ul>
+            <li>宁德时代 +2.16%，贡献约 ¥1,260</li>
+            <li>贵州茅台 +0.74%，贡献约 ¥1,250</li>
+          </ul>
+          <p>拖累主要来自比亚迪 -1.19% 和五粮液 -1.93%。</p>
+        </div>
+        <div class="chat-bubble user">谁贡献最大风险</div>
+        <div class="chat-bubble ai">白酒板块集中度 32%，为组合主要风险来源。</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const sectors = [
+      { name: "白酒", pct: 32, color: "#ff6600", pnl: -1200, pnlPct: -1.8 },
+      { name: "新能源", pct: 24, color: "#00c853", pnl: 4800, pnlPct: 3.2 },
+      { name: "半导体", pct: 18, color: "#4fc3f7", pnl: 950, pnlPct: 1.5 },
+      { name: "医药", pct: 14, color: "#ffab00", pnl: 320, pnlPct: 0.6 },
+      { name: "金融", pct: 12, color: "#8a8a8a", pnl: -80, pnlPct: -0.2 },
+    ];
+
+    const holdings = [
+      { name: "贵州茅台", symbol: "600519", price: 1688.00, change: 12.50, changePct: 0.74, pnl: 12400, pnlPct: 8.2, sector: "白酒", lots: 10, up: true },
+      { name: "宁德时代", symbol: "300750", price: 198.60, change: 4.20, changePct: 2.16, pnl: 5600, pnlPct: 5.4, sector: "新能源", lots: 30, up: true },
+      { name: "比亚迪", symbol: "002594", price: 258.40, change: -3.10, changePct: -1.19, pnl: -2100, pnlPct: -2.3, sector: "新能源", lots: 20, up: false },
+      { name: "中芯国际", symbol: "688981", price: 56.80, change: 1.05, changePct: 1.88, pnl: 1800, pnlPct: 3.5, sector: "半导体", lots: 100, up: true },
+      { name: "迈瑞医疗", symbol: "300760", price: 298.20, change: -1.40, changePct: -0.47, pnl: 900, pnlPct: 0.8, sector: "医药", lots: 8, up: false },
+      { name: "中国平安", symbol: "601318", price: 44.35, change: 0.25, changePct: 0.57, pnl: -450, pnlPct: -0.9, sector: "金融", lots: 50, up: true },
+      { name: "隆基绿能", symbol: "601012", price: 18.92, change: 0.36, changePct: 1.94, pnl: 1200, pnlPct: 2.1, sector: "新能源", lots: 80, up: true },
+      { name: "五粮液", symbol: "000858", price: 142.60, change: -2.80, changePct: -1.93, pnl: -3600, pnlPct: -4.5, sector: "白酒", lots: 15, up: false },
+    ];
+
+    function formatMoney(n) {
+      const s = n >= 0 ? "+" : "";
+      return s + "¥" + Math.abs(n).toLocaleString();
+    }
+
+    function formatPct(n) {
+      const s = n >= 0 ? "+" : "";
+      return s + n.toFixed(2) + "%";
+    }
+
+    function renderSectorsA() {
+      const list = document.getElementById("sector-list-a");
+      list.innerHTML = sectors.map(s => `
+        <div class="sector-item">
+          <span class="sector-name">${s.name}</span>
+          <div class="sector-bar"><div class="sector-fill" style="width:${s.pct}%"></div></div>
+          <span class="sector-pct">${s.pct}%</span>
+        </div>
+      `).join("");
+    }
+
+    function renderSectorsB() {
+      // Donut chart
+      const svg = document.getElementById("donut-svg");
+      let acc = 0;
+      const r = 40;
+      const cx = 50, cy = 50;
+      const total = sectors.reduce((a, b) => a + b.pct, 0);
+      const paths = sectors.map(s => {
+        const start = acc / total * Math.PI * 2 - Math.PI / 2;
+        acc += s.pct;
+        const end = acc / total * Math.PI * 2 - Math.PI / 2;
+        const x1 = cx + r * Math.cos(start);
+        const y1 = cy + r * Math.sin(start);
+        const x2 = cx + r * Math.cos(end);
+        const y2 = cy + r * Math.sin(end);
+        const large = end - start > Math.PI ? 1 : 0;
+        return `<path d="M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}" fill="none" stroke="${s.color}" stroke-width="12" stroke-linecap="butt" />`;
+      }).join("");
+      svg.innerHTML = paths + `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="12" />`;
+    }
+
+    function renderSectorDetail() {
+      const grid = document.getElementById("sector-detail-grid");
+      grid.innerHTML = sectors.map(s => `
+        <div class="sector-detail-item" style="border-left-color:${s.color}">
+          <div class="left">
+            <span class="dot" style="background:${s.color}"></span>
+            <span class="name">${s.name}</span>
+            <span class="pct">${s.pct}%</span>
+          </div>
+          <span class="pnl ${s.pnl >= 0 ? 'up' : 'down'}">${formatMoney(s.pnl)} · ${formatPct(s.pnlPct)}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderHoldings() {
+      const grid = document.getElementById("holdings-grid");
+      grid.innerHTML = holdings.map(h => `
+        <div class="holding-card ${h.up ? 'up' : 'down'}">
+          <div class="holding-title">
+            <div>
+              <div class="holding-name">${h.name}</div>
+              <div class="holding-symbol">${h.symbol} · ${h.sector}</div>
+            </div>
+            <span class="holding-badge ${h.up ? 'up' : 'down'}">${h.change >= 0 ? '+' : ''}${h.changePct.toFixed(2)}%</span>
+          </div>
+          <div class="holding-price mono">${h.price.toFixed(2)}</div>
+          <div class="holding-tags">
+            <span class="holding-tag">${h.lots} 手</span>
+            <span class="holding-tag">今 ${h.change >= 0 ? '+' : ''}${h.change.toFixed(2)}</span>
+          </div>
+          <div class="holding-pnl">
+            <span class="amt ${h.pnl >= 0 ? 'up' : 'down'}">${formatMoney(h.pnl)}</span>
+            <span class="pct ${h.pnl >= 0 ? 'up' : 'down'}">${formatPct(h.pnlPct)}</span>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function setVariant(v) {
+      document.getElementById("app").className = "canvas v-" + v;
+      document.getElementById("btn-a").classList.toggle("active", v === "a");
+      document.getElementById("btn-b").classList.toggle("active", v === "b");
+
+      const detailGrid = document.getElementById("sector-detail-grid");
+      const listA = document.getElementById("sector-list-a");
+      if (v === "a") {
+        if (detailGrid) detailGrid.style.display = "none";
+        if (listA) listA.style.display = "flex";
+      } else {
+        if (detailGrid) detailGrid.style.display = "grid";
+        if (listA) listA.style.display = "none";
+      }
+    }
+
+    function setViewport(w) {
+      const preview = document.getElementById("app-preview");
+      preview.style.width = w + "px";
+      document.querySelectorAll('.style-switch button[onclick^="setViewport"]').forEach((b) => {
+        b.classList.toggle("active", b.textContent.includes(String(w)));
+      });
+    }
+
+    function updateBriefingLabel() {
+      const now = new Date();
+      const h = now.getHours();
+      const m = now.getMinutes();
+      const t = h * 60 + m;
+      const dateStr = now.toLocaleDateString("zh-CN");
+
+      // A-share sessions: pre 09:30, am 09:30-11:30, midday 11:30-13:00, pm 13:00-15:00, after 15:00
+      let label = "今日关注";
+      let sub = dateStr;
+      if (t < 570) {
+        label = "盘前简报";
+        sub = `${dateStr} · 开盘前`;
+      } else if (t < 690) {
+        label = "盘中关注";
+        sub = `${dateStr} · 交易中`;
+      } else if (t < 780) {
+        label = "午间简报";
+        sub = `${dateStr} · 午间休市`;
+      } else if (t < 900) {
+        label = "盘中关注";
+        sub = `${dateStr} · 交易中`;
+      } else {
+        label = "盘后简报";
+        sub = `${dateStr} · 已收盘`;
+      }
+
+      const elSection = document.getElementById("briefing-section-title");
+      if (elSection) elSection.textContent = `${label} · Morning Briefing`;
+    }
+
+    renderSectorsA();
+    renderSectorsB();
+    renderSectorDetail();
+    renderHoldings();
+    updateBriefingLabel();
+    setVariant("b");
+  </script>
+</body>
+</html>

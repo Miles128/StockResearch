@@ -6,6 +6,7 @@ import { FollowUpChips } from "./FollowUpChips";
 import { LightResearchCard } from "./LightResearchCard";
 import {
   findResearchReport,
+  FollowUpQuestions,
 } from "./researchReportView";
 import { isResearchTurn } from "./disclaimerText";
 import { useI18n } from "./i18n";
@@ -101,6 +102,7 @@ export function ChatPanel({
                           judgeVerdict={m.process.judgeVerdict}
                           voteTally={m.process.voteTally}
                           activeStreamIds={[]}
+                          masterCommentary={m.process.masterCommentary}
                         />
                       )}
                     </div>
@@ -147,6 +149,13 @@ export function ChatPanel({
                   <FollowUpChips questions={m.followUpQuestions} onSelect={onStartQuery} />
                 )}
                 {isResearchTurn(m.cards, m.intent) && <p className="turn-disclaimer">{t("chat.turnDisclaimer")}</p>}
+                {!loading &&
+                  i === messages.length - 1 &&
+                  findResearchReport(m.cards) != null &&
+                  (() => {
+                    const fr = findResearchReport(m.cards);
+                    return fr ? <FollowUpQuestions report={fr} onAsk={onStartQuery} /> : null;
+                  })()}
               </>
             )}
           </div>

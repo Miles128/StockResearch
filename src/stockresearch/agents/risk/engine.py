@@ -3,6 +3,8 @@
 import asyncio
 import logging
 
+from stockresearch.agents.master_commentary.context import build_risk_context
+from stockresearch.agents.master_commentary.stream import get_master_commentary
 from stockresearch.agents.risk import messages as risk_msg
 from stockresearch.agents.risk.metrics import (
     HoldingQuote,
@@ -18,6 +20,7 @@ from stockresearch.core.constants import (
 )
 from stockresearch.core.schemas import (
     LLMRiskAnalysis,
+    MasterCommentaryItem,
     PortfolioMetricsOut,
     RiskAlertOut,
     RiskCheckupOut,
@@ -183,6 +186,8 @@ def _parse_rule_alerts(holdings: list[Holding], quotes: list) -> list[RiskAlertO
 async def run_risk_checkup(
     holdings: list[Holding],
     llm: LLMClient | None = None,
+    *,
+    enable_master_commentary: bool = False,
 ) -> RiskCheckupOut:
     client = llm or get_llm_client()
     quote_provider = QuoteProvider()
@@ -290,10 +295,19 @@ async def run_risk_checkup(
         except Exception:
             logger.warning("Quantitative metrics calculation failed", exc_info=True)
 
-    return RiskCheckupOut(
+    result = RiskCheckupOut(
         alerts=alerts,
         portfolio_summary=summary,
         llm_analysis=llm_analysis,
         metrics=metrics_out,
         var_result=var_out,
     )
+    if enable_master_commentary:
+        commentary_context = build_risk_context(result)
+        commentary = await get_master_commentary(
+            client, subject="组合风险分析", context=commentary_context
+        )
+        result.master_commentary = [
+            MasterCommentaryItem.model_validate(item) for item in commentary
+        ]
+    return result

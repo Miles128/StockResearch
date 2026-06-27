@@ -11,6 +11,7 @@ export interface SectorWeight {
   sector: string;
   pct: number;
   value: number;
+  count: number;
 }
 
 export function computePortfolioSummary(holdings: HoldingEnriched[]): PortfolioSummary {
@@ -30,17 +31,27 @@ export function computePortfolioSummary(holdings: HoldingEnriched[]): PortfolioS
 }
 
 export function computeSectorConcentration(holdings: HoldingEnriched[]): SectorWeight[] {
-  const bySector = new Map<string, number>();
+  const bySector = new Map<string, { value: number; count: number }>();
   let total = 0;
   for (const h of holdings) {
-    if (!h.quote_available || h.price == null) continue;
-    const mv = h.price * h.quantity;
-    total += mv;
     const sector = h.sector?.trim() || "未知";
-    bySector.set(sector, (bySector.get(sector) ?? 0) + mv);
+    const entry = bySector.get(sector) ?? { value: 0, count: 0 };
+    entry.count += 1;
+    if (h.quote_available && h.price != null) {
+      const mv = h.price * h.quantity;
+      total += mv;
+      entry.value += mv;
+    }
+    bySector.set(sector, entry);
   }
   if (total <= 0) return [];
   return [...bySector.entries()]
-    .map(([sector, value]) => ({ sector, value, pct: (value / total) * 100 }))
+    .filter(([, entry]) => entry.value > 0)
+    .map(([sector, entry]) => ({
+      sector,
+      value: entry.value,
+      pct: (entry.value / total) * 100,
+      count: entry.count,
+    }))
     .sort((a, b) => b.pct - a.pct);
 }

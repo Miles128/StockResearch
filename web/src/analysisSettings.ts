@@ -11,11 +11,14 @@ export interface AnalysisUserSettings {
   enableDebate: boolean;
   /** 阅读模式，默认友善 */
   readingMode: ReadingMode;
+  /** 开启后，股票/市场/风控分析结果追加投资大师点评 */
+  enableMasterCommentary: boolean;
 }
 
 const DEFAULTS: AnalysisUserSettings = {
   enableDebate: true,
   readingMode: "friendly",
+  enableMasterCommentary: false,
 };
 
 export function loadAnalysisSettings(): AnalysisUserSettings {
@@ -38,6 +41,10 @@ export function loadAnalysisSettings(): AnalysisUserSettings {
       enableDebate:
         typeof parsed.enableDebate === "boolean" ? parsed.enableDebate : DEFAULTS.enableDebate,
       readingMode,
+      enableMasterCommentary:
+        typeof parsed.enableMasterCommentary === "boolean"
+          ? parsed.enableMasterCommentary
+          : DEFAULTS.enableMasterCommentary,
     };
   } catch {
     return { ...DEFAULTS };
@@ -50,6 +57,8 @@ export function saveAnalysisSettings(settings: AnalysisUserSettings): void {
 
 export function analysisBodyField(): {
   enable_debate: boolean;
+  enable_master_commentary: boolean;
+  enable_glossary: boolean;
   reading_mode: ReadingMode;
   output_locale: "zh" | "en";
 } {
@@ -58,6 +67,8 @@ export function analysisBodyField(): {
   const settings = loadAnalysisSettings();
   return {
     enable_debate: mode.enableDebate,
+    enable_master_commentary: settings.enableMasterCommentary,
+    enable_glossary: mode.enableGlossary,
     reading_mode: mode.readingMode,
     output_locale: loadLocale(),
   };

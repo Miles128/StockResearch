@@ -11,7 +11,7 @@ describe("Onboarding", () => {
       </I18nProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /个人投顾/i }));
+    fireEvent.click(screen.getByRole("button", { name: /个人/i }));
 
     expect(screen.getByText("不到 1 年，刚开始")).toBeTruthy();
     expect(screen.getByText("1-5 年，有一定经验")).toBeTruthy();
