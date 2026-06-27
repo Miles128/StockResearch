@@ -7,6 +7,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = path.join(ROOT, "docs", "screenshots");
 const BASE = process.env.SCREENSHOT_BASE_URL ?? "http://127.0.0.1:5174";
 
+// 模拟一个可用的 LLM 配置，避免 Onboarding 拦截首屏
 const LLM_SETTINGS = {
   apiKey: "screenshot-demo",
   baseUrl: "https://api.deepseek.com/v1",
@@ -15,15 +16,16 @@ const LLM_SETTINGS = {
   useMock: true,
 };
 
-const TABS = [
-  ["chat", "对话"],
-  ["news", "新闻"],
+// 顶部 nav 实际按钮文案（中文 locale）
+const NAV_TABS = [
   ["portfolio", "持仓"],
   ["risk", "风控"],
-  ["settings", "设置"],
+  ["market", "市场"],
+  ["news", "新闻·研报"],
 ];
 
-const LEGACY = ["market.png", "research.png"];
+// 历史遗留文件，删除避免陈旧截图
+const LEGACY = ["market.png", "research.png", "chat.png"];
 
 await mkdir(OUT, { recursive: true });
 for (const file of LEGACY) {
@@ -46,13 +48,49 @@ await context.addInitScript((settings) => {
 
 const page = await context.newPage();
 await page.goto(BASE, { waitUntil: "networkidle" });
-await page.waitForTimeout(2000);
+await page.waitForTimeout(2500);
 
-for (const [id, label] of TABS) {
+// 关闭可能弹出的 Onboarding / Settings 必填弹窗：点击遮罩或取消按钮
+async function dismissOverlays() {
+  // Onboarding 跳过按钮（如有）
+  for (const label of ["跳过", "Skip", "稍后", "Later"]) {
+    const btn = page.getByRole("button", { name: label }).first();
+    if (await btn.isVisible().catch(() => false)) {
+      await btn.click().catch(() => {});
+    }
+  }
+}
+
+await dismissOverlays();
+await page.waitForTimeout(500);
+
+// 依次截取 4 个 nav 视角
+for (const [id, label] of NAV_TABS) {
   await page.getByRole("button", { name: label }).first().click();
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(1800);
   await page.screenshot({ path: path.join(OUT, `${id}.png`), fullPage: false });
   console.log(`saved ${id}.png`);
+}
+
+// 打开 AI 对话面板并截图
+const copilotBtn = page.getByRole("button", { name: "AI 对话" }).first();
+if (await copilotBtn.isVisible().catch(() => false)) {
+  await copilotBtn.click();
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: path.join(OUT, "chat.png"), fullPage: false });
+  console.log("saved chat.png");
+  // 再次点击关闭，避免遮挡后续设置面板
+  await copilotBtn.click().catch(() => {});
+  await page.waitForTimeout(500);
+}
+
+// 打开设置面板并截图
+const settingsBtn = page.getByRole("button", { name: "设置" }).first();
+if (await settingsBtn.isVisible().catch(() => false)) {
+  await settingsBtn.click();
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: path.join(OUT, "settings.png"), fullPage: false });
+  console.log("saved settings.png");
 }
 
 await browser.close();
