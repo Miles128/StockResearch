@@ -6,7 +6,6 @@ import re
 
 import httpx
 
-from stockresearch.core.config import get_settings
 from stockresearch.core.constants import AVAILABLE_SECTORS, SYMBOL_SECTORS
 from stockresearch.db.models import Holding
 
@@ -102,9 +101,6 @@ def fetch_eastmoney_sector(symbol: str) -> str | None:
 async def resolve_stock_sector(symbol: str, name: str = "") -> str:
     if symbol in SYMBOL_SECTORS:
         return SYMBOL_SECTORS[symbol]
-    if get_settings().use_mock_market_data:
-        hinted = sector_from_name(name)
-        return hinted or SYMBOL_SECTORS.get(symbol, "未知")
     try:
         raw = await asyncio.wait_for(
             asyncio.to_thread(fetch_eastmoney_sector, symbol),

@@ -47,7 +47,11 @@ async def risk_checkup(
         reading_mode=payload.reading_mode,
         locale=payload.output_locale,
     ):
-        result = await run_risk_checkup(holdings, llm=llm)
+        result = await run_risk_checkup(
+            holdings,
+            llm=llm,
+            enable_master_commentary=bool(payload.enable_master_commentary),
+        )
     _persist_alerts(db, user.id, result)
     return result
 
@@ -68,7 +72,11 @@ async def risk_checkup_stream(
             reading_mode=payload.reading_mode,
             locale=payload.output_locale,
         ):
-            async for event in run_risk_checkup_stream(holdings, llm=llm):
+            async for event in run_risk_checkup_stream(
+                holdings,
+                llm=llm,
+                enable_master_commentary=bool(payload.enable_master_commentary),
+            ):
                 if event.get("type") == "done":
                     payload_data = event.get("result")
                     if isinstance(payload_data, dict):

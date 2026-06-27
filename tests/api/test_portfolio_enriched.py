@@ -14,6 +14,16 @@ def test_holdings_enriched_includes_quote_and_pnl(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from stockresearch.data.providers.market_overview import BatchQuoteProvider
+
+    async def fake_get_quotes(self, symbols: list[str]):
+        from stockresearch.core.schemas import StockQuoteOut
+        return [
+            StockQuoteOut(symbol=sym, name="贵州茅台", price=1680.0, change_pct=-1.2, high=1700.0, low=1660.0, volume=5000.0, source="test")
+            for sym in symbols
+        ]
+
+    monkeypatch.setattr(BatchQuoteProvider, "get_quotes", fake_get_quotes)
     monkeypatch.setattr(cal_mod, "_load_trading_days", lambda: frozenset({_BUY}))
     create = client.post(
         "/api/v1/portfolio/holdings",

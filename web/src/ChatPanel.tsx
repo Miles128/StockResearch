@@ -3,6 +3,7 @@ import type { Message } from "./appTypes";
 import { CardView, RouteChoiceCardView, StockChoiceCardView } from "./chatCards";
 import {
   findResearchReport,
+  FollowUpQuestions,
   hasDebateStream,
   hasDimensionStream,
   ResearchReportDetails,
@@ -99,6 +100,7 @@ export function ChatPanel({
                           judgeVerdict={m.process.judgeVerdict}
                           voteTally={m.process.voteTally}
                           activeStreamIds={[]}
+                          masterCommentary={m.process.masterCommentary}
                         />
                       )}
                       {showReportDetails && researchReport && (
@@ -137,6 +139,13 @@ export function ChatPanel({
                   ),
                 )}
                 {isResearchTurn(m.cards, m.intent) && <p className="turn-disclaimer">{t("chat.turnDisclaimer")}</p>}
+                {!loading &&
+                  i === messages.length - 1 &&
+                  findResearchReport(m.cards) != null &&
+                  (() => {
+                    const fr = findResearchReport(m.cards);
+                    return fr ? <FollowUpQuestions report={fr} onAsk={onStartQuery} /> : null;
+                  })()}
               </>
             )}
           </div>

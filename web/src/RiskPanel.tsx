@@ -11,6 +11,7 @@ interface RiskPanelProps {
   alertHoldingTags: (message: string) => HoldingEnriched[];
   onRunRisk: () => void;
   onGoPortfolio: () => void;
+  onAskCopilot?: (query: string) => void;
 }
 
 function riskLevelColor(alertCount: number): string {
@@ -40,11 +41,30 @@ export function RiskPanel({
   alertHoldingTags,
   onRunRisk,
   onGoPortfolio,
+  onAskCopilot,
 }: RiskPanelProps) {
   const { t } = useI18n();
 
   return (
     <div className="panel">
+      {onAskCopilot && holdings.length > 0 && (
+        <div className="ai-action-row">
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => onAskCopilot(t("risk.askTopRisk"))}
+          >
+            {t("risk.askTopRisk")}
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => onAskCopilot(t("risk.askStress"))}
+          >
+            {t("risk.askStress")}
+          </button>
+        </div>
+      )}
       {holdings.length === 0 ? (
         <div className="risk-empty-cta">
           <p className="muted">{t("risk.emptyHoldings")}</p>

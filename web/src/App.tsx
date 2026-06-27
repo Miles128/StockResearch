@@ -15,8 +15,8 @@ import {
 } from "./api";
 import type { CopilotContext, Message, Tab } from "./appTypes";
 import { ChatPanel } from "./ChatPanel";
-import { CanvasNav } from "./CanvasNav";
-import { CopilotPanel } from "./CopilotPanel";
+import { CopilotPanel, type CopilotLayout } from "./CopilotPanel";
+import { DailyScanPanel } from "./DailyScanPanel";
 import { DataSourceDetails } from "./DataSourceDetails";
 import { DemoBanner } from "./DemoBanner";
 import { ActionCenter } from "./ActionCenter";
@@ -36,6 +36,7 @@ import { normalizeStreamEvent } from "./streamI18n";
 import { ModeSwitcher } from "./ModeSwitcher";
 import { Onboarding } from "./Onboarding";
 import { AssetAllocationPanel } from "./AssetAllocationPanel";
+import { BackendHealthBanner } from "./BackendHealthBanner";
 import {
   loadModeSettings,
   modeSettingsFromApiPayload,
@@ -126,7 +127,41 @@ export default function App() {
   const autoDemoLoadRequested = useRef(false);
   const [modeSettings, setModeSettings] = useState<ModeSettings>(() => loadModeSettings());
   const [onboardingOpen, setOnboardingOpen] = useState(() => !loadModeSettings().onboarded);
+  const [copilotWidth, setCopilotWidth] = useState(430);
+  const [copilotHeight, setCopilotHeight] = useState(360);
+  const [copilotLayout, setCopilotLayout] = useState<CopilotLayout>("horizontal");
+  const resizingRef = useRef(false);
+  const resizingAxisRef = useRef<"x" | "y">("x");
   const settingsRequired = llmCheckDone && !llmConfigured;
+
+  useEffect(() => {
+    function onMove(e: MouseEvent) {
+      if (!resizingRef.current) return;
+      if (resizingAxisRef.current === "y") {
+        const minH = 200;
+        const maxH = window.innerHeight - 80;
+        const next = window.innerHeight - e.clientY;
+        setCopilotHeight(Math.max(minH, Math.min(maxH, next)));
+      } else {
+        const minW = 360;
+        const maxW = window.innerWidth;
+        const next = window.innerWidth - e.clientX;
+        setCopilotWidth(Math.max(minW, Math.min(maxW, next)));
+      }
+    }
+    function onUp() {
+      if (!resizingRef.current) return;
+      resizingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []);
 
   const chatExamples = useMemo(
     () => [
@@ -157,16 +192,16 @@ export default function App() {
 
   function dataSourceLabel(): string {
     if (!dataStatus) return t("header.dataUnknown");
-    if (dataStatus.use_mock) return t("header.dataMock");
     const overview = dataStatus.overview;
     const quotes = dataStatus.quotes;
     const primary = overview?.primary || quotes?.primary || "sina";
-    const fallback = overview?.fallback || quotes?.fallback;
+    const fallback = overview?.fallback || quotes?.fallback || "akshare";
     const degraded = Boolean(overview?.degraded || quotes?.degraded);
-    if (degraded && fallback) {
+    if (degraded) {
       return t("header.dataDegraded").replace("{primary}", primary).replace("{fallback}", fallback);
     }
-    return t("header.dataLive").replace("{primary}", primary);
+    // 默认并列展示主源 + 备源，让用户看到完整源链路
+    return t("header.dataLiveMulti").replace("{primary}", primary).replace("{fallback}", fallback);
   }
 
   function handleLlmConfigured() {
@@ -290,9 +325,10 @@ export default function App() {
   useEffect(() => {
     const fnMap: Partial<Record<string, Tab>> = {
       F1: "portfolio",
-      F2: "risk",
-      F3: "market",
-      F4: "news",
+      F2: "daily_scan",
+      F3: "risk",
+      F4: "market",
+      F5: "news",
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -307,9 +343,20 @@ export default function App() {
 
   useEffect(() => {
     if (tab !== "portfolio") return;
-    void loadHoldings();
-    const id = setInterval(() => void loadHoldings(), 30_000);
-    return () => clearInterval(id);
+    let timeoutId = 0;
+
+    async function tick() {
+      const data = await loadHoldings();
+      // 已收盘或没有持仓时停止自动轮询，盘中每 30 秒刷新一次
+      if (data[0]?.market_session === "trading") {
+        timeoutId = window.setTimeout(tick, 30_000);
+      }
+    }
+
+    void tick();
+    return () => {
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
   }, [tab]);
 
   const showError = useCallback((msg: string) => {
@@ -317,7 +364,7 @@ export default function App() {
     setTimeout(() => setError(""), 4000);
   }, []);
 
-  async function loadHoldings() {
+  async function loadHoldings(): Promise<HoldingEnriched[]> {
     try {
       setHoldingsLoading(true);
       const data = await api.holdingsEnriched();
@@ -327,14 +374,18 @@ export default function App() {
         autoDemoLoadRequested.current = true;
         try {
           await api.loadDemo();
-          setHoldings(await api.holdingsEnriched());
+          const demoData = await api.holdingsEnriched();
+          setHoldings(demoData);
           setIsDemo(true);
+          return demoData;
         } catch {
           // ignore auto-load failures
         }
       }
+      return data;
     } catch (e) {
       showError(String(e));
+      return holdings;
     } finally {
       setHoldingsLoading(false);
     }
@@ -643,12 +694,24 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-mode={modeSettings.mode}>
       <div className="app-chrome">
         <div className="chrome-left">
           <span className="bbg-logo">StockResearch</span>
           <span className="chrome-sep">·</span>
           <ModeSwitcher settings={modeSettings} onSwitch={handleSwitchMode} />
+          <nav className="chrome-nav" aria-label={t("nav.aria")}>
+            {navItems.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={`chrome-nav-btn${tab === item.key ? " active" : ""}`}
+                onClick={() => setTab(item.key)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
         </div>
         <p className="chrome-disclaimer">{t("chat.disclaimer")}</p>
         <div className="chrome-meta">
@@ -677,6 +740,13 @@ export default function App() {
           </button>
           <button
             type="button"
+            className={`canvas-tool-btn copilot-trigger${copilotOpen ? " active" : ""}`}
+            onClick={() => setCopilotOpen((open) => !open)}
+          >
+            {t("nav.copilot")}
+          </button>
+          <button
+            type="button"
             className="btn btn-ghost btn-sm"
             onClick={toggleLocale}
           >
@@ -694,14 +764,6 @@ export default function App() {
         onRefresh={() => void loadOverview()}
         onIndexClick={onTickerIndexClick}
       />
-      <CanvasNav
-        tab={tab}
-        items={navItems}
-        copilotOpen={copilotOpen}
-        copilotLabel={t("nav.copilot")}
-        onTab={setTab}
-        onCopilot={() => setCopilotOpen((open) => !open)}
-      />
       <SettingsPanel
         open={setupOpen}
         onClose={() => {
@@ -717,9 +779,19 @@ export default function App() {
         <Onboarding onComplete={handleOnboardingComplete} onSkip={handleOnboardingSkip} />
       )}
 
-      <div className={`app-body canvas-shell${copilotOpen ? " copilot-open" : ""}${settingsRequired ? " app-locked" : ""}`}>
+      <div
+        className={`app-body canvas-shell${copilotOpen ? " copilot-open" : ""}${copilotOpen && copilotLayout === "vertical" ? " layout-vertical" : ""}${settingsRequired ? " app-locked" : ""}`}
+        style={
+          copilotOpen
+            ? copilotLayout === "vertical"
+              ? { gridTemplateRows: `minmax(0, 1fr) ${copilotHeight}px` }
+              : { gridTemplateColumns: `minmax(0, 1fr) ${copilotWidth}px` }
+            : undefined
+        }
+      >
         <div className="main">
           {error && <div className="error">{error}</div>}
+          <BackendHealthBanner />
           {holdings.length === 0 && !isDemo && (
             <DemoBanner onLoad={loadDemoHoldings} onClear={clearDemoHoldings} isDemo={isDemo} loading={demoLoading} />
           )}
@@ -741,6 +813,12 @@ export default function App() {
               sectorSaving={sectorSaving}
               onLoadNews={() => void loadNews()}
               onToggleSector={(s) => void toggleNewsSector(s)}
+              onAskCopilot={(query) =>
+                askCopilot(query, {
+                  kind: "news",
+                  label: locale === "zh" ? "新闻·研报" : "News",
+                })
+              }
             />
           )}
 
@@ -778,6 +856,12 @@ export default function App() {
                 onConfirmCandidate={(symbol, name) => void confirmCandidate(symbol, name)}
                 onDeleteHolding={(id) => void deleteHolding(id)}
                 onAnalyzeHolding={analyzeHolding}
+                onAskCopilot={(query) =>
+                  askCopilot(query, {
+                    kind: "portfolio",
+                    label: locale === "zh" ? "我的持仓" : "My holdings",
+                  })
+                }
               />
             </>
           )}
@@ -799,6 +883,12 @@ export default function App() {
                 alertHoldingTags={alertHoldingTags}
                 onRunRisk={() => void runRisk()}
                 onGoPortfolio={() => setTab("portfolio")}
+                onAskCopilot={(query) =>
+                  askCopilot(query, {
+                    kind: "risk",
+                    label: locale === "zh" ? "风控体检" : "Risk checkup",
+                  })
+                }
               />
             </>
           )}
@@ -817,6 +907,14 @@ export default function App() {
               }
             />
           )}
+
+          {tab === "daily_scan" && (
+            <DailyScanPanel
+              holdings={holdings}
+              numLocale={numLocale}
+              onAnalyzeHolding={analyzeHolding}
+            />
+          )}
         </div>
 
         <CopilotPanel
@@ -827,9 +925,19 @@ export default function App() {
             mode: t(`mode.${modeSettings.mode}`),
           })}
           pageContext={pageContext}
+          layout={copilotLayout}
           onClose={() => setCopilotOpen(false)}
           onNewThread={newCopilotThread}
           onRemoveContext={() => setPageContext(null)}
+          onToggleLayout={() =>
+            setCopilotLayout((prev) => (prev === "horizontal" ? "vertical" : "horizontal"))
+          }
+          onResizeStart={(axis) => {
+            resizingRef.current = true;
+            resizingAxisRef.current = axis;
+            document.body.style.cursor = axis === "y" ? "row-resize" : "col-resize";
+            document.body.style.userSelect = "none";
+          }}
         >
           <ChatPanel
             messages={messages}

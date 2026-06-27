@@ -8,7 +8,28 @@ from stockresearch.utils.llm import MockLLMClient
 
 
 @pytest.mark.asyncio
-async def test_stop_loss_red_alert() -> None:
+async def test_stop_loss_red_alert(monkeypatch) -> None:
+    from datetime import UTC, datetime
+
+    from stockresearch.data.providers.market import Quote, QuoteProvider
+
+    async def fake_get_quotes(self, symbols: list[str]) -> dict[str, Quote]:
+        return {
+            sym: Quote(
+                symbol=sym,
+                name="宁德时代",
+                price=200.0,
+                change_pct=-2.0,
+                high=210.0,
+                low=198.0,
+                volume=10000.0,
+                updated_at=datetime.now(UTC),
+            )
+            for sym in symbols
+        }
+
+    monkeypatch.setattr(QuoteProvider, "get_quotes", fake_get_quotes)
+
     holdings = [
         Holding(
             id=1,

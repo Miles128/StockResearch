@@ -1,4 +1,4 @@
-"""Market data providers — Sina quotes on hot path, mock for tests."""
+"""Market data providers — Sina quotes on hot path, AkShare for historical."""
 
 import logging
 from dataclasses import dataclass
@@ -7,10 +7,10 @@ from typing import Any, cast
 
 import akshare as ak  # type: ignore[import-untyped]
 
-from stockresearch.core.config import get_settings
 from stockresearch.core.exceptions import DataProviderError
 from stockresearch.data.providers.akshare_quote import fetch_akshare_hist_quotes
 from stockresearch.data.providers.base import run_async_fetch, run_sync_fetch
+from stockresearch.data.providers.efinance_quote import fetch_efinance_quotes
 from stockresearch.data.providers.news import _fetch_em_symbol_news_sync
 from stockresearch.data.providers.sina_quote import QuoteRow, fetch_sina_quotes
 from stockresearch.data.providers.tushare_financial import fetch_daily_basic_sync
@@ -71,8 +71,6 @@ class QuoteProvider:
         unique = list(dict.fromkeys(symbols))
         if not unique:
             return {}
-        if get_settings().use_mock_market_data:
-            return {sym: self._mock_quote(sym) for sym in unique}
 
         raw = await self._fetch_quote_rows(unique)
         return self._rows_to_quotes(raw)
@@ -105,23 +103,40 @@ class QuoteProvider:
                 fallback=None,
             )
             if ak_rows is None:
-                if not raw:
-                    detail = sina_error or "行情获取失败"
-                    raise DataProviderError(f"{detail}，AkShare 备用源也不可用")
+                logger.warning("AkShare 备源也失败，尝试 efinance 第三层兜底")
             else:
                 for sym, ak_row in ak_rows.items():
                     raw[sym] = cast(QuoteRow, {**ak_row, "_source": "akshare"})
                 ak_count = len(ak_rows)
                 logger.info("AkShare hist fallback filled %d symbols", ak_count)
 
+        # 第三层兜底：efinance（与 Sina/AkShare 独立，避免单点失败）
+        missing = [sym for sym in symbols if sym not in raw]
+        ef_count = 0
+        if missing:
+            ef_rows = await run_sync_fetch(
+                "efinance quote fallback",
+                lambda: fetch_efinance_quotes(missing),
+                timeout=max(_QUOTE_TIMEOUT_SEC, 10.0),
+                fallback=None,
+            )
+            if ef_rows is None:
+                logger.warning("efinance 兜底失败")
+            else:
+                for sym, ef_row in ef_rows.items():
+                    raw[sym] = cast(QuoteRow, {**ef_row, "_source": "efinance"})
+                ef_count = len(ef_rows)
+                logger.info("efinance fallback filled %d symbols", ef_count)
+
         if not raw:
-            raise DataProviderError(sina_error or "行情数据不可用")
+            raise DataProviderError(sina_error or "行情数据不可用（sina/akshare/efinance 均失败）")
 
         sina_count = sum(1 for sym in symbols if sym in raw and raw[sym].get("_source") == "sina")
         record_quote_fetch(
             requested=len(symbols),
             sina_count=sina_count,
             akshare_count=ak_count,
+            efinance_count=ef_count,
             message=sina_error,
         )
         record_symbol_sources(
@@ -147,31 +162,9 @@ class QuoteProvider:
             for sym, row in raw.items()
         }
 
-    def _mock_quote(self, symbol: str) -> Quote:
-        mock: dict[str, dict[str, float]] = {
-            "600519": {"price": 1680.0, "change_pct": -1.2, "high": 1720.0, "low": 1660.0, "volume": 1.2e6},
-            "000858": {"price": 145.0, "change_pct": 0.5, "high": 148.0, "low": 143.0, "volume": 2.1e6},
-            "300750": {"price": 198.0, "change_pct": -3.5, "high": 205.0, "low": 195.0, "volume": 5.5e6},
-            "601318": {"price": 48.0, "change_pct": -0.8, "high": 49.0, "low": 47.5, "volume": 3.0e6},
-            "600036": {"price": 35.0, "change_pct": 0.3, "high": 35.5, "low": 34.8, "volume": 4.0e6},
-        }
-        data = mock.get(symbol, {"price": 10.0, "change_pct": 0.0, "high": 10.5, "low": 9.5, "volume": 1e6})
-        return Quote(
-            symbol=symbol,
-            name=resolve_name(symbol),
-            price=float(data["price"]),
-            change_pct=float(data["change_pct"]),
-            high=float(data["high"]),
-            low=float(data["low"]),
-            volume=float(data["volume"]),
-            updated_at=datetime.now(UTC),
-        )
-
 
 class MarketRuleProvider:
     async def get_trading_rules(self, symbol: str) -> dict[str, object]:
-        if get_settings().use_mock_market_data:
-            return self._mock_trading_rules(symbol)
         rows = await run_sync_fetch(
             f"sina trading rules {symbol}",
             lambda: fetch_sina_quotes([symbol]),
@@ -242,34 +235,24 @@ class MarketRuleProvider:
             return 30.0
         return 10.0
 
-    def _mock_trading_rules(self, symbol: str) -> dict[str, object]:
-        name = resolve_name(symbol)
-        return {
-            "source": "mock",
-            "verified": True,
-            "status": "normal",
-            "name": name,
-            "is_st": "ST" in name.upper(),
-            "is_suspended": False,
-            "is_limit_up": False,
-            "is_limit_down": False,
-            "limit_pct": self._limit_pct(symbol, name),
-            "missing": [],
-        }
-
 
 class FinancialDataProvider:
     async def get_financials(self, symbol: str) -> dict[str, float | str]:
-        if get_settings().use_mock_market_data:
-            return self._mock_financials(symbol)
         df = await run_sync_fetch(
             f"akshare financials {symbol}",
             lambda: ak.stock_financial_analysis_indicator(symbol=symbol),
             timeout=8.0,
-            fallback=self._mock_financials(symbol),
+            fallback=None,
         )
         if df is None or df.empty:
-            return self._mock_financials(symbol)
+            return {
+                "revenue_yoy": 0.0,
+                "net_margin": 0.0,
+                "roe": 0.0,
+                "pe_percentile": 0.50,
+                "debt_ratio": 0.35,
+                "goodwill_ratio": 0.03,
+            }
         row = df.iloc[0]
         return {
             "revenue_yoy": float(row.get("营业收入同比增长率", 0.0)) / 100 if row.get("营业收入同比增长率") else 0.0,
@@ -280,22 +263,7 @@ class FinancialDataProvider:
             "goodwill_ratio": 0.03,
         }
 
-    def _mock_financials(self, symbol: str) -> dict[str, float | str]:
-        mock: dict[str, dict[str, float | str]] = {
-            "600519": {"revenue_yoy": 0.15, "net_margin": 0.52, "roe": 0.32, "pe_percentile": 0.55, "debt_ratio": 0.18, "goodwill_ratio": 0.01},
-            "300750": {"revenue_yoy": 0.22, "net_margin": 0.11, "roe": 0.18, "pe_percentile": 0.42, "debt_ratio": 0.45, "goodwill_ratio": 0.05},
-        }
-        default: dict[str, float | str] = {
-            "revenue_yoy": 0.08, "net_margin": 0.12, "roe": 0.10,
-            "pe_percentile": 0.50, "debt_ratio": 0.35, "goodwill_ratio": 0.03,
-        }
-        return mock.get(symbol, default)
-
     async def get_valuation(self, symbol: str) -> dict[str, float | str]:
-        if get_settings().use_mock_market_data:
-            fin = await self.get_financials(symbol)
-            pe = float(fin.get("pe_percentile", 0.5)) * 40
-            return {"pe_ttm": pe, "pe_percentile": float(fin.get("pe_percentile", 0.5))}
         df = await run_sync_fetch(
             f"akshare valuation {symbol}",
             lambda: ak.stock_a_indicator_lg(symbol=symbol),
@@ -333,8 +301,6 @@ class FinancialDataProvider:
 
 class TechnicalDataProvider:
     async def get_kline_bars(self, symbol: str, days: int = 60) -> list[dict[str, float | str]]:
-        if get_settings().use_mock_market_data:
-            return await self._mock_kline_bars(symbol, days)
         end_date = datetime.now(UTC).strftime("%Y%m%d")
         now = datetime.now(UTC)
         if now.month > 2:
@@ -355,7 +321,7 @@ class TechnicalDataProvider:
             fallback=None,
         )
         if df is None or df.empty:
-            return await self._mock_kline_bars(symbol, days)
+            return []
         recent = df.tail(days)
         return [
             {
@@ -391,28 +357,6 @@ class TechnicalDataProvider:
                 "macd_histogram": macd["histogram"],
             },
         }
-
-    async def _mock_kline_bars(self, symbol: str, days: int) -> list[dict[str, float | str]]:
-        from datetime import timedelta
-
-        quote = await QuoteProvider().get_quote(symbol)
-        base = quote.price
-        end = datetime.now(UTC).date()
-        bars: list[dict[str, float | str]] = []
-        for i in range(days):
-            close = base * (1 + (i - days / 2) * 0.001)
-            open_ = close * 0.998
-            bars.append(
-                {
-                    "date": (end - timedelta(days=days - 1 - i)).isoformat(),
-                    "open": open_,
-                    "high": close * 1.005,
-                    "low": close * 0.995,
-                    "close": close,
-                    "volume": quote.volume,
-                }
-            )
-        return bars
 
     def calc_ma(self, closes: list[float], window: int) -> float:
         if not closes:
@@ -535,11 +479,6 @@ def _fetch_xueqiu_hot_sync(symbol: str, name: str) -> dict[str, float | int | st
 
 class SentimentDataProvider:
     async def get_symbol_news(self, symbol: str, name: str, limit: int = 8) -> list[dict[str, str]]:
-        if get_settings().use_mock_market_data:
-            return [
-                {"title": "公司发布经营数据更新", "source": "mock"},
-                {"title": "行业政策关注度上升", "source": "mock"},
-            ]
         from stockresearch.data.providers.news import NewsProvider
 
         provider = NewsProvider()
@@ -575,16 +514,6 @@ class SentimentDataProvider:
         return max(-1.0, min(1.0, score / max(len(titles), 1)))
 
     async def get_xueqiu_hot(self, symbol: str, name: str = "") -> dict[str, float | int | str | bool]:
-        if get_settings().use_mock_market_data:
-            return {
-                "heat_score": 72,
-                "post_count": 128,
-                "bull_ratio": 0.58,
-                "follow_count": 101463,
-                "attention_index": 94.0,
-                "source": "mock",
-                "available": True,
-            }
         return await run_sync_fetch(
             f"xueqiu hot {symbol}",
             lambda: _fetch_xueqiu_hot_sync(symbol, name or resolve_name(symbol)),
@@ -607,8 +536,6 @@ class SentimentDataProvider:
 
 class ChipsDataProvider:
     async def get_dragon_tiger(self, symbol: str) -> dict[str, str | float | int]:
-        if get_settings().use_mock_market_data:
-            return self._mock_dragon_tiger()
         return await run_sync_fetch(
             f"akshare lhb {symbol}",
             lambda: self._fetch_dragon_tiger_sync(symbol),
@@ -617,8 +544,6 @@ class ChipsDataProvider:
         )
 
     async def get_fund_flow(self, symbol: str) -> dict[str, float | str]:
-        if get_settings().use_mock_market_data:
-            return {"main_net_inflow": 5.0e7, "main_net_pct": 2.5, "days_positive": 3, "source": "mock"}
         return await run_sync_fetch(
             f"akshare fund flow {symbol}",
             lambda: self._fetch_fund_flow_sync(symbol),
@@ -637,8 +562,6 @@ class ChipsDataProvider:
         }
 
     async def get_holder_count(self, symbol: str) -> dict[str, float | str]:
-        if get_settings().use_mock_market_data:
-            return {"holder_count": 125000, "qoq_change": -0.02, "source": "mock"}
         return await run_sync_fetch(
             f"akshare holder count {symbol}",
             lambda: self._fetch_holder_count_sync(symbol),
@@ -647,23 +570,12 @@ class ChipsDataProvider:
         )
 
     async def get_lockup(self, symbol: str) -> dict[str, str | float | int]:
-        if get_settings().use_mock_market_data:
-            return {"upcoming_count": 0, "next_date": "", "ratio_pct": 0.0, "source": "mock"}
         return await run_sync_fetch(
             f"akshare lockup {symbol}",
             lambda: self._fetch_lockup_sync(symbol),
             timeout=_DATA_TIMEOUT_SEC,
             fallback={"upcoming_count": 0, "next_date": "", "ratio_pct": 0.0, "source": "akshare_lockup"},
         )
-
-    def _mock_dragon_tiger(self) -> dict[str, str | float | int]:
-        return {
-            "appearances": 1,
-            "net_buy": 1.2e8,
-            "institution_ratio": 0.35,
-            "signal": "neutral",
-            "source": "mock",
-        }
 
     def _fetch_dragon_tiger_sync(self, symbol: str) -> dict[str, str | float | int]:
         end = datetime.now(UTC)

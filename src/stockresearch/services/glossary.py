@@ -1,6 +1,7 @@
 """Glossary service: load terms, match in text, wrap with <term> tags.
 
-Only active in professional reading mode. Friendly mode skips all markup.
+激活由 `enable_glossary` 控制（投顾模式默认开启，投研模式关闭），
+与 reading_mode 解耦。详见 chat_response.finalize_chat_reply。
 """
 
 from __future__ import annotations
@@ -66,7 +67,7 @@ def _build_pattern(term_id: str) -> re.Pattern[str]:
 def mark_terms(text: str) -> str:
     """Wrap glossary terms in <term data-id="..."> tags.
 
-    Only call this in professional reading mode.
+    仅在 enable_glossary=True（投顾模式）时由 finalize_chat_reply 调用。
     Longer terms are matched first to avoid partial matches
     (e.g. "VaR 95%" before "VaR").
     """

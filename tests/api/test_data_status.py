@@ -21,6 +21,6 @@ def test_data_status_returns_snapshots(client: TestClient) -> None:
     quote_detail = next(item for item in body["details"] if item["domain"] == "quotes")
     assert quote_detail["label"] == "行情报价"
     assert quote_detail["layer"] == "L1"
-    assert quote_detail["source"] == "sina → akshare"
+    assert quote_detail["source"] == "sina + akshare"
     assert quote_detail["status"] == "degraded"
     assert quote_detail["degraded_reason"] == "部分降级"

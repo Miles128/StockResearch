@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from stockresearch.api.deps import get_current_user
-from stockresearch.core.config import get_settings
 from stockresearch.core.data_source_config import get_tushare_token
 from stockresearch.core.schemas import (
     DataSourceDetailOut,
@@ -64,7 +63,6 @@ async def data_source_status(
     snapshots = get_snapshots()
     quotes = snapshots.get("quotes")
     overview = snapshots.get("overview")
-    use_mock = get_settings().use_mock_market_data
     tushare_configured = bool(get_tushare_token())
     tushare_available = _tushare_runtime_available()
     quote_status = _provider_status(quotes) if quotes else None
@@ -75,11 +73,9 @@ async def data_source_status(
         details=_data_source_details(
             quote_status,
             overview_status,
-            use_mock=use_mock,
             tushare_configured=tushare_configured,
             tushare_available=tushare_available,
         ),
-        use_mock=use_mock,
         tushare_configured=tushare_configured,
         tushare_available=tushare_available,
     )
@@ -88,13 +84,15 @@ async def data_source_status(
 def _provider_status(snapshot: ProviderSnapshot) -> ProviderStatusOut:
     confidence: Literal["verified", "single_source", "delayed", "cached", "conflict", "missing"] = "single_source"
     if snapshot.degraded:
-        confidence = "missing" if snapshot.fallback_count == 0 else "cached"
+        confidence = "missing" if snapshot.fallback_count == 0 and snapshot.tertiary_count == 0 else "cached"
     return ProviderStatusOut(
         domain=snapshot.domain,
         primary=snapshot.primary,
         fallback=snapshot.fallback,
+        tertiary=snapshot.tertiary,
         primary_count=snapshot.primary_count,
         fallback_count=snapshot.fallback_count,
+        tertiary_count=snapshot.tertiary_count,
         degraded=snapshot.degraded,
         message=snapshot.message,
         updated_at=snapshot.updated_at,
@@ -110,58 +108,136 @@ def _data_source_details(
     quotes: ProviderStatusOut | None,
     overview: ProviderStatusOut | None,
     *,
-    use_mock: bool,
     tushare_configured: bool,
     tushare_available: bool,
 ) -> list[DataSourceDetailOut]:
+    """返回所有已配置数据源的清单（不只是本次会话实际触发的）。
+
+    静态条目：sina/akshare/eastmoney/tushare 总是列出，让前端能看到完整源清单。
+    动态条目：本次会话实际触发过的 domain（quotes/overview）会带 fetched_at 与真实状态。
+    """
     details: list[DataSourceDetailOut] = []
-    for item, label in ((overview, "市场概览"), (quotes, "行情报价")):
-        if item is None:
-            details.append(
-                DataSourceDetailOut(
-                    domain=label,
-                    label=label,
-                    layer="L1",
-                    source="未获取",
-                    degraded=True,
-                    degraded_reason="本次会话尚未获取该类数据",
-                    confidence="missing",
-                    status="missing",
-                )
-            )
-            continue
-        source = item.primary if not item.fallback else f"{item.primary} → {item.fallback}"
+
+    # ── L1 实时行情：sina 主 + akshare 备 + efinance 兜底 ──
+    if quotes is None:
         details.append(
             DataSourceDetailOut(
-                domain=item.domain,
-                label=label,
-                layer=item.layer,
-                source=source,
-                fetched_at=item.updated_at,
-                latency_ms=item.latency_ms,
-                is_cached=item.is_cached,
-                is_mock=item.is_mock,
-                degraded=item.degraded,
-                degraded_reason=item.degraded_reason or item.message,
-                confidence=item.confidence,
-                status="degraded" if item.degraded else "ok",
+                domain="quotes",
+                label="行情报价",
+                layer="L1",
+                source="sina + akshare + efinance",
+                confidence="single_source",
+                status="configured",
             )
         )
+    else:
+        sources = [quotes.primary]
+        if quotes.fallback:
+            sources.append(quotes.fallback)
+        if quotes.tertiary:
+            sources.append(quotes.tertiary)
+        source = " + ".join(sources)
+        details.append(
+            DataSourceDetailOut(
+                domain=quotes.domain,
+                label="行情报价",
+                layer=quotes.layer,
+                source=source,
+                fetched_at=quotes.updated_at,
+                latency_ms=quotes.latency_ms,
+                is_cached=quotes.is_cached,
+                is_mock=quotes.is_mock,
+                degraded=quotes.degraded,
+                degraded_reason=quotes.degraded_reason or quotes.message,
+                confidence=quotes.confidence,
+                status="degraded" if quotes.degraded else "ok",
+            )
+        )
+
+    # ── L1 市场概览：sina 主 + akshare 备 ──
+    if overview is None:
+        details.append(
+            DataSourceDetailOut(
+                domain="overview",
+                label="市场概览",
+                layer="L1",
+                source="sina + akshare",
+                confidence="single_source",
+                status="configured",
+            )
+        )
+    else:
+        source = overview.primary if not overview.fallback else f"{overview.primary} + {overview.fallback}"
+        details.append(
+            DataSourceDetailOut(
+                domain=overview.domain,
+                label="市场概览",
+                layer=overview.layer,
+                source=source,
+                fetched_at=overview.updated_at,
+                latency_ms=overview.latency_ms,
+                is_cached=overview.is_cached,
+                is_mock=overview.is_mock,
+                degraded=overview.degraded,
+                degraded_reason=overview.degraded_reason or overview.message,
+                confidence=overview.confidence,
+                status="degraded" if overview.degraded else "ok",
+            )
+        )
+
+    # ── L2 历史数据：akshare（K线/龙虎榜/资金流/股东/解禁/财务估值）──
     details.append(
         DataSourceDetailOut(
-            domain="mock",
-            label="Mock 演示数据",
-            layer="L0",
-            source="local",
-            is_mock=use_mock,
+            domain="historical",
+            label="历史K线 / 龙虎榜 / 资金流 / 股东 / 解禁 / 财务估值",
+            layer="L2",
+            source="akshare",
             confidence="single_source",
-            status="mock" if use_mock else "not_configured",
+            status="ok",
         )
     )
+
+    # ── L2 板块行业：eastmoney ──
+    details.append(
+        DataSourceDetailOut(
+            domain="sector",
+            label="板块行业 / 个股归属",
+            layer="L2",
+            source="eastmoney",
+            confidence="single_source",
+            status="ok",
+        )
+    )
+
+    # ── L2 新闻文本：eastmoney 主 + akshare 备 + bocha 兜底 ──
+    details.append(
+        DataSourceDetailOut(
+            domain="news",
+            label="新闻 / 快讯",
+            layer="L2",
+            source="eastmoney + akshare + bocha",
+            confidence="single_source",
+            status="ok",
+        )
+    )
+
+    # ── L2 情绪：雪球 + eastmoney ──
+    details.append(
+        DataSourceDetailOut(
+            domain="sentiment",
+            label="情绪热度 / 评分",
+            layer="L2",
+            source="xueqiu + eastmoney",
+            confidence="single_source",
+            status="ok",
+        )
+    )
+
+    # ── L3 Tushare Pro 增强：估值/换手率 ──
     details.append(
         DataSourceDetailOut(
             domain="tushare",
-            label="Tushare Pro 增强数据",
+            label="Tushare Pro 增强数据（PE/PB/换手率）",
             layer="L3",
             source="tushare",
             degraded=tushare_configured and not tushare_available,

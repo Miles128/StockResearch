@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncIterator
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -19,6 +20,8 @@ from stockresearch.agents.industry.dimensions import (
     prepare_valuation,
 )
 from stockresearch.agents.industry.leaders import iter_leader_analysis_events
+from stockresearch.agents.master_commentary.context import build_research_context
+from stockresearch.agents.master_commentary.stream import stream_master_commentary
 from stockresearch.agents.research.debate import (
     iter_battle_vote_events,
     iter_multi_round_debate_events,
@@ -38,6 +41,7 @@ from stockresearch.core.schemas import (
     DebateResult,
     DebateRound,
     DimensionResult,
+    MasterCommentaryItem,
     ResearchReportOut,
     SectorLeaderBrief,
 )
@@ -151,6 +155,7 @@ async def run_industry_research_stream(
     llm: LLMClient | None = None,
     *,
     with_debate: bool = False,
+    enable_master_commentary: bool = False,
 ) -> AsyncIterator[dict[str, object]]:
     client = llm or get_llm_client()
     ctx = await _load_context(db, user_id, sector, query, client)
@@ -276,5 +281,21 @@ async def run_industry_research_stream(
     report = _build_report(
         sector, dimensions, debate, leader_briefs, news_text_factor=news_text_factor
     )
+
+    if enable_master_commentary:
+        commentary_context = build_research_context(report)
+        commentary: list[dict[str, Any]] = []
+        async for mc_event in stream_master_commentary(
+            client, subject=f"「{sector}」板块", context=commentary_context
+        ):
+            yield mc_event
+            if mc_event.get("type") == "master_commentary" and isinstance(
+                mc_event.get("commentary"), list
+            ):
+                commentary = mc_event["commentary"]
+        report.master_commentary = [
+            MasterCommentaryItem.model_validate(item) for item in commentary
+        ]
+
     yield status_event("status.industry.report_done")
     yield {"type": "done", "result": report.model_dump(mode="json")}

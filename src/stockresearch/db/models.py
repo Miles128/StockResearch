@@ -127,6 +127,25 @@ class RiskAlertRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class BriefingRecord(Base):
+    """Auto-generated morning/closing briefing records."""
+
+    __tablename__ = "briefing_records"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(20), index=True)
+    title: Mapped[str] = mapped_column(String(100))
+    summary: Mapped[str] = mapped_column(Text, default="")
+    sections: Mapped[list[dict[str, str]]] = mapped_column(JSON, default=list)
+    generated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+
+    user: Mapped["User"] = relationship(back_populates="briefings")
+
+
+User.briefings = relationship("BriefingRecord", back_populates="user", cascade="all, delete")
+
+
 class Conversation(Base):
     __tablename__ = "conversations"
 

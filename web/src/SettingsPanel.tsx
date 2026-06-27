@@ -23,6 +23,7 @@ import {
 import {
   loadModeSettings,
   saveModeSettings,
+  type AppMode,
   type ModeSettings,
 } from "./modeSettings";
 import {
@@ -53,6 +54,42 @@ interface SettingsPanelProps {
 function formatApiError(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+type TushareState = "checking" | "ok" | "no_token" | "unavailable";
+
+function TushareStatusBadge() {
+  const { t } = useI18n();
+  const [state, setState] = useState<TushareState>("checking");
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .dataSourceStatus()
+      .then((status) => {
+        if (!alive) return;
+        if (status.tushare_configured && status.tushare_available) setState("ok");
+        else if (!status.tushare_configured) setState("no_token");
+        else setState("unavailable");
+      })
+      .catch(() => {
+        if (alive) setState("unavailable");
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const text =
+    state === "checking"
+      ? t("settings.tushareStatusChecking")
+      : state === "ok"
+        ? t("settings.tushareStatusOk")
+        : state === "no_token"
+          ? t("settings.tushareStatusNoToken")
+          : t("settings.tushareStatusUnavailable");
+
+  return <p className={`tushare-status tushare-status-${state}`}>{text}</p>;
 }
 
 export function SettingsPanel({
@@ -140,6 +177,12 @@ export function SettingsPanel({
     const nextMode: ModeSettings = { ...mode, enableDebate: enabled };
     saveModeSettings(nextMode);
     onModeSettingsChange?.(nextMode);
+  }
+
+  function toggleMasterCommentary(enabled: boolean) {
+    const next = { ...analysis, enableMasterCommentary: enabled };
+    setAnalysis(next);
+    saveAnalysisSettings(next);
   }
 
   function selectReadingMode(readingMode: ReadingMode) {
@@ -290,6 +333,48 @@ export function SettingsPanel({
               />
             </label>
             <p className="settings-muted">{t("settings.tushareNote")}</p>
+
+            <div className="tushare-guide">
+              <h5 className="tushare-guide-title">{t("settings.tushareGuideTitle")}</h5>
+              <ol className="tushare-guide-steps">
+                <li>{t("settings.tushareGuideStep1")}</li>
+                <li>{t("settings.tushareGuideStep2")}</li>
+                <li>{t("settings.tushareGuideStep3")}</li>
+                <li>{t("settings.tushareGuideStep4")}</li>
+              </ol>
+              <a
+                className="tushare-guide-link"
+                href="https://tushare.pro/register?src=stockresearch"
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                {t("settings.tushareRegisterLink")} ↗
+              </a>
+            </div>
+
+            <TushareStatusBadge />
+
+            <h4 className="settings-section-title">{t("settings.bochaTitle")}</h4>
+            <p className="settings-hint">{t("settings.bochaHint")}</p>
+            <label className="settings-field">
+              <span>{t("settings.bochaApiKey")}</span>
+              <input
+                type="password"
+                autoComplete="off"
+                value={dataForm.bochaApiKey}
+                onChange={(e) => setDataForm((f) => ({ ...f, bochaApiKey: e.target.value }))}
+              />
+            </label>
+            <p className="settings-muted">{t("settings.bochaNote")}</p>
+            <a
+              className="tushare-guide-link"
+              href="https://open.bochaai.com"
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              {t("settings.bochaRegisterLink")} ↗
+            </a>
+
             <div className="settings-actions settings-actions-left">
               <button type="button" className="btn btn-primary" onClick={saveDataSources}>
                 {t("settings.dataSave")}
@@ -393,8 +478,31 @@ export function SettingsPanel({
               {analysis.enableDebate ? t("settings.debateOnNote") : t("settings.debateOffNote")}
             </p>
 
+            <label className="settings-check">
+              <input
+                type="checkbox"
+                checked={analysis.enableMasterCommentary}
+                onChange={(e) => toggleMasterCommentary(e.target.checked)}
+              />
+              <span>{t("settings.enableMasterCommentary")}</span>
+            </label>
+            <p className="settings-muted settings-analysis-note">
+              {analysis.enableMasterCommentary
+                ? t("settings.masterCommentaryOnNote")
+                : t("settings.masterCommentaryOffNote")}
+            </p>
+
             <h4 className="settings-section-title">{t("settings.readingMode")}</h4>
             <p className="settings-hint">{t("settings.readingModeHint")}</p>
+            <p className="settings-muted settings-analysis-note">
+              {t("settings.readingModeNote", {
+                mode: t(loadModeSettings().mode === "research" ? "mode.research" : "mode.advisor"),
+                reading: t(analysis.readingMode === "professional" ? "settings.modeProfessional" : "settings.modeFriendly"),
+              })}
+              {loadModeSettings().mode === "advisor"
+                ? ` · ${t("settings.readingModePersonal")}`
+                : ` · ${t("settings.readingModeExpert")}`}
+            </p>
             <div className="settings-tone-options" role="radiogroup" aria-label={t("settings.readingMode")}>
               {readingModeOptions.map((opt) => (
                 <label

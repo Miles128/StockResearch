@@ -5,7 +5,9 @@ from sqlalchemy.orm import Session
 
 from stockresearch.api.deps import get_current_user, handle_stockresearch_error
 from stockresearch.core.exceptions import ValidationError
+from stockresearch.agents.daily_scan.scanner import run_daily_scan
 from stockresearch.core.schemas import (
+    DailyScanOut,
     HoldingConfirmCreate,
     HoldingCreate,
     HoldingEnrichedOut,
@@ -161,6 +163,14 @@ async def list_holdings_enriched(
     quotes = await BatchQuoteProvider().get_quotes([h.symbol for h in holdings])
     quote_map = {q.symbol: q for q in quotes}
     return [_enrich_holding(h, quote_map, session) for h in holdings]
+
+
+@router.get("/daily-scan", response_model=DailyScanOut)
+async def daily_scan(
+    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> DailyScanOut:
+    holdings = db.query(Holding).filter(Holding.user_id == user.id).all()
+    return await run_daily_scan(holdings)
 
 
 @router.post("/holdings", response_model=HoldingOut)

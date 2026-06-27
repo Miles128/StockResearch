@@ -11,8 +11,15 @@ from stockresearch.agents.research.react import (
     prepare_react_agent,
     run_react_agent,
 )
+from stockresearch.agents.master_commentary.context import build_research_context
+from stockresearch.agents.master_commentary.stream import get_master_commentary
 from stockresearch.agents.research.report_builder import build_research_report
-from stockresearch.core.schemas import DebateResult, DimensionResult, ResearchReportOut
+from stockresearch.core.schemas import (
+    DebateResult,
+    DimensionResult,
+    MasterCommentaryItem,
+    ResearchReportOut,
+)
 from stockresearch.services.text_factor import build_news_text_factor, fetch_symbol_news_snippets
 from stockresearch.utils.llm import LLMClient, get_llm_client
 from stockresearch.utils.symbols import resolve_name
@@ -84,6 +91,7 @@ async def run_research(
     llm: LLMClient | None = None,
     *,
     with_debate: bool = True,
+    enable_master_commentary: bool = False,
 ) -> ResearchReportOut:
     client = llm or get_llm_client()
     ctx = ResearchContext(symbol=symbol, llm=client)
@@ -115,7 +123,7 @@ async def run_research(
         f"基本面 {fundamental.score}，技术面 {technical.score}，"
         f"情绪面 {sentiment.score}，筹码面 {chips.score}。"
     )
-    return build_research_report(
+    report = build_research_report(
         symbol,
         name,
         dimensions,
@@ -124,3 +132,15 @@ async def run_research(
         news_text_factor=news_text_factor,
         summary_prefix=summary_prefix,
     )
+
+    if enable_master_commentary:
+        commentary = await get_master_commentary(
+            client,
+            subject=f"{name}({symbol})",
+            context=build_research_context(report),
+        )
+        report.master_commentary = [
+            MasterCommentaryItem.model_validate(item) for item in commentary
+        ]
+
+    return report

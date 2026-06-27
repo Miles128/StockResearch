@@ -114,7 +114,17 @@ def test_briefing_generate(client: TestClient) -> None:
     assert body["sections"]
 
 
-def test_industry_research_endpoint(client: TestClient, db_session: Session) -> None:
+def test_industry_research_endpoint(client: TestClient, db_session: Session, monkeypatch) -> None:
+    from stockresearch.data.providers.sector import SectorDataProvider, SectorLeader
+
+    async def fake_leaders(self, _sector: str, *, limit: int = 3) -> list[SectorLeader]:
+        return [
+            SectorLeader(symbol="600519", name="贵州茅台", change_pct=1.2),
+            SectorLeader(symbol="000858", name="五粮液", change_pct=0.8),
+        ][:limit]
+
+    monkeypatch.setattr(SectorDataProvider, "get_sector_leaders", fake_leaders)
+
     resp = client.post(
         "/api/v1/research/industry",
         json={"sector": "白酒", "query": "白酒板块深度研究"},

@@ -7,10 +7,11 @@ import logging
 from sqlalchemy.orm import Session
 
 from stockresearch.agents.orchestrator.balance_check import check_balance
-from stockresearch.agents.output_style import get_reading_mode
+from stockresearch.agents.output_style import get_enable_glossary, get_reading_mode
 from stockresearch.db.models import Conversation
 from stockresearch.services.glossary import mark_terms
 from stockresearch.services.neutral_guard import neutral_guard
+from stockresearch.services.rotation_signal_guard import ensure_rotation_signals
 from stockresearch.utils.disclaimer import strip_disclaimer
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,9 @@ def finalize_chat_reply(reply: str, *, partial: bool = False) -> str:
     finalized = strip_disclaimer(reply)
     finalized = neutral_guard(finalized)
     finalized = check_balance(finalized)
-    if get_reading_mode() == "professional":
+    if get_reading_mode() == "friendly":
+        finalized = ensure_rotation_signals(finalized)
+    if get_enable_glossary():
         finalized = mark_terms(finalized)
     if partial:
         finalized = f"{finalized.rstrip()}\n\n（部分分析未完成）"

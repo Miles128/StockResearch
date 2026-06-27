@@ -61,7 +61,6 @@ function ResearchDimensionsBlock({
   if (!entries.length) return null;
   return (
     <div className="research-dimensions">
-      <p className="stream-section-title">{labels.section}</p>
       {entries.map(([key, dim]) => (
         <div key={key} className="dimension-card dimension-done research-dim-card">
           <div className="dimension-card-head">
@@ -109,7 +108,6 @@ function ResearchDebateBlock({
   if (!debate.rounds?.length && !debate.consensus) return null;
   return (
     <div className="research-debate">
-      <p className="stream-section-title">{labels.section}</p>
       {debate.rounds?.map((rnd) => (
         <div key={rnd.round} className="debate-grid">
           {rnd.bull_argument && (
@@ -246,13 +244,30 @@ export function ResearchReportDetails({
     bias: (value: string) => biasLabel(value, t),
   };
 
+  const dimEntries = Object.entries(report.dimensions ?? {});
+  const allSources = Array.from(
+    new Set(dimEntries.flatMap(([, d]) => d.data_sources ?? [])),
+  ).filter(Boolean);
+
   return (
     <div className="research-report-details">
-      {showDimensions && (
-        <ResearchDimensionsBlock dimensions={report.dimensions ?? {}} labels={labels} />
+      {allSources.length > 0 && (
+        <p className="research-source-hint">
+          <span className="muted">{t("card.dataSources")}：</span>
+          {allSources.join(" · ")}
+        </p>
+      )}
+      {showDimensions && dimEntries.length > 0 && (
+        <details className="research-dimensions-details">
+          <summary>{t("card.fourDim")}</summary>
+          <ResearchDimensionsBlock dimensions={report.dimensions ?? {}} labels={labels} />
+        </details>
       )}
       {showDebate && report.debate && (
-        <ResearchDebateBlock debate={report.debate} labels={debateLabels} />
+        <details className="research-debate-details">
+          <summary>{t("card.debateSection")}</summary>
+          <ResearchDebateBlock debate={report.debate} labels={debateLabels} />
+        </details>
       )}
       <ResearchAshareFactorsBlock factors={report.ashare_factors} t={t} />
       {report.text_factor_summary && (
@@ -261,6 +276,42 @@ export function ResearchReportDetails({
           <pre className="text-factor-pre">{report.text_factor_summary}</pre>
         </details>
       )}
+    </div>
+  );
+}
+
+/** 继续追问：研究结论后给出 2–4 个上下文追问，点击直接发起提问。 */
+export function FollowUpQuestions({
+  report,
+  onAsk,
+  disabled,
+}: {
+  report: ResearchReport;
+  onAsk: (query: string) => void;
+  disabled?: boolean;
+}) {
+  const { t } = useI18n();
+  const name = report.name || report.symbol;
+  const questions = [
+    t("card.followUpTech"),
+    t("card.followUpRisk"),
+    t("card.followUpCapital"),
+    t("card.followUpPeer"),
+  ];
+  return (
+    <div className="follow-up-row">
+      <span className="muted follow-up-title">{t("card.followUpTitle")}</span>
+      {questions.map((q) => (
+        <button
+          key={q}
+          type="button"
+          className="example-chip follow-up-chip"
+          disabled={disabled}
+          onClick={() => onAsk(`${q}（${name}）`)}
+        >
+          {q}
+        </button>
+      ))}
     </div>
   );
 }

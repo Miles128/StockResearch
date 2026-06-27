@@ -49,6 +49,7 @@ async def chat(
         tone=payload.output_tone,
         reading_mode=payload.reading_mode,
         locale=payload.output_locale,
+        enable_glossary=payload.enable_glossary,
     ):
         return await orchestrator.run(
             user.id,
@@ -92,6 +93,7 @@ async def chat_stream(
                 tone=payload.output_tone,
                 reading_mode=payload.reading_mode,
                 locale=payload.output_locale,
+                enable_glossary=payload.enable_glossary,
             ):
                 async for event in run_chat_stream(
                     db,

@@ -304,10 +304,18 @@ export const api = {
     request<MemorySearchResult>(`/research/memory/search?q=${encodeURIComponent(q)}`),
   generateBriefing: (kind: "morning" | "closing") =>
     requestWithLlm<Briefing>(`/briefing/generate?kind=${kind}`, { method: "POST" }),
+  latestBriefing: (kind: "morning" | "closing") =>
+    request<Briefing | null>(`/briefing/latest?kind=${kind}`),
+  briefingHistory: (kind: "morning" | "closing" | "all" = "all", limit = 10) =>
+    request<Briefing[]>(`/briefing/history?kind=${kind}&limit=${limit}`),
+  briefingSchedule: () => request<BriefingSchedule>("/briefing/schedule"),
+  setBriefingSchedule: (enabled: boolean) =>
+    request<BriefingSchedule>(`/briefing/schedule?enabled=${enabled}`, { method: "PUT" }),
   loadDemo: () => request<{ status: string; count: number; demo: boolean }>("/portfolio/demo", { method: "POST" }),
   clearDemo: () => request<{ status: string; deleted: number }>("/portfolio/demo", { method: "DELETE" }),
   demoStatus: () => request<{ demo: boolean }>("/portfolio/demo/status"),
   dailyActions: () => request<DailyActionCenter>("/action-center/daily"),
+  dailyScan: () => request<DailyScanOut>("/portfolio/daily-scan"),
   analyzeNews: (
     newsId: number,
     symbol: string,
@@ -322,7 +330,17 @@ export const api = {
       extractResult: (event) =>
         event.type === "done" && event.result ? (event.result as unknown as NewsAnalysis) : undefined,
     }),
+  glossary: () => requestPlain<GlossaryTerm[]>("/glossary"),
 };
+
+/** 词库条目，供投顾模式 TermPopover 渲染可点击弹窗。 */
+export interface GlossaryTerm {
+  id: string;
+  short: string;
+  en: string;
+  def: string;
+  analogy: string;
+}
 
 export interface LlmUsage {
   prompt_tokens: number;
@@ -494,6 +512,16 @@ export interface AshareFactor {
   }[];
 }
 
+export interface MasterCommentaryItem {
+  master: string;
+  name: string;
+  signal: "bullish" | "neutral" | "bearish";
+  signal_text: string;
+  confidence: number;
+  reasoning: string;
+  key_metric: string;
+}
+
 export interface ResearchReport {
   symbol: string;
   name: string;
@@ -507,6 +535,7 @@ export interface ResearchReport {
   dimension_weights?: Record<string, number>;
   dimensions: Record<string, DimensionResult>;
   debate?: DebateResult | null;
+  master_commentary?: MasterCommentaryItem[];
 }
 
 export interface PortfolioMetrics {
@@ -550,6 +579,7 @@ export interface RiskCheckup {
     cvar_pct: number;
     holdings_var: { name: string; weight: number; var_value: number }[];
   };
+  master_commentary?: MasterCommentaryItem[];
 }
 
 export interface AssetAllocation {
@@ -680,6 +710,13 @@ export interface Briefing {
   generated_at: string;
 }
 
+export interface BriefingSchedule {
+  enabled: boolean;
+  morning_time: string;
+  closing_time: string;
+  timezone: string;
+}
+
 export interface ActionSignal {
   type: "price" | "news" | "risk" | "fundamental" | "info";
   severity: "critical" | "warning" | "info";
@@ -694,7 +731,27 @@ export interface ActionSignal {
 export interface DailyActionCenter {
   signals: ActionSignal[];
   summary: string;
-  generated_at: string;
+}
+
+export interface DailyScanItem {
+  symbol: string;
+  name: string;
+  sector: string;
+  price?: number | null;
+  change_pct?: number | null;
+  cost_price: number;
+  profit_pct?: number | null;
+  technical_score: number;
+  signal: "bullish" | "neutral" | "bearish";
+  signal_text: string;
+  suggestion: string;
+  factors: string[];
+}
+
+export interface DailyScanOut {
+  scan_date: string;
+  summary: string;
+  items: DailyScanItem[];
   disclaimer: string;
 }
 

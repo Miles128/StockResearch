@@ -19,7 +19,8 @@ except ImportError:
     _HAS_CURL_CFFI = False
 
 from stockresearch.core.config import get_settings
-from stockresearch.utils.llm import _httpx_client_kwargs, get_llm_client
+from stockresearch.core.data_source_config import get_bocha_api_key
+from stockresearch.utils.llm import _httpx_client_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +38,9 @@ class RawNewsItem:
 
 class NewsProvider:
     async def fetch_latest(self, limit: int = 30) -> list[RawNewsItem]:
-        if get_settings().use_mock_market_data:
-            return _fallback_news(limit)
         items = await self._fetch_akshare_market(limit)
         if not items:
             items = await self._fetch_web_search(limit)
-        if not items:
-            items = _fallback_news(limit)
         return items
 
     async def fetch_for_user(
@@ -52,9 +49,6 @@ class NewsProvider:
         sectors: frozenset[str],
         limit: int = 30,
     ) -> list[RawNewsItem]:
-        if get_settings().use_mock_market_data:
-            return _fallback_news_for_user(symbol_pairs, sectors, limit)
-
         tasks: list[asyncio.Task[list[RawNewsItem]]] = []
         for symbol, name in symbol_pairs[:8]:
             query = name or symbol
@@ -74,8 +68,6 @@ class NewsProvider:
         items = _dedupe_items(items)
         if not items:
             items = await self._fetch_web_search(limit)
-        if not items:
-            items = _fallback_news_for_user(symbol_pairs, sectors, limit)
         return items[: limit * 2]
 
     async def _fetch_akshare_market(self, limit: int) -> list[RawNewsItem]:
@@ -132,50 +124,62 @@ class NewsProvider:
         return _fetch_em_global_news_sync(symbol, limit)
 
     async def _fetch_web_search(self, limit: int) -> list[RawNewsItem]:
-        llm = get_llm_client()
-        if llm.__class__.__name__ == "MockLLMClient":
+        """博查 AI 联网搜索兜底：当 AkShare / 东方财富均无数据时调用。
+
+        文档：https://open.bochaai.com/documentation?algorithm=1
+        Endpoint: POST https://api.bochaai.com/v1/web-search
+        """
+        settings = get_settings()
+        api_key = (get_bocha_api_key() or settings.bocha_api_key or "").strip()
+        if not api_key:
             return []
         try:
-            settings = get_settings()
-            if not settings.llm_api_key:
-                return []
-            headers = {"Authorization": f"Bearer {settings.llm_api_key}", "Content-Type": "application/json"}
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            }
             payload = {
-                "model": settings.llm_model,
-                "messages": [
-                    {"role": "system", "content": "你是财经新闻搜索助手，列出最近3条A股市场重要新闻。每行一条，格式：标题|来源"},
-                    {"role": "user", "content": "请列出今天A股市场最重要的新闻"},
-                ],
-                "temperature": 0.3,
+                "query": "A股 最新新闻 财经",
+                "freshness": "oneDay",
+                "summary": True,
+                "count": max(limit, 10),
+                "category": "general",
             }
             async with httpx.AsyncClient(**_httpx_client_kwargs()) as client:
                 resp = await client.post(
-                    settings.llm_base_url.strip(),
+                    "https://api.bochaai.com/v1/web-search",
                     headers=headers,
                     json=payload,
+                    timeout=8.0,
                 )
                 resp.raise_for_status()
                 data = resp.json()
-                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+            pages = data.get("webPages", {}) or {}
+            rows = pages.get("value", []) or []
             items: list[RawNewsItem] = []
-            for line in content.strip().split("\n"):
-                line = line.strip().lstrip("0123456789.-) ")
-                if not line:
+            for row in rows:
+                title = str(row.get("name", "")).strip()
+                if not title:
                     continue
-                parts = line.split("|")
-                title = parts[0].strip()
-                source = parts[1].strip() if len(parts) > 1 else "AI生成(非真实新闻)"
+                snippet = str(row.get("snippet", "")).strip()
+                summary = str(row.get("summary", "")).strip()
+                content = summary or snippet or title
+                source = str(row.get("siteName", "")).strip() or "博查搜索"
+                url = str(row.get("url", "")).strip()
+                published_at = _parse_datetime(row.get("datePublished")) if row.get("datePublished") else datetime.now(UTC)
                 items.append(
                     RawNewsItem(
                         title=title,
-                        content=title,
+                        content=content[:500],
                         source=source,
-                        published_at=datetime.now(UTC),
+                        published_at=published_at,
+                        url=url,
                     )
                 )
             return items[:limit]
         except Exception as exc:
-            logger.warning("Web search news failed: %s", exc)
+            logger.warning("Bocha web search news failed: %s", exc)
             return []
 
 
@@ -326,44 +330,3 @@ def _dedupe_items(items: list[RawNewsItem]) -> list[RawNewsItem]:
         result.append(item)
     return result
 
-
-def _fallback_news_for_user(
-    symbol_pairs: list[tuple[str, str]],
-    sectors: frozenset[str],
-    limit: int,
-) -> list[RawNewsItem]:
-    items = _fallback_news(limit * 2)
-    symbols = {symbol for symbol, _ in symbol_pairs}
-    names = {name for _, name in symbol_pairs if name}
-    filtered: list[RawNewsItem] = []
-    for item in items:
-        text = f"{item.title} {item.content}"
-        is_market = any(kw in text for kw in ("央行", "北向", "A股", "大盘", "沪指"))
-        is_symbol = any(symbol in text for symbol in symbols)
-        is_name = any(name in text for name in names)
-        is_sector = any(sector in text for sector in sectors)
-        if is_market or is_symbol or is_name or is_sector:
-            filtered.append(item)
-    return filtered[:limit] if filtered else items[: min(3, limit)]
-
-
-def _fallback_news(limit: int) -> list[RawNewsItem]:
-    now = datetime.now(UTC)
-    samples = [
-        ("央行开展逆回购操作，流动性保持合理充裕", "market", "neutral"),
-        ("宁德时代发布新一代电池技术进展", "300750", "bullish"),
-        ("贵州茅台公布年度分红方案", "600519", "bullish"),
-        ("半导体设备国产化加速", "半导体", "bullish"),
-        ("北向资金今日净流入超50亿元", "market", "bullish"),
-    ]
-    result: list[RawNewsItem] = []
-    for title, entity, _ in samples[:limit]:
-        result.append(
-            RawNewsItem(
-                title=title,
-                content=f"{title}。相关：{entity}",
-                source="fallback",
-                published_at=now,
-            )
-        )
-    return result

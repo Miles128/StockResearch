@@ -57,6 +57,7 @@ interface StreamFeedProps {
   judgeVerdict: JudgeVerdict | null;
   voteTally: { bullish: number; bearish: number; neutral: number; leading?: string } | null;
   activeStreamIds?: string[];
+  masterCommentary?: import("./api").MasterCommentaryItem[];
 }
 
 const DEBATE_ROLES = new Set(["bull", "bear", "aggressive", "neutral", "conservative", "vote"]);
@@ -209,6 +210,7 @@ export function StreamFeed({
   judgeVerdict,
   voteTally,
   activeStreamIds = [],
+  masterCommentary = [],
 }: StreamFeedProps) {
   const { t } = useI18n();
   const dimensionDefs = detectDimensionSet(agentSteps, streamStatus);
@@ -436,6 +438,31 @@ export function StreamFeed({
             </>
           )}
         </div>
+      )}
+
+      {masterCommentary.length > 0 && (
+        <>
+          <p className="stream-section-title">{t("stream.masterCommentary")}</p>
+          <div className="master-commentary-list">
+            {masterCommentary.map((item, idx) => (
+              <div
+                key={idx}
+                className={`master-commentary-item signal-${item.signal}`}
+              >
+                <div className="master-commentary-head">
+                  <strong>{item.name}</strong>
+                  <span className={`stat-pill ${item.signal === "bullish" ? "up" : item.signal === "bearish" ? "down" : ""}`}>
+                    {item.signal_text}
+                  </span>
+                  {item.key_metric && (
+                    <span className="muted master-commentary-metric">{item.key_metric}</span>
+                  )}
+                </div>
+                <p className="muted">{item.reasoning}</p>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
