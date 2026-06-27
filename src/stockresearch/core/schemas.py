@@ -450,10 +450,20 @@ class DataSourceDetailOut(BaseModel):
     status: Literal["ok", "degraded", "missing", "mock", "configured", "not_configured"] = "ok"
 
 
+class ProviderMetaOut(BaseModel):
+    key: str
+    label: str
+    layer: str
+    provider: str
+    domain: str
+    default_ttl_seconds: int | None = None
+
+
 class DataSourceStatusOut(BaseModel):
     quotes: ProviderStatusOut | None = None
     overview: ProviderStatusOut | None = None
     details: list[DataSourceDetailOut] = Field(default_factory=list)
+    provider_catalog: list[ProviderMetaOut] = Field(default_factory=list)
     use_mock: bool = False
     tushare_configured: bool = False
     tushare_available: bool = False

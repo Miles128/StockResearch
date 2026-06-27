@@ -1961,6 +1961,15 @@ input:focus {
   font-size: 13.75px;
 }
 
+.backend-health-banner {
+  background: color-mix(in srgb, var(--bbg-red) 18%, var(--bbg-panel));
+  color: var(--bbg-red);
+  border-bottom: 1px solid color-mix(in srgb, var(--bbg-red) 35%, var(--bbg-border));
+  padding: 8px 16px;
+  font-size: 13px;
+  text-align: center;
+}
+
 .demo-banner {
   display: flex;
   align-items: center;

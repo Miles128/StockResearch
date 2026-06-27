@@ -1,7 +1,6 @@
 """Query complexity routing tests."""
 
 from stockresearch.agents.orchestrator.complexity import (
-    ANALYSIS_COMPLEX,
     ANALYSIS_SIMPLE,
     ComplexityResult,
     classify_query,

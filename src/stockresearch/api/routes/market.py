@@ -13,9 +13,11 @@ from stockresearch.core.schemas import (
     DataSourceStatusOut,
     KlineChartOut,
     MarketOverviewOut,
+    ProviderMetaOut,
     ProviderStatusOut,
     StockQuoteOut,
 )
+from stockresearch.data.provider_meta import list_provider_catalog
 from stockresearch.data.providers.market import TechnicalDataProvider
 from stockresearch.data.providers.market_overview import BatchQuoteProvider, MarketOverviewProvider
 from stockresearch.data.registry import ProviderSnapshot, get_snapshots
@@ -79,6 +81,17 @@ async def data_source_status(
             tushare_configured=tushare_configured,
             tushare_available=tushare_available,
         ),
+        provider_catalog=[
+            ProviderMetaOut(
+                key=meta.key,
+                label=meta.label,
+                layer=meta.layer,
+                provider=meta.provider,
+                domain=meta.domain,
+                default_ttl_seconds=meta.default_ttl_seconds,
+            )
+            for meta in list_provider_catalog()
+        ],
         use_mock=use_mock,
         tushare_configured=tushare_configured,
         tushare_available=tushare_available,

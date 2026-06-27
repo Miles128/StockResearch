@@ -1,6 +1,5 @@
 """Data provider registry — tracks quote/overview fetch sources and degradation."""
 
-import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 

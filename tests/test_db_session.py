@@ -15,6 +15,7 @@ def test_init_db_creates_tables() -> None:
     assert "watchlist" in table_names
     assert "conversations" in table_names
     assert "user_preferences" in table_names
+    assert "provider_cache" in table_names
     assert "schema_migrations" in table_names
 
 

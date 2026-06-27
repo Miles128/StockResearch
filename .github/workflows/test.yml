@@ -19,7 +19,7 @@ jobs:
       - name: Pytest
         run: pytest -q
       - name: Critical static checks
-        run: ruff check src tests --select E9,F63,F7,F82
+        run: ruff check src tests --select E9,F63,F7,F82,F401
 
   frontend:
     runs-on: ubuntu-latest

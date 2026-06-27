@@ -1,9 +1,6 @@
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import {
   api,
-  AgentStreamEvent,
-  ChatStreamOptions,
-  ExecutionPreference,
   DataSourceStatus,
   GlossaryTerm,
   HoldingEnriched,
@@ -14,7 +11,8 @@ import {
   SectorPreferences,
   StockLookupOut,
 } from "./api";
-import type { CopilotContext, Message, Tab } from "./appTypes";
+import type { CopilotContext, Tab } from "./appTypes";
+import { BackendHealthBanner } from "./BackendHealthBanner";
 import { ChatPanel } from "./ChatPanel";
 import { CanvasNav } from "./CanvasNav";
 import { CopilotPanel } from "./CopilotPanel";
@@ -31,12 +29,10 @@ import { computePortfolioSummary, computeSectorConcentration } from "./portfolio
 import { PortfolioPanel } from "./PortfolioPanel";
 import { RiskPanel } from "./RiskPanel";
 import { SettingsPanel } from "./SettingsPanel";
-import { stripDisclaimer } from "./disclaimerText";
-import { applyStreamEvent, emptyStreamState } from "./streamEvents";
-import { normalizeStreamEvent } from "./streamI18n";
 import { ModeSwitcher } from "./ModeSwitcher";
 import { Onboarding } from "./Onboarding";
 import { AssetAllocationPanel } from "./AssetAllocationPanel";
+import { useCopilotChat } from "./hooks/useCopilotChat";
 import {
   loadModeSettings,
   modeSettingsFromApiPayload,
@@ -92,13 +88,13 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("portfolio");
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [pageContext, setPageContext] = useState<CopilotContext | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [sessionId, setSessionId] = useState<string>();
-  const [chatLoading, setChatLoading] = useState(false);
+  const chat = useCopilotChat({
+    pageContext,
+    onOpenCopilot: () => setCopilotOpen(true),
+    onSetPageContext: setPageContext,
+    locale,
+  });
   const [riskLoading, setRiskLoading] = useState(false);
-  const [statusMsg, setStatusMsg] = useState("");
-  const [chatStream, setChatStream] = useState(emptyStreamState());
   const [news, setNews] = useState<NewsItem[]>([]);
   const [holdings, setHoldings] = useState<HoldingEnriched[]>([]);
   const [holdingsLoading, setHoldingsLoading] = useState(false);
@@ -144,14 +140,14 @@ export default function App() {
   const marketSessionLabel =
     holdings[0]?.market_session === "trading" ? t("ticker.trading") : t("ticker.closed");
   const headerUsage = useMemo((): LlmUsage | null => {
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      const m = messages[i];
+    for (let i = chat.messages.length - 1; i >= 0; i -= 1) {
+      const m = chat.messages[i];
       if (m.role === "assistant" && m.llmUsage && m.llmUsage.total_tokens > 0) {
         return m.llmUsage;
       }
     }
     return null;
-  }, [messages]);
+  }, [chat.messages]);
 
   function refreshDataStatus() {
     void api.dataSourceStatus().then(setDataStatus).catch(() => setDataStatus(null));
@@ -343,141 +339,11 @@ export default function App() {
     }
   }
 
-  async function executeChat(
-    query: string,
-    options?: ChatStreamOptions,
-    contextOverride?: CopilotContext | null,
-  ) {
-    setChatLoading(true);
-    setStatusMsg(t("chat.connecting"));
-    setChatStream(emptyStreamState());
-    let processSnapshot = emptyStreamState();
-    const activeContext = contextOverride === undefined ? pageContext : contextOverride;
-    const requestQuery = activeContext
-      ? `${query}\n\n[当前画布上下文：${activeContext.label}${activeContext.detail ? `；${activeContext.detail}` : ""}]`
-      : query;
-    try {
-      const resp = await api.chatStream(
-        requestQuery,
-        sessionId,
-        (event: AgentStreamEvent) => {
-          if (
-            event.type === "analysis_choice" ||
-            event.type === "stock_choice" ||
-            event.type === "route_choice"
-          ) {
-            return;
-          }
-          const normalized = normalizeStreamEvent(event, t);
-          setChatStream((prev) => {
-            const next = applyStreamEvent(prev, normalized, t);
-            processSnapshot = next;
-            return next;
-          });
-          if (normalized.type === "status" && normalized.message) {
-            setStatusMsg(normalized.message);
-          }
-        },
-        options,
-      );
-      if (resp) {
-        setSessionId(resp.session_id);
-        processSnapshot = {
-          ...processSnapshot,
-          streamStatus: processSnapshot.streamStatus || statusMsg || t("chat.analysisDone"),
-        };
-        const hasResearchCard = resp.cards?.some((c) => c.type === "research");
-        const hasProcessTrail =
-          processSnapshot.streamLog.length > 0 ||
-          processSnapshot.agentSteps.length > 0 ||
-          processSnapshot.debateRounds.length > 0 ||
-          processSnapshot.judgeVerdict != null;
-        const assistantMsg: Message = {
-          role: "assistant",
-          content: stripDisclaimer(resp.reply),
-          cards: resp.cards,
-          intent: resp.intent,
-          followUpQuestions: resp.follow_up_questions ?? [],
-          llmUsage: resp.llm_usage ?? null,
-          process:
-            hasProcessTrail || hasResearchCard
-              ? processSnapshot
-              : undefined,
-        };
-        setMessages((m) => [...m, assistantMsg]);
-      }
-    } catch {
-      try {
-        setStatusMsg(t("chat.streamFailed"));
-        const resp = await api.chat(requestQuery, sessionId, options);
-        setSessionId(resp.session_id);
-        setMessages((m) => [
-          ...m,
-          {
-            role: "assistant",
-            content: stripDisclaimer(resp.reply),
-            cards: resp.cards,
-            intent: resp.intent,
-            followUpQuestions: resp.follow_up_questions ?? [],
-            llmUsage: resp.llm_usage ?? null,
-          },
-        ]);
-      } catch (e) {
-        setMessages((m) => [...m, { role: "assistant", content: `Error: ${String(e)}` }]);
-      }
-    } finally {
-      setChatLoading(false);
-      setStatusMsg("");
-    }
-  }
-
-  function startChatQuery(
-    query: string,
-    opts?: { switchTab?: boolean; context?: CopilotContext | null },
-  ) {
-    if (!query.trim() || chatLoading) return;
-    if (opts?.switchTab) setCopilotOpen(true);
-    setInput("");
-    setMessages((m) => [...m, { role: "user", content: query }]);
-    void executeChat(query, undefined, opts?.context);
-  }
-
-  function sendChat() {
-    if (!input.trim() || chatLoading) return;
-    startChatQuery(input.trim());
-  }
-
-  function analyzeHolding(h: HoldingEnriched) {
-    const q = locale === "zh" ? `分析${h.name}` : `Analyze ${h.name}`;
-    const context: CopilotContext = {
-      kind: "stock",
-      label: `${h.name} ${h.symbol}`,
-      detail: `${h.sector} · ${h.quantity}股`,
-    };
-    setPageContext(context);
-    setCopilotOpen(true);
-    startChatQuery(q, { switchTab: true, context });
-  }
-
   function onTickerIndexClick(_name: string) {
     setTab("market");
     setPageContext({ kind: "market", label: _name });
     setCopilotOpen(true);
-    setInput(t("chat.exampleMarketQuery"));
-  }
-
-  function askCopilot(query: string, context: CopilotContext) {
-    setPageContext(context);
-    setCopilotOpen(true);
-    startChatQuery(query, { context });
-  }
-
-  function newCopilotThread() {
-    setMessages([]);
-    setSessionId(undefined);
-    setChatStream(emptyStreamState());
-    setStatusMsg("");
-    setInput("");
+    chat.setInput(t("chat.exampleMarketQuery"));
   }
 
   function handleActionNavigate(target: string) {
@@ -508,27 +374,6 @@ export default function App() {
 
   function alertHoldingTags(message: string): HoldingEnriched[] {
     return holdings.filter((h) => message.includes(h.name) || message.includes(h.symbol));
-  }
-
-  function confirmChatStock(originalMessage: string, symbol: string, name: string) {
-    if (chatLoading) return;
-    setMessages((m) => [...m, { role: "user", content: `${name}（${symbol}）` }]);
-    void executeChat(originalMessage, { confirmedSymbol: symbol, confirmedName: name });
-  }
-
-  function confirmChatRoute(originalMessage: string, preference: ExecutionPreference) {
-    if (chatLoading) return;
-    const labels: Record<ExecutionPreference, string> = {
-      react: t("chat.routeReact"),
-      plan_execute: t("chat.routePlan"),
-      preset: t("chat.routePreset"),
-      auto: t("chat.routeAuto"),
-    };
-    setMessages((m) => [
-      ...m,
-      { role: "user", content: t("chat.selectedMode", { mode: labels[preference] }) },
-    ]);
-    void executeChat(originalMessage, { executionPreference: preference });
   }
 
   async function loadDemoHoldings() {
@@ -649,6 +494,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      <BackendHealthBanner />
       <div className="app-chrome">
         <div className="chrome-left">
           <span className="bbg-logo">StockResearch</span>
@@ -752,13 +598,12 @@ export default function App() {
           {tab === "portfolio" && (
             <>
               <ActionCenter onNavigate={handleActionNavigate} onChatQuery={(query) => {
-                const context: CopilotContext = {
-                  kind: "portfolio",
-                  label: locale === "zh" ? "我的持仓" : "My holdings",
-                };
-                setPageContext(context);
-                setCopilotOpen(true);
-                startChatQuery(query, { context });
+                chat.startChatQuery(query, {
+                  context: {
+                    kind: "portfolio",
+                    label: locale === "zh" ? "我的持仓" : "My holdings",
+                  },
+                });
               }} />
               <PortfolioPanel
                 holdings={holdings}
@@ -782,7 +627,7 @@ export default function App() {
                 onLookupAndAdd={() => void lookupAndAdd()}
                 onConfirmCandidate={(symbol, name) => void confirmCandidate(symbol, name)}
                 onDeleteHolding={(id) => void deleteHolding(id)}
-                onAnalyzeHolding={analyzeHolding}
+                onAnalyzeHolding={chat.analyzeHolding}
               />
             </>
           )}
@@ -814,7 +659,7 @@ export default function App() {
               loading={overviewLoading}
               onRefresh={() => void loadOverview()}
               onAskCopilot={(query) =>
-                askCopilot(query, {
+                chat.askCopilot(query, {
                   kind: "market",
                   label: locale === "zh" ? "当前市场" : "Current market",
                   detail: marketOverview?.data_status,
@@ -826,33 +671,33 @@ export default function App() {
 
         <CopilotPanel
           open={copilotOpen}
-          threadTitle={messages.find((message) => message.role === "user")?.content || ""}
+          threadTitle={chat.messages.find((message) => message.role === "user")?.content || ""}
           userContext={t("chat.holdingsContext", {
             n: String(holdings.length),
             mode: t(`mode.${modeSettings.mode}`),
           })}
           pageContext={pageContext}
           onClose={() => setCopilotOpen(false)}
-          onNewThread={newCopilotThread}
+          onNewThread={chat.newCopilotThread}
           onRemoveContext={() => setPageContext(null)}
         >
           <ChatPanel
-            messages={messages}
-            loading={chatLoading}
-            statusMsg={statusMsg}
-            chatStream={chatStream}
-            input={input}
-            onInputChange={setInput}
+            messages={chat.messages}
+            loading={chat.chatLoading}
+            statusMsg={chat.statusMsg}
+            chatStream={chat.chatStream}
+            input={chat.input}
+            onInputChange={chat.setInput}
             chatExamples={chatExamples}
             holdings={holdings}
             enableGlossary={modeSettings.mode === "advisor" && modeSettings.enableGlossary}
             appMode={modeSettings.mode}
             glossary={glossary}
-            onStartQuery={(query) => startChatQuery(query)}
-            onSend={sendChat}
-            onAnalyzeHolding={analyzeHolding}
-            onConfirmStock={confirmChatStock}
-            onConfirmRoute={confirmChatRoute}
+            onStartQuery={(query) => chat.startChatQuery(query)}
+            onSend={chat.sendChat}
+            onAnalyzeHolding={chat.analyzeHolding}
+            onConfirmStock={chat.confirmChatStock}
+            onConfirmRoute={chat.confirmChatRoute}
           />
         </CopilotPanel>
       </div>

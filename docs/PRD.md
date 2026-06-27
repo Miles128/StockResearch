@@ -586,19 +586,22 @@ Provider + SQLite
 | 画布内轻量 AI 动作 | ✅ |
 | 继续追问（规则模板） | ✅ |
 | 轻量研究卡（`viewpoints` / SSE 后折叠辩论） | ✅ |
-| 术语弹窗 + 词库 | ✅ 闭环；词库持续扩充 |
-| A 股因子扩展 | 🔄 清单已扩；北向/融资融券数据源待接 |
+| 术语弹窗 + 词库 | ✅ 闭环；词库 ≥80 条 |
+| A 股因子扩展 | ✅ 北向/融资融券已接 chips agent |
 | 数据源详情 | ✅ |
 | 设置三层化 | ⏸ 暂缓 |
-| 专业信息展开（按模式分密度） | 🔬 待 wire 设计 |
+| 专业信息展开（按模式分密度） | ✅ LightResearchCard wire |
+| 后端健康横幅 | ✅ BackendHealthBanner |
 
-### P2：工程可持续
+### P2：工程可持续（进行中）
 
-1. 拆分巨型前端模块（`App.tsx` / `api.ts`）；
-2. 数据库迁移（见 §15.7 方案；当前手写 `schema_migrations`）；
-3. 静态检查进入 CI（逐步收紧 ruff/mypy 门禁）；
-4. 校准文档、截图和真实状态；
-5. 分层 Provider 元数据契约、SQLite 缓存、北向/融资融券数据源。
+| 项 | 状态 |
+|----|------|
+| 拆分巨型前端模块（`App.tsx` / `api.ts`） | 🔄 `useCopilotChat` + `api/` 分包 |
+| 数据库迁移 | 🔄 migration 003 `provider_cache` |
+| 静态检查进入 CI | 🔄 已加 F401 |
+| 校准文档、截图和真实状态 | ⏸ |
+| Provider 元数据契约 + SQLite 缓存 | 🔄 `provider_meta` + `sqlite_cache` |
 
 ## 十二、对标产品收敛
 
@@ -737,7 +740,7 @@ Output: 共识结论 + 核心分歧 + 裁判 summary（流式可见，done 后�
 | 新闻 | 东财/公开源 / 博查 | 管道降级 | 分钟级 |
 | 财务/估值 | AKShare | Tushare Pro（用户 Key） | 按需 |
 | 龙虎榜/资金流 | AKShare | Tushare Pro | 盘后/按需 |
-| 北向/融资融券 | 待接 | AKShare | P2 |
+| 北向/融资融券 | AKShare | AKShare | ✅ P1 |
 
 **多源降级**：主源失败 → 备源 → 响应标注 `partial` / 因子 `missing`；禁止 LLM 补造缺失数据。
 

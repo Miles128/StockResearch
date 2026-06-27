@@ -1,6 +1,5 @@
 """News routes."""
 
-import asyncio
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query

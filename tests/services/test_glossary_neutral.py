@@ -1,6 +1,5 @@
 """Tests for glossary, neutral_guard, and balance_check services."""
 
-import pytest
 
 from stockresearch.services.glossary import mark_terms, get_glossary, clear_glossary_cache
 from stockresearch.services.neutral_guard import neutral_guard, apply_ban_filter, apply_tone_calibration

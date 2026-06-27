@@ -10,12 +10,14 @@ import akshare as ak  # type: ignore[import-untyped]
 from stockresearch.core.config import get_settings
 from stockresearch.core.exceptions import DataProviderError
 from stockresearch.data.providers.akshare_quote import fetch_akshare_hist_quotes
-from stockresearch.data.providers.base import run_async_fetch, run_sync_fetch
+from stockresearch.data.providers.base import run_sync_fetch
 from stockresearch.data.providers.news import _fetch_em_symbol_news_sync
 from stockresearch.data.providers.sina_quote import QuoteRow, fetch_sina_quotes
 from stockresearch.data.providers.tushare_financial import fetch_daily_basic_sync
 from stockresearch.data.registry import record_quote_fetch, record_symbol_sources
+from stockresearch.data.provider_meta import get_provider_meta
 from stockresearch.services.cache import get_cached
+from stockresearch.services.sqlite_cache import get_sqlite_cached, set_sqlite_cached
 from stockresearch.utils.symbols import resolve_name
 
 logger = logging.getLogger(__name__)
@@ -635,7 +637,13 @@ class ChipsDataProvider:
                 "signal": "增持",
                 "source": "mock",
             }
-        return await run_sync_fetch(
+        cache_key = f"northbound:{symbol}"
+        cached = get_sqlite_cached(cache_key)
+        if cached is not None:
+            return {**cached, "source": str(cached.get("source", "akshare_northbound"))}
+        meta = get_provider_meta("akshare_northbound")
+        ttl = meta.default_ttl_seconds if meta else 3600
+        result = await run_sync_fetch(
             f"akshare northbound {symbol}",
             lambda: self._fetch_northbound_sync(symbol),
             timeout=_DATA_TIMEOUT_SEC,
@@ -647,6 +655,9 @@ class ChipsDataProvider:
                 "source": "akshare_northbound",
             },
         )
+        if ttl and result.get("source") == "akshare_northbound":
+            set_sqlite_cached(cache_key, dict(result), ttl)
+        return result
 
     async def get_margin_trading(self, symbol: str) -> dict[str, float | str]:
         if get_settings().use_mock_market_data:
@@ -656,7 +667,13 @@ class ChipsDataProvider:
                 "total_balance": 2.07e10,
                 "source": "mock",
             }
-        return await run_sync_fetch(
+        cache_key = f"margin:{symbol}"
+        cached = get_sqlite_cached(cache_key)
+        if cached is not None:
+            return {**cached, "source": str(cached.get("source", "akshare_margin"))}
+        meta = get_provider_meta("akshare_margin")
+        ttl = meta.default_ttl_seconds if meta else 86400
+        result = await run_sync_fetch(
             f"akshare margin {symbol}",
             lambda: self._fetch_margin_sync(symbol),
             timeout=_DATA_TIMEOUT_SEC,
@@ -667,6 +684,9 @@ class ChipsDataProvider:
                 "source": "akshare_margin",
             },
         )
+        if ttl and result.get("source") == "akshare_margin":
+            set_sqlite_cached(cache_key, dict(result), ttl)
+        return result
 
     async def get_holder_count(self, symbol: str) -> dict[str, float | str]:
         if get_settings().use_mock_market_data:

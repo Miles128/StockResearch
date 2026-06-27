@@ -24,7 +24,7 @@ from stockresearch.agents.research.stream import run_research_stream
 from stockresearch.agents.risk.stream import run_risk_checkup_stream
 from stockresearch.core.constants import INTENT_RISK
 from stockresearch.core.exceptions import LLMConfigError
-from stockresearch.core.schemas import CardPayload, ChatResponse, ResearchReportOut, RiskCheckupOut
+from stockresearch.core.schemas import ResearchReportOut, RiskCheckupOut
 from stockresearch.db.models import Holding
 from stockresearch.i18n.status_events import status_event
 from stockresearch.services.chat_response import assemble_chat_response, save_conversation

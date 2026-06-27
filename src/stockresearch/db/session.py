@@ -75,9 +75,29 @@ def _migration_002_user_preferences(conn: Connection) -> None:
     )
 
 
+def _migration_003_provider_cache(conn: Connection) -> None:
+    conn.execute(
+        text(
+            "CREATE TABLE IF NOT EXISTS provider_cache ("
+            "cache_key TEXT NOT NULL PRIMARY KEY, "
+            "payload JSON NOT NULL, "
+            "expires_at DATETIME, "
+            "created_at DATETIME DEFAULT CURRENT_TIMESTAMP"
+            ")"
+        )
+    )
+    conn.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS ix_provider_cache_expires_at "
+            "ON provider_cache (expires_at)"
+        )
+    )
+
+
 _SQLITE_MIGRATIONS: list[tuple[int, str, Callable[[Connection], None]]] = [
     (1, "conversation_checkpoint", _migration_001_conversation_checkpoint),
     (2, "user_preferences", _migration_002_user_preferences),
+    (3, "provider_cache", _migration_003_provider_cache),
 ]
 
 

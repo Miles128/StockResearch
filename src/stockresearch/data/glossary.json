@@ -453,5 +453,138 @@
     "def": "参数真值以给定概率落入的区间",
     "analogy": "真值大概率落在这个范围内",
     "context_template": "置信区间 [{lower}, {upper}]"
+  },
+  "陆股通": {
+    "en": "Stock Connect (Northbound)",
+    "short": "陆股通",
+    "def": "境外投资者通过港交所买卖 A 股的通道",
+    "analogy": "外资买 A 股的官方入口",
+    "context_template": "{stock} 陆股通持股占比 {value}%"
+  },
+  "融资余额": {
+    "en": "Margin Financing Balance",
+    "short": "融资余额",
+    "def": "投资者向券商借钱买股尚未归还的总额",
+    "analogy": "市场上还在用杠杆买股的钱",
+    "context_template": "{stock} 融资余额 {value} 元"
+  },
+  "融券余额": {
+    "en": "Securities Lending Balance",
+    "short": "融券余额",
+    "def": "投资者借券卖出尚未归还的市值",
+    "analogy": "市场上还在做空的券",
+    "context_template": "{stock} 融券余额 {value} 元"
+  },
+  "股东户数": {
+    "en": "Shareholder Count",
+    "short": "股东户数",
+    "def": "持有该股的账户数量，户数减少常意味着筹码集中",
+    "analogy": "有多少人在持有这只股票",
+    "context_template": "{stock} 股东户数 {value}，环比 {assessment}"
+  },
+  "ST股": {
+    "en": "Special Treatment (ST) Stock",
+    "short": "ST 股",
+    "def": "连续亏损等异常被实施风险警示的股票",
+    "analogy": "被贴上「经营有风险」标签的股票",
+    "context_template": "{stock} 为 ST 股，{assessment}"
+  },
+  "停牌": {
+    "en": "Trading Halt",
+    "short": "停牌",
+    "def": "股票暂停交易，无法买卖",
+    "analogy": "股票临时「关门歇业」",
+    "context_template": "{stock} 停牌，原因：{assessment}"
+  },
+  "前复权": {
+    "en": "Forward Adjusted Price",
+    "short": "前复权",
+    "def": "按分红送股调整历史价格，便于看真实涨跌",
+    "analogy": "把历史价格「对齐」到今天的股本",
+    "context_template": "K 线使用前复权价格"
+  },
+  "缺口": {
+    "en": "Price Gap",
+    "short": "缺口",
+    "def": "相邻两根 K 线之间没有重叠的价格区间",
+    "analogy": "价格「跳」过去、中间没成交的区域",
+    "context_template": "{stock} 出现{assessment}缺口"
+  },
+  "板块轮动": {
+    "en": "Sector Rotation",
+    "short": "板块轮动",
+    "def": "市场资金在不同行业板块间切换",
+    "analogy": "热点从这一个行业换到那一个行业",
+    "context_template": "当前板块轮动：{assessment}"
+  },
+  "市场宽度": {
+    "en": "Market Breadth",
+    "short": "市场宽度",
+    "def": "上涨家数与下跌家数的整体对比，反映普涨还是普跌",
+    "analogy": "整个市场是一起涨还是只有少数在涨",
+    "context_template": "上涨 {value} 家，下跌 {assessment} 家"
+  },
+  "商誉": {
+    "en": "Goodwill",
+    "short": "商誉",
+    "def": "并购时支付价超过净资产的部分，过高有减值风险",
+    "analogy": "买公司多花的「溢价」",
+    "context_template": "{stock} 商誉占比 {value}%，{assessment}"
+  },
+  "经营现金流": {
+    "en": "Operating Cash Flow",
+    "short": "经营现金流",
+    "def": "主营业务实际收付的现金，比利润更难造假",
+    "analogy": "生意真正进账的现金",
+    "context_template": "{stock} 经营现金流 {value}，{assessment}"
+  },
+  "营收增速": {
+    "en": "Revenue Growth",
+    "short": "营收增速",
+    "def": "营业收入相对上一期的增长速度",
+    "analogy": "公司卖东西的速度变快还是变慢",
+    "context_template": "{stock} 营收同比 {value}%，{assessment}"
+  },
+  "利润增速": {
+    "en": "Profit Growth",
+    "short": "利润增速",
+    "def": "净利润相对上一期的增长速度",
+    "analogy": "公司赚钱的速度变快还是变慢",
+    "context_template": "{stock} 净利润同比 {value}%，{assessment}"
+  },
+  "股权质押": {
+    "en": "Share Pledge",
+    "short": "股权质押",
+    "def": "股东把股票抵押给金融机构融资，比例过高有平仓风险",
+    "analogy": "把股票当抵押品去借钱",
+    "context_template": "{stock} 质押比例 {value}%，{assessment}"
+  },
+  "游资": {
+    "en": "Hot Money / Retail Speculators",
+    "short": "游资",
+    "def": "短线快进快出的活跃资金，常在龙虎榜出现",
+    "analogy": "专门做短线投机的资金",
+    "context_template": "龙虎榜显示游资{assessment}"
+  },
+  "机构调研": {
+    "en": "Institutional Research Visit",
+    "short": "机构调研",
+    "def": "基金、券商等机构对上市公司的实地调研",
+    "analogy": "专业投资人亲自去公司了解情况",
+    "context_template": "{stock} 近期机构调研 {assessment}"
+  },
+  "定向增发": {
+    "en": "Private Placement",
+    "short": "定向增发",
+    "def": "向特定对象发行新股融资，可能稀释原有股东",
+    "analogy": "找几家特定机构私下发新股",
+    "context_template": "{stock} 定向增发 {assessment}"
+  },
+  "大宗交易": {
+    "en": "Block Trade",
+    "short": "大宗交易",
+    "def": "大额股票在场外协商成交，常有折价",
+    "analogy": "大单私下谈价成交",
+    "context_template": "{stock} 大宗交易折价 {value}%，{assessment}"
   }
 }

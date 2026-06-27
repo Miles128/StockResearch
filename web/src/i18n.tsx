@@ -151,6 +151,7 @@ const zh: Dict = {
     dataLive: "行情 · {primary}",
     dataDegraded: "行情降级 · {primary}→{fallback}",
     dataUnknown: "行情未刷新",
+    backendDown: "后端不可用，部分功能可能无法正常工作。请确认 API 服务已启动（:8000）。",
     usageShort: "{total} tok",
   },
   page: {
@@ -828,6 +829,7 @@ const en: Dict = {
     dataLive: "Quotes · {primary}",
     dataDegraded: "Degraded · {primary}→{fallback}",
     dataUnknown: "Quotes not loaded",
+    backendDown: "Backend unreachable — some features may not work. Ensure the API is running (:8000).",
     usageShort: "{total} tok",
   },
   page: {

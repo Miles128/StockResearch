@@ -11,7 +11,6 @@
 
 import logging
 
-from stockresearch.agents.output_style import apply_style_to_system
 from stockresearch.agents.voice import AGENT_VOICE
 from stockresearch.core.schemas import AssetAllocationOut
 from stockresearch.utils.llm import LLMClient, get_llm_client
