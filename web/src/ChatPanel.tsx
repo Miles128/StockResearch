@@ -1,11 +1,11 @@
-import type { ExecutionPreference, HoldingEnriched, RouteChoiceCardData, StockChoiceCardData } from "./api";
+import type { ExecutionPreference, GlossaryTerm, HoldingEnriched, RouteChoiceCardData, StockChoiceCardData } from "./api";
 import type { Message } from "./appTypes";
+import type { AppMode } from "./modeSettings";
 import { CardView, RouteChoiceCardView, StockChoiceCardView } from "./chatCards";
+import { FollowUpChips } from "./FollowUpChips";
+import { LightResearchCard } from "./LightResearchCard";
 import {
   findResearchReport,
-  hasDebateStream,
-  hasDimensionStream,
-  ResearchReportDetails,
 } from "./researchReportView";
 import { isResearchTurn } from "./disclaimerText";
 import { useI18n } from "./i18n";
@@ -22,6 +22,9 @@ interface ChatPanelProps {
   onInputChange: (value: string) => void;
   chatExamples: { label: string; query: string }[];
   holdings: HoldingEnriched[];
+  enableGlossary: boolean;
+  appMode: AppMode;
+  glossary: Record<string, GlossaryTerm>;
   onStartQuery: (query: string) => void;
   onSend: () => void;
   onAnalyzeHolding: (h: HoldingEnriched) => void;
@@ -38,6 +41,9 @@ export function ChatPanel({
   onInputChange,
   chatExamples,
   holdings,
+  enableGlossary,
+  appMode,
+  glossary,
   onStartQuery,
   onSend,
   onAnalyzeHolding,
@@ -45,6 +51,7 @@ export function ChatPanel({
   onConfirmRoute,
 }: ChatPanelProps) {
   const { t } = useI18n();
+  const markdownProps = { enableGlossary, glossary };
 
   return (
     <div className="panel chat-panel">
@@ -75,18 +82,13 @@ export function ChatPanel({
           <div key={i} className="chat-turn">
             {m.role === "user" ? (
               <div className="message user">
-                <MarkdownContent text={m.content} />
+                <MarkdownContent text={m.content} {...markdownProps} />
               </div>
             ) : (
               <>
                 {(() => {
                   const researchReport = findResearchReport(m.cards);
                   if (!m.process && !researchReport) return null;
-                  const streamHasDims = hasDimensionStream(m.process);
-                  const streamHasDebate = hasDebateStream(m.process);
-                  const showReportDetails =
-                    researchReport != null &&
-                    (!streamHasDims || !streamHasDebate || !!researchReport.text_factor_summary);
                   return (
                     <div className="message assistant process-panel">
                       <p className="process-panel-title">{t("chat.processTitle")}</p>
@@ -101,40 +103,48 @@ export function ChatPanel({
                           activeStreamIds={[]}
                         />
                       )}
-                      {showReportDetails && researchReport && (
-                        <ResearchReportDetails
-                          report={researchReport}
-                          showDimensions={!streamHasDims}
-                          showDebate={!streamHasDebate}
-                        />
-                      )}
                     </div>
                   );
                 })()}
                 {m.content.trim() && (
                   <div className="message assistant conclusion-panel">
                     <p className="process-panel-title">{t("chat.conclusion")}</p>
-                    <MarkdownContent text={m.content} />
+                    <MarkdownContent text={m.content} {...markdownProps} />
                   </div>
                 )}
-                {m.cards?.map((c, j) =>
-                  c.type === "stock_choice" ? (
-                    <StockChoiceCardView
-                      key={j}
-                      data={c.data as unknown as StockChoiceCardData}
-                      disabled={loading}
-                      onConfirm={onConfirmStock}
-                    />
-                  ) : c.type === "route_choice" ? (
-                    <RouteChoiceCardView
-                      key={j}
-                      data={c.data as unknown as RouteChoiceCardData}
-                      disabled={loading}
-                      onConfirm={onConfirmRoute}
-                    />
-                  ) : (
-                    <CardView key={j} card={c} />
-                  ),
+                {(() => {
+                  const researchReport = findResearchReport(m.cards);
+                  if (researchReport) {
+                    return (
+                      <LightResearchCard
+                        report={researchReport}
+                        appMode={appMode}
+                        onFollowUp={onStartQuery}
+                      />
+                    );
+                  }
+                  return m.cards?.map((c, j) =>
+                    c.type === "stock_choice" ? (
+                      <StockChoiceCardView
+                        key={j}
+                        data={c.data as unknown as StockChoiceCardData}
+                        disabled={loading}
+                        onConfirm={onConfirmStock}
+                      />
+                    ) : c.type === "route_choice" ? (
+                      <RouteChoiceCardView
+                        key={j}
+                        data={c.data as unknown as RouteChoiceCardData}
+                        disabled={loading}
+                        onConfirm={onConfirmRoute}
+                      />
+                    ) : (
+                      <CardView key={j} card={c} />
+                    ),
+                  );
+                })()}
+                {!findResearchReport(m.cards) && m.followUpQuestions && m.followUpQuestions.length > 0 && (
+                  <FollowUpChips questions={m.followUpQuestions} onSelect={onStartQuery} />
                 )}
                 {isResearchTurn(m.cards, m.intent) && <p className="turn-disclaimer">{t("chat.turnDisclaimer")}</p>}
               </>

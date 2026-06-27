@@ -3,10 +3,10 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import type { ReactNode } from "react";
+import type { GlossaryTerm } from "./api";
+import { useI18n } from "./i18n";
+import { TermPopover } from "./TermPopover";
 
-// 扩展默认 sanitize schema：允许服务端 glossary 生成的 <term data-id> 标签。
-// 默认 schema 已禁止 script/iframe/event handler/javascript: 协议，安全基线保留。
-// 注意：hast 属性名使用 camelCase（property-information 约定），data-id → dataId。
 const sanitizeSchema = {
   ...defaultSchema,
   tagNames: [...(defaultSchema.tagNames ?? []), "term"],
@@ -19,36 +19,59 @@ const sanitizeSchema = {
 
 interface MarkdownContentProps {
   text: string;
-  /** Optional className wrapper override (defaults to markdown-body). */
   className?: string;
+  enableGlossary?: boolean;
+  glossary?: Record<string, GlossaryTerm>;
 }
 
-/** Map custom <term> element (server glossary markup) to a styled span.
- *  hast 将 data-id 属性存储为 dataId 属性（property-information camelCase 约定）。 */
-function termComponent(props: Record<string, unknown>) {
-  const node = props.node as { properties?: Record<string, unknown> } | undefined;
-  const properties = node?.properties ?? {};
-  const dataId = String(
-    properties.dataId ?? properties["data-id"] ?? props.dataId ?? props["data-id"] ?? "",
-  );
-  return (
-    <span className="term-inline" data-term-id={dataId}>
-      {props.children as ReactNode}
-    </span>
-  );
+function buildTermComponent(
+  enableGlossary: boolean,
+  glossary: Record<string, GlossaryTerm>,
+  t: (key: string) => string,
+) {
+  return function TermComponent(props: Record<string, unknown>) {
+    const node = props.node as { properties?: Record<string, unknown> } | undefined;
+    const properties = node?.properties ?? {};
+    const dataId = String(
+      properties.dataId ?? properties["data-id"] ?? props.dataId ?? props["data-id"] ?? "",
+    );
+    const children = props.children as ReactNode;
+    if (!enableGlossary || !dataId) {
+      return (
+        <span className="term-inline" data-term-id={dataId}>
+          {children}
+        </span>
+      );
+    }
+    const term = glossary[dataId] || {
+      id: dataId,
+      short: dataId,
+      en: "",
+      def: t("term.aiGenerated"),
+      analogy: "",
+    };
+    return (
+      <TermPopover term={term}>
+        {children}
+      </TermPopover>
+    );
+  };
 }
 
-export function MarkdownContent({ text, className = "markdown-body" }: MarkdownContentProps) {
-  // react-markdown 的 Components 类型不包含自定义 <term> 标签，
-  // 用类型断言绕过；运行时 react-markdown 会将 <term> 节点传给 termComponent。
+export function MarkdownContent({
+  text,
+  className = "markdown-body",
+  enableGlossary = false,
+  glossary = {},
+}: MarkdownContentProps) {
+  const { t } = useI18n();
   const components = {
     a: ({ href, children }: { href?: string; children?: ReactNode }) => (
       <a href={href} target="_blank" rel="noreferrer">
         {children}
       </a>
     ),
-    // Custom glossary term rendered as inline span (popover handled upstream).
-    term: termComponent,
+    term: buildTermComponent(enableGlossary, glossary, t),
   } as unknown as Components;
   return (
     <div className={className}>

@@ -60,7 +60,24 @@ def build_research_report(
         debate_consensus=debate.consensus if debate else None,
     )
 
-    return ResearchReportOut(
+    ashare_factors = build_ashare_factor_checklist(
+        dimensions,
+        news_text_factor=news_text_factor,
+    )
+    from stockresearch.agents.research.viewpoints import build_viewpoints
+
+    viewpoints = build_viewpoints(dimensions, debate, news_text_factor=news_text_factor)
+    data_gaps: list[str] = []
+    for factor in ashare_factors:
+        for gap in factor.missing:
+            if gap not in data_gaps:
+                data_gaps.append(gap)
+            if len(data_gaps) >= 5:
+                break
+        if len(data_gaps) >= 5:
+            break
+
+    report = ResearchReportOut(
         symbol=symbol,
         name=name,
         sector=sector,
@@ -69,13 +86,15 @@ def build_research_report(
         composite_confidence=composite_confidence,
         bias=bias,
         summary=summary,
+        viewpoints=viewpoints,
+        data_gaps=data_gaps,
         debate=debate,
         leaders=leaders or [],
         news_text_factor=news_text_factor,
         text_factor_summary=text_factor_summary,
-        ashare_factors=build_ashare_factor_checklist(
-            dimensions,
-            news_text_factor=news_text_factor,
-        ),
+        ashare_factors=ashare_factors,
         dimension_weights=weights,
     )
+    from stockresearch.services.follow_up import attach_report_follow_ups
+
+    return attach_report_follow_ups(report)

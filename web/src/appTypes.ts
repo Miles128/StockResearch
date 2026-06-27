@@ -14,6 +14,7 @@ export interface Message {
   content: string;
   cards?: ChatResponse["cards"];
   intent?: string;
+  followUpQuestions?: string[];
   llmUsage?: LlmUsage | null;
   process?: StreamState;
 }

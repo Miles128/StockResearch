@@ -23,9 +23,9 @@ from stockresearch.agents.research.runner import run_research
 from stockresearch.agents.risk.engine import run_risk_checkup
 from stockresearch.core.config import get_settings
 from stockresearch.core.constants import INTENT_CHAT, INTENT_RISK
-from stockresearch.core.schemas import CardPayload, ChatResponse, RiskCheckupOut
+from stockresearch.core.schemas import ChatResponse, RiskCheckupOut
 from stockresearch.db.models import Holding
-from stockresearch.services.chat_response import finalize_chat_reply, save_conversation
+from stockresearch.services.chat_response import assemble_chat_response, save_conversation
 from stockresearch.services.message_stock import resolve_message_stock, stock_choice_card
 from stockresearch.services.stock_lookup import StockLookupResult
 from stockresearch.utils.llm import LLMClient, get_llm_client
@@ -195,9 +195,23 @@ class Orchestrator:
         reset_usage(model=str(getattr(self._llm, "_model", "") or ""))
         final_state = await self._graph.ainvoke(initial_state)
 
-        reply = finalize_chat_reply(
-            final_state["reply"],
+        intent = final_state["intent"]
+        for card in final_state["cards"]:
+            card_type = card.get("type")
+            if card_type == "research":
+                intent = "research"
+                break
+            if card_type == "risk":
+                intent = INTENT_RISK
+                break
+
+        response = assemble_chat_response(
+            session_id=sid,
+            reply=final_state["reply"],
+            cards=final_state["cards"],
+            intent=intent,
             partial=final_state["partial"],
+            llm_usage=usage_to_out(get_usage()),
         )
 
         await asyncio.to_thread(
@@ -206,17 +220,10 @@ class Orchestrator:
             user_id,
             sid,
             message,
-            reply,
+            response.reply,
         )
 
-        return ChatResponse(
-            session_id=sid,
-            reply=reply,
-            cards=[CardPayload(type=c["type"], data=c["data"]) for c in final_state["cards"]],
-            intent=final_state["intent"],
-            partial=final_state["partial"],
-            llm_usage=usage_to_out(get_usage()),
-        )
+        return response
 
 # ── Research modes ───────────────────────────────────────
 async def _run_stock_research(

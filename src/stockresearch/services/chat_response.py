@@ -8,10 +8,13 @@ from sqlalchemy.orm import Session
 
 from stockresearch.agents.orchestrator.balance_check import check_balance
 from stockresearch.agents.output_style import get_reading_mode
+from stockresearch.core.schemas import CardPayload, ChatResponse
 from stockresearch.db.models import Conversation
+from stockresearch.services.follow_up import build_follow_up_questions
 from stockresearch.services.glossary import mark_terms
 from stockresearch.services.neutral_guard import neutral_guard
 from stockresearch.utils.disclaimer import strip_disclaimer
+from stockresearch.utils.llm_usage import LlmUsageOut
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +29,33 @@ def finalize_chat_reply(reply: str, *, partial: bool = False) -> str:
     if partial:
         finalized = f"{finalized.rstrip()}\n\n（部分分析未完成）"
     return finalized
+
+
+def assemble_chat_response(
+    *,
+    session_id: str,
+    reply: str,
+    cards: list[dict[str, object]],
+    intent: str,
+    partial: bool = False,
+    llm_usage: LlmUsageOut | None = None,
+) -> ChatResponse:
+    """Build the final chat payload used by sync and streaming paths."""
+    finalized = finalize_chat_reply(reply, partial=partial)
+    follow_ups = build_follow_up_questions(
+        intent=intent,
+        cards=cards,
+        reading_mode=get_reading_mode(),
+    )
+    return ChatResponse(
+        session_id=session_id,
+        reply=finalized,
+        cards=[CardPayload(type=c["type"], data=c["data"]) for c in cards],  # type: ignore[arg-type]
+        intent=intent,
+        partial=partial,
+        follow_up_questions=follow_ups,
+        llm_usage=llm_usage,
+    )
 
 
 def save_conversation(

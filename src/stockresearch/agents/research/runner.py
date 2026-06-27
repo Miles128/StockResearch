@@ -92,11 +92,6 @@ async def run_research(
     results = await asyncio.gather(*(_run_agent(agent, ctx) for agent in DIMENSION_AGENTS))
     dimensions = {agent.agent_id: result for agent, result in zip(DIMENSION_AGENTS, results, strict=True)}
 
-    fundamental = dimensions["fundamental"]
-    technical = dimensions["technical"]
-    sentiment = dimensions["sentiment"]
-    chips = dimensions["chips"]
-
     news_snippets = await fetch_symbol_news_snippets(symbol, name)
     news_text_factor = build_news_text_factor(news_snippets, subject=f"{name}({symbol})")
 
@@ -110,11 +105,6 @@ async def run_research(
         "sentiment": "情绪面",
         "chips": "筹码面",
     }
-    summary_prefix = (
-        f"{name}({symbol}) 加权综合投研，"
-        f"基本面 {fundamental.score}，技术面 {technical.score}，"
-        f"情绪面 {sentiment.score}，筹码面 {chips.score}。"
-    )
     return build_research_report(
         symbol,
         name,
@@ -122,5 +112,4 @@ async def run_research(
         debate,
         dimension_labels=_LABELS,
         news_text_factor=news_text_factor,
-        summary_prefix=summary_prefix,
     )

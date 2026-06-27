@@ -27,7 +27,7 @@ from stockresearch.core.exceptions import LLMConfigError
 from stockresearch.core.schemas import CardPayload, ChatResponse, ResearchReportOut, RiskCheckupOut
 from stockresearch.db.models import Holding
 from stockresearch.i18n.status_events import status_event
-from stockresearch.services.chat_response import finalize_chat_reply, save_conversation
+from stockresearch.services.chat_response import assemble_chat_response, save_conversation
 from stockresearch.services.message_stock import (
     ResolvedStock,
     match_holding_in_message,
@@ -113,19 +113,17 @@ async def run_chat_stream(
         }
         return
 
-    reply = finalize_chat_reply(reply, partial=partial)
-
-    response = ChatResponse(
+    response = assemble_chat_response(
         session_id=sid,
         reply=reply,
-        cards=[CardPayload(type=c["type"], data=c["data"]) for c in cards],  # type: ignore[arg-type]
+        cards=cards,
         intent=intent,
         partial=partial,
         llm_usage=usage_to_out(get_usage()),
     )
     clear_checkpoint(db, user_id, sid)
 
-    save_conversation(db, user_id, sid, message, reply)
+    save_conversation(db, user_id, sid, message, response.reply)
 
     yield {"type": "done", "response": response.model_dump(mode="json")}
 

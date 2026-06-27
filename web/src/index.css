@@ -2505,6 +2505,51 @@ input:focus {
   background: var(--bbg-panel);
 }
 
+.light-research-card {
+  margin-top: 8px;
+}
+
+.light-research-summary {
+  margin: 8px 0 12px;
+}
+
+.light-research-dimensions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.light-viewpoint-row {
+  display: grid;
+  gap: 4px;
+}
+
+.light-viewpoint-row strong {
+  color: var(--bbg-muted);
+  font-size: 12px;
+}
+
+.light-research-gaps {
+  margin-bottom: 12px;
+}
+
+.light-research-details {
+  margin-top: 8px;
+}
+
+.follow-up-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+
 .briefing-card h4 {
   margin: 0 0 8px;
 }

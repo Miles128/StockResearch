@@ -308,6 +308,7 @@ export const api = {
   clearDemo: () => request<{ status: string; deleted: number }>("/portfolio/demo", { method: "DELETE" }),
   demoStatus: () => request<{ demo: boolean }>("/portfolio/demo/status"),
   dailyActions: () => request<DailyActionCenter>("/action-center/daily"),
+  glossary: () => request<Record<string, GlossaryTerm>>("/settings/glossary"),
   analyzeNews: (
     newsId: number,
     symbol: string,
@@ -339,8 +340,18 @@ export interface ChatResponse {
   reply: string;
   cards: Card[];
   intent: string;
+  partial?: boolean;
+  follow_up_questions?: string[];
   disclaimer: string;
   llm_usage?: LlmUsage | null;
+}
+
+export interface GlossaryTerm {
+  id: string;
+  short: string;
+  en: string;
+  def: string;
+  analogy: string;
 }
 
 export interface StockChoiceCardData {
@@ -501,6 +512,9 @@ export interface ResearchReport {
   composite_confidence?: string;
   bias: string;
   summary: string;
+  viewpoints?: Record<string, string>;
+  data_gaps?: string[];
+  follow_up_questions?: string[];
   news_text_factor?: string | null;
   text_factor_summary?: string | null;
   ashare_factors?: AshareFactor[];

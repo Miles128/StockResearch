@@ -13,10 +13,14 @@ async def test_chips_provider_mock_mode() -> None:
     provider = ChipsDataProvider()
     dragon = await provider.get_dragon_tiger("600519")
     fund = await provider.get_fund_flow("600519")
+    northbound = await provider.get_northbound_flow("600519")
+    margin = await provider.get_margin_trading("600519")
     holders = await provider.get_holder_count("600519")
     lockup = await provider.get_lockup("600519")
     assert dragon["source"] == "mock"
     assert fund["source"] == "mock"
+    assert northbound["source"] == "mock"
+    assert margin["source"] == "mock"
     assert holders["source"] == "mock"
     assert lockup["source"] == "mock"
 

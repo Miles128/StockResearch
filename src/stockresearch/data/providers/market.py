@@ -627,14 +627,46 @@ class ChipsDataProvider:
         )
 
     async def get_northbound_flow(self, symbol: str) -> dict[str, float | str]:
-        fund = await self.get_fund_flow(symbol)
-        main_net = float(fund.get("main_net_inflow", 0))
-        days_pos = int(fund.get("days_positive", 0))
-        return {
-            "net_inflow": main_net,
-            "days_positive": days_pos,
-            "source": str(fund.get("source", "akshare_fund_flow")),
-        }
+        if get_settings().use_mock_market_data:
+            return {
+                "hold_pct": 6.5,
+                "net_change_shares": 39399.0,
+                "net_change_value": 5.63e7,
+                "signal": "增持",
+                "source": "mock",
+            }
+        return await run_sync_fetch(
+            f"akshare northbound {symbol}",
+            lambda: self._fetch_northbound_sync(symbol),
+            timeout=_DATA_TIMEOUT_SEC,
+            fallback={
+                "hold_pct": 0.0,
+                "net_change_shares": 0.0,
+                "net_change_value": 0.0,
+                "signal": "暂无数据",
+                "source": "akshare_northbound",
+            },
+        )
+
+    async def get_margin_trading(self, symbol: str) -> dict[str, float | str]:
+        if get_settings().use_mock_market_data:
+            return {
+                "financing_balance": 2.07e10,
+                "securities_balance": 1.71e7,
+                "total_balance": 2.07e10,
+                "source": "mock",
+            }
+        return await run_sync_fetch(
+            f"akshare margin {symbol}",
+            lambda: self._fetch_margin_sync(symbol),
+            timeout=_DATA_TIMEOUT_SEC,
+            fallback={
+                "financing_balance": 0.0,
+                "securities_balance": 0.0,
+                "total_balance": 0.0,
+                "source": "akshare_margin",
+            },
+        )
 
     async def get_holder_count(self, symbol: str) -> dict[str, float | str]:
         if get_settings().use_mock_market_data:
@@ -701,6 +733,80 @@ class ChipsDataProvider:
             "institution_ratio": round(inst_ratio, 2),
             "signal": signal,
             "source": "akshare_lhb",
+        }
+
+    def _fetch_northbound_sync(self, symbol: str) -> dict[str, float | str]:
+        df = ak.stock_hsgt_individual_em(symbol=symbol)
+        if df.empty:
+            return {
+                "hold_pct": 0.0,
+                "net_change_shares": 0.0,
+                "net_change_value": 0.0,
+                "signal": "非陆股通标的或暂无数据",
+                "source": "akshare_northbound",
+            }
+        row = df.iloc[-1]
+        net_shares = _as_float(row.get("今日增持股数"))
+        net_value = _as_float(row.get("今日增持资金"))
+        hold_pct = _as_float(row.get("持股数量占A股百分比"))
+        if net_shares > 0:
+            signal = "增持"
+        elif net_shares < 0:
+            signal = "减持"
+        else:
+            signal = "持平"
+        return {
+            "hold_pct": hold_pct,
+            "net_change_shares": net_shares,
+            "net_change_value": net_value,
+            "signal": signal,
+            "source": "akshare_northbound",
+        }
+
+    def _fetch_margin_sync(self, symbol: str) -> dict[str, float | str]:
+        for days_back in range(1, 11):
+            date = (datetime.now(UTC) - timedelta(days=days_back)).strftime("%Y%m%d")
+            try:
+                if symbol.startswith("6"):
+                    df = ak.stock_margin_detail_sse(date=date)
+                    code_col = "标的证券代码"
+                else:
+                    df = ak.stock_margin_detail_szse(date=date)
+                    code_col = "证券代码"
+            except Exception:
+                continue
+            if df.empty or code_col not in df.columns:
+                continue
+            stock_df = df[df[code_col].astype(str) == symbol]
+            if stock_df.empty:
+                return {
+                    "financing_balance": 0.0,
+                    "securities_balance": 0.0,
+                    "total_balance": 0.0,
+                    "signal": "暂无融资融券数据",
+                    "source": "akshare_margin",
+                }
+            row = stock_df.iloc[0]
+            if symbol.startswith("6"):
+                financing = _as_float(row.get("融资余额"))
+                securities = _as_float(row.get("融券余量"))
+                total = financing + securities
+            else:
+                financing = _as_float(row.get("融资余额"))
+                securities = _as_float(row.get("融券余额"))
+                total = _as_float(row.get("融资融券余额")) or financing + securities
+            return {
+                "financing_balance": financing,
+                "securities_balance": securities,
+                "total_balance": total,
+                "source": "akshare_margin",
+            }
+        return {
+            "financing_balance": 0.0,
+            "securities_balance": 0.0,
+            "total_balance": 0.0,
+            "signal": "暂无融资融券数据",
+            "source": "akshare_margin",
         }
 
     def _fetch_fund_flow_sync(self, symbol: str) -> dict[str, float | str]:

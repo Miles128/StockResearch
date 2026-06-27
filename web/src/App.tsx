@@ -5,6 +5,7 @@ import {
   ChatStreamOptions,
   ExecutionPreference,
   DataSourceStatus,
+  GlossaryTerm,
   HoldingEnriched,
   LlmUsage,
   MarketOverview,
@@ -125,6 +126,7 @@ export default function App() {
   const [demoLoading, setDemoLoading] = useState(false);
   const autoDemoLoadRequested = useRef(false);
   const [modeSettings, setModeSettings] = useState<ModeSettings>(() => loadModeSettings());
+  const [glossary, setGlossary] = useState<Record<string, GlossaryTerm>>({});
   const [onboardingOpen, setOnboardingOpen] = useState(() => !loadModeSettings().onboarded);
   const settingsRequired = llmCheckDone && !llmConfigured;
 
@@ -250,6 +252,7 @@ export default function App() {
         setModeSettings(cachedModeSettings);
         setOnboardingOpen(!cachedModeSettings.onboarded);
       });
+    void api.glossary().then(setGlossary).catch(() => setGlossary({}));
     void loadOverview();
     void loadHoldings().then(() => {
       api.demoStatus().then((s) => setIsDemo(s.demo)).catch(() => {});
@@ -394,6 +397,7 @@ export default function App() {
           content: stripDisclaimer(resp.reply),
           cards: resp.cards,
           intent: resp.intent,
+          followUpQuestions: resp.follow_up_questions ?? [],
           llmUsage: resp.llm_usage ?? null,
           process:
             hasProcessTrail || hasResearchCard
@@ -414,6 +418,7 @@ export default function App() {
             content: stripDisclaimer(resp.reply),
             cards: resp.cards,
             intent: resp.intent,
+            followUpQuestions: resp.follow_up_questions ?? [],
             llmUsage: resp.llm_usage ?? null,
           },
         ]);
@@ -840,6 +845,9 @@ export default function App() {
             onInputChange={setInput}
             chatExamples={chatExamples}
             holdings={holdings}
+            enableGlossary={modeSettings.mode === "advisor" && modeSettings.enableGlossary}
+            appMode={modeSettings.mode}
+            glossary={glossary}
             onStartQuery={(query) => startChatQuery(query)}
             onSend={sendChat}
             onAnalyzeHolding={analyzeHolding}

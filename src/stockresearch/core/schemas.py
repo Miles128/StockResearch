@@ -203,6 +203,9 @@ class ResearchReportOut(BaseModel):
     composite_confidence: Literal["high", "medium", "low"]
     bias: Literal["bullish", "bearish", "neutral"]
     summary: str
+    viewpoints: dict[str, str] = Field(default_factory=dict)
+    data_gaps: list[str] = Field(default_factory=list, max_length=5)
+    follow_up_questions: list[str] = Field(default_factory=list, max_length=4)
     debate: DebateResult | None = None
     sector: str | None = None
     leaders: list[SectorLeaderBrief] = Field(default_factory=list)
@@ -538,6 +541,7 @@ class ChatResponse(BaseModel):
     cards: list[CardPayload]
     intent: str
     partial: bool = False
+    follow_up_questions: list[str] = Field(default_factory=list, max_length=4)
     disclaimer: str = DISCLAIMER
     llm_usage: LlmUsageOut | None = None
 

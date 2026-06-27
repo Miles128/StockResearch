@@ -101,7 +101,7 @@ async def test_path_chat_research(client: TestClient) -> None:
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["intent"] == "chat"
+    assert data["intent"] == "research"
     assert len(data["cards"]) >= 1
     assert "disclaimer" in data
 

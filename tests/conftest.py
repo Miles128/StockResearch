@@ -49,6 +49,7 @@ def client(db_session: object) -> TestClient:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+
     cache = CacheService()
     cache.clear_memory()
     return TestClient(app)

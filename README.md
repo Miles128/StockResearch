@@ -2,7 +2,7 @@
 
 **[中文](#中文) · [English](#english)** · [PRD v8.7](docs/PRD.md)
 
-[![Tests](https://img.shields.io/badge/backend-246%20passed-brightgreen)](.)
+[![Tests](https://img.shields.io/badge/backend-250%20passed-brightgreen)](.)
 [![Frontend](https://img.shields.io/badge/frontend-22%20vitest%20passed-brightgreen)](.)
 [![Python](https://img.shields.io/badge/python-3.12+-blue)](pyproject.toml)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
@@ -220,7 +220,8 @@ SCREENSHOT_BASE_URL=http://127.0.0.1:5174 node scripts/capture_screenshots.mjs
 ### 文档与贡献
 
 - [PRD v8.7（单画布 + AI 对话 + 分层数据源 + 健康监控）](docs/PRD.md)
-- 历史 `docs/DEVELOPMENT_PLAN.md` 已废弃，请以 PRD 为准
+- [产品战略方案](docs/PRODUCT_STRATEGY.md)
+- 历史 `docs/DEVELOPMENT_PLAN.md` 已废弃；工程附录见 PRD §十五
 - 欢迎 Issue 与 PR；开发前请阅读 PRD 路线图
 
 ### 许可证与免责
@@ -334,7 +335,8 @@ Saving in Settings writes `.env`; the backend reads it on the next request.
 ### Docs & contributing
 
 - [PRD v8.7 (single canvas + AI Chat + layered data sources + health monitoring)](docs/PRD.md)
-- Legacy `docs/DEVELOPMENT_PLAN.md` is deprecated; refer to PRD
+- [Product strategy](docs/PRODUCT_STRATEGY.md)
+- Legacy `docs/DEVELOPMENT_PLAN.md` is deprecated; see PRD §15 for engineering appendix
 - Issues and PRs welcome; read the PRD roadmap before large features
 
 ### License & disclaimer
