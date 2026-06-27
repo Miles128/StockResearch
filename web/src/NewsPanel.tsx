@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { api, type Briefing, type NewsItem, type SectorPreferences } from "./api";
+import { getBriefingKind } from "./briefingKind";
 import { useI18n } from "./i18n";
 import { NewsAnalysisModal } from "./NewsAnalysisModal";
 import { localizeBriefing, localizeImpactLevel, localizeSentiment } from "./uiLabels";
@@ -27,11 +28,14 @@ export function NewsPanel({
   const [briefing, setBriefing] = useState<Briefing | null>(null);
   const [briefingLoading, setBriefingLoading] = useState(false);
   const [analyzingNews, setAnalyzingNews] = useState<NewsItem | null>(null);
+  const briefingKind = useMemo(() => getBriefingKind(), []);
+  const briefingLabel =
+    briefingKind === "intraday" ? t("news.briefingIntraday") : t("news.briefingPostMarket");
 
-  async function loadBriefing(kind: "morning" | "closing") {
+  async function loadBriefing() {
     setBriefingLoading(true);
     try {
-      setBriefing(await api.generateBriefing(kind));
+      setBriefing(await api.generateBriefing(briefingKind));
     } finally {
       setBriefingLoading(false);
     }
@@ -46,16 +50,9 @@ export function NewsPanel({
         <button
           className="btn btn-ghost"
           disabled={briefingLoading}
-          onClick={() => void loadBriefing("morning")}
+          onClick={() => void loadBriefing()}
         >
-          {briefingLoading ? t("news.briefingLoading") : t("news.briefingMorning")}
-        </button>
-        <button
-          className="btn btn-ghost"
-          disabled={briefingLoading}
-          onClick={() => void loadBriefing("closing")}
-        >
-          {t("news.briefingClosing")}
+          {briefingLoading ? t("news.briefingLoading") : briefingLabel}
         </button>
       </div>
       {briefing && (() => {

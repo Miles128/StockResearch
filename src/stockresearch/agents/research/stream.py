@@ -33,11 +33,13 @@ from stockresearch.agents.stream_typewriter import (
 )
 from stockresearch.agents.structured_output import ResearchJudgeOut
 from stockresearch.agents.voice import DEBATE_ROUNDS, DEBATE_VOICE, JUDGE_VOICE
+from stockresearch.agents.master_commentary.registry import resolve_master_ids
 from stockresearch.core.schemas import (
     DebateResult,
     DebateRound,
     DimensionResult,
     MasterCommentaryItem,
+    ModeSettingsOut,
     ResearchReportOut,
 )
 from stockresearch.i18n.status_events import status_event
@@ -104,6 +106,8 @@ async def run_research_stream(
     *,
     with_debate: bool = True,
     enable_master_commentary: bool = False,
+    mode_settings: ModeSettingsOut | None = None,
+    master_ids: list[str] | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     client = llm or get_llm_client()
     ctx = ResearchContext(symbol=symbol, llm=client)
@@ -246,11 +250,16 @@ async def run_research_stream(
 
     report = _build_report(symbol, name, dimensions, debate, news_text_factor=news_text_factor)
 
-    if enable_master_commentary:
+    if enable_master_commentary and mode_settings is not None:
+        masters = master_ids or resolve_master_ids(mode_settings)
         commentary_context = build_research_context(report)
         commentary: list[dict[str, Any]] = []
         async for mc_event in stream_master_commentary(
-            client, subject=f"{name}({symbol})", context=commentary_context
+            client,
+            subject=f"{name}({symbol})",
+            context=commentary_context,
+            settings=mode_settings,
+            masters=masters,
         ):
             yield mc_event
             if mc_event.get("type") == "master_commentary" and isinstance(

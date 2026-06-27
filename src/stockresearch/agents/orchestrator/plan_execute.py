@@ -304,18 +304,35 @@ class PlanExecuteAgent:
         if self._on_progress:
             await self._on_progress(event)
 
-    async def run(self, query: str) -> tuple[str, list[dict[str, Any]]]:
+    async def run(
+        self,
+        query: str,
+        *,
+        history: list[dict[str, str]] | None = None,
+        long_term_context: str = "",
+        user_context_text: str = "",
+    ) -> tuple[str, list[dict[str, Any]]]:
         """Run Plan-and-Execute workflow.
 
         Returns:
             (reply, cards) tuple
         """
         cards: list[dict[str, Any]] = []
+        user_query = query.strip()
+        if user_context_text.strip():
+            user_query = f"{user_query}\n\n{user_context_text.strip()}"
+        if history:
+            hist_text = "\n".join(
+                f"{m['role']}: {m['content']}" for m in history[-8:]
+            )
+            user_query = f"【对话历史】\n{hist_text}\n\n【当前问题】\n{user_query}"
 
         # Phase 1: Planning
         await self._progress(status_event("status.planning"))
         plan_prompt = _PLAN_SYSTEM if self._finance_tools else _PLAN_GENERAL_SYSTEM
-        plan_response = await self._llm.complete(plan_prompt, query)
+        if long_term_context.strip():
+            plan_prompt = f"{plan_prompt.rstrip()}\n\n{long_term_context.strip()}"
+        plan_response = await self._llm.complete(plan_prompt, user_query)
         plan_data = _extract_json(plan_response)
 
         if plan_data and "steps" in plan_data:
@@ -326,7 +343,7 @@ class PlanExecuteAgent:
             reasoning = "自动规划"
 
         if self._finance_tools:
-            self._plan_steps = _normalize_plan_steps(query, raw_steps)
+            self._plan_steps = _normalize_plan_steps(user_query, raw_steps)
             if len(raw_steps) < _MIN_FINANCE_PLAN_STEPS:
                 reasoning = (
                     f"{reasoning} "

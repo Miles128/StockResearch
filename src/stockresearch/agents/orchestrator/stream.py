@@ -23,11 +23,14 @@ from stockresearch.agents.orchestrator.route_plan import (
 from stockresearch.agents.research.stream import run_research_stream
 from stockresearch.agents.risk.stream import run_risk_checkup_stream
 from stockresearch.core.constants import INTENT_RISK
+from stockresearch.agents.master_commentary.registry import resolve_master_ids
 from stockresearch.core.exceptions import LLMConfigError
-from stockresearch.core.schemas import ResearchReportOut, RiskCheckupOut
+from stockresearch.core.schemas import ChatUserContext, ModeSettingsOut, ResearchReportOut, RiskCheckupOut
 from stockresearch.db.models import Holding
 from stockresearch.i18n.status_events import status_event
+from stockresearch.services.chat_context import build_long_term_context, format_user_context_block
 from stockresearch.services.chat_response import assemble_chat_response, save_conversation
+from stockresearch.services.conversation_memory import prepare_chat_history
 from stockresearch.services.message_stock import (
     ResolvedStock,
     match_holding_in_message,
@@ -36,6 +39,7 @@ from stockresearch.services.message_stock import (
 )
 from stockresearch.services.stock_lookup import StockLookupResult
 from stockresearch.services.stream_checkpoint import clear_checkpoint, save_checkpoint
+from stockresearch.services.user_preferences import get_mode_settings
 from stockresearch.utils.llm import LLMClient, get_llm_client
 from stockresearch.utils.llm_usage import get_usage, reset_usage, usage_to_out
 
@@ -46,14 +50,35 @@ def _llm_model_name(client: LLMClient) -> str:
     return str(getattr(client, "_model", "") or "")
 
 
+def _resolve_master_on(
+    request_flag: bool | None,
+    settings: ModeSettingsOut,
+) -> bool:
+    if request_flag is not None:
+        return bool(request_flag)
+    return bool(settings.enable_master_commentary)
+
+
+def _master_stream_kwargs(enable: bool, settings: ModeSettingsOut) -> dict[str, object]:
+    if not enable:
+        return {}
+    return {
+        "enable_master_commentary": True,
+        "mode_settings": settings,
+        "master_ids": resolve_master_ids(settings),
+    }
+
+
 async def run_chat_stream(
     db: Session,
     user_id: int,
     message: str,
     session_id: str | None = None,
     llm: LLMClient | None = None,
-    analysis_mode: str | None = None,
     enable_debate: bool | None = None,
+    enable_master_commentary: bool | None = None,
+    user_context: ChatUserContext | None = None,
+    mode_settings: ModeSettingsOut | None = None,
     confirmed_symbol: str | None = None,
     confirmed_name: str | None = None,
     execution_preference: str | None = None,
@@ -63,6 +88,12 @@ async def run_chat_stream(
     client = llm or get_llm_client()
     reset_usage(model=_llm_model_name(client))
     holdings = db.query(Holding).filter(Holding.user_id == user_id).all()
+    settings = mode_settings or get_mode_settings(db, user_id)
+    master_on = _resolve_master_on(enable_master_commentary, settings)
+    master_kwargs = _master_stream_kwargs(master_on, settings)
+    long_term_context = build_long_term_context(mode_settings=settings, holdings=holdings)
+    user_context_text = format_user_context_block(user_context)
+    history = await prepare_chat_history(db, user_id, sid, client)
 
     yield status_event("status.understanding")
 
@@ -86,7 +117,10 @@ async def run_chat_stream(
             holdings=holdings,
             is_risk=is_risk,
             debate_on=debate_on,
-            analysis_mode=analysis_mode,
+            master_kwargs=master_kwargs,
+            long_term_context=long_term_context,
+            user_context_text=user_context_text,
+            history=history,
             confirmed_symbol=confirmed_symbol,
             confirmed_name=confirmed_name,
             execution_preference=execution_preference,
@@ -138,7 +172,10 @@ async def _run_chat_stream_body(
     holdings: list[Holding],
     is_risk: bool,
     debate_on: bool,
-    analysis_mode: str | None,
+    master_kwargs: dict[str, object],
+    long_term_context: str,
+    user_context_text: str,
+    history: list[dict[str, str]],
     confirmed_symbol: str | None,
     confirmed_name: str | None,
     execution_preference: str | None,
@@ -146,7 +183,7 @@ async def _run_chat_stream_body(
     """Inner chat stream body. Raises LLMConfigError if API key missing."""
     if is_risk:
         yield status_event("status.routed_risk")
-        async for event in run_risk_checkup_stream(holdings, llm=client):
+        async for event in run_risk_checkup_stream(holdings, llm=client, **master_kwargs):
             if event.get("type") == "done":
                 payload = event.get("result")
                 if isinstance(payload, dict):
@@ -172,7 +209,6 @@ async def _run_chat_stream_body(
     mode, finance_tools = resolve_mode_with_preference(
         message,
         execution_preference,
-        analysis_mode=analysis_mode,
         enable_debate=debate_on,
     )
     route_symbol = confirmed_symbol
@@ -233,6 +269,7 @@ async def _run_chat_stream_body(
             client,
             message,
             with_debate=mode == ComplexityResult.MARKET_DEBATE,
+            **master_kwargs,
         ):
             if event.get("type") == "done":
                 _finalize_from_event(event)
@@ -246,6 +283,7 @@ async def _run_chat_stream_body(
             with_debate=mode == ComplexityResult.DEBATE,
             confirmed_symbol=route_symbol,
             confirmed_name=route_name,
+            **master_kwargs,
         ):
             if event.get("type") == "done":
                 _finalize_from_event(event)
@@ -253,7 +291,15 @@ async def _run_chat_stream_body(
                 yield event
     elif mode == ComplexityResult.PLAN_EXECUTE:
         async for event in _run_plan_execute_stream(
-            db, client, message, user_id, sid, finance_tools=finance_tools
+            db,
+            client,
+            message,
+            user_id,
+            sid,
+            finance_tools=finance_tools,
+            long_term_context=long_term_context,
+            user_context_text=user_context_text,
+            history=history,
         ):
             if event.get("type") == "done":
                 _finalize_from_event(event)
@@ -265,7 +311,7 @@ async def _run_chat_stream_body(
         sector = extract_industry_sector(message, sectors) or "行业"
         save_checkpoint(db, user_id, sid, {"mode": mode, "sector": sector, "message": message})
         async for event in _run_industry_research_stream(
-            db, client, user_id, sector, message, sid, with_debate=debate_on
+            db, client, user_id, sector, message, sid, with_debate=debate_on, **master_kwargs
         ):
             if event.get("type") == "done":
                 _finalize_from_event(event)
@@ -285,7 +331,12 @@ async def _run_chat_stream_body(
 
         async def _run_agent():
             nonlocal cards, reply
-            r, c = await agent.run(message)
+            r, c = await agent.run(
+                message,
+                history=history,
+                long_term_context=long_term_context,
+                user_context_text=user_context_text,
+            )
             reply = r
             cards = c
             await progress_queue.put(None)
@@ -328,12 +379,14 @@ async def _run_market_research_stream(
     message: str,
     *,
     with_debate: bool = True,
+    **stream_kwargs: object,
 ) -> AsyncIterator[dict[str, object]]:
     """大盘深度投研：宏观/行业/技术/情绪，可选多空辩论 + 裁判。"""
     async for event in run_market_research_stream(
         message,
         llm=llm,  # type: ignore[arg-type]
         with_debate=with_debate,
+        **stream_kwargs,  # type: ignore[arg-type]
     ):
         yield event
 
@@ -345,6 +398,7 @@ async def _run_stock_research_stream(
     with_debate: bool = True,
     confirmed_symbol: str | None = None,
     confirmed_name: str | None = None,
+    **stream_kwargs: object,
 ) -> AsyncIterator[dict[str, object]]:
     """个股深度投研：四维 ReAct，可选多空辩论 + 裁判。"""
     yield status_event("status.identifying_stock")
@@ -374,6 +428,7 @@ async def _run_stock_research_stream(
         symbol,
         llm=llm,  # type: ignore[arg-type]
         with_debate=with_debate,
+        **stream_kwargs,  # type: ignore[arg-type]
     ):
         if event.get("type") == "done":
             payload = event.get("result")
@@ -395,6 +450,7 @@ async def _run_industry_research_stream(
     session_id: str,
     *,
     with_debate: bool = False,
+    **stream_kwargs: object,
 ) -> AsyncIterator[dict[str, object]]:
     save_checkpoint(
         db,
@@ -410,6 +466,7 @@ async def _run_industry_research_stream(
         message,
         llm,
         with_debate=with_debate,
+        **stream_kwargs,  # type: ignore[arg-type]
     ):
         if event.get("type") == "status":
             save_checkpoint(
@@ -443,6 +500,9 @@ async def _run_plan_execute_stream(
     session_id: str,
     *,
     finance_tools: bool = True,
+    long_term_context: str = "",
+    user_context_text: str = "",
+    history: list[dict[str, str]] | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     """Stream plan-execute mode with progress."""
     yield status_event("status.planning")
@@ -471,7 +531,12 @@ async def _run_plan_execute_stream(
 
     async def _run():
         nonlocal plan_cards, plan_reply
-        r, c = await agent.run(message)
+        r, c = await agent.run(
+            message,
+            history=history,
+            long_term_context=long_term_context,
+            user_context_text=user_context_text,
+        )
         plan_reply = r
         plan_cards = c
         await progress_queue.put(None)

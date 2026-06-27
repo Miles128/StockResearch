@@ -1,49 +1,109 @@
 /**
  * 双模式设置：个人（advisor）/ 专家（research）
- * 核心差异：
- * 1. 个人模式考虑个人现金流和风险承受能力，专家模式不考虑
- * 2. 个人模式用大白话，专家模式术语直出
- *
- * 模式是预设包，模式内单项可微调（Settings）。
- * 持久化到 localStorage + 后端 SQLite；localStorage 作为启动缓存。
+ * 唯一设置源：localStorage + 后端 SQLite（/settings/mode）
  */
 
 import type { Tab } from "./appTypes";
-import type { ReadingMode } from "./analysisSettings";
+import { loadLocale } from "./localeSettings";
 import { createLocalStorageStore } from "./settingsStore";
 
 export type AppMode = "advisor" | "research";
-
-/** 风险承受能力分级（投顾模式专属） */
+export type ReadingMode = "professional" | "friendly";
 export type RiskTolerance = "conservative" | "moderate" | "aggressive";
 
+export const BUILTIN_MASTER_IDS = ["buffett", "munger", "burry"] as const;
+export type BuiltinMasterId = (typeof BUILTIN_MASTER_IDS)[number];
+
+export interface CustomMaster {
+  id: string;
+  name: string;
+  systemPrompt: string;
+}
+
 export interface ModeSettings {
-  /** 当前模式 */
   mode: AppMode;
-  /** 风险承受能力分级（个人模式专属） */
   riskTolerance: RiskTolerance;
-  /** 月收入（可选，个人模式用于把亏损换算成"相当于月收入 X%"） */
   monthlyIncome?: number;
-  /** 写作风格：个人默认 friendly（大白话），专家默认 professional（术语） */
   readingMode: ReadingMode;
-  /** 多空辩论：个人默认关，专家默认开 */
   enableDebate: boolean;
-  /** 术语弹窗：个人默认开，专家默认关 */
   enableGlossary: boolean;
-  /** 首屏信号数：个人默认 5，专家默认 20 */
   maxSignals: number;
-  /** 是否已完成首次引导 */
   onboarded: boolean;
+  enableMasterCommentary: boolean;
+  selectedMasters: string[];
+  customMasters: CustomMaster[];
 }
 
 const STORAGE_KEY = "stockresearch.mode.settings";
+const LEGACY_ANALYSIS_KEY = "stockresearch.analysis.settings";
+
+function migrateCustomMasters(raw: unknown): CustomMaster[] {
+  if (!Array.isArray(raw)) return [];
+  const out: CustomMaster[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Partial<CustomMaster & { system_prompt?: string }>;
+    const id = typeof row.id === "string" ? row.id.trim().toLowerCase() : "";
+    const name = typeof row.name === "string" ? row.name.trim() : "";
+    const systemPrompt =
+      typeof row.systemPrompt === "string"
+        ? row.systemPrompt
+        : typeof row.system_prompt === "string"
+          ? row.system_prompt
+          : "";
+    if (id && name && systemPrompt.length >= 10) {
+      out.push({ id, name, systemPrompt });
+    }
+  }
+  return out;
+}
+
+function migrateFromLegacyAnalysis(): Partial<ModeSettings> {
+  try {
+    const raw = localStorage.getItem(LEGACY_ANALYSIS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Partial<{
+      enableDebate: boolean;
+      readingMode: ReadingMode;
+      enableMasterCommentary: boolean;
+      outputTone?: string;
+    }>;
+    const partial: Partial<ModeSettings> = {};
+    if (typeof parsed.enableDebate === "boolean") partial.enableDebate = parsed.enableDebate;
+    if (typeof parsed.enableMasterCommentary === "boolean") {
+      partial.enableMasterCommentary = parsed.enableMasterCommentary;
+    }
+    if (parsed.readingMode === "professional" || parsed.readingMode === "friendly") {
+      partial.readingMode = parsed.readingMode;
+    } else if (parsed.outputTone === "professional" || parsed.outputTone === "standard") {
+      partial.readingMode = "professional";
+    } else if (parsed.outputTone === "friendly") {
+      partial.readingMode = "friendly";
+    }
+    return partial;
+  } catch {
+    return {};
+  }
+}
 
 function migrateModeSettings(parsed: unknown): Partial<ModeSettings> {
-  if (!parsed || typeof parsed !== "object") return {};
-  const partial = parsed as Partial<ModeSettings>;
+  const legacy = migrateFromLegacyAnalysis();
+  if (!parsed || typeof parsed !== "object") return legacy;
+  const partial = parsed as Partial<ModeSettings> & {
+    selected_masters?: string[];
+    custom_masters?: unknown;
+    enable_master_commentary?: boolean;
+  };
   const mode: AppMode = partial.mode === "research" ? "research" : "advisor";
   const preset = mode === "advisor" ? ADVISOR_PRESET : RESEARCH_PRESET;
+  const selectedMasters = Array.isArray(partial.selectedMasters)
+    ? partial.selectedMasters.filter((id) => typeof id === "string")
+    : Array.isArray(partial.selected_masters)
+      ? partial.selected_masters.filter((id) => typeof id === "string")
+      : preset.selectedMasters;
+
   return {
+    ...legacy,
     mode,
     riskTolerance:
       partial.riskTolerance === "conservative" ||
@@ -58,12 +118,30 @@ function migrateModeSettings(parsed: unknown): Partial<ModeSettings> {
     readingMode:
       partial.readingMode === "professional" || partial.readingMode === "friendly"
         ? partial.readingMode
-        : preset.readingMode,
-    enableDebate: typeof partial.enableDebate === "boolean" ? partial.enableDebate : preset.enableDebate,
-    enableGlossary: typeof partial.enableGlossary === "boolean" ? partial.enableGlossary : preset.enableGlossary,
+        : legacy.readingMode ?? preset.readingMode,
+    enableDebate:
+      typeof partial.enableDebate === "boolean"
+        ? partial.enableDebate
+        : legacy.enableDebate ?? preset.enableDebate,
+    enableGlossary:
+      typeof partial.enableGlossary === "boolean" ? partial.enableGlossary : preset.enableGlossary,
     maxSignals: typeof partial.maxSignals === "number" ? partial.maxSignals : preset.maxSignals,
     onboarded: typeof partial.onboarded === "boolean" ? partial.onboarded : false,
+    enableMasterCommentary:
+      typeof partial.enableMasterCommentary === "boolean"
+        ? partial.enableMasterCommentary
+        : typeof partial.enable_master_commentary === "boolean"
+          ? partial.enable_master_commentary
+          : legacy.enableMasterCommentary ?? preset.enableMasterCommentary,
+    selectedMasters: selectedMasters.length > 0 ? selectedMasters : [...BUILTIN_MASTER_IDS],
+    customMasters: migrateCustomMasters(partial.customMasters ?? partial.custom_masters),
   };
+}
+
+export interface CustomMasterApiPayload {
+  id: string;
+  name: string;
+  system_prompt: string;
 }
 
 export interface ModeSettingsApiPayload {
@@ -75,9 +153,11 @@ export interface ModeSettingsApiPayload {
   enable_glossary: boolean;
   max_signals: number;
   onboarded: boolean;
+  enable_master_commentary: boolean;
+  selected_masters: string[];
+  custom_masters: CustomMasterApiPayload[];
 }
 
-/** 个人模式默认预设 */
 export const ADVISOR_PRESET: Omit<ModeSettings, "onboarded"> = {
   mode: "advisor",
   riskTolerance: "moderate",
@@ -86,20 +166,24 @@ export const ADVISOR_PRESET: Omit<ModeSettings, "onboarded"> = {
   enableDebate: false,
   enableGlossary: true,
   maxSignals: 5,
+  enableMasterCommentary: false,
+  selectedMasters: [...BUILTIN_MASTER_IDS],
+  customMasters: [],
 };
 
-/** 专家模式默认预设 */
 export const RESEARCH_PRESET: Omit<ModeSettings, "onboarded"> = {
   mode: "research",
-  riskTolerance: "moderate", // 专家模式不启用，但保留默认值
+  riskTolerance: "moderate",
   monthlyIncome: undefined,
   readingMode: "professional",
   enableDebate: true,
   enableGlossary: false,
   maxSignals: 20,
+  enableMasterCommentary: false,
+  selectedMasters: [...BUILTIN_MASTER_IDS],
+  customMasters: [],
 };
 
-/** 默认设置：个人模式（PRD §1.3 主用户 A 默认） */
 export const DEFAULT_MODE_SETTINGS: ModeSettings = {
   ...ADVISOR_PRESET,
   onboarded: false,
@@ -111,11 +195,13 @@ const modeSettingsStore = createLocalStorageStore<ModeSettings>({
   migrate: migrateModeSettings,
 });
 
-/** 按模式获取预设（保留用户已填的 riskTolerance/monthlyIncome） */
 export function presetForMode(
   mode: AppMode,
   current: ModeSettings,
-): Pick<ModeSettings, "mode" | "readingMode" | "enableDebate" | "enableGlossary" | "maxSignals"> {
+): Pick<
+  ModeSettings,
+  "mode" | "readingMode" | "enableDebate" | "enableGlossary" | "maxSignals"
+> {
   const preset = mode === "advisor" ? ADVISOR_PRESET : RESEARCH_PRESET;
   return {
     mode,
@@ -126,7 +212,6 @@ export function presetForMode(
   };
 }
 
-/** 判断当前设置是否与模式预设一致（用于 Settings 显示"已自定义"） */
 export function isPristinePreset(settings: ModeSettings): boolean {
   const preset = settings.mode === "advisor" ? ADVISOR_PRESET : RESEARCH_PRESET;
   return (
@@ -155,6 +240,13 @@ export function modeSettingsToApiPayload(settings: ModeSettings): ModeSettingsAp
     enable_glossary: settings.enableGlossary,
     max_signals: settings.maxSignals,
     onboarded: settings.onboarded,
+    enable_master_commentary: settings.enableMasterCommentary,
+    selected_masters: settings.selectedMasters,
+    custom_masters: settings.customMasters.map((m) => ({
+      id: m.id,
+      name: m.name,
+      system_prompt: m.systemPrompt,
+    })),
   };
 }
 
@@ -184,10 +276,18 @@ export function modeSettingsFromApiPayload(payload: Partial<ModeSettingsApiPaylo
     maxSignals:
       typeof payload.max_signals === "number" ? payload.max_signals : preset.maxSignals,
     onboarded: typeof payload.onboarded === "boolean" ? payload.onboarded : false,
+    enableMasterCommentary:
+      typeof payload.enable_master_commentary === "boolean"
+        ? payload.enable_master_commentary
+        : preset.enableMasterCommentary,
+    selectedMasters:
+      Array.isArray(payload.selected_masters) && payload.selected_masters.length > 0
+        ? payload.selected_masters
+        : [...BUILTIN_MASTER_IDS],
+    customMasters: migrateCustomMasters(payload.custom_masters),
   };
 }
 
-/** 切换模式：应用新模式的预设，保留 riskTolerance/monthlyIncome（投顾专属字段） */
 export function switchMode(settings: ModeSettings, mode: AppMode): ModeSettings {
   const preset = presetForMode(mode, settings);
   return {
@@ -196,24 +296,37 @@ export function switchMode(settings: ModeSettings, mode: AppMode): ModeSettings 
   };
 }
 
-/** 投顾模式是否启用现金流上下文（有月收入才启用换算） */
 export function isCashFlowEnabled(settings: ModeSettings): boolean {
   return settings.mode === "advisor" && typeof settings.monthlyIncome === "number" && settings.monthlyIncome > 0;
 }
 
-/** 投顾模式是否启用风险承受能力（投研模式不启用） */
 export function isRiskToleranceEnabled(settings: ModeSettings): boolean {
   return settings.mode === "advisor";
 }
 
-/** 把亏损金额换算成"相当于月收入 X%"（投顾模式专属） */
 export function lossToIncomeRatio(lossAmount: number, settings: ModeSettings): string | null {
   if (!isCashFlowEnabled(settings) || !settings.monthlyIncome) return null;
   const ratio = (lossAmount / settings.monthlyIncome) * 100;
   return `${ratio.toFixed(1)}%`;
 }
 
-/** Both modes open on the holdings canvas; mode changes presentation depth. */
 export function defaultTabForMode(_mode: AppMode): Tab {
   return "portfolio";
+}
+
+export function chatBodyField(): {
+  enable_debate: boolean;
+  enable_master_commentary: boolean;
+  enable_glossary: boolean;
+  reading_mode: ReadingMode;
+  output_locale: "zh" | "en";
+} {
+  const settings = loadModeSettings();
+  return {
+    enable_debate: settings.enableDebate,
+    enable_master_commentary: settings.enableMasterCommentary,
+    enable_glossary: settings.enableGlossary,
+    reading_mode: settings.readingMode,
+    output_locale: loadLocale(),
+  };
 }

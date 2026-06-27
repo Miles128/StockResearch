@@ -23,11 +23,14 @@ from stockresearch.agents.research.runner import run_research
 from stockresearch.agents.risk.engine import run_risk_checkup
 from stockresearch.core.config import get_settings
 from stockresearch.core.constants import INTENT_CHAT, INTENT_RISK
-from stockresearch.core.schemas import ChatResponse, RiskCheckupOut
+from stockresearch.core.schemas import ChatResponse, ChatUserContext, ModeSettingsOut, RiskCheckupOut
 from stockresearch.db.models import Holding
+from stockresearch.services.chat_context import build_long_term_context, format_user_context_block
 from stockresearch.services.chat_response import assemble_chat_response, save_conversation
+from stockresearch.services.conversation_memory import prepare_chat_history
 from stockresearch.services.message_stock import resolve_message_stock, stock_choice_card
 from stockresearch.services.stock_lookup import StockLookupResult
+from stockresearch.services.user_preferences import get_mode_settings
 from stockresearch.utils.llm import LLMClient, get_llm_client
 from stockresearch.utils.llm_usage import get_usage, reset_usage, usage_to_out
 
@@ -52,8 +55,13 @@ class OrchestratorState(TypedDict):
     session_id: str
     intent: str
     mode: str  # direct / debate / plan_execute
-    analysis_mode: str | None
     enable_debate: bool | None
+    enable_master_commentary: bool | None
+    user_context: ChatUserContext | None
+    mode_settings: ModeSettingsOut
+    long_term_context: str
+    user_context_text: str
+    history: list[dict[str, str]]
     confirmed_symbol: str | None
     confirmed_name: str | None
     execution_preference: str | None
@@ -82,7 +90,6 @@ class Orchestrator:
             mode, finance_tools = resolve_mode_with_preference(
                 msg,
                 state.get("execution_preference"),
-                analysis_mode=state.get("analysis_mode"),
                 enable_debate=(
                     True
                     if state.get("enable_debate") is None
@@ -96,7 +103,9 @@ class Orchestrator:
             msg = state["message"]
 
             if mode in (ComplexityResult.DEBATE, ComplexityResult.RESEARCH):
-                return await _run_stock_research(db, llm, state, with_debate=mode == ComplexityResult.DEBATE)
+                return await _run_stock_research(
+                    db, llm, state, with_debate=mode == ComplexityResult.DEBATE
+                )
             if mode in (ComplexityResult.MARKET_DEBATE, ComplexityResult.MARKET_RESEARCH):
                 return await _run_market_research(
                     llm,
@@ -114,16 +123,32 @@ class Orchestrator:
             agent = OrchestratorAgent(
                 db=db, llm=llm, user_id=state["user_id"], finance_tools=finance_tools
             )
-            reply, cards = await agent.run(msg)
+            reply, cards = await agent.run(
+                msg,
+                history=state.get("history"),
+                long_term_context=state.get("long_term_context", ""),
+                user_context_text=state.get("user_context_text", ""),
+            )
             return {"cards": cards, "reply": reply}
 
         async def node_risk(state: OrchestratorState) -> dict:
             holdings = await asyncio.to_thread(
                 lambda: db.query(Holding).filter(Holding.user_id == state["user_id"]).all()
             )
+            settings = state["mode_settings"]
+            master_on = (
+                bool(state["enable_master_commentary"])
+                if state.get("enable_master_commentary") is not None
+                else bool(settings.enable_master_commentary)
+            )
             try:
                 result = await asyncio.wait_for(
-                    run_risk_checkup(holdings, llm=llm),
+                    run_risk_checkup(
+                        holdings,
+                        llm=llm,
+                        enable_master_commentary=master_on,
+                        mode_settings=settings,
+                    ),
                     timeout=get_settings().agent_timeout_seconds,
                 )
             except TimeoutError:
@@ -160,8 +185,10 @@ class Orchestrator:
         user_id: int,
         message: str,
         session_id: str | None = None,
-        analysis_mode: str | None = None,
         enable_debate: bool | None = None,
+        enable_master_commentary: bool | None = None,
+        user_context: ChatUserContext | None = None,
+        mode_settings: ModeSettingsOut | None = None,
         confirmed_symbol: str | None = None,
         confirmed_name: str | None = None,
         execution_preference: str | None = None,
@@ -170,6 +197,10 @@ class Orchestrator:
         holdings = await asyncio.to_thread(
             lambda: self._db.query(Holding).filter(Holding.user_id == user_id).all()
         )
+        settings = mode_settings or get_mode_settings(self._db, user_id)
+        long_term_context = build_long_term_context(mode_settings=settings, holdings=holdings)
+        user_context_text = format_user_context_block(user_context)
+        history = await prepare_chat_history(self._db, user_id, sid, self._llm)
         holdings_data: list[_HoldingInfo] = [
             {"symbol": h.symbol, "name": h.name, "sector": h.sector} for h in holdings
         ]
@@ -180,8 +211,13 @@ class Orchestrator:
             "session_id": sid,
             "intent": INTENT_CHAT,
             "mode": ComplexityResult.DIRECT,
-            "analysis_mode": analysis_mode,
             "enable_debate": enable_debate,
+            "enable_master_commentary": enable_master_commentary,
+            "user_context": user_context,
+            "mode_settings": settings,
+            "long_term_context": long_term_context,
+            "user_context_text": user_context_text,
+            "history": history,
             "confirmed_symbol": confirmed_symbol,
             "confirmed_name": confirmed_name,
             "execution_preference": execution_preference,
@@ -244,11 +280,24 @@ async def _run_stock_research(
         card = stock_choice_card(msg, resolved)
         return {"cards": [card], "reply": resolved.message}
 
-    result = await run_research(resolved.symbol, llm, with_debate=with_debate)
+    result = await run_research(
+        resolved.symbol,
+        llm,
+        with_debate=with_debate,
+        enable_master_commentary=_master_enabled(state),
+        mode_settings=state["mode_settings"],
+    )
     return {
         "cards": [{"type": "research", "data": result.model_dump(mode="json")}],
         "reply": result.summary,
     }
+
+
+def _master_enabled(state: OrchestratorState) -> bool:
+    settings = state["mode_settings"]
+    if state.get("enable_master_commentary") is not None:
+        return bool(state["enable_master_commentary"])
+    return bool(settings.enable_master_commentary)
 
 
 async def _run_market_research(
@@ -297,6 +346,11 @@ async def _run_plan_execute(db: Session, llm, state: OrchestratorState) -> dict:
     agent = PlanExecuteAgent(
         llm=llm, tool_executor=tool_executor, finance_tools=finance_tools
     )
-    reply, plan_cards = await agent.run(msg)
+    reply, plan_cards = await agent.run(
+        msg,
+        history=state.get("history"),
+        long_term_context=state.get("long_term_context", ""),
+        user_context_text=state.get("user_context_text", ""),
+    )
 
     return {"cards": plan_cards, "reply": reply}

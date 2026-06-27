@@ -393,6 +393,12 @@ class LlmSettingsOut(BaseModel):
     server_has_api_key: bool
 
 
+class CustomMasterOut(BaseModel):
+    id: str = Field(min_length=1, max_length=32, pattern=r"^[a-z][a-z0-9_]{0,31}$")
+    name: str = Field(min_length=1, max_length=50)
+    system_prompt: str = Field(min_length=10, max_length=4000)
+
+
 class ModeSettingsOut(BaseModel):
     mode: Literal["advisor", "research"] = "advisor"
     risk_tolerance: Literal["conservative", "moderate", "aggressive"] = "moderate"
@@ -402,6 +408,11 @@ class ModeSettingsOut(BaseModel):
     enable_glossary: bool = True
     max_signals: int = Field(default=5, ge=1, le=50)
     onboarded: bool = False
+    enable_master_commentary: bool = False
+    selected_masters: list[str] = Field(
+        default_factory=lambda: ["buffett", "munger", "burry"]
+    )
+    custom_masters: list[CustomMasterOut] = Field(default_factory=list)
 
 
 class ModeSettingsUpdate(ModeSettingsOut):
@@ -414,21 +425,29 @@ class LlmTestOut(BaseModel):
 
 
 class RiskCheckupRequest(BaseModel):
-    output_tone: Literal["professional", "standard", "friendly"] | None = None
     reading_mode: Literal["professional", "friendly"] | None = None
     output_locale: Literal["zh", "en"] | None = None
     enable_master_commentary: bool | None = None
 
 
+class ChatUserContext(BaseModel):
+    kind: Literal[
+        "portfolio", "risk", "market", "news", "daily_scan", "stock", "report"
+    ]
+    label: str = Field(min_length=1, max_length=120)
+    detail: str | None = Field(default=None, max_length=500)
+    symbol: str | None = Field(default=None, min_length=6, max_length=6, pattern=r"^\d{6}$")
+    metadata: dict[str, str] | None = None
+
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     session_id: str | None = None
+    user_context: ChatUserContext | None = None
     llm: LlmUserSettings | None = None
-    analysis_mode: Literal["simple", "complex"] | None = None
     enable_debate: bool | None = None
     enable_master_commentary: bool | None = None
     enable_glossary: bool | None = None
-    output_tone: Literal["professional", "standard", "friendly"] | None = None
     reading_mode: Literal["professional", "friendly"] | None = None
     output_locale: Literal["zh", "en"] | None = None
     confirmed_symbol: str | None = Field(
@@ -584,8 +603,13 @@ class BriefingSection(BaseModel):
     content: str
 
 
+class BriefingGenerateRequest(BaseModel):
+    reading_mode: Literal["professional", "friendly"] | None = None
+    output_locale: Literal["zh", "en"] | None = None
+
+
 class BriefingOut(BaseModel):
-    kind: Literal["morning", "closing"]
+    kind: Literal["intraday", "postmarket"]
     title: str
     sections: list[BriefingSection]
     summary: str
@@ -595,7 +619,7 @@ class BriefingOut(BaseModel):
 
 class BriefingRecordOut(BaseModel):
     id: int
-    kind: Literal["morning", "closing"]
+    kind: Literal["intraday", "postmarket"]
     title: str
     summary: str
     sections: list[BriefingSection]
@@ -606,8 +630,10 @@ class BriefingRecordOut(BaseModel):
 
 class BriefingScheduleStatus(BaseModel):
     enabled: bool
-    morning_time: str = "09:00"
-    closing_time: str = "15:30"
+    intraday_time: str = "11:35"
+    postmarket_time: str = "15:35"
+    morning_time: str = "11:35"
+    closing_time: str = "15:35"
     timezone: str = "Asia/Shanghai"
 
 

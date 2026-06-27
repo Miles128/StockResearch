@@ -348,16 +348,11 @@ def classify_research_scope(message: str) -> str | None:
 
 def resolve_execution_mode(
     message: str,
-    analysis_mode: str | None = None,
     *,
     enable_debate: bool = False,
 ) -> str:
     """Route chat to direct / multi-dim research / debate / plan-execute."""
     msg = message.strip()
-
-    # Legacy clients may still send simple/complex — honor simple only.
-    if analysis_mode == ANALYSIS_SIMPLE:
-        return ComplexityResult.DIRECT
 
     if should_auto_plan_execute(msg):
         return ComplexityResult.PLAN_EXECUTE
@@ -370,16 +365,5 @@ def resolve_execution_mode(
 
     if is_industry_research(msg):
         return ComplexityResult.INDUSTRY_RESEARCH
-
-    if analysis_mode == ANALYSIS_COMPLEX:
-        auto = classify_query(msg)
-        if auto in (ComplexityResult.DEBATE, ComplexityResult.MARKET_DEBATE):
-            return auto if enable_debate else (
-                ComplexityResult.RESEARCH
-                if auto == ComplexityResult.DEBATE
-                else ComplexityResult.MARKET_RESEARCH
-            )
-        if auto == ComplexityResult.PLAN_EXECUTE:
-            return ComplexityResult.PLAN_EXECUTE
 
     return classify_query(msg)

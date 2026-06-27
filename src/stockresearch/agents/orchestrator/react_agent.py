@@ -116,12 +116,24 @@ class OrchestratorAgent:
         if self._on_progress:
             await self._on_progress(event)
 
-    async def run(self, message: str) -> tuple[str, list[dict[str, Any]]]:
+    async def run(
+        self,
+        message: str,
+        *,
+        history: list[dict[str, str]] | None = None,
+        long_term_context: str = "",
+        user_context_text: str = "",
+    ) -> tuple[str, list[dict[str, Any]]]:
         system = ORCHESTRATOR_SYSTEM if self._finance_tools else ORCHESTRATOR_GENERAL_SYSTEM
-        messages: list[dict[str, str]] = [
-            {"role": "system", "content": system},
-            {"role": "user", "content": message},
-        ]
+        if long_term_context.strip():
+            system = f"{system.rstrip()}\n\n{long_term_context.strip()}"
+        user_content = message.strip()
+        if user_context_text.strip():
+            user_content = f"{user_content}\n\n{user_context_text.strip()}"
+        messages: list[dict[str, str]] = [{"role": "system", "content": system}]
+        if history:
+            messages.extend(history)
+        messages.append({"role": "user", "content": user_content})
 
         for i in range(_MAX_ITERATIONS):
             await self._progress(status_event("status.react.thinking", step=i + 1))

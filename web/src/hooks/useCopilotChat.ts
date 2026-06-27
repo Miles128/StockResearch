@@ -6,6 +6,7 @@ import {
   type ExecutionPreference,
 } from "../api";
 import type { CopilotContext, Message } from "../appTypes";
+import { copilotContextToPayload } from "../chatContext";
 import { stripDisclaimer } from "../disclaimerText";
 import { useI18n } from "../i18n";
 import { applyStreamEvent, emptyStreamState } from "../streamEvents";
@@ -63,12 +64,13 @@ export function useCopilotChat({
       setChatStream(emptyStreamState());
       let processSnapshot = emptyStreamState();
       const activeContext = contextOverride === undefined ? pageContext : contextOverride;
-      const requestQuery = activeContext
-        ? `${query}\n\n[当前画布上下文：${activeContext.label}${activeContext.detail ? `；${activeContext.detail}` : ""}]`
-        : query;
+      const chatOptions: ChatStreamOptions = {
+        ...options,
+        userContext: activeContext ? copilotContextToPayload(activeContext) : null,
+      };
       try {
         const resp = await api.chatStream(
-          requestQuery,
+          query,
           sessionId,
           (event: AgentStreamEvent) => {
             if (
@@ -88,7 +90,7 @@ export function useCopilotChat({
               setStatusMsg(normalized.message);
             }
           },
-          options,
+          chatOptions,
         );
         if (resp) {
           setSessionId(resp.session_id);
@@ -118,7 +120,7 @@ export function useCopilotChat({
       } catch {
         try {
           setStatusMsg(t("chat.streamFailed"));
-          const resp = await api.chat(requestQuery, sessionId, options);
+          const resp = await api.chat(query, sessionId, chatOptions);
           setSessionId(resp.session_id);
           setMessages((m) => [
             ...m,

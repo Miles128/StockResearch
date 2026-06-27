@@ -107,11 +107,14 @@ def test_signal_backtest_endpoint(client: TestClient, db_session: Session) -> No
 
 
 def test_briefing_generate(client: TestClient) -> None:
-    resp = client.post("/api/v1/briefing/generate?kind=morning")
+    resp = client.post("/api/v1/briefing/generate?kind=intraday", json={})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["kind"] == "morning"
+    assert body["kind"] == "intraday"
+    assert body["title"] == "盘中简报"
     assert body["sections"]
+    titles = {s["title"] for s in body["sections"]}
+    assert "综合结论" in titles or "持仓表现" in titles
 
 
 def test_industry_research_endpoint(client: TestClient, db_session: Session, monkeypatch) -> None:

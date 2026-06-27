@@ -27,15 +27,21 @@ const AGENT_ZH_TO_KEY: Record<string, string> = {
 };
 
 const BRIEFING_TITLE_ZH: Record<string, string> = {
-  盘前简报: "briefing.title.morning",
-  收盘简报: "briefing.title.closing",
+  盘中简报: "briefing.title.intraday",
+  盘后简报: "briefing.title.postmarket",
+  盘前简报: "briefing.title.intraday",
+  收盘简报: "briefing.title.postmarket",
 };
 
 const BRIEFING_SECTION_ZH: Record<string, string> = {
   市场概览: "briefing.section.market",
+  大盘概况: "briefing.section.market",
   持仓快照: "briefing.section.holdings",
+  持仓表现: "briefing.section.holdings",
   新闻文本因子: "briefing.section.newsFactor",
+  新闻脉络: "briefing.section.newsFlow",
   风控提醒: "briefing.section.riskAlerts",
+  综合结论: "briefing.section.conclusion",
 };
 
 const VOTE_ZH: Record<string, string> = {
@@ -119,6 +125,14 @@ export function localizeBriefing(briefing: Briefing, t: TFn): Briefing {
       };
     }),
   };
+}
+
+export function formatBriefingMarkdown(briefing: Briefing): string {
+  const lines = [`**${briefing.title}**`, "", briefing.summary.trim()];
+  for (const section of briefing.sections) {
+    lines.push("", `### ${section.title}`, "", section.content.trim());
+  }
+  return lines.join("\n");
 }
 
 export function localizeRiskRuleId(ruleId: string, t: TFn): string {

@@ -10,6 +10,7 @@ from stockresearch.agents.orchestrator.balance_check import check_balance
 from stockresearch.agents.output_style import get_enable_glossary, get_reading_mode
 from stockresearch.core.schemas import CardPayload, ChatResponse
 from stockresearch.db.models import Conversation
+from stockresearch.services.conversation_memory import MAX_STORED_MESSAGES
 from stockresearch.services.follow_up import build_follow_up_questions
 from stockresearch.services.glossary import mark_terms
 from stockresearch.services.neutral_guard import neutral_guard
@@ -83,7 +84,7 @@ def save_conversation(
         messages = list(conversation.messages)
         messages.append({"role": "user", "content": user_message})
         messages.append({"role": "assistant", "content": assistant_reply})
-        conversation.messages = messages[-20:]
+        conversation.messages = messages[-MAX_STORED_MESSAGES:]
         db.commit()
     except Exception:
         logger.warning(

@@ -4,8 +4,9 @@ import asyncio
 from collections.abc import AsyncIterator
 from typing import Any
 
-from stockresearch.agents.master_commentary.prompts import MASTER_CONFIG
+from stockresearch.agents.master_commentary.registry import get_master_config
 from stockresearch.agents.master_commentary.schemas import MasterCommentaryOut
+from stockresearch.core.schemas import ModeSettingsOut
 from stockresearch.utils.llm import LLMClient
 
 
@@ -13,9 +14,10 @@ async def _fetch_master(
     llm: LLMClient,
     master_id: str,
     context: str,
+    settings: ModeSettingsOut,
 ) -> MasterCommentaryOut:
-    config = MASTER_CONFIG[master_id]
     try:
+        config = get_master_config(master_id, settings)
         raw = await llm.complete(config["system"], context)
     except Exception as exc:
         return MasterCommentaryOut(
@@ -33,17 +35,20 @@ async def stream_master_commentary(
     subject: str,
     context: str,
     *,
+    settings: ModeSettingsOut,
     masters: list[str] | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """Yield master_start, master_done, and a final master_commentary list event."""
-    master_ids = masters or list(MASTER_CONFIG.keys())
+    master_ids = masters or []
+    if not master_ids:
+        return
 
     yield {"type": "master_start", "subject": subject, "masters": master_ids}
 
     queue: asyncio.Queue[MasterCommentaryOut] = asyncio.Queue()
 
     async def pump(master_id: str) -> None:
-        result = await _fetch_master(llm, master_id, context)
+        result = await _fetch_master(llm, master_id, context, settings)
         await queue.put(result)
 
     pumps = [asyncio.create_task(pump(mid)) for mid in master_ids]
@@ -52,10 +57,15 @@ async def stream_master_commentary(
     for _ in master_ids:
         result = await queue.get()
         results.append(result)
+        try:
+            config = get_master_config(result.master, settings)
+            display_name = config["name"]
+        except KeyError:
+            display_name = result.master
         yield {
             "type": "master_done",
             "master": result.master,
-            "name": MASTER_CONFIG[result.master]["name"],
+            "name": display_name,
             "signal": result.signal,
             "signal_text": result.signal_text,
             "confidence": result.confidence,
@@ -77,11 +87,14 @@ async def get_master_commentary(
     subject: str,
     context: str,
     *,
+    settings: ModeSettingsOut,
     masters: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Non-streaming convenience wrapper returning the commentary list."""
     commentary: list[dict[str, Any]] = []
-    async for event in stream_master_commentary(llm, subject, context, masters=masters):
+    async for event in stream_master_commentary(
+        llm, subject, context, settings=settings, masters=masters
+    ):
         if event.get("type") == "master_commentary" and isinstance(event.get("commentary"), list):
             commentary = event["commentary"]
     return commentary

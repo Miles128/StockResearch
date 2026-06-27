@@ -15,16 +15,14 @@ import {
   type SignalBacktest,
 } from "./api";
 import {
-  loadAnalysisSettings,
-  saveAnalysisSettings,
-  type AnalysisUserSettings,
-  type ReadingMode,
-} from "./analysisSettings";
-import {
+  BUILTIN_MASTER_IDS,
   loadModeSettings,
+  modeSettingsToApiPayload,
   saveModeSettings,
   type AppMode,
+  type CustomMaster,
   type ModeSettings,
+  type ReadingMode,
 } from "./modeSettings";
 import {
   loadDataSourceSettings,
@@ -106,7 +104,7 @@ export function SettingsPanel({
   const [form, setForm] = useState<LlmUserSettings>(loadLlmSettings);
   const [dataForm, setDataForm] = useState<DataSourceUserSettings>(loadDataSourceSettings);
   const [theme, setTheme] = useState<AppTheme>(loadTheme);
-  const [analysis, setAnalysis] = useState<AnalysisUserSettings>(loadAnalysisSettings);
+  const [modeSettingsState, setModeSettingsState] = useState<ModeSettings>(loadModeSettings);
   const [error, setError] = useState("");
   const [testOk, setTestOk] = useState("");
   const [testing, setTesting] = useState(false);
@@ -130,7 +128,7 @@ export function SettingsPanel({
     setForm(loadLlmSettings());
     setDataForm(loadDataSourceSettings());
     setTheme(loadTheme());
-    setAnalysis(loadAnalysisSettings());
+    setModeSettingsState(loadModeSettings());
     setError("");
     setTestOk("");
     if (required) setActiveTab("llm");
@@ -168,32 +166,60 @@ export function SettingsPanel({
     setLocale(next);
   }
 
+  function persistModeSettings(next: ModeSettings) {
+    setModeSettingsState(next);
+    saveModeSettings(next);
+    void api.saveModeSettings(modeSettingsToApiPayload(next)).catch(() => {});
+    onModeSettingsChange?.(next);
+  }
+
   function toggleDebate(enabled: boolean) {
-    const next = { ...analysis, enableDebate: enabled };
-    setAnalysis(next);
-    saveAnalysisSettings(next);
-    // 同步到 modeSettings（双模式架构）
-    const mode = loadModeSettings();
-    const nextMode: ModeSettings = { ...mode, enableDebate: enabled };
-    saveModeSettings(nextMode);
-    onModeSettingsChange?.(nextMode);
+    persistModeSettings({ ...modeSettingsState, enableDebate: enabled });
   }
 
   function toggleMasterCommentary(enabled: boolean) {
-    const next = { ...analysis, enableMasterCommentary: enabled };
-    setAnalysis(next);
-    saveAnalysisSettings(next);
+    persistModeSettings({ ...modeSettingsState, enableMasterCommentary: enabled });
+  }
+
+  function toggleMasterSelection(masterId: string, enabled: boolean) {
+    const selected = new Set(modeSettingsState.selectedMasters);
+    if (enabled) selected.add(masterId);
+    else selected.delete(masterId);
+    persistModeSettings({
+      ...modeSettingsState,
+      selectedMasters: Array.from(selected),
+    });
+  }
+
+  function addCustomMaster() {
+    const id = window.prompt(t("settings.customMasterIdPrompt"), "my_master");
+    if (!id) return;
+    const name = window.prompt(t("settings.customMasterNamePrompt"), id);
+    if (!name) return;
+    const systemPrompt = window.prompt(t("settings.customMasterPromptPrompt"), "");
+    if (!systemPrompt || systemPrompt.trim().length < 10) return;
+    const next: CustomMaster = {
+      id: id.trim().toLowerCase(),
+      name: name.trim(),
+      systemPrompt: systemPrompt.trim(),
+    };
+    persistModeSettings({
+      ...modeSettingsState,
+      customMasters: [...modeSettingsState.customMasters, next],
+      selectedMasters: [...modeSettingsState.selectedMasters, next.id],
+    });
+  }
+
+  function removeCustomMaster(masterId: string) {
+    persistModeSettings({
+      ...modeSettingsState,
+      customMasters: modeSettingsState.customMasters.filter((m) => m.id !== masterId),
+      selectedMasters: modeSettingsState.selectedMasters.filter((id) => id !== masterId),
+    });
   }
 
   function selectReadingMode(readingMode: ReadingMode) {
-    const next = { ...analysis, readingMode };
-    setAnalysis(next);
-    saveAnalysisSettings(next);
-    // 同步到 modeSettings（双模式架构）
-    const mode = loadModeSettings();
-    const nextMode: ModeSettings = { ...mode, readingMode };
-    saveModeSettings(nextMode);
-    onModeSettingsChange?.(nextMode);
+    persistModeSettings({ ...modeSettingsState, readingMode });
   }
 
   const readingModeOptions: { id: ReadingMode; labelKey: string; hintKey: string }[] = [
@@ -469,37 +495,83 @@ export function SettingsPanel({
             <label className="settings-check">
               <input
                 type="checkbox"
-                checked={analysis.enableDebate}
+                checked={modeSettingsState.enableDebate}
                 onChange={(e) => toggleDebate(e.target.checked)}
               />
               <span>{t("settings.enableDebate")}</span>
             </label>
             <p className="settings-muted settings-analysis-note">
-              {analysis.enableDebate ? t("settings.debateOnNote") : t("settings.debateOffNote")}
+              {modeSettingsState.enableDebate ? t("settings.debateOnNote") : t("settings.debateOffNote")}
             </p>
 
             <label className="settings-check">
               <input
                 type="checkbox"
-                checked={analysis.enableMasterCommentary}
+                checked={modeSettingsState.enableMasterCommentary}
                 onChange={(e) => toggleMasterCommentary(e.target.checked)}
               />
               <span>{t("settings.enableMasterCommentary")}</span>
             </label>
             <p className="settings-muted settings-analysis-note">
-              {analysis.enableMasterCommentary
+              {modeSettingsState.enableMasterCommentary
                 ? t("settings.masterCommentaryOnNote")
                 : t("settings.masterCommentaryOffNote")}
             </p>
+
+            <h4 className="settings-section-title">{t("settings.masterSelection")}</h4>
+            <p className="settings-hint">{t("settings.masterSelectionHint")}</p>
+            <div className="settings-master-list">
+              {BUILTIN_MASTER_IDS.map((id) => (
+                <label key={id} className="settings-check">
+                  <input
+                    type="checkbox"
+                    checked={modeSettingsState.selectedMasters.includes(id)}
+                    onChange={(e) => toggleMasterSelection(id, e.target.checked)}
+                    disabled={!modeSettingsState.enableMasterCommentary}
+                  />
+                  <span>{t(`settings.master.${id}`)}</span>
+                </label>
+              ))}
+              {modeSettingsState.customMasters.map((master) => (
+                <label key={master.id} className="settings-check settings-custom-master-row">
+                  <input
+                    type="checkbox"
+                    checked={modeSettingsState.selectedMasters.includes(master.id)}
+                    onChange={(e) => toggleMasterSelection(master.id, e.target.checked)}
+                    disabled={!modeSettingsState.enableMasterCommentary}
+                  />
+                  <span>{master.name}</span>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => removeCustomMaster(master.id)}
+                  >
+                    {t("settings.removeCustomMaster")}
+                  </button>
+                </label>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={addCustomMaster}
+              disabled={!modeSettingsState.enableMasterCommentary}
+            >
+              {t("settings.addCustomMaster")}
+            </button>
 
             <h4 className="settings-section-title">{t("settings.readingMode")}</h4>
             <p className="settings-hint">{t("settings.readingModeHint")}</p>
             <p className="settings-muted settings-analysis-note">
               {t("settings.readingModeNote", {
-                mode: t(loadModeSettings().mode === "research" ? "mode.research" : "mode.advisor"),
-                reading: t(analysis.readingMode === "professional" ? "settings.modeProfessional" : "settings.modeFriendly"),
+                mode: t(modeSettingsState.mode === "research" ? "mode.research" : "mode.advisor"),
+                reading: t(
+                  modeSettingsState.readingMode === "professional"
+                    ? "settings.modeProfessional"
+                    : "settings.modeFriendly",
+                ),
               })}
-              {loadModeSettings().mode === "advisor"
+              {modeSettingsState.mode === "advisor"
                 ? ` · ${t("settings.readingModePersonal")}`
                 : ` · ${t("settings.readingModeExpert")}`}
             </p>
@@ -507,13 +579,13 @@ export function SettingsPanel({
               {readingModeOptions.map((opt) => (
                 <label
                   key={opt.id}
-                  className={`locale-option${analysis.readingMode === opt.id ? " active" : ""}`}
+                  className={`locale-option${modeSettingsState.readingMode === opt.id ? " active" : ""}`}
                 >
                   <input
                     type="radio"
                     name="reading-mode"
                     value={opt.id}
-                    checked={analysis.readingMode === opt.id}
+                    checked={modeSettingsState.readingMode === opt.id}
                     onChange={() => selectReadingMode(opt.id)}
                   />
                   <span className="theme-option-label">{t(opt.labelKey)}</span>

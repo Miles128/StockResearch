@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
-import { api, type Briefing, type HoldingEnriched } from "./api";
+import { useMemo, useState } from "react";
+import { type HoldingEnriched } from "./api";
 import { formatPrice, formatSignedMoney, formatSignedPct, signedClass } from "./holdingDisplay";
 import { HoldingTradeModal } from "./HoldingTradeModal";
+import { getBriefingKind } from "./briefingKind";
 import { useI18n } from "./i18n";
-import { localizeBriefing } from "./uiLabels";
 import { StockChart } from "./StockChart";
 import type { PortfolioSummary, SectorWeight } from "./portfolioHelpers";
 
@@ -13,10 +13,11 @@ interface PortfolioPanelProps {
   portfolioSummary: PortfolioSummary;
   sectorMix: SectorWeight[];
   numLocale: string;
+  chatLoading?: boolean;
   onLoadHoldings: () => void;
   onDeleteHolding: (id: number) => void;
   onAnalyzeHolding: (h: HoldingEnriched) => void;
-  onAskCopilot?: (query: string) => void;
+  onAskCopilot?: (query: string, options?: { briefingKind?: "intraday" | "postmarket" }) => void;
 }
 
 const SECTOR_PALETTE = ["#ff6600", "#00c853", "#4fc3f7", "#ffab00", "#8a8a8a", "#e91e63", "#9c27b0", "#795548"];
@@ -27,26 +28,6 @@ function sectorColor(sector: string): string {
     hash = (hash * 31 + sector.charCodeAt(i)) >>> 0;
   }
   return SECTOR_PALETTE[hash % SECTOR_PALETTE.length];
-}
-
-/** 根据 A 股交易时间返回当前简报类型 */
-function getBriefingKind(): "morning" | "closing" {
-  const now = new Date();
-  const t = now.getHours() * 60 + now.getMinutes();
-  // 09:30-15:00 为盘中 → closing kind (实时数据)
-  if (t >= 570 && t < 900) return "closing";
-  return "morning";
-}
-
-/** 根据 A 股交易时间返回简报标签 */
-function briefingLabelByTime(): string {
-  const now = new Date();
-  const t = now.getHours() * 60 + now.getMinutes();
-  if (t < 570) return "盘前简报";
-  if (t < 690) return "盘中简报";
-  if (t < 780) return "午间简报";
-  if (t < 900) return "盘中简报";
-  return "盘后简报";
 }
 
 function SectorDonut({ sectors }: { sectors: SectorWeight[] }) {
@@ -88,6 +69,7 @@ export function PortfolioPanel({
   portfolioSummary,
   sectorMix,
   numLocale,
+  chatLoading = false,
   onLoadHoldings,
   onDeleteHolding,
   onAnalyzeHolding,
@@ -95,37 +77,8 @@ export function PortfolioPanel({
 }: PortfolioPanelProps) {
   const { t } = useI18n();
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
-  const [briefing, setBriefing] = useState<Briefing | null>(null);
-  const [briefingLoading, setBriefingLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    async function init() {
-      try {
-        const [morning, closing] = await Promise.all([
-          api.latestBriefing("morning"),
-          api.latestBriefing("closing"),
-        ]);
-        if (cancelled) return;
-        setBriefing(morning ?? closing ?? null);
-      } catch {
-        // ignore
-      }
-    }
-    void init();
-    return () => { cancelled = true; };
-  }, []);
-
-  async function loadBriefing(kind: "morning" | "closing") {
-    setBriefingLoading(true);
-    try {
-      const b = await api.generateBriefing(kind);
-      setBriefing(b);
-    } finally {
-      setBriefingLoading(false);
-    }
-  }
 
   const sectorPnl = useMemo(() => {
     const map = new Map<string, { pnl: number; value: number }>();
@@ -141,37 +94,12 @@ export function PortfolioPanel({
     return map;
   }, [holdings]);
 
-  const briefingLabel = useMemo(() => briefingLabelByTime(), []);
   const briefingKind = useMemo(() => getBriefingKind(), []);
-  const isTradingTime = briefingKind === "closing";
-  const b = briefing ? localizeBriefing(briefing, t) : null;
+  const briefingQuery =
+    briefingKind === "intraday" ? t("portfolio.briefingIntraday") : t("portfolio.briefingPostMarket");
 
   return (
     <div className="panel portfolio-panel">
-      {/* 今日关注 · 简报卡片 */}
-      {b && (
-        <div className="card portfolio-block">
-          <div className="card-header">
-            <span className="card-header-title">{briefingLabel}</span>
-            <span className="card-header-meta">{new Date().toLocaleDateString("zh-CN")}</span>
-          </div>
-          <div className="card-body">
-            <p className="briefing-lead">{b.summary}</p>
-            {b.sections.length > 0 && (
-              <div className="briefing-vertical-list">
-                {b.sections.map((s) => (
-                  <div key={s.title} className="briefing-point">
-                    <strong>{s.title}</strong>
-                    <pre className="briefing-section">{s.content}</pre>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 总持仓 + 行业分布 */}
       {holdings.length > 0 && sectorMix.length > 0 && (
         <div className="card portfolio-block portfolio-sector-card">
           <div className="card-header">
@@ -350,20 +278,17 @@ export function PortfolioPanel({
           <button
             type="button"
             className="btn btn-ghost btn-sm"
-            disabled={briefingLoading}
-            onClick={() => void loadBriefing(briefingKind)}
+            disabled={chatLoading}
+            onClick={() => onAskCopilot(briefingQuery, { briefingKind })}
           >
-            {briefingLoading
-              ? t("portfolio.briefingLoading")
-              : isTradingTime
-                ? t("portfolio.briefingIntraday")
-                : t("portfolio.briefingPostMarket")}
+            {chatLoading ? t("portfolio.briefingLoading") : briefingQuery}
           </button>
           {holdings.length > 0 && (
             <>
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"
+                disabled={chatLoading}
                 onClick={() => onAskCopilot(t("portfolio.askPnl"))}
               >
                 {t("portfolio.askPnl")}
@@ -371,6 +296,7 @@ export function PortfolioPanel({
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"
+                disabled={chatLoading}
                 onClick={() => onAskCopilot(t("portfolio.askTopMover"))}
               >
                 {t("portfolio.askTopMover")}
@@ -380,6 +306,7 @@ export function PortfolioPanel({
           <button
             type="button"
             className="btn btn-primary ai-chat-trigger"
+            disabled={chatLoading}
             onClick={() => onAskCopilot("")}
           >
             {t("portfolio.aiChatEntry")}

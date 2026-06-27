@@ -449,19 +449,24 @@ body {
 
 .ticker-strip {
   display: flex;
+  align-items: center;
   overflow-x: auto;
   gap: 0;
   scrollbar-width: thin;
 }
 
 .ticker-card {
+  display: inline-flex;
   flex: 0 0 auto;
-  min-width: 108px;
-  padding: 5px 10px 4px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 12px;
   border-radius: 0;
   background: transparent;
-  border-right: none;
+  border-right: 1px solid var(--bbg-border);
   border-bottom: none;
+  white-space: nowrap;
 }
 
 .ticker-card-btn {
@@ -526,7 +531,7 @@ body {
 }
 
 .ticker-name {
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--bbg-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -534,16 +539,15 @@ body {
 
 .ticker-price {
   font-family: var(--font-mono);
-  font-size: 18px;
+  font-size: 13px;
   font-weight: 700;
-  margin-top: 2px;
   font-variant-numeric: tabular-nums;
 }
 
 .ticker-change {
   font-family: var(--font-mono);
-  font-size: 13.75px;
-  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1777,9 +1781,10 @@ input:focus {
 
 /* ── Action Center ── */
 .action-center {
-  margin-bottom: 12px;
-  border: 1px solid var(--bbg-border);
-  background: var(--bbg-panel);
+  margin-bottom: 0;
+  border: none;
+  border-bottom: 1px solid var(--bbg-border);
+  background: transparent;
 }
 
 .action-center.collapsed .action-center-header {
@@ -1789,12 +1794,29 @@ input:focus {
 .action-center-header {
   cursor: pointer;
   user-select: none;
+  padding-bottom: 2px;
+  min-width: 0;
 }
 
 .action-center-header-right {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.action-center-summary-inline {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--bbg-muted);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(420px, 50vw);
 }
 
 .action-center-chevron {
@@ -1809,43 +1831,31 @@ input:focus {
 
 .action-center-count,
 .action-center-loading {
+  flex-shrink: 0;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 10px;
   color: var(--bbg-fg-muted);
-}
-
-.action-center-empty {
-  padding: 20px 14px;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--bbg-fg-muted);
-  text-align: center;
 }
 
 .action-center-signals {
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   gap: 8px;
   padding: 12px 14px;
-  overflow-x: auto;
-  scrollbar-width: thin;
 }
 
 .action-signal-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  flex: 0 0 220px;
-  min-width: 220px;
-  max-width: 280px;
-  padding: 12px 14px;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px 12px;
   background: var(--bbg-panel-2);
   border: 1px solid var(--bbg-border);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .action-signal-card:hover {
@@ -1869,28 +1879,24 @@ input:focus {
   display: block;
   font-weight: 600;
   line-height: 1.35;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .signal-detail {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--bbg-fg-muted);
   margin: 0;
-  line-height: 1.45;
+  line-height: 1.4;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .signal-action {
   font-size: 11px;
   color: var(--bbg-amber);
   align-self: flex-start;
-}
-
-.action-center-summary {
-  padding: 8px 14px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--bbg-fg-muted);
-  border-top: 1px solid var(--bbg-border);
 }
 
 .alert-holding-tags {
@@ -2689,46 +2695,51 @@ input:focus {
   color: var(--text);
 }
 
-/* 卡片式布局 v2 */
-.card {
-  margin-bottom: 12px;
-  border: 1px solid var(--bbg-border);
-  background: var(--bbg-panel);
+/* 卡片式布局 v2 — portfolio page sections */
+.portfolio-panel .card.portfolio-block {
+  margin-bottom: 0;
+  border: none;
+  border-bottom: 1px solid var(--bbg-border);
+  background: transparent;
+}
+
+.portfolio-panel .card.portfolio-block:last-of-type {
+  border-bottom: none;
 }
 
 .card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 5px 12px;
-  border-bottom: 1px solid var(--bbg-border);
-  background: var(--bbg-panel-2);
+  gap: 6px;
+  padding: 2px 10px;
+  background: transparent;
 }
 
 .card-header-title {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: var(--bbg-orange);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  line-height: 1.2;
+  line-height: 1.1;
 }
 
 .card-header-meta {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--bbg-muted);
   font-family: var(--font-mono);
+  line-height: 1.1;
 }
 
 .card-header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .card-body {
-  padding: 12px;
+  padding: 8px 12px 12px;
 }
 
 .portfolio-panel.panel {
@@ -2739,7 +2750,7 @@ input:focus {
 }
 
 .portfolio-block {
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 
 .briefing-card .card-body {
@@ -2757,7 +2768,7 @@ input:focus {
 
 /* 总持仓 + 行业分布 */
 .portfolio-sector-card .card-body {
-  padding: 12px;
+  padding: 8px 12px 12px;
 }
 
 .portfolio-sector-grid {
@@ -3098,10 +3109,9 @@ input:focus {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-top: 16px;
-  padding: 12px;
-  border-top: 1px solid var(--bbg-border);
-  background: var(--bbg-panel-2);
+  margin-top: 12px;
+  padding: 8px 0 0;
+  background: transparent;
 }
 
 .ai-bottom-entry .ai-chat-trigger {

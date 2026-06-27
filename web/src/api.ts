@@ -1,4 +1,4 @@
-import { analysisBodyField } from "./analysisSettings";
+import { chatBodyField } from "./modeSettings";
 import { dataSourceRequestHeaders } from "./dataSourceSettings";
 import {
   llmBodyField,
@@ -174,10 +174,19 @@ export type StreamEvent = AgentStreamEvent;
 
 export type ExecutionPreference = "react" | "plan_execute" | "preset" | "auto";
 
+export interface ChatUserContextPayload {
+  kind: "portfolio" | "risk" | "market" | "news" | "daily_scan" | "stock" | "report";
+  label: string;
+  detail?: string;
+  symbol?: string;
+  metadata?: Record<string, string>;
+}
+
 export interface ChatStreamOptions {
   confirmedSymbol?: string;
   confirmedName?: string;
   executionPreference?: ExecutionPreference;
+  userContext?: ChatUserContextPayload | null;
 }
 
 export const api = {
@@ -204,10 +213,11 @@ export const api = {
       body: JSON.stringify({
         message,
         session_id: sessionId,
+        user_context: options?.userContext ?? undefined,
         confirmed_symbol: options?.confirmedSymbol,
         confirmed_name: options?.confirmedName,
         execution_preference: options?.executionPreference,
-        ...analysisBodyField(),
+        ...chatBodyField(),
         ...llmBodyField(),
       }),
     }),
@@ -224,10 +234,11 @@ export const api = {
       body: {
         message,
         session_id: sessionId,
+        user_context: options?.userContext ?? undefined,
         confirmed_symbol: options?.confirmedSymbol,
         confirmed_name: options?.confirmedName,
         execution_preference: options?.executionPreference,
-        ...analysisBodyField(),
+        ...chatBodyField(),
         ...llmBodyField(),
       },
       onEvent,
@@ -272,7 +283,7 @@ export const api = {
       "/risk/checkup",
       {
         method: "POST",
-        body: JSON.stringify({ ...analysisBodyField() }),
+        body: JSON.stringify({ ...chatBodyField() }),
       },
       120_000,
     ),
@@ -287,7 +298,7 @@ export const api = {
         body: JSON.stringify({
           risk_tolerance: riskTolerance,
           monthly_income: monthlyIncome,
-          ...analysisBodyField(),
+          ...chatBodyField(),
         }),
       },
       60_000,
@@ -307,11 +318,14 @@ export const api = {
   signalBacktest: () => request<SignalBacktest>("/research/signal-backtest"),
   searchMemory: (q: string) =>
     request<MemorySearchResult>(`/research/memory/search?q=${encodeURIComponent(q)}`),
-  generateBriefing: (kind: "morning" | "closing") =>
-    requestWithLlm<Briefing>(`/briefing/generate?kind=${kind}`, { method: "POST" }),
-  latestBriefing: (kind: "morning" | "closing") =>
+  generateBriefing: (kind: "intraday" | "postmarket") =>
+    requestWithLlm<Briefing>(`/briefing/generate?kind=${kind}`, {
+      method: "POST",
+      body: JSON.stringify(chatBodyField()),
+    }),
+  latestBriefing: (kind: "intraday" | "postmarket") =>
     request<Briefing | null>(`/briefing/latest?kind=${kind}`),
-  briefingHistory: (kind: "morning" | "closing" | "all" = "all", limit = 10) =>
+  briefingHistory: (kind: "intraday" | "postmarket" | "all" = "all", limit = 10) =>
     request<Briefing[]>(`/briefing/history?kind=${kind}&limit=${limit}`),
   briefingSchedule: () => request<BriefingSchedule>("/briefing/schedule"),
   setBriefingSchedule: (enabled: boolean) =>
@@ -730,7 +744,7 @@ export interface BriefingSection {
 }
 
 export interface Briefing {
-  kind: "morning" | "closing";
+  kind: "intraday" | "postmarket";
   title: string;
   sections: BriefingSection[];
   summary: string;

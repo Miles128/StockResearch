@@ -40,11 +40,11 @@ export function MarketTicker({
             onClick={() => onIndexClick(label)}
             title={label}
           >
-            <div className="ticker-name">{label}</div>
-            <div className="ticker-price mono">{formatPrice(idx.price)}</div>
-            <div className={`ticker-change mono ${signedClass(idx.change_pct)}`}>
+            <span className="ticker-name">{label}</span>
+            <span className="ticker-price mono">{formatPrice(idx.price)}</span>
+            <span className={`ticker-change mono ${signedClass(idx.change_pct)}`}>
               {formatSignedPct(idx.change_pct)}
-            </div>
+            </span>
           </button>
           );
         })}

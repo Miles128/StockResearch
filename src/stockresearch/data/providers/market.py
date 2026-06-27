@@ -7,6 +7,7 @@ from typing import Any, cast
 
 import akshare as ak  # type: ignore[import-untyped]
 
+from stockresearch.core.config import get_settings
 from stockresearch.core.exceptions import DataProviderError
 from stockresearch.data.providers.akshare_quote import fetch_akshare_hist_quotes
 from stockresearch.data.providers.base import run_async_fetch, run_sync_fetch
@@ -554,7 +555,7 @@ class ChipsDataProvider:
         )
 
     async def get_northbound_flow(self, symbol: str) -> dict[str, float | str]:
-        if get_settings().use_mock_market_data:
+        if getattr(get_settings(), "use_mock_market_data", False):
             return {
                 "hold_pct": 6.5,
                 "net_change_shares": 39399.0,
@@ -585,7 +586,7 @@ class ChipsDataProvider:
         return result
 
     async def get_margin_trading(self, symbol: str) -> dict[str, float | str]:
-        if get_settings().use_mock_market_data:
+        if getattr(get_settings(), "use_mock_market_data", False):
             return {
                 "financing_balance": 2.07e10,
                 "securities_balance": 1.71e7,

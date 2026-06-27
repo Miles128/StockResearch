@@ -18,9 +18,11 @@ from stockresearch.core.constants import (
     SEVERITY_WARNING,
     SEVERITY_YELLOW,
 )
+from stockresearch.agents.master_commentary.registry import resolve_master_ids
 from stockresearch.core.schemas import (
     LLMRiskAnalysis,
     MasterCommentaryItem,
+    ModeSettingsOut,
     PortfolioMetricsOut,
     RiskAlertOut,
     RiskCheckupOut,
@@ -188,6 +190,8 @@ async def run_risk_checkup(
     llm: LLMClient | None = None,
     *,
     enable_master_commentary: bool = False,
+    mode_settings: ModeSettingsOut | None = None,
+    master_ids: list[str] | None = None,
 ) -> RiskCheckupOut:
     client = llm or get_llm_client()
     quote_provider = QuoteProvider()
@@ -302,10 +306,15 @@ async def run_risk_checkup(
         metrics=metrics_out,
         var_result=var_out,
     )
-    if enable_master_commentary:
+    if enable_master_commentary and mode_settings is not None:
+        masters = master_ids or resolve_master_ids(mode_settings)
         commentary_context = build_risk_context(result)
         commentary = await get_master_commentary(
-            client, subject="组合风险分析", context=commentary_context
+            client,
+            subject="组合风险分析",
+            context=commentary_context,
+            settings=mode_settings,
+            masters=masters,
         )
         result.master_commentary = [
             MasterCommentaryItem.model_validate(item) for item in commentary

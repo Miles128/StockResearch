@@ -102,7 +102,6 @@ def is_finance_related(message: str) -> bool:
 def needs_execution_choice(
     message: str,
     *,
-    analysis_mode: str | None = None,
     execution_preference: str | None = None,
     confirmed_symbol: str | None = None,
 ) -> bool:
@@ -112,7 +111,7 @@ def needs_execution_choice(
     resolve_mode_with_preference() — no manual picker needed.
     The route_choice UI flow is intentionally disabled.
     """
-    _ = (message, analysis_mode, execution_preference, confirmed_symbol)
+    _ = (message, execution_preference, confirmed_symbol)
     return False
 
 
@@ -142,7 +141,6 @@ def resolve_mode_with_preference(
     message: str,
     execution_preference: str | None,
     *,
-    analysis_mode: str | None = None,
     enable_debate: bool = False,
 ) -> tuple[str, bool]:
     """Return (execution_mode, finance_tools_allowed)."""
@@ -156,11 +154,7 @@ def resolve_mode_with_preference(
     if pref == "preset":
         return resolve_preset_mode(message, enable_debate=enable_debate), True
 
-    return resolve_execution_mode(
-        message,
-        analysis_mode,
-        enable_debate=enable_debate,
-    ), True
+    return resolve_execution_mode(message, enable_debate=enable_debate), True
 
 
 def build_route_proposal(message: str, *, enable_debate: bool = False) -> RouteProposal:

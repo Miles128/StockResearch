@@ -14,10 +14,12 @@ from stockresearch.agents.research.react import (
 from stockresearch.agents.master_commentary.context import build_research_context
 from stockresearch.agents.master_commentary.stream import get_master_commentary
 from stockresearch.agents.research.report_builder import build_research_report
+from stockresearch.agents.master_commentary.registry import resolve_master_ids
 from stockresearch.core.schemas import (
     DebateResult,
     DimensionResult,
     MasterCommentaryItem,
+    ModeSettingsOut,
     ResearchReportOut,
 )
 from stockresearch.services.text_factor import build_news_text_factor, fetch_symbol_news_snippets
@@ -92,6 +94,8 @@ async def run_research(
     *,
     with_debate: bool = True,
     enable_master_commentary: bool = False,
+    mode_settings: ModeSettingsOut | None = None,
+    master_ids: list[str] | None = None,
 ) -> ResearchReportOut:
     client = llm or get_llm_client()
     ctx = ResearchContext(symbol=symbol, llm=client)
@@ -122,11 +126,14 @@ async def run_research(
         news_text_factor=news_text_factor,
     )
 
-    if enable_master_commentary:
+    if enable_master_commentary and mode_settings is not None:
+        masters = master_ids or resolve_master_ids(mode_settings)
         commentary = await get_master_commentary(
             client,
             subject=f"{name}({symbol})",
             context=build_research_context(report),
+            settings=mode_settings,
+            masters=masters,
         )
         report.master_commentary = [
             MasterCommentaryItem.model_validate(item) for item in commentary

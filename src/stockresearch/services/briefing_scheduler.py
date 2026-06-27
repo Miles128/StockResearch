@@ -1,4 +1,4 @@
-"""Scheduled morning/closing briefing generation."""
+"""Scheduled intraday/postmarket briefing generation."""
 
 import logging
 from datetime import date, datetime, time
@@ -9,20 +9,24 @@ from sqlalchemy.orm import Session
 
 from stockresearch.db.models import BriefingRecord, User
 from stockresearch.db.session import SessionLocal
-from stockresearch.services.briefing import generate_briefing
+from stockresearch.services.briefing import (
+    briefing_kind_aliases,
+    generate_briefing,
+    normalize_briefing_kind,
+)
 from stockresearch.services.trading_calendar import is_a_share_trading_day
 from stockresearch.utils.llm import LLMClient
 
 logger = logging.getLogger(__name__)
 
-_MORNING_HOUR = 9
-_MORNING_MINUTE = 0
-_CLOSING_HOUR = 15
-_CLOSING_MINUTE = 30
+_INTRADAY_HOUR = 11
+_INTRADAY_MINUTE = 35
+_POSTMARKET_HOUR = 15
+_POSTMARKET_MINUTE = 35
 
 
 class BriefingScheduler:
-    """Cron scheduler that auto-generates morning and closing briefings."""
+    """Cron scheduler that auto-generates intraday and postmarket briefings."""
 
     def __init__(self) -> None:
         self._scheduler: AsyncIOScheduler | None = None
@@ -34,26 +38,26 @@ class BriefingScheduler:
             return
         self._scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
         self._scheduler.add_job(
-            self._generate_morning,
+            self._generate_intraday,
             trigger=CronTrigger(
-                hour=_MORNING_HOUR,
-                minute=_MORNING_MINUTE,
+                hour=_INTRADAY_HOUR,
+                minute=_INTRADAY_MINUTE,
                 day_of_week="mon-fri",
             ),
-            id="briefing-morning",
+            id="briefing-intraday",
             replace_existing=True,
         )
         self._scheduler.add_job(
-            self._generate_closing,
+            self._generate_postmarket,
             trigger=CronTrigger(
-                hour=_CLOSING_HOUR,
-                minute=_CLOSING_MINUTE,
+                hour=_POSTMARKET_HOUR,
+                minute=_POSTMARKET_MINUTE,
                 day_of_week="mon-fri",
             ),
-            id="briefing-closing",
+            id="briefing-postmarket",
             replace_existing=True,
         )
-        self._job_ids = {"briefing-morning", "briefing-closing"}
+        self._job_ids = {"briefing-intraday", "briefing-postmarket"}
         self._scheduler.start()
         logger.info("Briefing scheduler started (enabled=%s)", self.enabled)
 
@@ -79,11 +83,11 @@ class BriefingScheduler:
                     self._scheduler.pause_job(job_id)
         logger.info("Briefing scheduler enabled set to %s", enabled)
 
-    async def _generate_morning(self) -> None:
-        await self._generate_if_trading_day("morning")
+    async def _generate_intraday(self) -> None:
+        await self._generate_if_trading_day("intraday")
 
-    async def _generate_closing(self) -> None:
-        await self._generate_if_trading_day("closing")
+    async def _generate_postmarket(self) -> None:
+        await self._generate_if_trading_day("postmarket")
 
     async def _generate_if_trading_day(self, kind: str) -> None:
         if not self.enabled:
@@ -117,31 +121,33 @@ class BriefingScheduler:
             db.close()
 
     async def _generate_for_user(self, db: Session, user_id: int, kind: str) -> None:
+        normalized = normalize_briefing_kind(kind)
         today = date.today()
         start = datetime.combine(today, time.min)
         end = datetime.combine(today, time.max)
+        aliases = briefing_kind_aliases(normalized)
         existing = (
             db.query(BriefingRecord)
             .filter(
                 BriefingRecord.user_id == user_id,
-                BriefingRecord.kind == kind,
+                BriefingRecord.kind.in_(aliases),
                 BriefingRecord.generated_at >= start,
                 BriefingRecord.generated_at <= end,
             )
             .first()
         )
         if existing is not None:
-            logger.info("%s briefing already exists for user %s today", kind, user_id)
+            logger.info("%s briefing already exists for user %s today", normalized, user_id)
             return
 
-        logger.info("Generating %s briefing for user %s", kind, user_id)
-        briefing = await generate_briefing(db, user_id, kind, llm=LLMClient())
+        logger.info("Generating %s briefing for user %s", normalized, user_id)
+        briefing = await generate_briefing(db, user_id, normalized, llm=LLMClient())
         generated_at = briefing.generated_at
         if generated_at.tzinfo:
             generated_at = generated_at.replace(tzinfo=None)
         record = BriefingRecord(
             user_id=user_id,
-            kind=kind,
+            kind=normalized,
             title=briefing.title,
             summary=briefing.summary,
             sections=[{"title": s.title, "content": s.content} for s in briefing.sections],
@@ -149,7 +155,7 @@ class BriefingScheduler:
         )
         db.add(record)
         db.commit()
-        logger.info("Saved %s briefing for user %s", kind, user_id)
+        logger.info("Saved %s briefing for user %s", normalized, user_id)
 
 
 scheduler = BriefingScheduler()

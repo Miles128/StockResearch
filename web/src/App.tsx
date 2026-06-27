@@ -14,6 +14,7 @@ import {
   SectorPreferences,
 } from "./api";
 import type { CopilotContext, Message, Tab } from "./appTypes";
+import { copilotContextToPayload } from "./chatContext";
 import { ChatPanel } from "./ChatPanel";
 import { CopilotPanel, type CopilotLayout } from "./CopilotPanel";
 import { DailyScanPanel } from "./DailyScanPanel";
@@ -33,6 +34,7 @@ import { SettingsPanel } from "./SettingsPanel";
 import { stripDisclaimer } from "./disclaimerText";
 import { applyStreamEvent, emptyStreamState } from "./streamEvents";
 import { normalizeStreamEvent } from "./streamI18n";
+import { formatBriefingMarkdown, localizeBriefing } from "./uiLabels";
 import { ModeSwitcher } from "./ModeSwitcher";
 import { Onboarding } from "./Onboarding";
 import { AssetAllocationPanel } from "./AssetAllocationPanel";
@@ -392,12 +394,13 @@ export default function App() {
     setChatStream(emptyStreamState());
     let processSnapshot = emptyStreamState();
     const activeContext = contextOverride === undefined ? pageContext : contextOverride;
-    const requestQuery = activeContext
-      ? `${query}\n\n[当前画布上下文：${activeContext.label}${activeContext.detail ? `；${activeContext.detail}` : ""}]`
-      : query;
+    const chatOptions: ChatStreamOptions = {
+      ...options,
+      userContext: activeContext ? copilotContextToPayload(activeContext) : null,
+    };
     try {
       const resp = await api.chatStream(
-        requestQuery,
+        query,
         sessionId,
         (event: AgentStreamEvent) => {
           if (
@@ -417,7 +420,7 @@ export default function App() {
             setStatusMsg(normalized.message);
           }
         },
-        options,
+        chatOptions,
       );
       if (resp) {
         setSessionId(resp.session_id);
@@ -448,7 +451,7 @@ export default function App() {
     } catch {
       try {
         setStatusMsg(t("chat.streamFailed"));
-        const resp = await api.chat(requestQuery, sessionId, options);
+        const resp = await api.chat(query, sessionId, chatOptions);
         setSessionId(resp.session_id);
         setMessages((m) => [
           ...m,
@@ -505,10 +508,41 @@ export default function App() {
     setInput(t("chat.exampleMarketQuery"));
   }
 
-  function askCopilot(query: string, context: CopilotContext) {
+  function askCopilot(
+    query: string,
+    context: CopilotContext,
+    options?: { briefingKind?: "intraday" | "postmarket" },
+  ) {
     setPageContext(context);
     setCopilotOpen(true);
+    if (options?.briefingKind) {
+      void runBriefingInCopilot(query, options.briefingKind);
+      return;
+    }
+    if (!query.trim()) return;
     startChatQuery(query, { context });
+  }
+
+  async function runBriefingInCopilot(userLabel: string, kind: "intraday" | "postmarket") {
+    if (chatLoading) return;
+    setInput("");
+    setChatStream(emptyStreamState());
+    setMessages((m) => [...m, { role: "user", content: userLabel }]);
+    setChatLoading(true);
+    setStatusMsg(t("portfolio.briefingLoading"));
+    try {
+      const raw = await api.generateBriefing(kind);
+      const briefing = localizeBriefing(raw, t);
+      setMessages((m) => [
+        ...m,
+        { role: "assistant", content: formatBriefingMarkdown(briefing) },
+      ]);
+    } catch (e) {
+      setMessages((m) => [...m, { role: "assistant", content: `Error: ${String(e)}` }]);
+    } finally {
+      setChatLoading(false);
+      setStatusMsg("");
+    }
   }
 
   function newCopilotThread() {
@@ -776,14 +810,15 @@ export default function App() {
                 portfolioSummary={portfolioSummary}
                 sectorMix={sectorMix}
                 numLocale={numLocale}
+                chatLoading={chatLoading}
                 onLoadHoldings={() => void loadHoldings()}
                 onDeleteHolding={(id) => void deleteHolding(id)}
                 onAnalyzeHolding={analyzeHolding}
-                onAskCopilot={(query) =>
+                onAskCopilot={(query, options) =>
                   askCopilot(query, {
                     kind: "portfolio",
                     label: locale === "zh" ? "我的持仓" : "My holdings",
-                  })
+                  }, options)
                 }
               />
             </>
@@ -843,11 +878,7 @@ export default function App() {
         <CopilotPanel
           open={copilotOpen}
           threadTitle={messages.find((message) => message.role === "user")?.content || ""}
-          userContext={t("chat.holdingsContext", {
-            n: String(holdings.length),
-            mode: t(`mode.${modeSettings.mode}`),
-          })}
-          pageContext={pageContext}
+          userContext={pageContext}
           layout={copilotLayout}
           onClose={() => setCopilotOpen(false)}
           onNewThread={newCopilotThread}

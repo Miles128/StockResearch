@@ -7,8 +7,7 @@ export type CopilotLayout = "horizontal" | "vertical";
 interface CopilotPanelProps {
   open: boolean;
   threadTitle: string;
-  userContext: string;
-  pageContext: CopilotContext | null;
+  userContext: CopilotContext | null;
   layout: CopilotLayout;
   children: ReactNode;
   onClose: () => void;
@@ -22,7 +21,6 @@ export function CopilotPanel({
   open,
   threadTitle,
   userContext,
-  pageContext,
   layout,
   children,
   onClose,
@@ -74,23 +72,17 @@ export function CopilotPanel({
           </button>
         </div>
       </div>
-      <div className="copilot-contexts">
-        <div className="copilot-context-row">
-          <span>{t("chat.userContext")}</span>
-          <strong>{userContext}</strong>
-        </div>
-        <div className="copilot-context-row">
-          <span>{t("chat.pageContext")}</span>
-          {pageContext ? (
+      {userContext ? (
+        <div className="copilot-contexts">
+          <div className="copilot-context-row">
+            <span>{t("chat.userContext")}</span>
             <button type="button" className="context-chip active" onClick={onRemoveContext}>
-              {pageContext.label} <span>×</span>
+              {userContext.label} <span>×</span>
             </button>
-          ) : (
-            <span className="muted">{t("chat.noPageContext")}</span>
-          )}
+          </div>
+          <p className="copilot-context-notice">{t("chat.contextNotice")}</p>
         </div>
-        <p className="copilot-context-notice">{t("chat.contextNotice")}</p>
-      </div>
+      ) : null}
       <div className="copilot-content">{children}</div>
     </aside>
   );

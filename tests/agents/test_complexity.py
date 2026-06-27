@@ -1,7 +1,6 @@
 """Query complexity routing tests."""
 
 from stockresearch.agents.orchestrator.complexity import (
-    ANALYSIS_SIMPLE,
     ComplexityResult,
     classify_query,
     classify_research_scope,
@@ -53,7 +52,6 @@ def test_a_share_spaced_query_routes_to_market_debate() -> None:
 
 
 def test_resolve_execution_mode() -> None:
-    assert resolve_execution_mode("今天大盘行情", ANALYSIS_SIMPLE) == ComplexityResult.DIRECT
     assert (
         resolve_execution_mode("今天大盘行情", enable_debate=False)
         == ComplexityResult.MARKET_RESEARCH
@@ -70,4 +68,3 @@ def test_resolve_execution_mode() -> None:
         resolve_execution_mode("帮我分析一下600519", enable_debate=False)
         == ComplexityResult.RESEARCH
     )
-    assert resolve_execution_mode("600519 深度分析", ANALYSIS_SIMPLE) == ComplexityResult.DIRECT

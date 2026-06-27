@@ -29,11 +29,12 @@ export function ActionCenter({ onNavigate, onChatQuery }: ActionCenterProps) {
       .finally(() => setLoading(false));
   }, []);
 
-  function renderHeader(extra?: React.ReactNode) {
+  function renderHeader(summary?: string, extra?: React.ReactNode) {
     return (
       <div className="action-center-header card-header" onClick={() => setCollapsed((c) => !c)} role="button" tabIndex={0}>
         <span className="card-header-title">{t("actionCenter.title")}</span>
         <span className="action-center-header-right">
+          {summary ? <span className="action-center-summary-inline">{summary}</span> : null}
           {extra}
           <span className={`action-center-chevron ${collapsed ? "collapsed" : ""}`}>▾</span>
         </span>
@@ -44,7 +45,7 @@ export function ActionCenter({ onNavigate, onChatQuery }: ActionCenterProps) {
   if (loading && !data) {
     return (
     <div className={`action-center${collapsed ? " collapsed" : ""}`}>
-      {renderHeader(<span className="action-center-loading">{t("actionCenter.loading")}</span>)}
+      {renderHeader(undefined, <span className="action-center-loading">{t("actionCenter.loading")}</span>)}
       </div>
     );
   }
@@ -52,8 +53,7 @@ export function ActionCenter({ onNavigate, onChatQuery }: ActionCenterProps) {
   if (!data || data.signals.length === 0) {
     return (
       <div className={`action-center${collapsed ? " collapsed" : ""}`}>
-        {renderHeader()}
-        {!collapsed && <div className="action-center-empty">{data?.summary || t("actionCenter.empty")}</div>}
+        {renderHeader(data?.summary || t("actionCenter.empty"))}
       </div>
     );
   }
@@ -71,32 +71,30 @@ export function ActionCenter({ onNavigate, onChatQuery }: ActionCenterProps) {
   return (
     <div className={`action-center${collapsed ? " collapsed" : ""}`}>
       {renderHeader(
+        data.summary,
         <span className="action-center-count">
           {t("actionCenter.signalCount", { n: String(data.signals.length) })}
-        </span>
+        </span>,
       )}
       {!collapsed && (
-        <>
-          <div className="action-center-signals">
-            {data.signals.map((signal, i) => (
-              <div
-                key={i}
-                className={`action-signal-card action-signal-${signal.severity}`}
-                onClick={() => handleSignalClick(signal)}
-                role="button"
-                tabIndex={0}
-              >
-                <div className="signal-card-header">
-                  <span className="signal-icon">{signalIcon(signal.type, signal.severity)}</span>
-                  <span className="signal-title">{signal.title}</span>
-                </div>
-                {signal.detail && <p className="signal-detail">{signal.detail}</p>}
-                {signal.action && <span className="signal-action">{signal.action}</span>}
+        <div className="action-center-signals">
+          {data.signals.map((signal, i) => (
+            <div
+              key={i}
+              className={`action-signal-card action-signal-${signal.severity}`}
+              onClick={() => handleSignalClick(signal)}
+              role="button"
+              tabIndex={0}
+            >
+              <div className="signal-card-header">
+                <span className="signal-icon">{signalIcon(signal.type, signal.severity)}</span>
+                <span className="signal-title">{signal.title}</span>
               </div>
-            ))}
-          </div>
-          <div className="action-center-summary">{data.summary}</div>
-        </>
+              {signal.detail && <p className="signal-detail">{signal.detail}</p>}
+              {signal.action && <span className="signal-action">{signal.action}</span>}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
