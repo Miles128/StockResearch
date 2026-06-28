@@ -399,11 +399,21 @@ class CustomMasterOut(BaseModel):
     system_prompt: str = Field(min_length=10, max_length=4000)
 
 
+class CustomGlossaryTermOut(BaseModel):
+    id: str = Field(min_length=1, max_length=32)
+    short: str = Field(min_length=1, max_length=50)
+    def_: str = Field(min_length=1, max_length=500, serialization_alias="def")
+    analogy: str = Field(default="", max_length=300)
+    en: str = Field(default="", max_length=100)
+
+    model_config = {"populate_by_name": True}
+
+
 class ModeSettingsOut(BaseModel):
     mode: Literal["advisor", "research"] = "advisor"
     risk_tolerance: Literal["conservative", "moderate", "aggressive"] = "moderate"
     monthly_income: float | None = Field(default=None, gt=0)
-    reading_mode: Literal["professional", "friendly"] = "friendly"
+    reading_mode: Literal["friendly", "standard", "professional"] = "friendly"
     enable_debate: bool = False
     enable_glossary: bool = True
     max_signals: int = Field(default=5, ge=1, le=50)
@@ -413,6 +423,8 @@ class ModeSettingsOut(BaseModel):
         default_factory=lambda: ["buffett", "munger", "burry"]
     )
     custom_masters: list[CustomMasterOut] = Field(default_factory=list)
+    custom_glossary: list[CustomGlossaryTermOut] = Field(default_factory=list)
+    quote_refresh_minutes: int = Field(default=10, ge=1, le=120)
 
 
 class ModeSettingsUpdate(ModeSettingsOut):
@@ -425,7 +437,7 @@ class LlmTestOut(BaseModel):
 
 
 class RiskCheckupRequest(BaseModel):
-    reading_mode: Literal["professional", "friendly"] | None = None
+    reading_mode: Literal["friendly", "standard", "professional"] | None = None
     output_locale: Literal["zh", "en"] | None = None
     enable_master_commentary: bool | None = None
 
@@ -448,7 +460,7 @@ class ChatRequest(BaseModel):
     enable_debate: bool | None = None
     enable_master_commentary: bool | None = None
     enable_glossary: bool | None = None
-    reading_mode: Literal["professional", "friendly"] | None = None
+    reading_mode: Literal["friendly", "standard", "professional"] | None = None
     output_locale: Literal["zh", "en"] | None = None
     confirmed_symbol: str | None = Field(
         default=None, min_length=6, max_length=6, pattern=r"^\d{6}$"
@@ -604,7 +616,7 @@ class BriefingSection(BaseModel):
 
 
 class BriefingGenerateRequest(BaseModel):
-    reading_mode: Literal["professional", "friendly"] | None = None
+    reading_mode: Literal["friendly", "standard", "professional"] | None = None
     output_locale: Literal["zh", "en"] | None = None
 
 
@@ -754,7 +766,7 @@ class AssetAllocationRequest(BaseModel):
 
     risk_tolerance: Literal["conservative", "moderate", "aggressive"]
     monthly_income: float | None = Field(default=None, gt=0, description="月收入（元），用于现金流换算")
-    reading_mode: Literal["professional", "friendly"] | None = None
+    reading_mode: Literal["friendly", "standard", "professional"] | None = None
     output_locale: Literal["zh", "en"] | None = None
 
 

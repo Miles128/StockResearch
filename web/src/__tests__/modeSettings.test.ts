@@ -19,7 +19,9 @@ describe("modeSettings API conversion", () => {
       enableMasterCommentary: true,
       selectedMasters: ["buffett", "munger"],
       customMasters: [{ id: "dalio", name: "Dalio", systemPrompt: "Macro cycles and risk parity." }],
+      customGlossary: [{ id: "测试术语", short: "测试术语", def: "用于单测的自定义词条" }],
       holdingsView: "table",
+      quoteRefreshMinutes: 10,
     };
 
     expect(modeSettingsToApiPayload(settings)).toEqual({
@@ -34,6 +36,8 @@ describe("modeSettings API conversion", () => {
       enable_master_commentary: true,
       selected_masters: ["buffett", "munger"],
       custom_masters: [{ id: "dalio", name: "Dalio", system_prompt: "Macro cycles and risk parity." }],
+      custom_glossary: [{ id: "测试术语", short: "测试术语", def: "用于单测的自定义词条", analogy: "", en: "" }],
+      quote_refresh_minutes: 10,
     });
   });
 
@@ -51,6 +55,8 @@ describe("modeSettings API conversion", () => {
         enable_master_commentary: false,
         selected_masters: ["burry"],
         custom_masters: [],
+        custom_glossary: [],
+        quote_refresh_minutes: 20,
       }),
     ).toEqual({
       mode: "research",
@@ -64,7 +70,9 @@ describe("modeSettings API conversion", () => {
       enableMasterCommentary: false,
       selectedMasters: ["burry"],
       customMasters: [],
+      customGlossary: [],
       holdingsView: "table",
+      quoteRefreshMinutes: 20,
     });
   });
 });

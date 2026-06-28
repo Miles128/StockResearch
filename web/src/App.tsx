@@ -35,6 +35,7 @@ import { PortfolioPanel } from "./PortfolioPanel";
 import { RiskPanel } from "./RiskPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { stripDisclaimer } from "./disclaimerText";
+import { hasProcessContent } from "./ProcessTrail";
 import { seedGlossaryCache } from "./TermPopover";
 import { applyStreamEvent, emptyStreamState } from "./streamEvents";
 import { normalizeStreamEvent } from "./streamI18n";
@@ -47,6 +48,7 @@ import {
   loadModeSettings,
   modeSettingsFromApiPayload,
   modeSettingsToApiPayload,
+  READING_MODE_I18N_KEYS,
   saveModeSettings,
   switchMode,
   type AppMode,
@@ -233,6 +235,15 @@ export default function App() {
     void api.saveModeSettings(modeSettingsToApiPayload(next)).catch(() => {
       // localStorage remains the startup cache if the API is temporarily unavailable.
     });
+    void api
+      .glossary()
+      .then((list) => {
+        const map: Record<string, GlossaryTerm> = {};
+        for (const item of list) map[item.id] = item;
+        seedGlossaryCache(map);
+        setGlossary(map);
+      })
+      .catch(() => {});
   }
 
   function handleSwitchMode(mode: AppMode) {
@@ -435,6 +446,7 @@ export default function App() {
           intent: resp.intent,
           followUpQuestions: resp.follow_up_questions ?? [],
           llmUsage: resp.llm_usage ?? null,
+          process: hasProcessContent(processSnapshot) ? processSnapshot : undefined,
         };
         appendMessages((m) => [...m, assistantMsg]);
       }
@@ -656,7 +668,7 @@ export default function App() {
 
   return (
     <GlossaryProvider
-      enabled={modeSettings.mode === "advisor" && modeSettings.enableGlossary}
+      enabled={modeSettings.enableGlossary}
       terms={glossary}
     >
     <div className="app-shell" data-mode={modeSettings.mode}>
@@ -698,10 +710,13 @@ export default function App() {
           <span className="terminal-clock">{clock}</span>
           <button
             type="button"
-            className="btn btn-ghost btn-sm"
+            className="btn btn-ghost btn-sm settings-trigger-btn"
+            title={t("settings.readingModeCurrent", {
+              reading: t(READING_MODE_I18N_KEYS[modeSettings.readingMode].short),
+            })}
             onClick={() => setSetupOpen(true)}
           >
-            {t("header.settings")}
+            {t("header.settings")} · {t(READING_MODE_I18N_KEYS[modeSettings.readingMode].short)}
           </button>
           <button
             type="button"

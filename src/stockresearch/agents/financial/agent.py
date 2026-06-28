@@ -1,9 +1,12 @@
 """Financial ratio analysis agent — PE/PB/ROE/margins/trends for A-share stocks."""
 
+import json
 import logging
 from typing import Any
 
 from stockresearch.data.providers.market import QuoteProvider
+from stockresearch.services.provider_cache_policy import provider_ttl
+from stockresearch.services.sqlite_cache import get_sqlite_cached, set_sqlite_cached
 from stockresearch.utils.llm import LLMClient
 
 logger = logging.getLogger(__name__)
@@ -24,8 +27,14 @@ _SYSTEM_PROMPT = """你是财报比率分析 Agent。根据提供的财务数据
 class FinancialRatioAgent:
     """Fetch financial data and compute key ratios for a stock."""
 
-    def __init__(self, llm: LLMClient | None = None) -> None:
+    def __init__(
+        self,
+        llm: LLMClient | None = None,
+        *,
+        quote_cache_ttl_seconds: int | None = None,
+    ) -> None:
         self._llm = llm
+        self._quote_cache_ttl = quote_cache_ttl_seconds
 
     async def run(self, symbol: str, name: str = "") -> dict[str, Any]:
         """Run financial ratio analysis.
@@ -69,6 +78,26 @@ class FinancialRatioAgent:
 
     async def _fetch_financial_data(self, symbol: str) -> dict[str, Any]:
         """Fetch financial data from AkShare (stock_financial_abstract_ths)."""
+        cache_key = f"financial:abstract_ths:{symbol}"
+        ttl = provider_ttl("akshare_financials")
+        cached = get_sqlite_cached(cache_key)
+        if cached is not None:
+            data = json.loads(json.dumps(cached))
+            try:
+                provider = QuoteProvider()
+                quote = await provider.get_quote(
+                    symbol,
+                    cache_ttl_seconds=self._quote_cache_ttl,
+                )
+                data["price"] = quote.price
+                if data.get("eps") and data["eps"] > 0:
+                    data["pe"] = round(data["price"] / data["eps"], 2)
+                if data.get("bvps") and data["bvps"] > 0:
+                    data["pb"] = round(data["price"] / data["bvps"], 2)
+            except Exception:
+                pass
+            return data
+
         data: dict[str, Any] = {
             "symbol": symbol,
             "pe": None,
@@ -94,7 +123,10 @@ class FinancialRatioAgent:
         # Get current price for PE/PB calculation
         try:
             provider = QuoteProvider()
-            quote = await provider.get_quote(symbol)
+            quote = await provider.get_quote(
+                symbol,
+                cache_ttl_seconds=self._quote_cache_ttl,
+            )
             data["price"] = quote.price
         except Exception:
             pass
@@ -208,6 +240,8 @@ class FinancialRatioAgent:
         except Exception as exc:
             logger.warning("Financial data fetch failed for %s: %s", symbol, exc)
 
+        if data.get("roe") is not None or data.get("eps") is not None:
+            set_sqlite_cached(cache_key, json.loads(json.dumps(data)), ttl)
         return data
 
     def _compute_ratios(

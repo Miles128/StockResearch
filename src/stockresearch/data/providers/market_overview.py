@@ -10,6 +10,8 @@ from stockresearch.core.schemas import IndexQuoteOut, MarketOverviewOut, StockQu
 from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.data.providers.sina_index import fetch_sina_indices
 from stockresearch.data.registry import get_symbol_source, record_overview_fetch
+from stockresearch.services.provider_cache_policy import DEFAULT_QUOTE_CACHE_TTL_SECONDS
+from stockresearch.services.sqlite_cache import get_sqlite_cached, set_sqlite_cached
 from stockresearch.services.stock_sector import resolve_stock_sector
 from stockresearch.utils.symbols import resolve_name
 
@@ -21,7 +23,29 @@ _OVERVIEW_TIMEOUT_SEC = 8.0
 
 
 class MarketOverviewProvider:
-    async def get_overview(self) -> MarketOverviewOut:
+    async def get_overview(
+        self,
+        *,
+        cache_ttl_seconds: int | None = None,
+    ) -> MarketOverviewOut:
+        ttl = cache_ttl_seconds or DEFAULT_QUOTE_CACHE_TTL_SECONDS
+        cached = get_sqlite_cached("market:overview")
+        if cached is not None:
+            try:
+                return MarketOverviewOut.model_validate(cached)
+            except Exception:
+                pass
+
+        overview = await self._fetch_live_overview()
+        if overview.data_status != "unavailable" and overview.indices:
+            set_sqlite_cached(
+                "market:overview",
+                overview.model_dump(mode="json"),
+                ttl,
+            )
+        return overview
+
+    async def _fetch_live_overview(self) -> MarketOverviewOut:
         try:
             overview = await asyncio.wait_for(
                 asyncio.to_thread(self._fetch_sina_overview),

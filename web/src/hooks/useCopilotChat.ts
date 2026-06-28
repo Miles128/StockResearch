@@ -8,6 +8,7 @@ import {
 import type { CopilotContext, Message } from "../appTypes";
 import { copilotContextToPayload } from "../chatContext";
 import { stripDisclaimer } from "../disclaimerText";
+import { hasProcessContent } from "../ProcessTrail";
 import { useI18n } from "../i18n";
 import { applyStreamEvent, emptyStreamState } from "../streamEvents";
 import { normalizeStreamEvent } from "../streamI18n";
@@ -107,6 +108,7 @@ export function useCopilotChat({
               intent: resp.intent,
               followUpQuestions: resp.follow_up_questions ?? [],
               llmUsage: resp.llm_usage ?? null,
+              process: hasProcessContent(processSnapshot) ? processSnapshot : undefined,
             },
           ]);
         }

@@ -32,6 +32,11 @@ class TestGlossary:
         result = mark_terms("ROE 32.1%")
         assert '<term data-id="ROE">ROE</term>' in result
 
+    def test_mark_chinese_short_label(self):
+        result = mark_terms("当前市盈率 35.2，净资产收益率 32.1%")
+        assert '<term data-id="PE">市盈率</term>' in result
+        assert '<term data-id="ROE">净资产收益率</term>' in result
+
     def test_mark_chinese_term(self):
         result = mark_terms("最大回撤 8%")
         assert '<term data-id="最大回撤">最大回撤</term>' in result
@@ -57,6 +62,22 @@ class TestGlossary:
         # Both should be marked, no overlap
         assert '<term data-id="PE">PE</term>' in result
         assert '<term data-id="PB">PB</term>' in result
+
+    def test_merge_custom_glossary_term(self):
+        from stockresearch.core.schemas import CustomGlossaryTermOut
+        from stockresearch.services.glossary import merge_glossary
+
+        custom = [
+            CustomGlossaryTermOut(
+                id="我的术语",
+                short="我的术语",
+                def_="测试解释",
+                analogy="测试类比",
+            )
+        ]
+        merged = merge_glossary(custom)
+        result = mark_terms("这里出现了我的术语", glossary=merged)
+        assert '<term data-id="我的术语">我的术语</term>' in result
 
 
 # ── Neutral Guard ──

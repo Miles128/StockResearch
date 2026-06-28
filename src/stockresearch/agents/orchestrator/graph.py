@@ -121,7 +121,11 @@ class Orchestrator:
             # Default: direct ReAct
             finance_tools = bool(state.get("finance_tools", True))
             agent = OrchestratorAgent(
-                db=db, llm=llm, user_id=state["user_id"], finance_tools=finance_tools
+                db=db,
+                llm=llm,
+                user_id=state["user_id"],
+                finance_tools=finance_tools,
+                mode_settings=state["mode_settings"],
             )
             reply, cards = await agent.run(
                 msg,
@@ -198,7 +202,7 @@ class Orchestrator:
             lambda: self._db.query(Holding).filter(Holding.user_id == user_id).all()
         )
         settings = mode_settings or get_mode_settings(self._db, user_id)
-        long_term_context = build_long_term_context(mode_settings=settings, holdings=holdings)
+        long_term_context = await build_long_term_context(mode_settings=settings, holdings=holdings)
         user_context_text = format_user_context_block(user_context)
         history = await prepare_chat_history(self._db, user_id, sid, self._llm)
         holdings_data: list[_HoldingInfo] = [
@@ -337,7 +341,11 @@ async def _run_plan_execute(db: Session, llm, state: OrchestratorState) -> dict:
     # Create tool executor that delegates to OrchestratorAgent tools
     finance_tools = bool(state.get("finance_tools", True))
     react_agent = OrchestratorAgent(
-        db=db, llm=llm, user_id=state["user_id"], finance_tools=finance_tools
+        db=db,
+        llm=llm,
+        user_id=state["user_id"],
+        finance_tools=finance_tools,
+        mode_settings=state["mode_settings"],
     )
 
     async def tool_executor(name: str, args: dict) -> str:

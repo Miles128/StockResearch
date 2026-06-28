@@ -47,15 +47,7 @@ async def stream_dimension_jobs(
     jobs: list[DimensionJob],
     dimensions: dict[str, DimensionResult],
 ) -> AsyncIterator[dict[str, object]]:
-    """Yield agent_start + all dimension stream events; populate *dimensions*."""
-    for job in jobs:
-        yield {
-            "type": "agent_start",
-            "agent_id": job.agent_id,
-            "agent_name": job.agent_name,
-            "role": "analyst",
-        }
-
+    """Yield dimension stream events; populate *dimensions*."""
     queue: asyncio.Queue[object] = asyncio.Queue()
     pumps = [
         asyncio.create_task(

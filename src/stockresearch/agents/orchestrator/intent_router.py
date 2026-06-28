@@ -3,6 +3,7 @@
 import json
 import logging
 
+from stockresearch.agents.orchestrator.complexity import wants_deep_research, is_simple_news_explanation
 from stockresearch.core.constants import (
     INTENT_CHAT,
     INTENT_COMPOSITE,
@@ -21,14 +22,14 @@ _INTENT_ROUTER_SYSTEM = (
     "意图分类（必须严格按以下定义选择）：\n"
     "- market: 用户询问大盘走势、市场整体情况、板块轮动、指数行情等宏观/市场层面问题\n"
     "- research: 用户想分析某只具体股票的基本面、技术面、估值等\n"
-    "- news: 用户明确要求看新闻、快讯、了解最新消息\n"
+    "- news: 用户要看新闻、快讯，或解释/解读某条新闻、消息含义及对持仓影响\n"
     "- risk: 用户关心持仓风险、止损、仓位、回撤等风控问题\n"
     "- composite: 用户同时需要个股投研分析和风控体检\n"
     "- chat: 非金融问题、闲聊、知识问答\n\n"
     "关键区分规则：\n"
     "- 「大盘/市场/股市/指数/行情/走势/板块/A股」→ market\n"
     "- 「某只股票+分析/研究/怎么样」→ research\n"
-    "- 「新闻/快讯/消息/发生了什么」→ news\n"
+    "- 「新闻/快讯/消息/发生了什么/解释这条新闻/对持仓有什么影响」→ news\n"
     "- 「风险/止损/仓位/体检/安全」→ risk\n"
     "- 非金融话题 → chat\n\n"
     "请以 JSON 格式回复：\n"
@@ -71,11 +72,19 @@ def _keyword_fallback(message: str) -> tuple[str, list[str], list[str]]:
             return INTENT_COMPOSITE, symbols, []
         return INTENT_RISK, symbols, []
 
-    if any(p in text for p in _MARKET_PATTERNS):
-        return INTENT_MARKET, symbols, []
+    if is_simple_news_explanation(text):
+        return INTENT_NEWS, symbols, []
 
     if any(p in text for p in _NEWS_PATTERNS):
         return INTENT_NEWS, symbols, []
+
+    if symbols and any(p in text for p in _RESEARCH_PATTERNS):
+        return INTENT_RESEARCH, symbols, []
+
+    if any(p in text for p in _MARKET_PATTERNS):
+        if any(p in text for p in _RESEARCH_PATTERNS) or wants_deep_research(text):
+            return INTENT_MARKET, symbols, []
+        return INTENT_CHAT, symbols, []
 
     if any(p in text for p in _RESEARCH_PATTERNS):
         return INTENT_RESEARCH, symbols, []
@@ -84,7 +93,7 @@ def _keyword_fallback(message: str) -> tuple[str, list[str], list[str]]:
         return INTENT_CHAT, symbols, []
 
     if symbols:
-        return INTENT_RESEARCH, symbols, []
+        return INTENT_CHAT, symbols, []
 
     return INTENT_CHAT, symbols, []
 

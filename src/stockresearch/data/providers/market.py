@@ -18,6 +18,11 @@ from stockresearch.data.providers.tushare_financial import fetch_daily_basic_syn
 from stockresearch.data.registry import record_quote_fetch, record_symbol_sources
 from stockresearch.data.provider_meta import get_provider_meta
 from stockresearch.services.cache import get_cached
+from stockresearch.services.provider_cache_policy import (
+    DEFAULT_QUOTE_CACHE_TTL_SECONDS,
+    get_or_set_cached_dict,
+    provider_ttl,
+)
 from stockresearch.services.sqlite_cache import get_sqlite_cached, set_sqlite_cached
 from stockresearch.utils.symbols import resolve_name
 
@@ -63,20 +68,90 @@ class Quote:
     updated_at: datetime
 
 
+def _quote_to_cache(quote: Quote) -> dict[str, object]:
+    return {
+        "symbol": quote.symbol,
+        "name": quote.name,
+        "price": quote.price,
+        "change_pct": quote.change_pct,
+        "high": quote.high,
+        "low": quote.low,
+        "volume": quote.volume,
+        "updated_at": quote.updated_at.isoformat(),
+        "source": "cache",
+    }
+
+
+def _quote_from_cache(payload: dict[str, object]) -> Quote | None:
+    try:
+        updated_raw = payload.get("updated_at")
+        updated_at = (
+            datetime.fromisoformat(str(updated_raw))
+            if updated_raw
+            else datetime.now(UTC)
+        )
+        if updated_at.tzinfo is None:
+            updated_at = updated_at.replace(tzinfo=UTC)
+        return Quote(
+            symbol=str(payload["symbol"]),
+            name=str(payload.get("name", "")),
+            price=_as_float(payload.get("price")),
+            change_pct=_as_float(payload.get("change_pct")),
+            high=_as_float(payload.get("high")),
+            low=_as_float(payload.get("low")),
+            volume=_as_float(payload.get("volume")),
+            updated_at=updated_at,
+        )
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 class QuoteProvider:
-    async def get_quote(self, symbol: str) -> Quote:
-        quotes = await self.get_quotes([symbol])
+    async def get_quote(
+        self,
+        symbol: str,
+        *,
+        cache_ttl_seconds: int | None = None,
+    ) -> Quote:
+        quotes = await self.get_quotes([symbol], cache_ttl_seconds=cache_ttl_seconds)
         if symbol not in quotes:
             raise DataProviderError(f"无法获取 {symbol} 行情")
         return quotes[symbol]
 
-    async def get_quotes(self, symbols: list[str]) -> dict[str, Quote]:
+    async def get_quotes(
+        self,
+        symbols: list[str],
+        *,
+        cache_ttl_seconds: int | None = None,
+    ) -> dict[str, Quote]:
         unique = list(dict.fromkeys(symbols))
         if not unique:
             return {}
 
-        raw = await self._fetch_quote_rows(unique)
-        return self._rows_to_quotes(raw)
+        ttl = (
+            cache_ttl_seconds
+            if cache_ttl_seconds is not None
+            else DEFAULT_QUOTE_CACHE_TTL_SECONDS
+        )
+        out: dict[str, Quote] = {}
+        missing: list[str] = []
+        for sym in unique:
+            cached = get_sqlite_cached(f"quote:{sym}")
+            if cached is not None:
+                quote = _quote_from_cache(cached)
+                if quote is not None:
+                    out[sym] = quote
+                    continue
+            missing.append(sym)
+
+        if missing:
+            raw = await self._fetch_quote_rows(missing)
+            fetched = self._rows_to_quotes(raw)
+            for sym, quote in fetched.items():
+                set_sqlite_cached(f"quote:{sym}", _quote_to_cache(quote), ttl)
+                out[sym] = quote
+
+        return {sym: out[sym] for sym in unique if sym in out}
 
     async def _fetch_quote_rows(
         self, symbols: list[str]
@@ -241,58 +316,72 @@ class MarketRuleProvider:
 
 class FinancialDataProvider:
     async def get_financials(self, symbol: str) -> dict[str, float | str]:
-        df = await run_sync_fetch(
-            f"akshare financials {symbol}",
-            lambda: ak.stock_financial_analysis_indicator(symbol=symbol),
-            timeout=8.0,
-            fallback=None,
-        )
-        if df is None or df.empty:
+        cache_key = f"financials:indicator:{symbol}"
+        ttl = provider_ttl("akshare_financials")
+
+        async def _fetch() -> dict[str, object]:
+            df = await run_sync_fetch(
+                f"akshare financials {symbol}",
+                lambda: ak.stock_financial_analysis_indicator(symbol=symbol),
+                timeout=8.0,
+                fallback=None,
+            )
+            if df is None or df.empty:
+                return {
+                    "revenue_yoy": 0.0,
+                    "net_margin": 0.0,
+                    "roe": 0.0,
+                    "pe_percentile": 0.50,
+                    "debt_ratio": 0.35,
+                    "goodwill_ratio": 0.03,
+                }
+            row = df.iloc[0]
             return {
-                "revenue_yoy": 0.0,
-                "net_margin": 0.0,
-                "roe": 0.0,
+                "revenue_yoy": float(row.get("营业收入同比增长率", 0.0)) / 100 if row.get("营业收入同比增长率") else 0.0,
+                "net_margin": float(row.get("销售净利率", 0.0)) / 100 if row.get("销售净利率") else 0.0,
+                "roe": float(row.get("净资产收益率", 0.0)) / 100 if row.get("净资产收益率") else 0.0,
                 "pe_percentile": 0.50,
-                "debt_ratio": 0.35,
+                "debt_ratio": float(row.get("资产负债率", 0.35)) / 100 if row.get("资产负债率") else 0.35,
                 "goodwill_ratio": 0.03,
             }
-        row = df.iloc[0]
-        return {
-            "revenue_yoy": float(row.get("营业收入同比增长率", 0.0)) / 100 if row.get("营业收入同比增长率") else 0.0,
-            "net_margin": float(row.get("销售净利率", 0.0)) / 100 if row.get("销售净利率") else 0.0,
-            "roe": float(row.get("净资产收益率", 0.0)) / 100 if row.get("净资产收益率") else 0.0,
-            "pe_percentile": 0.50,
-            "debt_ratio": float(row.get("资产负债率", 0.35)) / 100 if row.get("资产负债率") else 0.35,
-            "goodwill_ratio": 0.03,
-        }
+
+        cached = await get_or_set_cached_dict(cache_key, ttl, _fetch)
+        return {k: v for k, v in cached.items()}  # type: ignore[misc]
 
     async def get_valuation(self, symbol: str) -> dict[str, float | str]:
-        df = await run_sync_fetch(
-            f"akshare valuation {symbol}",
-            lambda: ak.stock_a_indicator_lg(symbol=symbol),
-            timeout=8.0,
-            fallback=None,
-        )
-        if df is not None and not df.empty:
-            row = df.iloc[-1]
-            pe_ttm = float(row.get("pe", 20.0))
-            return {"pe_ttm": pe_ttm, "pe_percentile": 0.5}
+        cache_key = f"financials:valuation:{symbol}"
+        ttl = provider_ttl("akshare_financials")
 
-        tushare = await run_sync_fetch(
-            f"tushare valuation {symbol}",
-            lambda: fetch_daily_basic_sync(symbol),
-            timeout=_DATA_TIMEOUT_SEC,
-            fallback=None,
-        )
-        if tushare:
-            pe = float(tushare.get("pe_ttm", 20.0))
-            return {
-                "pe_ttm": pe,
-                "pe_percentile": 0.5,
-                "pb": float(tushare.get("pb", 0)),
-                "source": str(tushare.get("source", "tushare")),
-            }
-        return {"pe_ttm": 20.0, "pe_percentile": 0.5}
+        async def _fetch() -> dict[str, object]:
+            df = await run_sync_fetch(
+                f"akshare valuation {symbol}",
+                lambda: ak.stock_a_indicator_lg(symbol=symbol),
+                timeout=8.0,
+                fallback=None,
+            )
+            if df is not None and not df.empty:
+                row = df.iloc[-1]
+                pe_ttm = float(row.get("pe", 20.0))
+                return {"pe_ttm": pe_ttm, "pe_percentile": 0.5}
+
+            tushare = await run_sync_fetch(
+                f"tushare valuation {symbol}",
+                lambda: fetch_daily_basic_sync(symbol),
+                timeout=_DATA_TIMEOUT_SEC,
+                fallback=None,
+            )
+            if tushare:
+                pe = float(tushare.get("pe_ttm", 20.0))
+                return {
+                    "pe_ttm": pe,
+                    "pe_percentile": 0.5,
+                    "pb": float(tushare.get("pb", 0)),
+                    "source": str(tushare.get("source", "tushare")),
+                }
+            return {"pe_ttm": 20.0, "pe_percentile": 0.5}
+
+        cached = await get_or_set_cached_dict(cache_key, ttl, _fetch)
+        return {k: v for k, v in cached.items()}  # type: ignore[misc]
 
     async def get_industry_peers(self, symbol: str) -> list[str]:
         sector_peers: dict[str, list[str]] = {
@@ -307,6 +396,12 @@ _INDEX_KLINE_SYMBOLS = frozenset({"000001", "399001", "399006", "000300"})
 
 class TechnicalDataProvider:
     async def get_kline_bars(self, symbol: str, days: int = 60) -> list[dict[str, float | str]]:
+        cache_key = f"kline:{symbol}:{days}"
+        ttl = provider_ttl("akshare_kline")
+        cached = get_sqlite_cached(cache_key)
+        if cached is not None and isinstance(cached.get("bars"), list):
+            return cached["bars"]  # type: ignore[return-value]
+
         end_date = datetime.now(UTC).strftime("%Y%m%d")
         now = datetime.now(UTC)
         if now.month > 2:
@@ -342,7 +437,7 @@ class TechnicalDataProvider:
         if df is None or df.empty:
             return []
         recent = df.tail(days)
-        return [
+        bars = [
             {
                 "date": str(row["日期"])[:10],
                 "open": float(row["开盘"]),
@@ -353,6 +448,9 @@ class TechnicalDataProvider:
             }
             for _, row in recent.iterrows()
         ]
+        if bars:
+            set_sqlite_cached(cache_key, {"bars": bars}, ttl)
+        return bars
 
     async def get_kline(self, symbol: str, days: int = 60) -> list[dict[str, float]]:
         bars = await self.get_kline_bars(symbol, days)
@@ -555,20 +653,36 @@ class SentimentDataProvider:
 
 class ChipsDataProvider:
     async def get_dragon_tiger(self, symbol: str) -> dict[str, str | float | int]:
-        return await run_sync_fetch(
+        cache_key = f"dragon_tiger:{symbol}"
+        ttl = provider_ttl("akshare_lhb")
+        cached = get_sqlite_cached(cache_key)
+        if cached is not None:
+            return {**cached, "source": str(cached.get("source", "akshare_lhb"))}  # type: ignore[return-value]
+        result = await run_sync_fetch(
             f"akshare lhb {symbol}",
             lambda: self._fetch_dragon_tiger_sync(symbol),
             timeout=_DATA_TIMEOUT_SEC,
             fallback={"appearances": 0, "net_buy": 0.0, "institution_ratio": 0.0, "signal": "暂无数据", "source": "akshare_lhb"},
         )
+        if ttl and result.get("source") == "akshare_lhb":
+            set_sqlite_cached(cache_key, dict(result), ttl)
+        return result
 
     async def get_fund_flow(self, symbol: str) -> dict[str, float | str]:
-        return await run_sync_fetch(
+        cache_key = f"fund_flow:{symbol}"
+        ttl = provider_ttl("akshare_fund_flow")
+        cached = get_sqlite_cached(cache_key)
+        if cached is not None:
+            return {**cached, "source": str(cached.get("source", "akshare_fund_flow"))}  # type: ignore[return-value]
+        result = await run_sync_fetch(
             f"akshare fund flow {symbol}",
             lambda: self._fetch_fund_flow_sync(symbol),
             timeout=_DATA_TIMEOUT_SEC,
             fallback={"main_net_inflow": 0.0, "main_net_pct": 0.0, "days_positive": 0, "source": "akshare_fund_flow"},
         )
+        if ttl and result.get("source") == "akshare_fund_flow":
+            set_sqlite_cached(cache_key, dict(result), ttl)
+        return result
 
     async def get_northbound_flow(self, symbol: str) -> dict[str, float | str]:
         if getattr(get_settings(), "use_mock_market_data", False):
@@ -631,20 +745,36 @@ class ChipsDataProvider:
         return result
 
     async def get_holder_count(self, symbol: str) -> dict[str, float | str]:
-        return await run_sync_fetch(
+        cache_key = f"holder_count:{symbol}"
+        ttl = provider_ttl("akshare_gdhs")
+        cached = get_sqlite_cached(cache_key)
+        if cached is not None:
+            return {**cached, "source": str(cached.get("source", "akshare_gdhs"))}  # type: ignore[return-value]
+        result = await run_sync_fetch(
             f"akshare holder count {symbol}",
             lambda: self._fetch_holder_count_sync(symbol),
             timeout=_DATA_TIMEOUT_SEC,
             fallback={"holder_count": 0.0, "qoq_change": 0.0, "source": "akshare_gdhs"},
         )
+        if ttl and result.get("source") == "akshare_gdhs":
+            set_sqlite_cached(cache_key, dict(result), ttl)
+        return result
 
     async def get_lockup(self, symbol: str) -> dict[str, str | float | int]:
-        return await run_sync_fetch(
+        cache_key = f"lockup:{symbol}"
+        ttl = provider_ttl("akshare_lockup")
+        cached = get_sqlite_cached(cache_key)
+        if cached is not None:
+            return {**cached, "source": str(cached.get("source", "akshare_lockup"))}  # type: ignore[return-value]
+        result = await run_sync_fetch(
             f"akshare lockup {symbol}",
             lambda: self._fetch_lockup_sync(symbol),
             timeout=_DATA_TIMEOUT_SEC,
             fallback={"upcoming_count": 0, "next_date": "", "ratio_pct": 0.0, "source": "akshare_lockup"},
         )
+        if ttl and result.get("source") == "akshare_lockup":
+            set_sqlite_cached(cache_key, dict(result), ttl)
+        return result
 
     def _fetch_dragon_tiger_sync(self, symbol: str) -> dict[str, str | float | int]:
         end = datetime.now(UTC)

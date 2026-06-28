@@ -29,6 +29,14 @@ _MARKET_TREND_RE = re.compile(
     r"(走势|行情|方向|趋势|怎么看|如何|怎么样|咋样|向好|看跌|看涨|涨跌|牛熊|研判|展望)"
 )
 
+_NEWS_INTENT_RE = re.compile(
+    r"(新闻|快讯|资讯|消息|报道|头条|发生了什么|怎么回事|公告解读|这条.*新闻|这条.*消息|最近.*消息)"
+)
+
+_MARKET_ANALYSIS_RE = re.compile(
+    r"(分析|研究|投研|研判|深度|全面|详细|综合|辩论|多空|看法|观点|展望|评估|解读)"
+)
+
 
 def _compact_message(message: str) -> str:
     """Collapse spaces and normalize for Chinese finance intent matching."""
@@ -133,6 +141,70 @@ _RISK_KEYWORDS: tuple[str, ...] = (
     "持仓安全",
     "危险",
 )
+
+
+_NEWS_EXPLAIN_RE = re.compile(
+    r"(解释|解读|说明|讲讲|说说).{0,16}(新闻|消息|快讯|资讯|公告|报道|这条|这篇)"
+    r"|(分析下|分析一下).{0,12}(新闻|消息|快讯|资讯|公告|这条|这篇)"
+    r"|(这条|这篇|上述|上面|刚才).{0,10}(新闻|消息|快讯|资讯|公告)"
+    r"|(新闻|消息|快讯|资讯|公告).{0,16}(什么意思|怎么回事|意味着|代表什么|有何影响|有什么影响|怎么看)"
+    r"|(对|跟我|和我).{0,10}(持仓|仓位|组合).{0,16}(影响|关系|怎么办|该如何)"
+    r"|有什么影响|怎么回事|发生了什么"
+)
+
+_NARROW_SIMPLE_RE = re.compile(
+    r"^(什么是|解释|定义|含义|介绍)"
+    r"|^(今天|现在|最新|当前).{0,20}(行情|价格|股价|多少钱|新闻|快讯)"
+    r"|^(查看|看看|给我).{0,10}(新闻|快讯|行情)"
+    r"|\d{6}.{0,8}(多少钱|什么价|现价|报价)"
+)
+
+
+def is_simple_news_explanation(message: str) -> bool:
+    """Short news Q&A — direct LLM/ReAct, not multi-agent research."""
+    compact = _compact_message(message)
+    if _NEWS_EXPLAIN_RE.search(compact):
+        return True
+    if is_news_intent(message) and len(compact) <= 48 and not wants_deep_research(message):
+        if not _MARKET_ANALYSIS_RE.search(compact) and not is_stock_analysis_intent(message):
+            return True
+    return False
+
+
+def should_skip_multi_agent(message: str) -> bool:
+    """Route to ReAct/simple CoT instead of research, debate, or plan-execute."""
+    msg = message.strip()
+    if not msg or is_risk_intent(msg):
+        return False
+    if is_simple_news_explanation(msg):
+        return True
+    compact = _compact_message(msg)
+    if _NARROW_SIMPLE_RE.search(compact):
+        return True
+    if is_news_intent(msg) and not wants_deep_research(msg):
+        if not _MARKET_ANALYSIS_RE.search(compact) and not is_stock_analysis_intent(msg):
+            return True
+    if len(compact) < 28 and not wants_deep_research(msg):
+        if has_stock_reference(msg) and is_stock_analysis_intent(msg):
+            return False
+        if not re.search(r"(深度|全面|详细|辩论|投研)", compact):
+            return True
+    return False
+
+
+def should_skip_debate(message: str) -> bool:
+    """Even when debate is enabled, skip for simple or narrow questions."""
+    if should_skip_multi_agent(message):
+        return True
+    compact = _compact_message(message)
+    if has_stock_reference(message) and is_stock_analysis_intent(message):
+        if wants_deep_research(message) or re.search(r"(分析|研究|投研|怎么看|值不值得)", compact):
+            return False
+    if len(compact) < 40 and not wants_deep_research(message):
+        return True
+    if is_news_intent(message) and not wants_deep_research(message):
+        return True
+    return False
 
 
 def wants_deep_research(message: str) -> bool:
@@ -287,6 +359,31 @@ def is_risk_intent(message: str) -> bool:
     return any(kw in message for kw in _RISK_KEYWORDS)
 
 
+def is_news_intent(message: str) -> bool:
+    """True when the user wants news/headlines, not multi-dimensional research."""
+    compact = _compact_message(message)
+    if _NEWS_INTENT_RE.search(compact):
+        return True
+    return bool(re.search(r"\bnews\b", compact, re.I))
+
+
+def is_market_analysis_intent(message: str) -> bool:
+    """True when the user wants market-wide research, not a quick snapshot."""
+    msg = message.strip()
+    if is_news_intent(msg):
+        return False
+    if not is_market_scope(msg):
+        return False
+    if wants_deep_research(msg):
+        return True
+    if _MARKET_ANALYSIS_RE.search(msg):
+        return True
+    for pattern in _SIMPLE_PATTERNS:
+        if re.search(pattern, msg):
+            return False
+    return False
+
+
 def is_industry_research(message: str) -> bool:
     msg = message.strip()
     if has_stock_reference(msg):
@@ -334,14 +431,15 @@ def is_stock_analysis_intent(message: str) -> bool:
 
 
 def classify_research_scope(message: str) -> str | None:
-    """Return 'stock' or 'market' when the query is finance-research scoped."""
+    """Return 'stock' or 'market' only for explicit analysis intents."""
     msg = message.strip()
-    if has_stock_reference(msg):
+    if should_skip_multi_agent(msg):
+        return None
+    if is_news_intent(msg):
+        return None
+    if has_stock_reference(msg) and is_stock_analysis_intent(msg):
         return "stock"
-    if is_market_scope(msg):
-        return "market"
-    compact = _compact_message(msg)
-    if _MARKET_ENTITY_RE.search(compact) and _MARKET_TREND_RE.search(compact):
+    if is_market_analysis_intent(msg):
         return "market"
     return None
 
@@ -354,14 +452,18 @@ def resolve_execution_mode(
     """Route chat to direct / multi-dim research / debate / plan-execute."""
     msg = message.strip()
 
+    if should_skip_multi_agent(msg):
+        return ComplexityResult.DIRECT
+
     if should_auto_plan_execute(msg):
         return ComplexityResult.PLAN_EXECUTE
 
     scope = classify_research_scope(msg)
+    use_debate = enable_debate and not should_skip_debate(msg)
     if scope == "stock":
-        return ComplexityResult.DEBATE if enable_debate else ComplexityResult.RESEARCH
+        return ComplexityResult.DEBATE if use_debate else ComplexityResult.RESEARCH
     if scope == "market":
-        return ComplexityResult.MARKET_DEBATE if enable_debate else ComplexityResult.MARKET_RESEARCH
+        return ComplexityResult.MARKET_DEBATE if use_debate else ComplexityResult.MARKET_RESEARCH
 
     if is_industry_research(msg):
         return ComplexityResult.INDUSTRY_RESEARCH

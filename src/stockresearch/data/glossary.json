@@ -698,5 +698,180 @@
     "def": "大额股票在场外协商成交，常有折价",
     "analogy": "大单私下谈价成交",
     "context_template": "{stock} 大宗交易折价 {value}%，{assessment}"
+  },
+  "顶背离": {
+    "en": "Bearish Divergence",
+    "short": "顶背离",
+    "def": "价格创新高但指标未同步创新高，常被视为上涨动能减弱的信号",
+    "analogy": "股价还在涨，但内在动力已经跟不上了",
+    "context_template": "顶背离：{assessment}"
+  },
+  "底背离": {
+    "en": "Bullish Divergence",
+    "short": "底背离",
+    "def": "价格创新低但指标未同步创新低，常被视为下跌动能减弱的信号",
+    "analogy": "股价还在跌，但跌劲已经开始减弱",
+    "context_template": "底背离：{assessment}"
+  },
+  "超买": {
+    "en": "Overbought",
+    "short": "超买",
+    "def": "价格或指标处于高位，短期涨得过多，可能面临回调",
+    "analogy": "涨太猛了，可能需要歇一歇",
+    "context_template": "超买：{assessment}"
+  },
+  "超卖": {
+    "en": "Oversold",
+    "short": "超卖",
+    "def": "价格或指标处于低位，短期跌得过多，可能出现反弹",
+    "analogy": "跌太狠了，可能有反弹机会",
+    "context_template": "超卖：{assessment}"
+  },
+  "洗盘": {
+    "en": "Shakeout",
+    "short": "洗盘",
+    "def": "主力通过震荡把不坚定筹码洗出去，再拉升",
+    "analogy": "故意吓唬散户下车，好自己低价收集筹码",
+    "context_template": "洗盘：{assessment}"
+  },
+  "踏空": {
+    "en": "Missed Rally",
+    "short": "踏空",
+    "def": "预期下跌而空仓或减仓，结果股价反而上涨",
+    "analogy": "想等便宜再买，结果一路涨没上车",
+    "context_template": "踏空：{assessment}"
+  },
+  "套牢": {
+    "en": "Trapped / Underwater",
+    "short": "套牢",
+    "def": "买入后股价下跌，当前价低于成本价，暂时无法盈利卖出",
+    "analogy": "买在高点，暂时被套在里面",
+    "context_template": "套牢：{assessment}"
+  },
+  "割肉": {
+    "en": "Cut Losses",
+    "short": "割肉",
+    "def": "亏损状态下卖出股票，接受损失离场",
+    "analogy": "亏着卖出来，忍痛止损",
+    "context_template": "割肉：{assessment}"
+  },
+  "抄底": {
+    "en": "Buy the Dip",
+    "short": "抄底",
+    "def": "在股价大幅下跌后买入，赌反弹或反转",
+    "analogy": "觉得跌够了，在低位捡便宜",
+    "context_template": "抄底：{assessment}"
+  },
+  "追高": {
+    "en": "Chase the Rally",
+    "short": "追高",
+    "def": "在股价已经大幅上涨后买入，担心错过行情",
+    "analogy": "涨了很多才冲进去买",
+    "context_template": "追高：{assessment}"
+  },
+  "阴跌": {
+    "en": "Slow Decline",
+    "short": "阴跌",
+    "def": "股价缓慢持续下跌，没有明显反弹",
+    "analogy": "像温水煮青蛙一样慢慢跌",
+    "context_template": "阴跌：{assessment}"
+  },
+  "反抽": {
+    "en": "Dead Cat Bounce",
+    "short": "反抽",
+    "def": "下跌趋势中的短暂反弹，未必改变整体方向",
+    "analogy": "跌着跌着弹一下，但未必真反转",
+    "context_template": "反抽：{assessment}"
+  },
+  "主力": {
+    "en": "Main Force / Smart Money",
+    "short": "主力",
+    "def": "对股价有较大影响力的资金，常指机构或大游资",
+    "analogy": "能左右股价走势的大资金",
+    "context_template": "主力{assessment}"
+  },
+  "散户": {
+    "en": "Retail Investors",
+    "short": "散户",
+    "def": "个人小额投资者，交易分散、单笔金额较小",
+    "analogy": "普通个人股民",
+    "context_template": "散户{assessment}"
+  },
+  "拉升": {
+    "en": "Pump / Rally",
+    "short": "拉升",
+    "def": "股价被资金快速推高",
+    "analogy": "有人使劲把股价往上推",
+    "context_template": "拉升：{assessment}"
+  },
+  "砸盘": {
+    "en": "Dump / Sell-off",
+    "short": "砸盘",
+    "def": "大量抛售导致股价快速下跌",
+    "analogy": "有人大量卖出把股价砸下去",
+    "context_template": "砸盘：{assessment}"
+  },
+  "控盘": {
+    "en": "Controlled Float",
+    "short": "控盘",
+    "def": "少数资金持有大量筹码，能较大程度影响股价",
+    "analogy": "筹码被少数人捏在手里",
+    "context_template": "控盘：{assessment}"
+  },
+  "灰犀牛": {
+    "en": "Gray Rhino",
+    "short": "灰犀牛",
+    "def": "概率大、影响大的潜在风险，因显而易见却常被忽视",
+    "analogy": "远远看见犀牛冲过来，大家却假装没看见",
+    "context_template": "灰犀牛风险：{assessment}"
+  },
+  "流动性": {
+    "en": "Liquidity",
+    "short": "流动性",
+    "def": "资产能多快、以多合理的价格变成现金",
+    "analogy": "想卖的时候能不能很快找到买家",
+    "context_template": "流动性{assessment}"
+  },
+  "降准": {
+    "en": "Reserve Requirement Cut",
+    "short": "降准",
+    "def": "央行降低银行存款准备金率，释放更多可贷资金",
+    "analogy": "银行可以拿出更多钱去放贷",
+    "context_template": "降准：{assessment}"
+  },
+  "降息": {
+    "en": "Interest Rate Cut",
+    "short": "降息",
+    "def": "央行降低基准利率，降低借贷成本、刺激经济",
+    "analogy": "借钱变便宜了",
+    "context_template": "降息：{assessment}"
+  },
+  "题材": {
+    "en": "Theme / Narrative",
+    "short": "题材",
+    "def": "驱动某类股票上涨的故事或政策概念",
+    "analogy": "大家因为同一个故事去炒一类股票",
+    "context_template": "题材：{assessment}"
+  },
+  "概念股": {
+    "en": "Concept Stock",
+    "short": "概念股",
+    "def": "因某一热点题材而被市场炒作的股票",
+    "analogy": "靠某个热门故事被炒起来的股票",
+    "context_template": "概念股：{assessment}"
+  },
+  "跟风": {
+    "en": "Herding / Follow-the-leader",
+    "short": "跟风",
+    "def": "不独立判断，跟随他人或热点买入",
+    "analogy": "别人买什么就跟着买什么",
+    "context_template": "跟风：{assessment}"
+  },
+  "横盘": {
+    "en": "Sideways Trading",
+    "short": "横盘",
+    "def": "股价在一段时间内波动很小，没有明显涨跌方向",
+    "analogy": "价格在原地来回晃，不涨也不跌",
+    "context_template": "横盘：{assessment}"
   }
 }

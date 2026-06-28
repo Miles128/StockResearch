@@ -359,6 +359,7 @@ export interface GlossaryTerm {
   en: string;
   def: string;
   analogy: string;
+  custom?: boolean;
 }
 
 export interface LlmUsage {

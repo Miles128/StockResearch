@@ -9,9 +9,8 @@ from stockresearch.agents.output_style import (
 
 
 def test_default_style_is_friendly_zh():
-    """Default reading mode is 'friendly' (per PRODUCT_STRATEGY.md)."""
     suffix = style_instruction_suffix()
-    assert "友善写作规则" in suffix
+    assert "友善白话规则" in suffix
     assert "简体中文" in suffix
 
 
@@ -21,10 +20,16 @@ def test_professional_mode_instruction():
     assert "专业写作规则" in suffix
 
 
+def test_standard_mode_instruction():
+    with output_style_scope(reading_mode="standard", locale="zh"):
+        suffix = style_instruction_suffix()
+    assert "标准表达规则" in suffix
+
+
 def test_friendly_mode_instruction():
     with output_style_scope(reading_mode="friendly", locale="zh"):
         suffix = style_instruction_suffix()
-    assert "友善写作规则" in suffix
+    assert "友善白话规则" in suffix
 
 
 def test_english_locale_instruction():
@@ -41,9 +46,8 @@ def test_apply_style_appends_to_system():
     assert "English" in styled
 
 
-def test_legacy_tone_standard_maps_to_professional():
-    """Legacy 'standard' tone maps to 'professional' reading mode."""
-    assert normalize_reading_mode("standard") == "professional"
+def test_standard_maps_to_standard():
+    assert normalize_reading_mode("standard") == "standard"
 
 
 def test_legacy_tone_professional_unchanged():
@@ -59,7 +63,6 @@ def test_invalid_tone_defaults_to_friendly():
 
 
 def test_reading_mode_takes_precedence_over_tone():
-    """When both tone and reading_mode are provided, reading_mode wins."""
     with output_style_scope(tone="friendly", reading_mode="professional", locale="zh"):
         suffix = style_instruction_suffix()
     assert "专业写作规则" in suffix

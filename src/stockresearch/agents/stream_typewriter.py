@@ -1,15 +1,21 @@
 """Emit SSE text_delta events after content is ready (typewriter display)."""
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
 from stockresearch.core.config import get_settings
+from stockresearch.core.schemas import DimensionResult
+from stockresearch.i18n.status_events import status_event
 from stockresearch.utils.llm import LLMClient
+
+logger = logging.getLogger(__name__)
 
 _CHARS_PER_DELTA = 1
 _DELAY_SEC = 0.0
 _PUMP_DONE = object()
+_PREPARE_TIMEOUT_SEC = 120.0
 
 
 @dataclass(frozen=True)
@@ -124,7 +130,46 @@ async def pump_dimension_llm_stream(
             "role": "analyst",
         }
     )
-    system, user, data = await prepare(ctx)  # type: ignore[operator]
+    await queue.put(status_event("status.research.fetch_data", agent=agent_name))
+    try:
+        system, user, data = await asyncio.wait_for(
+            prepare(ctx),  # type: ignore[operator]
+            timeout=_PREPARE_TIMEOUT_SEC,
+        )
+    except Exception as exc:
+        logger.warning("Dimension %s prepare failed: %s", agent_id, exc)
+        content = f"{agent_name}数据暂不可用，请稍后重试。"
+        dim = DimensionResult(
+            agent=agent_id,
+            score=5.0,
+            confidence="low",
+            highlights=[content],
+            risks=[],
+            data_sources=[],
+        )
+        dimensions[agent_id] = dim
+        await queue.put(
+            {
+                "type": "dimension_ready",
+                "agent_id": agent_id,
+                "agent_name": agent_name,
+                "role": "analyst",
+                "content": content,
+                "dimension": dim.model_dump(mode="json"),
+            }
+        )
+        await queue.put(
+            {
+                "type": "agent_done",
+                "agent_id": agent_id,
+                "agent_name": agent_name,
+                "role": "analyst",
+                "content": content,
+            }
+        )
+        await queue.put(_PUMP_DONE)
+        return
+
     parts: list[str] = []
     async for chunk in ctx.llm.stream_complete(system, user):  # type: ignore[attr-defined]
         parts.append(chunk)

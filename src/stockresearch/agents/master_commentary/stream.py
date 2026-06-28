@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import AsyncIterator
 from typing import Any
 
-from stockresearch.agents.master_commentary.registry import get_master_config
+from stockresearch.agents.master_commentary.registry import get_master_config, to_commentary_payload
 from stockresearch.agents.master_commentary.schemas import MasterCommentaryOut
 from stockresearch.core.schemas import ModeSettingsOut
 from stockresearch.utils.llm import LLMClient
@@ -57,28 +57,15 @@ async def stream_master_commentary(
     for _ in master_ids:
         result = await queue.get()
         results.append(result)
-        try:
-            config = get_master_config(result.master, settings)
-            display_name = config["name"]
-        except KeyError:
-            display_name = result.master
-        yield {
-            "type": "master_done",
-            "master": result.master,
-            "name": display_name,
-            "signal": result.signal,
-            "signal_text": result.signal_text,
-            "confidence": result.confidence,
-            "reasoning": result.reasoning,
-            "key_metric": result.key_metric,
-        }
+        payload = to_commentary_payload(result, settings)
+        yield {"type": "master_done", **payload}
 
     await asyncio.gather(*pumps)
 
     yield {
         "type": "master_commentary",
         "subject": subject,
-        "commentary": [r.model_dump(mode="json") for r in results],
+        "commentary": [to_commentary_payload(result, settings) for result in results],
     }
 
 
