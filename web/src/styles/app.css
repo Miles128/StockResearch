@@ -15,7 +15,7 @@
   min-height: 36px;
   background: var(--header-bg);
   color: var(--header-fg);
-  border-bottom: 1px solid var(--bbg-orange-dim);
+  border-bottom: 1px solid var(--bbg-border);
   font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 700;
@@ -72,9 +72,9 @@
 }
 
 .chrome-nav-btn.active {
-  color: var(--header-fg);
-  border-color: var(--header-fg);
-  background: rgba(0, 0, 0, 0.22);
+  color: var(--accent-ai);
+  border-color: var(--accent-ai);
+  background: var(--accent-ai-bg);
 }
 
 .canvas-tool-btn {
@@ -92,9 +92,9 @@
 
 .canvas-tool-btn.active,
 .copilot-trigger.active {
-  background: var(--bbg-panel-2);
-  color: var(--header-fg);
-  border-color: var(--header-fg);
+  background: var(--accent-ai-bg);
+  color: var(--accent-ai);
+  border-color: var(--accent-ai);
 }
 
 .chrome-meta .btn-ghost {
@@ -150,7 +150,7 @@
   height: 32px;
   background: var(--header-bg);
   color: var(--header-fg);
-  border-bottom: 1px solid var(--bbg-orange-dim);
+  border-bottom: 1px solid var(--bbg-border);
   font-family: var(--font-mono);
   font-size: 13.75px;
   font-weight: 700;
@@ -1581,12 +1581,12 @@ input:focus {
 }
 
 .message.conclusion-panel {
-  background: var(--bbg-panel-2);
-  border: 1px solid var(--bbg-border-bright);
-  border-left: 3px solid var(--bbg-orange);
+  background: var(--bbg-panel);
+  border: 1px solid var(--bbg-border);
+  border-left: 3px solid var(--accent-ai);
   padding: 10px 12px;
   margin-top: 6px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: none;
 }
 
 .message.conclusion-panel .process-panel-title {
@@ -2760,7 +2760,7 @@ input:focus {
 .card-header-title {
   font-size: 10px;
   font-weight: 700;
-  color: var(--bbg-orange);
+  color: var(--accent-ai);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   line-height: 1.1;
@@ -3517,22 +3517,16 @@ input:focus {
   transition: border-color 0.15s ease;
 }
 
-.theme-option[data-theme-preview="orange-black"] {
-  border-top: 3px solid #ff6600;
+.theme-option[data-theme-preview="institutional-light"] {
+  border-top: 3px solid #3b9eff;
+  background: #f4f6fa;
+  color: #0f172a;
 }
 
-.theme-option[data-theme-preview="wine-red-white"] {
-  border-top: 3px solid #8b2942;
-}
-
-.theme-option[data-theme-preview="paper-white"] {
-  border-top: 3px solid #2563eb;
-  background: #ffffff;
-}
-
-.theme-option[data-theme-preview="warm-cream"] {
-  border-top: 3px solid #b45309;
-  background: #ffffff;
+.theme-option[data-theme-preview="institutional-dark"] {
+  border-top: 3px solid #f04a3a;
+  background: #0b0e14;
+  color: #e8ecf4;
 }
 
 .theme-option.active {
@@ -4464,7 +4458,7 @@ input:focus {
   flex-direction: row;
   min-width: 0;
   min-height: 0;
-  border-left: 1px solid var(--bbg-border);
+  border-left: 2px solid var(--accent-ai);
   background: var(--bbg-panel);
   position: relative;
 }
