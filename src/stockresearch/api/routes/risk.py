@@ -15,6 +15,7 @@ from stockresearch.api.llm_deps import llm_from_headers
 from stockresearch.core.schemas import RiskCheckupOut, RiskCheckupRequest
 from stockresearch.db.models import Holding, RiskAlertRecord, User
 from stockresearch.db.session import get_db
+from stockresearch.services.user_preferences import get_mode_settings
 from stockresearch.utils.llm import LLMClient
 
 router = APIRouter(prefix="/risk", tags=["risk"])
@@ -34,6 +35,12 @@ def _persist_alerts(db: Session, user_id: int, result: RiskCheckupOut) -> None:
     db.commit()
 
 
+def _master_on(payload: RiskCheckupRequest, settings) -> bool:
+    if payload.enable_master_commentary is not None:
+        return bool(payload.enable_master_commentary)
+    return bool(settings.enable_master_commentary)
+
+
 @router.post("/checkup", response_model=RiskCheckupOut)
 async def risk_checkup(
     payload: RiskCheckupRequest = Body(default_factory=RiskCheckupRequest),
@@ -42,12 +49,17 @@ async def risk_checkup(
     llm: LLMClient = Depends(llm_from_headers),
 ) -> RiskCheckupOut:
     holdings = db.query(Holding).filter(Holding.user_id == user.id).all()
+    settings = get_mode_settings(db, user.id)
     with output_style_scope(
-        tone=payload.output_tone,
         reading_mode=payload.reading_mode,
         locale=payload.output_locale,
     ):
-        result = await run_risk_checkup(holdings, llm=llm)
+        result = await run_risk_checkup(
+            holdings,
+            llm=llm,
+            enable_master_commentary=_master_on(payload, settings),
+            mode_settings=settings,
+        )
     _persist_alerts(db, user.id, result)
     return result
 
@@ -60,15 +72,20 @@ async def risk_checkup_stream(
     llm: LLMClient = Depends(llm_from_headers),
 ) -> StreamingResponse:
     holdings = db.query(Holding).filter(Holding.user_id == user.id).all()
+    settings = get_mode_settings(db, user.id)
 
     async def event_generator() -> AsyncIterator[str]:
         final: RiskCheckupOut | None = None
         with output_style_scope(
-            tone=payload.output_tone,
             reading_mode=payload.reading_mode,
             locale=payload.output_locale,
         ):
-            async for event in run_risk_checkup_stream(holdings, llm=llm):
+            async for event in run_risk_checkup_stream(
+                holdings,
+                llm=llm,
+                enable_master_commentary=_master_on(payload, settings),
+                mode_settings=settings,
+            ):
                 if event.get("type") == "done":
                     payload_data = event.get("result")
                     if isinstance(payload_data, dict):

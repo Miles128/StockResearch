@@ -5,10 +5,12 @@ let _cachedRaw: string | null = null;
 
 export interface DataSourceUserSettings {
   tushareToken: string;
+  bochaApiKey: string;
 }
 
 const DEFAULTS: DataSourceUserSettings = {
   tushareToken: "",
+  bochaApiKey: "",
 };
 
 export function loadDataSourceSettings(): DataSourceUserSettings {
@@ -24,6 +26,8 @@ export function loadDataSourceSettings(): DataSourceUserSettings {
     _cachedSettings = {
       tushareToken:
         typeof parsed.tushareToken === "string" ? parsed.tushareToken : DEFAULTS.tushareToken,
+      bochaApiKey:
+        typeof parsed.bochaApiKey === "string" ? parsed.bochaApiKey : DEFAULTS.bochaApiKey,
     };
     return _cachedSettings;
   } catch {
@@ -39,7 +43,9 @@ export function saveDataSourceSettings(settings: DataSourceUserSettings): void {
 }
 
 export function dataSourceRequestHeaders(): Record<string, string> {
-  const { tushareToken } = loadDataSourceSettings();
-  if (!tushareToken.trim()) return {};
-  return { "X-Tushare-Token": tushareToken.trim() };
+  const { tushareToken, bochaApiKey } = loadDataSourceSettings();
+  const headers: Record<string, string> = {};
+  if (tushareToken.trim()) headers["X-Tushare-Token"] = tushareToken.trim();
+  if (bochaApiKey.trim()) headers["X-Bocha-Api-Key"] = bochaApiKey.trim();
+  return headers;
 }

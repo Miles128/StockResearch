@@ -11,25 +11,41 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from stockresearch.api.rate_limit import limiter
 from stockresearch.api.routes import (
     action_center,
     advisor,
+    announcements,
     briefing,
     chat,
+    glossary,
     market,
     news,
     portfolio,
     research,
+    research_reports,
     risk,
     settings,
 )
 from stockresearch.core.config import get_settings
 from stockresearch.core.constants import DISCLAIMER
-from stockresearch.core.data_source_config import clear_data_source_context, set_tushare_token
-from stockresearch.core.exceptions import NotFoundError, StockResearchError
+from stockresearch.core.data_source_config import (
+    clear_data_source_context,
+    set_bocha_api_key,
+    set_tushare_token,
+)
+from stockresearch.core.exceptions import (
+    AgentError,
+    DataProviderError,
+    LLMConfigError,
+    NotFoundError,
+    StockResearchError,
+    ValidationError,
+)
 from stockresearch.db.session import init_db
+from stockresearch.services.briefing_scheduler import get_scheduler
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _WEB_DIST = _PROJECT_ROOT / "web" / "dist"
@@ -51,7 +67,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         get_or_create_mvp_user(db)
     finally:
         db.close()
-    yield
+    get_scheduler().start()
+    try:
+        yield
+    finally:
+        get_scheduler().shutdown()
 
 
 def create_app() -> FastAPI:
@@ -60,6 +80,7 @@ def create_app() -> FastAPI:
     # Rate limiting
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
 
     # CORS — restrict origins in production.
     # 浏览器规范禁止 allow_origins=["*"] 与 allow_credentials=True 同时使用，
@@ -87,6 +108,7 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def bind_data_source_context(request: Request, call_next):
         set_tushare_token(request.headers.get("X-Tushare-Token"))
+        set_bocha_api_key(request.headers.get("X-Bocha-Api-Key"))
         try:
             return await call_next(request)
         finally:
@@ -94,15 +116,28 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(StockResearchError)
     async def stockresearch_exception_handler(_request: Request, exc: StockResearchError) -> JSONResponse:
-        from stockresearch.core.exceptions import NotFoundError, ValidationError
-
         if isinstance(exc, NotFoundError):
             status = 404
+            code = "not_found"
         elif isinstance(exc, ValidationError):
             status = 422
+            code = "validation_error"
+        elif isinstance(exc, LLMConfigError):
+            status = 503
+            code = "llm_not_configured"
+        elif isinstance(exc, DataProviderError):
+            status = 502
+            code = "data_provider_failed"
+        elif isinstance(exc, AgentError):
+            status = 500
+            code = "agent_failed"
         else:
             status = 400
-        return JSONResponse(status_code=status, content={"detail": str(exc)})
+            code = "stockresearch_error"
+        return JSONResponse(
+            status_code=status,
+            content={"detail": str(exc), "code": code},
+        )
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -136,6 +171,9 @@ def create_app() -> FastAPI:
     app.include_router(settings.router, prefix="/api/v1")
     app.include_router(action_center.router, prefix="/api/v1")
     app.include_router(advisor.router, prefix="/api/v1")
+    app.include_router(glossary.router, prefix="/api/v1")
+    app.include_router(announcements.router, prefix="/api/v1")
+    app.include_router(research_reports.router, prefix="/api/v1")
 
     if _WEB_DIST.is_dir():
         # 拦截 /api 下的未匹配路径，返回 JSON 404 而非前端 index.html。

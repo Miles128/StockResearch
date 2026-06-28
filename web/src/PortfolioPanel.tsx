@@ -1,8 +1,10 @@
-import { useState } from "react";
-import { api, type Briefing, type HoldingEnriched, type StockLookupOut } from "./api";
-import { formatPrice, formatSignedMoney, formatSignedPct, signedClass } from "./holdingDisplay";
+import { useMemo, useState } from "react";
+import { type HoldingEnriched } from "./api";
+import { formatMoney, formatPrice, formatSignedMoney, formatSignedPct, signedClass } from "./holdingDisplay";
+import type { HoldingsView } from "./modeSettings";
+import { HoldingTradeModal } from "./HoldingTradeModal";
+import { getBriefingKind } from "./briefingKind";
 import { useI18n } from "./i18n";
-import { localizeBriefing } from "./uiLabels";
 import { StockChart } from "./StockChart";
 import type { PortfolioSummary, SectorWeight } from "./portfolioHelpers";
 
@@ -12,23 +14,55 @@ interface PortfolioPanelProps {
   portfolioSummary: PortfolioSummary;
   sectorMix: SectorWeight[];
   numLocale: string;
-  holdingInput: string;
-  holdingCost: string;
-  holdingLots: string;
-  holdingDate: string;
-  lookupResult: StockLookupOut | null;
-  lookupPrice: number | null;
-  lookupLoading: boolean;
-  onHoldingInputChange: (value: string) => void;
-  onHoldingCostChange: (value: string) => void;
-  onHoldingLotsChange: (value: string) => void;
-  onHoldingDateChange: (value: string) => void;
-  onClearLookup: () => void;
+  holdingsView?: HoldingsView;
+  chatLoading?: boolean;
   onLoadHoldings: () => void;
-  onLookupAndAdd: () => void;
-  onConfirmCandidate: (symbol: string, name: string) => void;
   onDeleteHolding: (id: number) => void;
   onAnalyzeHolding: (h: HoldingEnriched) => void;
+  onAskCopilot?: (query: string, options?: { briefingKind?: "intraday" | "postmarket" }) => void;
+}
+
+const SECTOR_PALETTE = ["#ff6600", "#00c853", "#4fc3f7", "#ffab00", "#8a8a8a", "#e91e63", "#9c27b0", "#795548"];
+
+function sectorColor(sector: string): string {
+  let hash = 0;
+  for (let i = 0; i < sector.length; i++) {
+    hash = (hash * 31 + sector.charCodeAt(i)) >>> 0;
+  }
+  return SECTOR_PALETTE[hash % SECTOR_PALETTE.length];
+}
+
+function SectorDonut({ sectors }: { sectors: SectorWeight[] }) {
+  const total = sectors.reduce((a, b) => a + b.pct, 0) || 1;
+  let acc = 0;
+  const r = 40;
+  const cx = 50;
+  const cy = 50;
+  const paths = sectors.map((s) => {
+    const start = (acc / total) * Math.PI * 2 - Math.PI / 2;
+    acc += s.pct;
+    const end = (acc / total) * Math.PI * 2 - Math.PI / 2;
+    const large = end - start > Math.PI ? 1 : 0;
+    const x1 = cx + r * Math.cos(start);
+    const y1 = cy + r * Math.sin(start);
+    const x2 = cx + r * Math.cos(end);
+    const y2 = cy + r * Math.sin(end);
+    return (
+      <path
+        key={s.sector}
+        d={`M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`}
+        fill="none"
+        stroke={sectorColor(s.sector)}
+        strokeWidth="12"
+      />
+    );
+  });
+  return (
+    <svg className="donut" viewBox="0 0 100 100">
+      {paths}
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="12" />
+    </svg>
+  );
 }
 
 export function PortfolioPanel({
@@ -37,255 +71,352 @@ export function PortfolioPanel({
   portfolioSummary,
   sectorMix,
   numLocale,
-  holdingInput,
-  holdingCost,
-  holdingLots,
-  holdingDate,
-  lookupResult,
-  lookupPrice,
-  lookupLoading,
-  onHoldingInputChange,
-  onHoldingCostChange,
-  onHoldingLotsChange,
-  onHoldingDateChange,
-  onClearLookup,
+  holdingsView = "table",
+  chatLoading = false,
   onLoadHoldings,
-  onLookupAndAdd,
-  onConfirmCandidate,
   onDeleteHolding,
   onAnalyzeHolding,
+  onAskCopilot,
 }: PortfolioPanelProps) {
   const { t } = useI18n();
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
-  const [briefing, setBriefing] = useState<Briefing | null>(null);
-  const [briefingLoading, setBriefingLoading] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [tradeModalOpen, setTradeModalOpen] = useState(false);
 
-  async function loadBriefing(kind: "morning" | "closing") {
-    setBriefingLoading(true);
-    try {
-      setBriefing(await api.generateBriefing(kind));
-    } finally {
-      setBriefingLoading(false);
+  const sectorPnl = useMemo(() => {
+    const map = new Map<string, { pnl: number; value: number }>();
+    for (const h of holdings) {
+      if (!h.quote_available || h.price == null) continue;
+      const sector = h.sector?.trim() || "未知";
+      const mv = h.price * h.quantity;
+      const entry = map.get(sector) ?? { pnl: 0, value: 0 };
+      entry.pnl += h.profit_amount ?? 0;
+      entry.value += mv;
+      map.set(sector, entry);
     }
+    return map;
+  }, [holdings]);
+
+  const briefingKind = useMemo(() => getBriefingKind(), []);
+  const briefingQuery =
+    briefingKind === "intraday" ? t("portfolio.briefingIntraday") : t("portfolio.briefingPostMarket");
+
+  function holdingMarketValue(h: HoldingEnriched): number | null {
+    if (!h.quote_available || h.price == null) return null;
+    return h.price * h.quantity;
   }
 
-  return (
-    <div className="panel portfolio-panel">
-      <div className="panel-actions-row">
-        <button
-          className="btn btn-ghost btn-sm"
-          disabled={briefingLoading}
-          onClick={() => void loadBriefing("morning")}
-        >
-          {briefingLoading ? t("portfolio.briefingLoading") : t("portfolio.briefingMorning")}
-        </button>
-        <button
-          className="btn btn-ghost btn-sm"
-          disabled={briefingLoading}
-          onClick={() => void loadBriefing("closing")}
-        >
-          {t("portfolio.briefingClosing")}
-        </button>
-      </div>
-      {briefing && (() => {
-        const b = localizeBriefing(briefing, t);
-        return (
-        <div className="briefing-card">
-          <h4>{b.title}</h4>
-          <p>{b.summary}</p>
-          {b.sections.map((s) => (
-            <div key={s.title}>
-              <strong>{s.title}</strong>
-              <pre className="briefing-section">{s.content}</pre>
-            </div>
-          ))}
-        </div>
-        );
-      })()}
-      {holdings.length > 0 && (
-        <div className="portfolio-summary">
-          <div className="portfolio-summary-item">
-            <span className="portfolio-summary-label">
-              {t("portfolio.summaryCount").replace("{n}", String(portfolioSummary.count))}
-            </span>
-            <span className="portfolio-summary-value">{portfolioSummary.count}</span>
-          </div>
-          <div className="portfolio-summary-item">
-            <span className="portfolio-summary-label">{t("portfolio.summaryValue")}</span>
-            <span className="portfolio-summary-value mono">
-              {portfolioSummary.hasQuotes
-                ? `¥${portfolioSummary.totalValue.toLocaleString(numLocale, { maximumFractionDigits: 0 })}`
-                : "—"}
-            </span>
-          </div>
-          <div className="portfolio-summary-item">
-            <span className="portfolio-summary-label">{t("portfolio.summaryToday")}</span>
-            <span className={`portfolio-summary-value mono ${signedClass(portfolioSummary.todayPnl)}`}>
-              {portfolioSummary.hasQuotes ? formatSignedMoney(portfolioSummary.todayPnl) : "—"}
-            </span>
-          </div>
-        </div>
-      )}
-      {sectorMix.length > 0 && (
-        <div className="sector-concentration">
-          <span className="field-label">{t("portfolio.sectorMix")}</span>
-          {sectorMix.slice(0, 4).map((s) => (
-            <div className="sector-concentration-row" key={s.sector}>
-              <span>{s.sector}</span>
-              <div className="sector-concentration-bar">
-                <div style={{ width: `${Math.min(s.pct, 100)}%` }} />
-              </div>
-              <span className="mono">{s.pct.toFixed(0)}%</span>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="holding-toolbar">
-        <span className="muted">
-          {holdingsLoading
-            ? t("portfolio.quotesUpdating")
-            : holdings[0]?.market_session === "trading"
-              ? t("portfolio.trading")
-              : t("portfolio.closed")}
-        </span>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={onLoadHoldings} disabled={holdingsLoading}>
-          {t("portfolio.refresh")}
-        </button>
-      </div>
-      {holdings.length === 0 ? (
-        <p className="muted holdings-empty">{t("portfolio.empty")}</p>
-      ) : (
-        <div className="holdings-table-wrap">
-          <table className="holdings-table">
-            <thead>
-              <tr>
-                <th>{t("portfolio.stock")}</th>
-                <th>{t("portfolio.price")}</th>
-                <th>{t("portfolio.change")}</th>
-                <th>{t("portfolio.costCol")}</th>
-                <th>{t("portfolio.qty")}</th>
-                <th>{t("portfolio.pnl")}</th>
-                <th>{t("portfolio.annualized")}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {holdings.map((h) => (
+  function holdingWeight(mv: number | null): number | null {
+    if (mv == null || portfolioSummary.totalValue <= 0) return null;
+    return (mv / portfolioSummary.totalValue) * 100;
+  }
+
+  function renderHoldingsTable() {
+    return (
+      <div className="holdings-table-wrap">
+        <table className="holdings-table">
+          <thead>
+            <tr>
+              <th>{t("portfolio.stock")}</th>
+              <th className="num">{t("portfolio.marketValueCol")}</th>
+              <th className="num">{t("portfolio.weightCol")}</th>
+              <th className="num">{t("portfolio.latestPriceCol")}</th>
+              <th className="num">{t("portfolio.dayChangeCol")}</th>
+              <th className="num">{t("portfolio.totalPnlCol")}</th>
+              <th className="num">{t("portfolio.totalPnlPctCol")}</th>
+              <th className="actions">{t("portfolio.actionsCol")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {holdings.map((h) => {
+              const mv = holdingMarketValue(h);
+              const weight = holdingWeight(mv);
+              return (
                 <tr key={h.id}>
                   <td>
                     <div className="holding-name">{h.name}</div>
                     <div className="holding-meta muted">
                       {h.symbol} · {h.sector}
-                      {h.buy_date ? ` · ${h.buy_date}` : ""}
                     </div>
                   </td>
-                  <td className="mono">
-                    {h.quote_available ? (
-                      <>
-                        <span className="holding-price-label muted">{h.price_label}</span> {formatPrice(h.price ?? null)}
-                      </>
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
+                  <td className="mono num">{h.quote_available ? formatMoney(mv, numLocale) : "—"}</td>
+                  <td className="mono num">{weight != null ? `${weight.toFixed(1)}%` : "—"}</td>
+                  <td className="mono num">
+                    {h.quote_available ? formatPrice(h.price ?? null) : "—"}
                   </td>
-                  <td className={`mono ${signedClass(h.change_pct)}`}>
+                  <td className={`mono num ${signedClass(h.change_pct)}`}>
                     {h.quote_available ? formatSignedPct(h.change_pct ?? null) : "—"}
                   </td>
-                  <td className="mono">{h.cost_price.toFixed(2)}</td>
-                  <td className="mono">{h.quantity}</td>
-                  <td className={signedClass(h.profit_pct)}>
-                    {h.quote_available ? (
+                  <td className={`mono num ${signedClass(h.profit_amount)}`}>
+                    {h.quote_available ? formatSignedMoney(h.profit_amount ?? null) : "—"}
+                  </td>
+                  <td className={`mono num ${signedClass(h.profit_pct)}`}>
+                    {h.quote_available ? formatSignedPct(h.profit_pct ?? null) : "—"}
+                  </td>
+                  <td className="actions">
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => onAnalyzeHolding(h)}>
+                      {t("portfolio.analyze")}
+                    </button>{" "}
+                    <button
+                      type="button"
+                      className={`btn btn-ghost btn-sm${chartSymbol === h.symbol ? " active" : ""}`}
+                      onClick={() => setChartSymbol(chartSymbol === h.symbol ? null : h.symbol)}
+                    >
+                      {t("portfolio.chart")}
+                    </button>
+                    {editMode && h.id != null ? (
                       <>
-                        <div className="mono">{formatSignedMoney(h.profit_amount ?? null)}</div>
-                        <div className="mono holdings-sub">{formatSignedPct(h.profit_pct ?? null)}</div>
+                        {" "}
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm holding-delete-btn"
+                          onClick={() => onDeleteHolding(h.id!)}
+                        >
+                          {t("portfolio.deleteHolding")}
+                        </button>
                       </>
-                    ) : (
-                      "—"
-                    )}
+                    ) : null}
                   </td>
-                  <td className={`mono ${signedClass(h.annualized_pct)}`}>
-                    {h.annualized_pct != null ? formatSignedPct(h.annualized_pct) : "—"}
-                  </td>
-                          <td>
-                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => onAnalyzeHolding(h)}>
-                              {t("portfolio.analyze")}
-                            </button>{" "}
-                            <button
-                              type="button"
-                              className={`btn btn-ghost btn-sm${chartSymbol === h.symbol ? " active" : ""}`}
-                              onClick={() => setChartSymbol(chartSymbol === h.symbol ? null : h.symbol)}
-                            >
-                              {t("portfolio.chart")}
-                            </button>{" "}
-                            <button type="button" className="delete-btn" onClick={() => h.id && onDeleteHolding(h.id)}>
-                              DEL
-                            </button>
-                          </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-              </div>
-              )}
-              {chartSymbol && (
-                <div className="portfolio-chart-panel">
-                  <StockChart symbol={chartSymbol} />
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  function renderHoldingsCards() {
+    return (
+      <div className="holdings-grid">
+        {holdings.map((h) => (
+          <div key={h.id} className={`holding-card ${signedClass(h.profit_pct)}`}>
+            <div className="holding-title">
+              <div>
+                <div className="holding-name">{h.name}</div>
+                <div className="holding-symbol muted">
+                  {h.symbol} · {h.sector}
                 </div>
-              )}
-              <div className="portfolio-add-footer">
-        <div className="holding-form">
-          <div className="field">
-            <span className="field-label">{t("portfolio.symbol")}</span>
-            <input
-              placeholder={t("portfolio.symbolPh")}
-              value={holdingInput}
-              onChange={(e) => {
-                onHoldingInputChange(e.target.value);
-                onClearLookup();
-              }}
-              onKeyDown={(e) => e.key === "Enter" && onLookupAndAdd()}
-            />
-          </div>
-          <div className="field">
-            <span className="field-label">{t("portfolio.cost")}</span>
-            <input type="number" placeholder="0.00" value={holdingCost} onChange={(e) => onHoldingCostChange(e.target.value)} />
-          </div>
-          <div className="field">
-            <span className="field-label">{t("portfolio.lots")}</span>
-            <input type="number" placeholder="1" value={holdingLots} onChange={(e) => onHoldingLotsChange(e.target.value)} />
-          </div>
-          <div className="field">
-            <span className="field-label">{t("portfolio.buyDate")}</span>
-            <input
-              type="date"
-              value={holdingDate}
-              max={new Date().toISOString().slice(0, 10)}
-              title={t("portfolio.buyDateTitle")}
-              onChange={(e) => onHoldingDateChange(e.target.value)}
-            />
-          </div>
-          <button className="btn btn-primary" onClick={onLookupAndAdd} disabled={lookupLoading} style={{ alignSelf: "end" }}>
-            {lookupLoading ? t("portfolio.querying") : t("portfolio.add")}
-          </button>
-        </div>
-        {lookupResult && lookupResult.status === "ambiguous" && (
-          <div className="confirm-card">
-            <span className="field-label">{t("portfolio.pickStock")}</span>
-            <div className="candidate-list">
-              {lookupResult.candidates.map((c) => (
-                <button key={c.symbol} className="btn btn-ghost" onClick={() => onConfirmCandidate(c.symbol, c.name)}>
-                  {c.name} ({c.symbol})
-                </button>
-              ))}
+              </div>
+              <div className="holding-title-actions">
+                {h.quote_available && h.change_pct != null && (
+                  <span className={`holding-badge ${signedClass(h.change_pct)}`}>
+                    {formatSignedPct(h.change_pct)}
+                  </span>
+                )}
+                {editMode && h.id != null && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm holding-delete-btn"
+                    onClick={() => onDeleteHolding(h.id!)}
+                  >
+                    {t("portfolio.deleteHolding")}
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="holding-price mono">
+              {h.quote_available ? formatPrice(h.price ?? null) : "—"}
+            </div>
+            <div className="holding-tags">
+              <span className="holding-tag">
+                {t("portfolio.marketValueCol")}:{" "}
+                {h.quote_available ? formatMoney(holdingMarketValue(h), numLocale) : "—"}
+              </span>
+              <span className="holding-tag">
+                {t("portfolio.weightCol")}:{" "}
+                {holdingWeight(holdingMarketValue(h)) != null
+                  ? `${holdingWeight(holdingMarketValue(h))!.toFixed(1)}%`
+                  : "—"}
+              </span>
+            </div>
+            <div className="holding-pnl">
+              <span className={`amt mono ${signedClass(h.profit_amount)}`}>
+                {h.quote_available ? formatSignedMoney(h.profit_amount ?? null) : "—"}
+              </span>
+              <span className={`pct mono ${signedClass(h.profit_pct)}`}>
+                {h.quote_available ? formatSignedPct(h.profit_pct ?? null) : "—"}
+              </span>
+            </div>
+            <div className="holding-actions">
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => onAnalyzeHolding(h)}>
+                {t("portfolio.analyze")}
+              </button>
+              <button
+                type="button"
+                className={`btn btn-ghost btn-sm${chartSymbol === h.symbol ? " active" : ""}`}
+                onClick={() => setChartSymbol(chartSymbol === h.symbol ? null : h.symbol)}
+              >
+                {t("portfolio.chart")}
+              </button>
             </div>
           </div>
-        )}
-        {lookupResult?.status === "confirmed" && lookupPrice != null && (
-          <p className="lookup-price-ref">
-            {t("portfolio.lookupPrice")}: {formatPrice(lookupPrice)}
-          </p>
-        )}
+        ))}
       </div>
+    );
+  }
+
+  return (
+    <div className="panel portfolio-panel">
+      {holdings.length > 0 && sectorMix.length > 0 && (
+        <div className="card portfolio-block portfolio-sector-card">
+          <div className="card-header">
+            <span className="card-header-title">{t("portfolio.overviewTitle")}</span>
+          </div>
+          <div className="card-body">
+            <div className="portfolio-sector-grid">
+              <div className="portfolio-vertical">
+                <div className="summary-cell">
+                  <span className="label">{t("portfolio.summaryValue")}</span>
+                  <span className="value mono">
+                    {portfolioSummary.hasQuotes
+                      ? `¥${portfolioSummary.totalValue.toLocaleString(numLocale, { maximumFractionDigits: 0 })}`
+                      : "—"}
+                  </span>
+                </div>
+                <div className="summary-cell">
+                  <span className="label">{t("portfolio.summaryToday")}</span>
+                  <span className={`value mono ${signedClass(portfolioSummary.todayPnl)}`}>
+                    {portfolioSummary.hasQuotes ? formatSignedMoney(portfolioSummary.todayPnl) : "—"}
+                    {portfolioSummary.hasQuotes && (
+                      <span className="today-pct">
+                        {" "}
+                        {formatSignedPct(
+                          portfolioSummary.totalValue > 0
+                            ? (portfolioSummary.todayPnl / portfolioSummary.totalValue) * 100
+                            : 0
+                        )}
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="summary-cell">
+                  <span className="label">{t("portfolio.summaryCount")}</span>
+                  <span className="value small mono">{portfolioSummary.count}</span>
+                </div>
+              </div>
+              <div className="sector-visual">
+                <SectorDonut sectors={sectorMix} />
+              </div>
+              <div className="sector-detail-wrap">
+                {sectorMix.map((s) => {
+                  const pnl = sectorPnl.get(s.sector);
+                  const color = sectorColor(s.sector);
+                  return (
+                    <div key={s.sector} className="sector-detail-item">
+                      <div className="left">
+                        <span className="dot" style={{ background: color }} />
+                        <span className="name">{s.sector}</span>
+                        <span className="pct">
+                          {s.pct.toFixed(0)}% · {t("portfolio.sectorStockCount", { n: String(s.count) })}
+                        </span>
+                      </div>
+                      <span className={`pnl ${signedClass(pnl?.pnl ?? 0)}`}>
+                        {pnl ? formatSignedMoney(pnl.pnl) : "—"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 持仓个股 */}
+      <div className="card portfolio-block">
+        <div className="card-header">
+          <span className="card-header-title">{t("portfolio.holdingsTitle")}</span>
+          <div className="card-header-meta card-header-actions">
+            <span className="muted">
+              {holdingsLoading
+                ? t("portfolio.quotesUpdating")
+                : holdings[0]?.market_session === "trading"
+                  ? t("portfolio.trading")
+                  : holdings.length > 0
+                    ? t("portfolio.closed")
+                    : null}
+            </span>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onLoadHoldings} disabled={holdingsLoading}>
+              {t("portfolio.refresh")}
+            </button>
+            <button
+              type="button"
+              className={`btn btn-ghost btn-sm${editMode ? " active" : ""}`}
+              onClick={() => setEditMode((v) => !v)}
+            >
+              {editMode ? t("portfolio.editDone") : t("portfolio.edit")}
+            </button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => setTradeModalOpen(true)}>
+              {t("portfolio.add")}
+            </button>
+          </div>
+        </div>
+        <div className="card-body">
+          {holdings.length === 0 ? (
+            <p className="muted holdings-empty">{t("portfolio.empty")}</p>
+          ) : holdingsView === "table" ? (
+            renderHoldingsTable()
+          ) : (
+            renderHoldingsCards()
+          )}
+        </div>
+      </div>
+
+      <HoldingTradeModal
+        open={tradeModalOpen}
+        holdings={holdings}
+        onClose={() => setTradeModalOpen(false)}
+        onApplied={onLoadHoldings}
+      />
+
+      {chartSymbol && (
+        <div className="portfolio-chart-panel">
+          <StockChart symbol={chartSymbol} />
+        </div>
+      )}
+
+      {/* 底部 AI 对话入口 */}
+      {onAskCopilot && (
+        <div className="ai-bottom-entry">
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            disabled={chatLoading}
+            onClick={() => onAskCopilot(briefingQuery, { briefingKind })}
+          >
+            {chatLoading ? t("portfolio.briefingLoading") : briefingQuery}
+          </button>
+          {holdings.length > 0 && (
+            <>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                disabled={chatLoading}
+                onClick={() => onAskCopilot(t("portfolio.askPnl"))}
+              >
+                {t("portfolio.askPnl")}
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                disabled={chatLoading}
+                onClick={() => onAskCopilot(t("portfolio.askTopMover"))}
+              >
+                {t("portfolio.askTopMover")}
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            className="btn btn-primary ai-chat-trigger"
+            disabled={chatLoading}
+            onClick={() => onAskCopilot("")}
+          >
+            {t("portfolio.aiChatEntry")}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

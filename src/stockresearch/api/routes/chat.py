@@ -19,6 +19,7 @@ from stockresearch.core.schemas import ChatRequest, ChatResponse, StreamCheckpoi
 from stockresearch.db.models import User
 from stockresearch.db.session import get_db
 from stockresearch.services.stream_checkpoint import load_checkpoint
+from stockresearch.services.user_preferences import get_mode_settings
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -44,18 +45,21 @@ async def chat(
         x_llm_temperature=x_llm_temperature,
         x_llm_use_mock=x_llm_use_mock,
     )
+    mode_settings = get_mode_settings(db, user.id)
     orchestrator = Orchestrator(db, llm=llm)
     with output_style_scope(
-        tone=payload.output_tone,
         reading_mode=payload.reading_mode,
         locale=payload.output_locale,
+        enable_glossary=payload.enable_glossary,
     ):
         return await orchestrator.run(
             user.id,
             payload.message,
             payload.session_id,
-            payload.analysis_mode,
             enable_debate=payload.enable_debate,
+            enable_master_commentary=payload.enable_master_commentary,
+            user_context=payload.user_context,
+            mode_settings=mode_settings,
             confirmed_symbol=payload.confirmed_symbol,
             confirmed_name=payload.confirmed_name,
             execution_preference=payload.execution_preference,
@@ -83,15 +87,16 @@ async def chat_stream(
         x_llm_temperature=x_llm_temperature,
         x_llm_use_mock=x_llm_use_mock,
     )
+    mode_settings = get_mode_settings(db, user.id)
 
     async def event_generator() -> AsyncIterator[str]:
         import asyncio
 
         async def _stream_with_keepalive():
             with output_style_scope(
-                tone=payload.output_tone,
                 reading_mode=payload.reading_mode,
                 locale=payload.output_locale,
+                enable_glossary=payload.enable_glossary,
             ):
                 async for event in run_chat_stream(
                     db,
@@ -99,8 +104,10 @@ async def chat_stream(
                     payload.message,
                     payload.session_id,
                     llm=llm,
-                    analysis_mode=payload.analysis_mode,
                     enable_debate=payload.enable_debate,
+                    enable_master_commentary=payload.enable_master_commentary,
+                    user_context=payload.user_context,
+                    mode_settings=mode_settings,
                     confirmed_symbol=payload.confirmed_symbol,
                     confirmed_name=payload.confirmed_name,
                     execution_preference=payload.execution_preference,

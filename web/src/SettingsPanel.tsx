@@ -15,15 +15,14 @@ import {
   type SignalBacktest,
 } from "./api";
 import {
-  loadAnalysisSettings,
-  saveAnalysisSettings,
-  type AnalysisUserSettings,
-  type ReadingMode,
-} from "./analysisSettings";
-import {
+  BUILTIN_MASTER_IDS,
   loadModeSettings,
+  modeSettingsToApiPayload,
   saveModeSettings,
+  type AppMode,
+  type CustomMaster,
   type ModeSettings,
+  type ReadingMode,
 } from "./modeSettings";
 import {
   loadDataSourceSettings,
@@ -46,13 +45,49 @@ interface SettingsPanelProps {
   required?: boolean;
   onConfigured?: () => void;
   onModeSettingsChange?: (settings: ModeSettings) => void;
-  /** inline = F5 设置页；modal = 首次配置弹层 */
+  /** inline = 设置页内嵌；modal = 首次配置弹层 */
   variant?: "inline" | "modal";
 }
 
 function formatApiError(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+type TushareState = "checking" | "ok" | "no_token" | "unavailable";
+
+function TushareStatusBadge() {
+  const { t } = useI18n();
+  const [state, setState] = useState<TushareState>("checking");
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .dataSourceStatus()
+      .then((status) => {
+        if (!alive) return;
+        if (status.tushare_configured && status.tushare_available) setState("ok");
+        else if (!status.tushare_configured) setState("no_token");
+        else setState("unavailable");
+      })
+      .catch(() => {
+        if (alive) setState("unavailable");
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const text =
+    state === "checking"
+      ? t("settings.tushareStatusChecking")
+      : state === "ok"
+        ? t("settings.tushareStatusOk")
+        : state === "no_token"
+          ? t("settings.tushareStatusNoToken")
+          : t("settings.tushareStatusUnavailable");
+
+  return <p className={`tushare-status tushare-status-${state}`}>{text}</p>;
 }
 
 export function SettingsPanel({
@@ -69,7 +104,7 @@ export function SettingsPanel({
   const [form, setForm] = useState<LlmUserSettings>(loadLlmSettings);
   const [dataForm, setDataForm] = useState<DataSourceUserSettings>(loadDataSourceSettings);
   const [theme, setTheme] = useState<AppTheme>(loadTheme);
-  const [analysis, setAnalysis] = useState<AnalysisUserSettings>(loadAnalysisSettings);
+  const [modeSettingsState, setModeSettingsState] = useState<ModeSettings>(loadModeSettings);
   const [error, setError] = useState("");
   const [testOk, setTestOk] = useState("");
   const [testing, setTesting] = useState(false);
@@ -93,7 +128,7 @@ export function SettingsPanel({
     setForm(loadLlmSettings());
     setDataForm(loadDataSourceSettings());
     setTheme(loadTheme());
-    setAnalysis(loadAnalysisSettings());
+    setModeSettingsState(loadModeSettings());
     setError("");
     setTestOk("");
     if (required) setActiveTab("llm");
@@ -131,26 +166,60 @@ export function SettingsPanel({
     setLocale(next);
   }
 
+  function persistModeSettings(next: ModeSettings) {
+    setModeSettingsState(next);
+    saveModeSettings(next);
+    void api.saveModeSettings(modeSettingsToApiPayload(next)).catch(() => {});
+    onModeSettingsChange?.(next);
+  }
+
   function toggleDebate(enabled: boolean) {
-    const next = { ...analysis, enableDebate: enabled };
-    setAnalysis(next);
-    saveAnalysisSettings(next);
-    // 同步到 modeSettings（双模式架构）
-    const mode = loadModeSettings();
-    const nextMode: ModeSettings = { ...mode, enableDebate: enabled };
-    saveModeSettings(nextMode);
-    onModeSettingsChange?.(nextMode);
+    persistModeSettings({ ...modeSettingsState, enableDebate: enabled });
+  }
+
+  function toggleMasterCommentary(enabled: boolean) {
+    persistModeSettings({ ...modeSettingsState, enableMasterCommentary: enabled });
+  }
+
+  function toggleMasterSelection(masterId: string, enabled: boolean) {
+    const selected = new Set(modeSettingsState.selectedMasters);
+    if (enabled) selected.add(masterId);
+    else selected.delete(masterId);
+    persistModeSettings({
+      ...modeSettingsState,
+      selectedMasters: Array.from(selected),
+    });
+  }
+
+  function addCustomMaster() {
+    const id = window.prompt(t("settings.customMasterIdPrompt"), "my_master");
+    if (!id) return;
+    const name = window.prompt(t("settings.customMasterNamePrompt"), id);
+    if (!name) return;
+    const systemPrompt = window.prompt(t("settings.customMasterPromptPrompt"), "");
+    if (!systemPrompt || systemPrompt.trim().length < 10) return;
+    const next: CustomMaster = {
+      id: id.trim().toLowerCase(),
+      name: name.trim(),
+      systemPrompt: systemPrompt.trim(),
+    };
+    persistModeSettings({
+      ...modeSettingsState,
+      customMasters: [...modeSettingsState.customMasters, next],
+      selectedMasters: [...modeSettingsState.selectedMasters, next.id],
+    });
+  }
+
+  function removeCustomMaster(masterId: string) {
+    persistModeSettings({
+      ...modeSettingsState,
+      customMasters: modeSettingsState.customMasters.filter((m) => m.id !== masterId),
+      selectedMasters: modeSettingsState.selectedMasters.filter((id) => id !== masterId),
+    });
   }
 
   function selectReadingMode(readingMode: ReadingMode) {
-    const next = { ...analysis, readingMode };
-    setAnalysis(next);
-    saveAnalysisSettings(next);
-    // 同步到 modeSettings（双模式架构）
-    const mode = loadModeSettings();
-    const nextMode: ModeSettings = { ...mode, readingMode };
-    saveModeSettings(nextMode);
-    onModeSettingsChange?.(nextMode);
+    persistModeSettings({ ...modeSettingsState, readingMode });
   }
 
   const readingModeOptions: { id: ReadingMode; labelKey: string; hintKey: string }[] = [
@@ -208,6 +277,8 @@ export function SettingsPanel({
   const themeOptions: { id: AppTheme; label: string; hint: string }[] = [
     { id: "orange-black", label: t("settings.themeOrange"), hint: t("settings.themeOrangeHint") },
     { id: "wine-red-white", label: t("settings.themeWine"), hint: t("settings.themeWineHint") },
+    { id: "paper-white", label: t("settings.themePaper"), hint: t("settings.themePaperHint") },
+    { id: "warm-cream", label: t("settings.themeWarm"), hint: t("settings.themeWarmHint") },
   ];
 
   const visibleTabs = tabs.filter((tab) => !(required && tab.hideWhenRequired));
@@ -273,6 +344,20 @@ export function SettingsPanel({
                 </button>
               ))}
             </div>
+            <h4 className="settings-section-title">{t("settings.holdingsViewTitle")}</h4>
+            <p className="settings-hint">{t("settings.holdingsViewHint")}</p>
+            <div className="holdings-view-picker">
+              {(["table", "cards"] as const).map((view) => (
+                <button
+                  key={view}
+                  type="button"
+                  className={`holdings-view-option${modeSettingsState.holdingsView === view ? " active" : ""}`}
+                  onClick={() => persistModeSettings({ ...modeSettingsState, holdingsView: view })}
+                >
+                  {view === "table" ? t("settings.holdingsViewTable") : t("settings.holdingsViewCards")}
+                </button>
+              ))}
+            </div>
           </>
         )}
 
@@ -290,6 +375,48 @@ export function SettingsPanel({
               />
             </label>
             <p className="settings-muted">{t("settings.tushareNote")}</p>
+
+            <div className="tushare-guide">
+              <h5 className="tushare-guide-title">{t("settings.tushareGuideTitle")}</h5>
+              <ol className="tushare-guide-steps">
+                <li>{t("settings.tushareGuideStep1")}</li>
+                <li>{t("settings.tushareGuideStep2")}</li>
+                <li>{t("settings.tushareGuideStep3")}</li>
+                <li>{t("settings.tushareGuideStep4")}</li>
+              </ol>
+              <a
+                className="tushare-guide-link"
+                href="https://tushare.pro/register?src=stockresearch"
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                {t("settings.tushareRegisterLink")} ↗
+              </a>
+            </div>
+
+            <TushareStatusBadge />
+
+            <h4 className="settings-section-title">{t("settings.bochaTitle")}</h4>
+            <p className="settings-hint">{t("settings.bochaHint")}</p>
+            <label className="settings-field">
+              <span>{t("settings.bochaApiKey")}</span>
+              <input
+                type="password"
+                autoComplete="off"
+                value={dataForm.bochaApiKey}
+                onChange={(e) => setDataForm((f) => ({ ...f, bochaApiKey: e.target.value }))}
+              />
+            </label>
+            <p className="settings-muted">{t("settings.bochaNote")}</p>
+            <a
+              className="tushare-guide-link"
+              href="https://open.bochaai.com"
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              {t("settings.bochaRegisterLink")} ↗
+            </a>
+
             <div className="settings-actions settings-actions-left">
               <button type="button" className="btn btn-primary" onClick={saveDataSources}>
                 {t("settings.dataSave")}
@@ -384,28 +511,119 @@ export function SettingsPanel({
             <label className="settings-check">
               <input
                 type="checkbox"
-                checked={analysis.enableDebate}
+                checked={modeSettingsState.enableDebate}
                 onChange={(e) => toggleDebate(e.target.checked)}
               />
               <span>{t("settings.enableDebate")}</span>
             </label>
             <p className="settings-muted settings-analysis-note">
-              {analysis.enableDebate ? t("settings.debateOnNote") : t("settings.debateOffNote")}
+              {modeSettingsState.enableDebate ? t("settings.debateOnNote") : t("settings.debateOffNote")}
             </p>
+
+            <label className="settings-check">
+              <input
+                type="checkbox"
+                checked={modeSettingsState.enableMasterCommentary}
+                onChange={(e) => toggleMasterCommentary(e.target.checked)}
+              />
+              <span>{t("settings.enableMasterCommentary")}</span>
+            </label>
+            <p className="settings-muted settings-analysis-note">
+              {modeSettingsState.enableMasterCommentary
+                ? t("settings.masterCommentaryOnNote")
+                : t("settings.masterCommentaryOffNote")}
+            </p>
+
+            <h4 className="settings-section-title">{t("settings.masterSelection")}</h4>
+            <p className="settings-hint">{t("settings.masterSelectionHint")}</p>
+            <div className="settings-master-list">
+              {BUILTIN_MASTER_IDS.map((id) => (
+                <label key={id} className="settings-check">
+                  <input
+                    type="checkbox"
+                    checked={modeSettingsState.selectedMasters.includes(id)}
+                    onChange={(e) => toggleMasterSelection(id, e.target.checked)}
+                    disabled={!modeSettingsState.enableMasterCommentary}
+                  />
+                  <span>{t(`settings.master.${id}`)}</span>
+                </label>
+              ))}
+              {modeSettingsState.customMasters.map((master) => (
+                <label key={master.id} className="settings-check settings-custom-master-row">
+                  <input
+                    type="checkbox"
+                    checked={modeSettingsState.selectedMasters.includes(master.id)}
+                    onChange={(e) => toggleMasterSelection(master.id, e.target.checked)}
+                    disabled={!modeSettingsState.enableMasterCommentary}
+                  />
+                  <span>{master.name}</span>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => removeCustomMaster(master.id)}
+                  >
+                    {t("settings.removeCustomMaster")}
+                  </button>
+                </label>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={addCustomMaster}
+              disabled={!modeSettingsState.enableMasterCommentary}
+            >
+              {t("settings.addCustomMaster")}
+            </button>
+
+            {modeSettingsState.mode === "advisor" && (
+              <>
+                <h4 className="settings-section-title">{t("settings.glossary")}</h4>
+                <p className="settings-hint">{t("settings.glossaryHint")}</p>
+                <label className="settings-check">
+                  <input
+                    type="checkbox"
+                    checked={modeSettingsState.enableGlossary}
+                    onChange={(e) =>
+                      persistModeSettings({ ...modeSettingsState, enableGlossary: e.target.checked })
+                    }
+                  />
+                  <span>{t("settings.enableGlossary")}</span>
+                </label>
+                <p className="settings-muted settings-analysis-note">
+                  {modeSettingsState.enableGlossary
+                    ? t("settings.glossaryOnNote")
+                    : t("settings.glossaryOffNote")}
+                </p>
+              </>
+            )}
 
             <h4 className="settings-section-title">{t("settings.readingMode")}</h4>
             <p className="settings-hint">{t("settings.readingModeHint")}</p>
+            <p className="settings-muted settings-analysis-note">
+              {t("settings.readingModeNote", {
+                mode: t(modeSettingsState.mode === "research" ? "mode.research" : "mode.advisor"),
+                reading: t(
+                  modeSettingsState.readingMode === "professional"
+                    ? "settings.modeProfessional"
+                    : "settings.modeFriendly",
+                ),
+              })}
+              {modeSettingsState.mode === "advisor"
+                ? ` · ${t("settings.readingModePersonal")}`
+                : ` · ${t("settings.readingModeExpert")}`}
+            </p>
             <div className="settings-tone-options" role="radiogroup" aria-label={t("settings.readingMode")}>
               {readingModeOptions.map((opt) => (
                 <label
                   key={opt.id}
-                  className={`locale-option${analysis.readingMode === opt.id ? " active" : ""}`}
+                  className={`locale-option${modeSettingsState.readingMode === opt.id ? " active" : ""}`}
                 >
                   <input
                     type="radio"
                     name="reading-mode"
                     value={opt.id}
-                    checked={analysis.readingMode === opt.id}
+                    checked={modeSettingsState.readingMode === opt.id}
                     onChange={() => selectReadingMode(opt.id)}
                   />
                   <span className="theme-option-label">{t(opt.labelKey)}</span>

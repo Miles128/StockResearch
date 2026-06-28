@@ -453,5 +453,250 @@
     "def": "参数真值以给定概率落入的区间",
     "analogy": "真值大概率落在这个范围内",
     "context_template": "置信区间 [{lower}, {upper}]"
+  },
+  "板块轮动": {
+    "en": "Sector Rotation",
+    "short": "板块轮动",
+    "def": "市场资金在不同行业板块间切换",
+    "analogy": "热点从这一个行业换到那一个行业",
+    "context_template": "当前板块轮动：{assessment}"
+  },
+  "轮动效应": {
+    "en": "Rotation Effect",
+    "short": "轮动效应",
+    "def": "不同板块或风格之间出现资金接力、涨跌交替的现象",
+    "analogy": "不同选手接力领跑，跑完一棒交给下一个",
+    "context_template": "轮动效应：{assessment}"
+  },
+  "风格切换": {
+    "en": "Style Rotation",
+    "short": "风格切换",
+    "def": "市场偏好从一种投资风格转向另一种，如价值股与成长股之间切换",
+    "analogy": "大家忽然从喜欢稳重的股票，改成喜欢高成长的股票",
+    "context_template": "风格切换：{assessment}"
+  },
+  "资金切换": {
+    "en": "Capital Rotation",
+    "short": "资金切换",
+    "def": "资金从一类资产或板块撤出，流入另一类",
+    "analogy": "钱从一个口袋挪到另一个口袋",
+    "context_template": "资金切换：{assessment}"
+  },
+  "龙头": {
+    "en": "Sector Leader",
+    "short": "龙头股",
+    "def": "某个行业里市值大、影响力强、往往能带动板块涨跌的股票",
+    "analogy": "一个班里的尖子生，成绩好还能带动全班气氛",
+    "context_template": "龙头 {stock}：{assessment}"
+  },
+  "市值": {
+    "en": "Market Capitalization",
+    "short": "市值",
+    "def": "公司总价值 = 股价 × 总股本",
+    "analogy": "按当前股价把整个公司买下来需要多少钱",
+    "context_template": "市值 {value} 亿，{assessment}"
+  },
+  "估值修复": {
+    "en": "Valuation Recovery",
+    "short": "估值修复",
+    "def": "原本被低估的资产价格回升到合理水平",
+    "analogy": "打折商品卖回原价",
+    "context_template": "估值修复：{assessment}"
+  },
+  "反弹": {
+    "en": "Rebound",
+    "short": "反弹",
+    "def": "下跌后出现的一波上涨，通常是对前期跌幅的部分修复",
+    "analogy": "球掉地上弹起来一下",
+    "context_template": "反弹：{assessment}"
+  },
+  "回调": {
+    "en": "Pullback",
+    "short": "回调",
+    "def": "上涨趋势中暂时的小幅下跌",
+    "analogy": "爬楼梯时停下来歇一步",
+    "context_template": "回调：{assessment}"
+  },
+  "趋势": {
+    "en": "Trend",
+    "short": "趋势",
+    "def": "价格在一段时间内的运行方向",
+    "analogy": "河流的流向",
+    "context_template": "趋势：{assessment}"
+  },
+  "放量": {
+    "en": "High Volume",
+    "short": "放量",
+    "def": "成交量明显高于近期平均水平",
+    "analogy": "比平时多了很多人参与交易",
+    "context_template": "放量：{assessment}"
+  },
+  "缩量": {
+    "en": "Low Volume",
+    "short": "缩量",
+    "def": "成交量明显低于近期平均水平",
+    "analogy": "参与交易的人变少了",
+    "context_template": "缩量：{assessment}"
+  },
+  "量价齐升": {
+    "en": "Rising Price and Volume",
+    "short": "量价齐升",
+    "def": "价格上涨同时成交量放大，通常视为上涨动能较强",
+    "analogy": "涨价还有人抢着买，说明势头好",
+    "context_template": "量价齐升：{assessment}"
+  },
+  "量价背离": {
+    "en": "Price-Volume Divergence",
+    "short": "量价背离",
+    "def": "价格与成交量走势不一致，可能预示趋势将变",
+    "analogy": "价格上涨但没人跟着买，像唱独角戏",
+    "context_template": "量价背离：{assessment}"
+  },
+  "筑底": {
+    "en": "Bottoming",
+    "short": "筑底",
+    "def": "价格下跌到低位后反复震荡，逐步形成底部",
+    "analogy": "在地板上反复磨蹭，试图站稳",
+    "context_template": "筑底：{assessment}"
+  },
+  "破位": {
+    "en": "Breakdown",
+    "short": "破位",
+    "def": "价格跌破重要支撑位",
+    "analogy": "跌破了大家心里的底线",
+    "context_template": "破位：{assessment}"
+  },
+  "缺口": {
+    "en": "Price Gap",
+    "short": "缺口",
+    "def": "相邻两根 K 线之间没有重叠的价格区间",
+    "analogy": "价格「跳」过去、中间没成交的区域",
+    "context_template": "{stock} 出现{assessment}缺口"
+  },
+  "震荡": {
+    "en": "Consolidation",
+    "short": "震荡",
+    "def": "价格在一个区间内反复波动，没有明确方向",
+    "analogy": "在原地来回踱步",
+    "context_template": "震荡：{assessment}"
+  },
+  "陆股通": {
+    "en": "Stock Connect (Northbound)",
+    "short": "陆股通",
+    "def": "境外投资者通过港交所买卖 A 股的通道",
+    "analogy": "外资买 A 股的官方入口",
+    "context_template": "{stock} 陆股通持股占比 {value}%"
+  },
+  "融资余额": {
+    "en": "Margin Financing Balance",
+    "short": "融资余额",
+    "def": "投资者向券商借钱买股尚未归还的总额",
+    "analogy": "市场上还在用杠杆买股的钱",
+    "context_template": "{stock} 融资余额 {value} 元"
+  },
+  "融券余额": {
+    "en": "Securities Lending Balance",
+    "short": "融券余额",
+    "def": "投资者借券卖出尚未归还的市值",
+    "analogy": "市场上还在做空的券",
+    "context_template": "{stock} 融券余额 {value} 元"
+  },
+  "股东户数": {
+    "en": "Shareholder Count",
+    "short": "股东户数",
+    "def": "持有该股的账户数量，户数减少常意味着筹码集中",
+    "analogy": "有多少人在持有这只股票",
+    "context_template": "{stock} 股东户数 {value}，环比 {assessment}"
+  },
+  "ST股": {
+    "en": "Special Treatment (ST) Stock",
+    "short": "ST 股",
+    "def": "连续亏损等异常被实施风险警示的股票",
+    "analogy": "被贴上「经营有风险」标签的股票",
+    "context_template": "{stock} 为 ST 股，{assessment}"
+  },
+  "停牌": {
+    "en": "Trading Halt",
+    "short": "停牌",
+    "def": "股票暂停交易，无法买卖",
+    "analogy": "股票临时「关门歇业」",
+    "context_template": "{stock} 停牌，原因：{assessment}"
+  },
+  "前复权": {
+    "en": "Forward Adjusted Price",
+    "short": "前复权",
+    "def": "按分红送股调整历史价格，便于看真实涨跌",
+    "analogy": "把历史价格「对齐」到今天的股本",
+    "context_template": "K 线使用前复权价格"
+  },
+  "市场宽度": {
+    "en": "Market Breadth",
+    "short": "市场宽度",
+    "def": "上涨家数与下跌家数的整体对比，反映普涨还是普跌",
+    "analogy": "整个市场是一起涨还是只有少数在涨",
+    "context_template": "上涨 {value} 家，下跌 {assessment} 家"
+  },
+  "商誉": {
+    "en": "Goodwill",
+    "short": "商誉",
+    "def": "并购时支付价超过净资产的部分，过高有减值风险",
+    "analogy": "买公司多花的「溢价」",
+    "context_template": "{stock} 商誉占比 {value}%，{assessment}"
+  },
+  "经营现金流": {
+    "en": "Operating Cash Flow",
+    "short": "经营现金流",
+    "def": "主营业务实际收付的现金，比利润更难造假",
+    "analogy": "生意真正进账的现金",
+    "context_template": "{stock} 经营现金流 {value}，{assessment}"
+  },
+  "营收增速": {
+    "en": "Revenue Growth",
+    "short": "营收增速",
+    "def": "营业收入相对上一期的增长速度",
+    "analogy": "公司卖东西的速度变快还是变慢",
+    "context_template": "{stock} 营收同比 {value}%，{assessment}"
+  },
+  "利润增速": {
+    "en": "Profit Growth",
+    "short": "利润增速",
+    "def": "净利润相对上一期的增长速度",
+    "analogy": "公司赚钱的速度变快还是变慢",
+    "context_template": "{stock} 净利润同比 {value}%，{assessment}"
+  },
+  "股权质押": {
+    "en": "Share Pledge",
+    "short": "股权质押",
+    "def": "股东把股票抵押给金融机构融资，比例过高有平仓风险",
+    "analogy": "把股票当抵押品去借钱",
+    "context_template": "{stock} 质押比例 {value}%，{assessment}"
+  },
+  "游资": {
+    "en": "Hot Money / Retail Speculators",
+    "short": "游资",
+    "def": "短线快进快出的活跃资金，常在龙虎榜出现",
+    "analogy": "专门做短线投机的资金",
+    "context_template": "龙虎榜显示游资{assessment}"
+  },
+  "机构调研": {
+    "en": "Institutional Research Visit",
+    "short": "机构调研",
+    "def": "基金、券商等机构对上市公司的实地调研",
+    "analogy": "专业投资人亲自去公司了解情况",
+    "context_template": "{stock} 近期机构调研 {assessment}"
+  },
+  "定向增发": {
+    "en": "Private Placement",
+    "short": "定向增发",
+    "def": "向特定对象发行新股融资，可能稀释原有股东",
+    "analogy": "找几家特定机构私下发新股",
+    "context_template": "{stock} 定向增发 {assessment}"
+  },
+  "大宗交易": {
+    "en": "Block Trade",
+    "short": "大宗交易",
+    "def": "大额股票在场外协商成交，常有折价",
+    "analogy": "大单私下谈价成交",
+    "context_template": "{stock} 大宗交易折价 {value}%，{assessment}"
   }
 }

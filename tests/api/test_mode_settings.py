@@ -9,6 +9,9 @@ def test_get_mode_settings_defaults(client) -> None:
     assert data["risk_tolerance"] == "moderate"
     assert data["reading_mode"] == "friendly"
     assert data["onboarded"] is False
+    assert data["enable_master_commentary"] is False
+    assert data["selected_masters"] == ["buffett", "munger", "burry"]
+    assert data["custom_masters"] == []
 
 
 def test_put_mode_settings_persists(client) -> None:
@@ -19,6 +22,9 @@ def test_put_mode_settings_persists(client) -> None:
         "reading_mode": "friendly",
         "enable_debate": False,
         "enable_glossary": True,
+        "enable_master_commentary": True,
+        "selected_masters": ["buffett", "munger"],
+        "custom_masters": [],
         "max_signals": 5,
         "onboarded": True,
     }

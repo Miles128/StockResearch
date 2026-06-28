@@ -2,25 +2,14 @@
 
 import pytest
 
-from stockresearch.core.config import Settings
 from stockresearch.data.providers import market as market_mod
 from stockresearch.data.providers.market import MarketRuleProvider, QuoteProvider
 from stockresearch.data.providers.sina_quote import QuoteRow
 
 
-@pytest.fixture
-def live_market_settings(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        market_mod,
-        "get_settings",
-        lambda: Settings(use_mock_market_data=False),
-    )
-
-
 @pytest.mark.asyncio
 async def test_batch_quotes_use_sina_only(
     monkeypatch: pytest.MonkeyPatch,
-    live_market_settings: None,
 ) -> None:
     def fake_sina(symbols: list[str]) -> dict[str, QuoteRow]:
         from datetime import UTC, datetime
@@ -49,7 +38,6 @@ async def test_batch_quotes_use_sina_only(
 @pytest.mark.asyncio
 async def test_quotes_fallback_to_akshare_when_sina_fails(
     monkeypatch: pytest.MonkeyPatch,
-    live_market_settings: None,
 ) -> None:
     def sina_fail(_symbols: list[str]) -> dict[str, QuoteRow]:
         raise RuntimeError("sina down")
@@ -82,7 +70,6 @@ async def test_quotes_fallback_to_akshare_when_sina_fails(
 @pytest.mark.asyncio
 async def test_trading_rules_detect_limit_up(
     monkeypatch: pytest.MonkeyPatch,
-    live_market_settings: None,
 ) -> None:
     def fake_sina(_symbols: list[str]) -> dict[str, QuoteRow]:
         from datetime import UTC, datetime
@@ -114,7 +101,6 @@ async def test_trading_rules_detect_limit_up(
 @pytest.mark.asyncio
 async def test_trading_rules_detect_st_and_suspended(
     monkeypatch: pytest.MonkeyPatch,
-    live_market_settings: None,
 ) -> None:
     def fake_sina(_symbols: list[str]) -> dict[str, QuoteRow]:
         from datetime import UTC, datetime

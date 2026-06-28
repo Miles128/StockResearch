@@ -1,5 +1,8 @@
-import type { AshareFactor, DebateResult, DimensionResult, ResearchReport } from "./api";
+import type { AshareFactor, DebateResult, ResearchReport } from "./api";
+import { DimensionCards, dimensionItemsFromResults } from "./DimensionCards";
+import { MarkdownContent } from "./MarkdownContent";
 import { useI18n } from "./i18n";
+import { localizeAgentDisplay } from "./uiLabels";
 
 function biasLabel(bias: string, t: (key: string) => string): string {
   const key = `card.${bias}` as const;
@@ -45,51 +48,6 @@ export function hasDimensionStream(process?: {
   );
 }
 
-function ResearchDimensionsBlock({
-  dimensions,
-  labels,
-}: {
-  dimensions: Record<string, DimensionResult>;
-  labels: {
-    section: string;
-    confidence: string;
-    highlights: string;
-    risks: string;
-  };
-}) {
-  const entries = Object.entries(dimensions);
-  if (!entries.length) return null;
-  return (
-    <div className="research-dimensions">
-      <p className="stream-section-title">{labels.section}</p>
-      {entries.map(([key, dim]) => (
-        <div key={key} className="dimension-card dimension-done research-dim-card">
-          <div className="dimension-card-head">
-            <strong>{dim.agent || key}</strong>
-            <span className="stat-pill">
-              {dim.score}/10 · {labels.confidence} {dim.confidence}
-            </span>
-          </div>
-          <div className="dimension-card-body">
-            {dim.highlights?.length > 0 && (
-              <p>
-                <strong>{labels.highlights}：</strong>
-                {dim.highlights.join("；")}
-              </p>
-            )}
-            {dim.risks?.length > 0 && (
-              <p className="muted">
-                <strong>{labels.risks}：</strong>
-                {dim.risks.join("；")}
-              </p>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function ResearchDebateBlock({
   debate,
   labels,
@@ -109,7 +67,6 @@ function ResearchDebateBlock({
   if (!debate.rounds?.length && !debate.consensus) return null;
   return (
     <div className="research-debate">
-      <p className="stream-section-title">{labels.section}</p>
       {debate.rounds?.map((rnd) => (
         <div key={rnd.round} className="debate-grid">
           {rnd.bull_argument && (
@@ -165,6 +122,10 @@ function factorStatusLabel(status: AshareFactor["status"], t: (key: string) => s
   return t("card.factorMissing");
 }
 
+function isNewsTextFactor(factor: AshareFactor): boolean {
+  return factor.name.includes("新闻") || factor.category.includes("新闻");
+}
+
 function ResearchAshareFactorsBlock({
   factors,
   t,
@@ -172,12 +133,13 @@ function ResearchAshareFactorsBlock({
   factors?: AshareFactor[];
   t: (key: string) => string;
 }) {
-  if (!factors?.length) return null;
+  const visible = factors?.filter((factor) => !isNewsTextFactor(factor)) ?? [];
+  if (!visible.length) return null;
   return (
     <details className="ashare-factor-block">
       <summary>{t("card.ashareFactors")}</summary>
       <div className="ashare-factor-grid">
-        {factors.map((factor) => (
+        {visible.map((factor) => (
           <article className={`ashare-factor-card ${factor.status}`} key={`${factor.category}-${factor.name}`}>
             <div className="ashare-factor-head">
               <div>
@@ -224,12 +186,11 @@ export function ResearchReportDetails({
   showDebate?: boolean;
 }) {
   const { t } = useI18n();
-  const labels = {
-    section: t("card.fourDim"),
-    confidence: t("card.confidence"),
-    highlights: t("card.highlights"),
-    risks: t("card.risks"),
-  };
+  const dimEntries = Object.entries(report.dimensions ?? {});
+  const allSources = Array.from(
+    new Set(dimEntries.flatMap(([, d]) => d.data_sources ?? [])),
+  ).filter(Boolean);
+
   const debateLabels = {
     section: t("card.debateSection"),
     long: t("card.long"),
@@ -248,19 +209,68 @@ export function ResearchReportDetails({
 
   return (
     <div className="research-report-details">
-      {showDimensions && (
-        <ResearchDimensionsBlock dimensions={report.dimensions ?? {}} labels={labels} />
+      {allSources.length > 0 && (
+        <p className="research-source-hint">
+          <span className="muted">{t("card.dataSources")}：</span>
+          {allSources.join(" · ")}
+        </p>
+      )}
+      {showDimensions && dimEntries.length > 0 && (
+        <DimensionCards
+          defaultOpen={false}
+          labels={{
+            confidence: t("card.confidence"),
+            highlights: t("card.highlights"),
+            risks: t("card.risks"),
+          }}
+          items={dimensionItemsFromResults(report.dimensions ?? {}, (key, agent) =>
+            localizeAgentDisplay(key, agent, t),
+          )}
+        />
       )}
       {showDebate && report.debate && (
-        <ResearchDebateBlock debate={report.debate} labels={debateLabels} />
-      )}
-      <ResearchAshareFactorsBlock factors={report.ashare_factors} t={t} />
-      {report.text_factor_summary && (
-        <details className="text-factor-block">
-          <summary>{t("card.textFactorSummary")}</summary>
-          <pre className="text-factor-pre">{report.text_factor_summary}</pre>
+        <details className="research-debate-details">
+          <summary>{t("card.debateSection")}</summary>
+          <ResearchDebateBlock debate={report.debate} labels={debateLabels} />
         </details>
       )}
+      <ResearchAshareFactorsBlock factors={report.ashare_factors} t={t} />
+    </div>
+  );
+}
+
+/** 继续追问：研究结论后给出 2–4 个上下文追问，点击直接发起提问。 */
+export function FollowUpQuestions({
+  report,
+  onAsk,
+  disabled,
+}: {
+  report: ResearchReport;
+  onAsk: (query: string) => void;
+  disabled?: boolean;
+}) {
+  const { t } = useI18n();
+  const name = report.name || report.symbol;
+  const questions = [
+    t("card.followUpTech"),
+    t("card.followUpRisk"),
+    t("card.followUpCapital"),
+    t("card.followUpPeer"),
+  ];
+  return (
+    <div className="follow-up-row">
+      <span className="muted follow-up-title">{t("card.followUpTitle")}</span>
+      {questions.map((q) => (
+        <button
+          key={q}
+          type="button"
+          className="example-chip follow-up-chip"
+          disabled={disabled}
+          onClick={() => onAsk(`${q}（${name}）`)}
+        >
+          {q}
+        </button>
+      ))}
     </div>
   );
 }

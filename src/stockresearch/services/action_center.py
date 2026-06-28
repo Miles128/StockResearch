@@ -143,16 +143,19 @@ async def generate_daily_actions(
     ranked = sorted(seen.values(), key=lambda s: s.weight, reverse=True)[:_MAX_SIGNALS]
 
     if not ranked:
-        summary = "持仓暂无明显变化，市场整体平稳。"
+        summary = "暂无明显变化"
     else:
         risk_count = sum(1 for s in ranked if s.type == "risk")
         news_count = sum(1 for s in ranked if s.type == "news")
-        parts = []
+        price_count = sum(1 for s in ranked if s.type == "price")
+        parts: list[str] = []
         if risk_count:
-            parts.append(f"{risk_count} 条风控信号")
+            parts.append(f"{risk_count}条风控")
         if news_count:
-            parts.append(f"{news_count} 条相关新闻")
-        summary = f"今日 {len(ranked)} 条关注信号：{'、'.join(parts)}。"
+            parts.append(f"{news_count}条新闻")
+        if price_count:
+            parts.append(f"{price_count}条行情")
+        summary = "、".join(parts) if parts else "有待关注事项"
 
     return DailyActionCenterOut(
         signals=ranked,

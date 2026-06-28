@@ -1,4 +1,4 @@
-import type { AgentStreamEvent } from "./api";
+import type { AgentStreamEvent, MasterCommentaryItem } from "./api";
 import {
   detectDimensionKind,
   localizeAgentName,
@@ -32,6 +32,7 @@ export interface StreamState {
   judgeVerdict: JudgeVerdict | null;
   voteTally: VoteTally | null;
   activeStreamIds: string[];
+  masterCommentary: MasterCommentaryItem[];
 }
 
 const DEBATE_AGENT_SIDES: Record<string, string> = {
@@ -159,6 +160,7 @@ export function emptyStreamState(): StreamState {
     judgeVerdict: null,
     voteTally: null,
     activeStreamIds: [],
+    masterCommentary: [],
   };
 }
 
@@ -177,6 +179,7 @@ export function applyStreamEvent(
     judgeVerdict,
     voteTally,
     activeStreamIds,
+    masterCommentary,
   } = prev;
 
   if (event.type === "status" && (event.message || event.message_key)) {
@@ -356,6 +359,12 @@ export function applyStreamEvent(
     }
   }
 
+  if (event.type === "master_commentary" && Array.isArray(event.commentary)) {
+    masterCommentary = (event.commentary as MasterCommentaryItem[]).filter(
+      (item) => item && typeof item === "object",
+    );
+  }
+
   if (event.type === "judge") {
     activeStreamIds = activeStreamIds.filter((id) => id !== "judge");
     const biasLabel = t
@@ -402,5 +411,6 @@ export function applyStreamEvent(
     judgeVerdict,
     voteTally,
     activeStreamIds,
+    masterCommentary,
   };
 }

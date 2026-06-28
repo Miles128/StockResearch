@@ -4,9 +4,7 @@ import os
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 # Force test settings before imports
 os.environ["DATABASE_URL"] = "sqlite://"
@@ -15,7 +13,12 @@ os.environ["USE_MOCK_MARKET_DATA"] = "true"
 
 from stockresearch.api.app import create_app  # noqa: E402
 from stockresearch.db.models import Base  # noqa: E402
-from stockresearch.db.session import get_db  # noqa: E402
+from stockresearch.db import session as db_session_module  # noqa: E402
+from stockresearch.db.session import (  # noqa: E402
+    _migration_002_user_preferences,
+    _migration_003_provider_cache,
+    get_db,
+)
 from stockresearch.services.cache import CacheService  # noqa: E402
 
 
@@ -30,13 +33,12 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 
 @pytest.fixture()
 def db_session() -> object:
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+    engine = db_session_module.engine
     Base.metadata.create_all(bind=engine)
-    session = sessionmaker(bind=engine)()
+    with engine.begin() as conn:
+        _migration_002_user_preferences(conn)
+        _migration_003_provider_cache(conn)
+    session = db_session_module.SessionLocal()
     yield session
     session.close()
 
@@ -49,6 +51,7 @@ def client(db_session: object) -> TestClient:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+
     cache = CacheService()
     cache.clear_memory()
     return TestClient(app)

@@ -1,4 +1,4 @@
-import { analysisBodyField } from "./analysisSettings";
+import { chatBodyField } from "./modeSettings";
 import { dataSourceRequestHeaders } from "./dataSourceSettings";
 import {
   llmBodyField,
@@ -174,10 +174,19 @@ export type StreamEvent = AgentStreamEvent;
 
 export type ExecutionPreference = "react" | "plan_execute" | "preset" | "auto";
 
+export interface ChatUserContextPayload {
+  kind: "portfolio" | "risk" | "market" | "news" | "daily_scan" | "stock" | "report";
+  label: string;
+  detail?: string;
+  symbol?: string;
+  metadata?: Record<string, string>;
+}
+
 export interface ChatStreamOptions {
   confirmedSymbol?: string;
   confirmedName?: string;
   executionPreference?: ExecutionPreference;
+  userContext?: ChatUserContextPayload | null;
 }
 
 export const api = {
@@ -204,10 +213,11 @@ export const api = {
       body: JSON.stringify({
         message,
         session_id: sessionId,
+        user_context: options?.userContext ?? undefined,
         confirmed_symbol: options?.confirmedSymbol,
         confirmed_name: options?.confirmedName,
         execution_preference: options?.executionPreference,
-        ...analysisBodyField(),
+        ...chatBodyField(),
         ...llmBodyField(),
       }),
     }),
@@ -224,10 +234,11 @@ export const api = {
       body: {
         message,
         session_id: sessionId,
+        user_context: options?.userContext ?? undefined,
         confirmed_symbol: options?.confirmedSymbol,
         confirmed_name: options?.confirmedName,
         execution_preference: options?.executionPreference,
-        ...analysisBodyField(),
+        ...chatBodyField(),
         ...llmBodyField(),
       },
       onEvent,
@@ -240,6 +251,11 @@ export const api = {
     request("/portfolio/holdings", { method: "POST", body: JSON.stringify(h) }),
   deleteHolding: (id: number) =>
     request(`/portfolio/holdings/${id}`, { method: "DELETE" }),
+  applyHoldingTransactions: (payload: HoldingTransactionBatchPayload) =>
+    request<HoldingTransactionResult>("/portfolio/holdings/transactions", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   lookupStock: (query: string) =>
     request<StockLookupOut>("/portfolio/holdings/lookup", {
       method: "POST",
@@ -267,7 +283,7 @@ export const api = {
       "/risk/checkup",
       {
         method: "POST",
-        body: JSON.stringify({ ...analysisBodyField() }),
+        body: JSON.stringify({ ...chatBodyField() }),
       },
       120_000,
     ),
@@ -282,7 +298,7 @@ export const api = {
         body: JSON.stringify({
           risk_tolerance: riskTolerance,
           monthly_income: monthlyIncome,
-          ...analysisBodyField(),
+          ...chatBodyField(),
         }),
       },
       60_000,
@@ -302,12 +318,23 @@ export const api = {
   signalBacktest: () => request<SignalBacktest>("/research/signal-backtest"),
   searchMemory: (q: string) =>
     request<MemorySearchResult>(`/research/memory/search?q=${encodeURIComponent(q)}`),
-  generateBriefing: (kind: "morning" | "closing") =>
-    requestWithLlm<Briefing>(`/briefing/generate?kind=${kind}`, { method: "POST" }),
+  generateBriefing: (kind: "intraday" | "postmarket") =>
+    requestWithLlm<Briefing>(`/briefing/generate?kind=${kind}`, {
+      method: "POST",
+      body: JSON.stringify(chatBodyField()),
+    }),
+  latestBriefing: (kind: "intraday" | "postmarket") =>
+    request<Briefing | null>(`/briefing/latest?kind=${kind}`),
+  briefingHistory: (kind: "intraday" | "postmarket" | "all" = "all", limit = 10) =>
+    request<Briefing[]>(`/briefing/history?kind=${kind}&limit=${limit}`),
+  briefingSchedule: () => request<BriefingSchedule>("/briefing/schedule"),
+  setBriefingSchedule: (enabled: boolean) =>
+    request<BriefingSchedule>(`/briefing/schedule?enabled=${enabled}`, { method: "PUT" }),
   loadDemo: () => request<{ status: string; count: number; demo: boolean }>("/portfolio/demo", { method: "POST" }),
   clearDemo: () => request<{ status: string; deleted: number }>("/portfolio/demo", { method: "DELETE" }),
   demoStatus: () => request<{ demo: boolean }>("/portfolio/demo/status"),
   dailyActions: () => request<DailyActionCenter>("/action-center/daily"),
+  dailyScan: () => request<DailyScanOut>("/portfolio/daily-scan"),
   analyzeNews: (
     newsId: number,
     symbol: string,
@@ -322,7 +349,17 @@ export const api = {
       extractResult: (event) =>
         event.type === "done" && event.result ? (event.result as unknown as NewsAnalysis) : undefined,
     }),
+  glossary: () => requestPlain<GlossaryTerm[]>("/glossary"),
 };
+
+/** 词库条目，供投顾模式 TermPopover 渲染可点击弹窗。 */
+export interface GlossaryTerm {
+  id: string;
+  short: string;
+  en: string;
+  def: string;
+  analogy: string;
+}
 
 export interface LlmUsage {
   prompt_tokens: number;
@@ -340,6 +377,7 @@ export interface ChatResponse {
   cards: Card[];
   intent: string;
   disclaimer: string;
+  follow_up_questions?: string[];
   llm_usage?: LlmUsage | null;
 }
 
@@ -414,6 +452,25 @@ export interface HoldingCreatePayload {
   lots: number;
   sector?: string;
   buy_date?: string;
+}
+
+export interface HoldingTransactionItem {
+  side: "buy" | "sell";
+  symbol?: string;
+  name?: string;
+  query?: string;
+  cost_price?: number;
+  lots: number;
+  trade_date?: string;
+}
+
+export interface HoldingTransactionBatchPayload {
+  transactions: HoldingTransactionItem[];
+}
+
+export interface HoldingTransactionResult {
+  applied: number;
+  holdings: Holding[];
 }
 
 export interface StockLookupOut {
@@ -494,6 +551,16 @@ export interface AshareFactor {
   }[];
 }
 
+export interface MasterCommentaryItem {
+  master: string;
+  name: string;
+  signal: "bullish" | "neutral" | "bearish";
+  signal_text: string;
+  confidence: number;
+  reasoning: string;
+  key_metric: string;
+}
+
 export interface ResearchReport {
   symbol: string;
   name: string;
@@ -501,12 +568,16 @@ export interface ResearchReport {
   composite_confidence?: string;
   bias: string;
   summary: string;
+  viewpoints?: Record<string, string>;
+  data_gaps?: string[];
+  follow_up_questions?: string[];
   news_text_factor?: string | null;
   text_factor_summary?: string | null;
   ashare_factors?: AshareFactor[];
   dimension_weights?: Record<string, number>;
   dimensions: Record<string, DimensionResult>;
   debate?: DebateResult | null;
+  master_commentary?: MasterCommentaryItem[];
 }
 
 export interface PortfolioMetrics {
@@ -550,6 +621,7 @@ export interface RiskCheckup {
     cvar_pct: number;
     holdings_var: { name: string; weight: number; var_value: number }[];
   };
+  master_commentary?: MasterCommentaryItem[];
 }
 
 export interface AssetAllocation {
@@ -672,12 +744,19 @@ export interface BriefingSection {
 }
 
 export interface Briefing {
-  kind: "morning" | "closing";
+  kind: "intraday" | "postmarket";
   title: string;
   sections: BriefingSection[];
   summary: string;
   disclaimer: string;
   generated_at: string;
+}
+
+export interface BriefingSchedule {
+  enabled: boolean;
+  morning_time: string;
+  closing_time: string;
+  timezone: string;
 }
 
 export interface ActionSignal {
@@ -694,7 +773,27 @@ export interface ActionSignal {
 export interface DailyActionCenter {
   signals: ActionSignal[];
   summary: string;
-  generated_at: string;
+}
+
+export interface DailyScanItem {
+  symbol: string;
+  name: string;
+  sector: string;
+  price?: number | null;
+  change_pct?: number | null;
+  cost_price: number;
+  profit_pct?: number | null;
+  technical_score: number;
+  signal: "bullish" | "neutral" | "bearish";
+  signal_text: string;
+  suggestion: string;
+  factors: string[];
+}
+
+export interface DailyScanOut {
+  scan_date: string;
+  summary: string;
+  items: DailyScanItem[];
   disclaimer: string;
 }
 

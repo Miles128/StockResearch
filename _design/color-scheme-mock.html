@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StockResearch · 配色方案 Mock（待确认后再落地）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #070708;
+      color: #ddd;
+      line-height: 1.45;
+    }
+    .page-head {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      padding: 14px 20px;
+      background: rgba(7, 7, 8, 0.92);
+      border-bottom: 1px solid #222;
+      backdrop-filter: blur(8px);
+    }
+    .page-head h1 { margin: 0 0 6px; font-size: 18px; }
+    .page-head p { margin: 0; color: #888; font-size: 13px; max-width: 720px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 16px;
+      padding: 16px;
+    }
+    .scheme {
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #0c0c0d;
+    }
+    .scheme-head {
+      padding: 12px 14px;
+      border-bottom: 1px solid #222;
+    }
+    .scheme-head h2 { margin: 0 0 4px; font-size: 15px; }
+    .scheme-head p { margin: 0; font-size: 12px; color: #888; }
+    .scheme-head .tag {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .mock { font-size: 13px; }
+    .mock-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .mock-header .actions { display: flex; gap: 6px; }
+    .mock-header .pill {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      border: 1px solid transparent;
+    }
+    .mock-ticker {
+      display: flex;
+      align-items: center;
+      overflow-x: auto;
+      border-bottom: 1px solid var(--border);
+      min-height: 34px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    .mock-ticker .idx {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-right: 1px solid var(--border);
+    }
+    .mock-ticker .idx .name { color: var(--muted); font-size: 10px; letter-spacing: 0.04em; }
+    .mock-ticker .idx .px { color: var(--dim); font-weight: 700; }
+    .mock-ticker .meta {
+      padding: 0 10px;
+      color: var(--muted);
+      border-left: 1px solid var(--border);
+    }
+    .mock-ticker .session {
+      margin-left: auto;
+      padding: 0 10px;
+      color: var(--muted);
+    }
+    .up { color: var(--up); }
+    .down { color: var(--down); }
+    .mock-body {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      min-height: 220px;
+    }
+    .mock-nav {
+      border-right: 1px solid var(--border);
+      padding: 8px 0;
+    }
+    .mock-nav div {
+      padding: 8px 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .mock-nav div.active {
+      color: var(--text);
+      background: var(--nav-active);
+      border-left: 2px solid var(--accent);
+    }
+    .mock-main { padding: 12px; }
+    .mock-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--panel);
+      padding: 10px 12px;
+      margin-bottom: 8px;
+    }
+    .mock-card h3 { margin: 0 0 6px; font-size: 13px; }
+    .mock-card p { margin: 0; color: var(--muted); font-size: 12px; }
+    .swatches {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 10px 14px 14px;
+      border-top: 1px solid #222;
+    }
+    .swatch {
+      width: 54px;
+      text-align: center;
+      font-size: 9px;
+      color: #777;
+    }
+    .swatch i {
+      display: block;
+      height: 18px;
+      border-radius: 4px;
+      margin-bottom: 4px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    /* Scheme A — Slate Indigo (Linear / Vercel) */
+    .scheme-a {
+      --bg: #0b0d10;
+      --panel: #12151a;
+      --panel-2: #181c24;
+      --border: #2a303c;
+      --text: #e8eaed;
+      --muted: #9aa3b2;
+      --dim: #6b7280;
+      --accent: #818cf8;
+      --accent-2: #a5b4fc;
+      --up: #34d399;
+      --down: #f87171;
+      --header-bg: #12151a;
+      --header-fg: #e8eaed;
+      --nav-active: #1c2330;
+      --radius: 8px;
+    }
+    .scheme-a .tag { background: rgba(129,140,248,0.15); color: #c7d2fe; }
+    .scheme-a .mock-header { background: var(--header-bg); color: var(--header-fg); border-bottom: 1px solid var(--border); }
+    .scheme-a .pill.primary { background: var(--accent); color: #0b0d10; }
+    .scheme-a .pill.ghost { border-color: var(--border); color: var(--muted); }
+
+    /* Scheme B — Charcoal Teal (Fintech calm) */
+    .scheme-b {
+      --bg: #0a0f0e;
+      --panel: #101816;
+      --panel-2: #15201d;
+      --border: #24302c;
+      --text: #e6eeeb;
+      --muted: #8fa39a;
+      --dim: #5f736b;
+      --accent: #2dd4bf;
+      --accent-2: #5eead4;
+      --up: #4ade80;
+      --down: #fb7185;
+      --header-bg: #0f1715;
+      --header-fg: #e6eeeb;
+      --nav-active: #162420;
+      --radius: 6px;
+    }
+    .scheme-b .tag { background: rgba(45,212,191,0.12); color: #99f6e4; }
+    .scheme-b .mock-header { background: var(--header-bg); color: var(--header-fg); border-bottom: 1px solid var(--border); }
+    .scheme-b .pill.primary { background: var(--accent); color: #052e2b; }
+    .scheme-b .pill.ghost { border-color: var(--border); color: var(--muted); }
+
+    /* Scheme C — Warm Graphite (keep terminal DNA, softer) */
+    .scheme-c {
+      --bg: #0c0c0c;
+      --panel: #141414;
+      --panel-2: #1a1a1a;
+      --border: #2d2d2d;
+      --text: #ececec;
+      --muted: #9a9a9a;
+      --dim: #6e6e6e;
+      --accent: #f59e0b;
+      --accent-2: #fbbf24;
+      --up: #22c55e;
+      --down: #ef4444;
+      --header-bg: #151515;
+      --header-fg: #f5f5f5;
+      --nav-active: #1f1a12;
+      --radius: 4px;
+    }
+    .scheme-c .tag { background: rgba(245,158,11,0.12); color: #fcd34d; }
+    .scheme-c .mock-header { background: var(--header-bg); color: var(--header-fg); border-bottom: 1px solid var(--border); box-shadow: inset 0 -1px 0 rgba(245,158,11,0.25); }
+    .scheme-c .pill.primary { background: var(--accent); color: #111; }
+    .scheme-c .pill.ghost { border-color: var(--border); color: var(--muted); }
+
+    .scheme .mock { background: var(--bg); color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="page-head">
+    <h1>配色方案 Mock · 确认后再写入产品</h1>
+    <p>三种现代深色方向：A 石板靛蓝（SaaS/AI 产品感）、B 炭灰青绿（冷静金融科技）、C 暖石墨（保留终端基因但更柔和）。下方均含单行指数条 + 侧栏 + 卡片示例。选定方案后再改 <code>tokens.css</code>。</p>
+  </div>
+
+  <div class="grid">
+    <section class="scheme scheme-a">
+      <div class="scheme-head">
+        <h2>A · 石板靛蓝 Slate Indigo</h2>
+        <p>低饱和深色 + 靛蓝强调，适合 AI Copilot 与信息密集界面。</p>
+        <span class="tag">推荐 · 现代感最强</span>
+      </div>
+      <div class="mock">
+        <div class="mock-header">
+          <span>STOCKRESEARCH · 顾问模式</span>
+          <div class="actions">
+            <span class="pill ghost">设置</span>
+            <span class="pill primary">AI 对话</span>
+          </div>
+        </div>
+        <div class="mock-ticker">
+          <span class="idx"><span class="name">上证</span><span class="px">3245.12</span><span class="up">+0.52%</span></span>
+          <span class="idx"><span class="name">深成</span><span class="px">10521.8</span><span class="down">-0.18%</span></span>
+          <span class="idx"><span class="name">创业板</span><span class="px">2033.4</span><span class="up">+1.02%</span></span>
+          <span class="meta up">北向 +12.3亿</span>
+          <span class="meta">涨 2841 / 跌 1923</span>
+          <span class="session">交易中 14:32</span>
+        </div>
+        <div class="mock-body">
+          <nav class="mock-nav">
+            <div>持仓</div>
+            <div class="active">市场</div>
+            <div>新闻</div>
+            <div>风控</div>
+          </nav>
+          <main class="mock-main">
+            <div class="mock-card">
+              <h3>综合结论 · 120–180 字</h3>
+              <p>加权综合 7.2/10，倾向偏多。基本面盈利质量改善，情绪面新闻偏暖，技术面均线多头排列但量能一般。</p>
+            </div>
+            <div class="mock-card">
+              <h3>四维分析</h3>
+              <p>基本面 · 技术面 · 情绪面 · 筹码面（默认折叠）</p>
+            </div>
+          </main>
+        </div>
+      </div>
+      <div class="swatches">
+        <div class="swatch"><i style="background:#0b0d10"></i>bg</div>
+        <div class="swatch"><i style="background:#818cf8"></i>accent</div>
+        <div class="swatch"><i style="background:#34d399"></i>up</div>
+        <div class="swatch"><i style="background:#f87171"></i>down</div>
+        <div class="swatch"><i style="background:#9aa3b2"></i>muted</div>
+      </div>
+    </section>
+
+    <section class="scheme scheme-b">
+      <div class="scheme-head">
+        <h2>B · 炭灰青绿 Charcoal Teal</h2>
+        <p>偏「交易终端 + 健康金融」气质，强调可读性与长时间使用舒适度。</p>
+        <span class="tag">备选 · 更冷静</span>
+      </div>
+      <div class="mock">
+        <div class="mock-header">
+          <span>STOCKRESEARCH · 顾问模式</span>
+          <div class="actions">
+            <span class="pill ghost">设置</span>
+            <span class="pill primary">AI 对话</span>
+          </div>
+        </div>
+        <div class="mock-ticker">
+          <span class="idx"><span class="name">上证</span><span class="px">3245.12</span><span class="up">+0.52%</span></span>
+          <span class="idx"><span class="name">深成</span><span class="px">10521.8</span><span class="down">-0.18%</span></span>
+          <span class="idx"><span class="name">创业板</span><span class="px">2033.4</span><span class="up">+1.02%</span></span>
+          <span class="meta up">北向 +12.3亿</span>
+          <span class="meta">涨 2841 / 跌 1923</span>
+          <span class="session">交易中 14:32</span>
+        </div>
+        <div class="mock-body">
+          <nav class="mock-nav">
+            <div>持仓</div>
+            <div class="active">市场</div>
+            <div>新闻</div>
+            <div>风控</div>
+          </nav>
+          <main class="mock-main">
+            <div class="mock-card">
+              <h3>综合结论 · 120–180 字</h3>
+              <p>加权综合 7.2/10，倾向偏多。基本面盈利质量改善，情绪面新闻偏暖，技术面均线多头排列但量能一般。</p>
+            </div>
+            <div class="mock-card">
+              <h3>四维分析</h3>
+              <p>基本面 · 技术面 · 情绪面 · 筹码面（默认折叠）</p>
+            </div>
+          </main>
+        </div>
+      </div>
+      <div class="swatches">
+        <div class="swatch"><i style="background:#0a0f0e"></i>bg</div>
+        <div class="swatch"><i style="background:#2dd4bf"></i>accent</div>
+        <div class="swatch"><i style="background:#4ade80"></i>up</div>
+        <div class="swatch"><i style="background:#fb7185"></i>down</div>
+        <div class="swatch"><i style="background:#8fa39a"></i>muted</div>
+      </div>
+    </section>
+
+    <section class="scheme scheme-c">
+      <div class="scheme-head">
+        <h2>C · 暖石墨 Warm Graphite</h2>
+        <p>保留 Bloomberg 橙黑的精神，但降低饱和度、顶栏改为深色 + 琥珀点缀。</p>
+        <span class="tag">保守升级</span>
+      </div>
+      <div class="mock">
+        <div class="mock-header">
+          <span>STOCKRESEARCH · 顾问模式</span>
+          <div class="actions">
+            <span class="pill ghost">设置</span>
+            <span class="pill primary">AI 对话</span>
+          </div>
+        </div>
+        <div class="mock-ticker">
+          <span class="idx"><span class="name">上证</span><span class="px">3245.12</span><span class="up">+0.52%</span></span>
+          <span class="idx"><span class="name">深成</span><span class="px">10521.8</span><span class="down">-0.18%</span></span>
+          <span class="idx"><span class="name">创业板</span><span class="px">2033.4</span><span class="up">+1.02%</span></span>
+          <span class="meta up">北向 +12.3亿</span>
+          <span class="meta">涨 2841 / 跌 1923</span>
+          <span class="session">交易中 14:32</span>
+        </div>
+        <div class="mock-body">
+          <nav class="mock-nav">
+            <div>持仓</div>
+            <div class="active">市场</div>
+            <div>新闻</div>
+            <div>风控</div>
+          </nav>
+          <main class="mock-main">
+            <div class="mock-card">
+              <h3>综合结论 · 120–180 字</h3>
+              <p>加权综合 7.2/10，倾向偏多。基本面盈利质量改善，情绪面新闻偏暖，技术面均线多头排列但量能一般。</p>
+            </div>
+            <div class="mock-card">
+              <h3>四维分析</h3>
+              <p>基本面 · 技术面 · 情绪面 · 筹码面（默认折叠）</p>
+            </div>
+          </main>
+        </div>
+      </div>
+      <div class="swatches">
+        <div class="swatch"><i style="background:#0c0c0c"></i>bg</div>
+        <div class="swatch"><i style="background:#f59e0b"></i>accent</div>
+        <div class="swatch"><i style="background:#22c55e"></i>up</div>
+        <div class="swatch"><i style="background:#ef4444"></i>down</div>
+        <div class="swatch"><i style="background:#9a9a9a"></i>muted</div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

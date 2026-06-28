@@ -17,6 +17,19 @@ from stockresearch.core.schemas import (
 )
 from stockresearch.services.ashare_factors import build_ashare_factor_checklist
 from stockresearch.services.text_factor import build_text_factor_summary
+from stockresearch.agents.research.summary_length import normalize_summary
+
+
+def _dimension_expand_parts(dimensions: dict[str, DimensionResult]) -> list[str]:
+    parts: list[str] = []
+    for dim in dimensions.values():
+        for highlight in dim.highlights[:2]:
+            line = highlight.strip()
+            if line and line not in parts:
+                parts.append(line)
+        if len(parts) >= 6:
+            break
+    return parts
 
 
 def build_research_report(
@@ -48,6 +61,10 @@ def build_research_report(
             else "中性"
         )
         summary += f" 裁判{judge_label}：{debate.consensus}"
+    expand_parts = _dimension_expand_parts(dimensions)
+    if debate and debate.core_divergence.strip():
+        expand_parts.append(debate.core_divergence.strip())
+    summary = normalize_summary(summary, expand_parts=expand_parts)
 
     text_factor_summary = build_text_factor_summary(
         subject=name if not sector else f"「{sector}」板块",
@@ -60,7 +77,24 @@ def build_research_report(
         debate_consensus=debate.consensus if debate else None,
     )
 
-    return ResearchReportOut(
+    ashare_factors = build_ashare_factor_checklist(
+        dimensions,
+        news_text_factor=news_text_factor,
+    )
+    from stockresearch.agents.research.viewpoints import build_viewpoints
+
+    viewpoints = build_viewpoints(dimensions, debate, news_text_factor=news_text_factor)
+    data_gaps: list[str] = []
+    for factor in ashare_factors:
+        for gap in factor.missing:
+            if gap not in data_gaps:
+                data_gaps.append(gap)
+            if len(data_gaps) >= 5:
+                break
+        if len(data_gaps) >= 5:
+            break
+
+    report = ResearchReportOut(
         symbol=symbol,
         name=name,
         sector=sector,
@@ -69,13 +103,15 @@ def build_research_report(
         composite_confidence=composite_confidence,
         bias=bias,
         summary=summary,
+        viewpoints=viewpoints,
+        data_gaps=data_gaps,
         debate=debate,
         leaders=leaders or [],
         news_text_factor=news_text_factor,
         text_factor_summary=text_factor_summary,
-        ashare_factors=build_ashare_factor_checklist(
-            dimensions,
-            news_text_factor=news_text_factor,
-        ),
+        ashare_factors=ashare_factors,
         dimension_weights=weights,
     )
+    from stockresearch.services.follow_up import attach_report_follow_ups
+
+    return attach_report_follow_ups(report)

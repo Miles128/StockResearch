@@ -7,35 +7,42 @@ import {
   DataSourceStatus,
   HoldingEnriched,
   LlmUsage,
+  GlossaryTerm,
   MarketOverview,
   NewsItem,
   RiskCheckup,
   SectorPreferences,
-  StockLookupOut,
 } from "./api";
 import type { CopilotContext, Message, Tab } from "./appTypes";
+import { copilotContextToPayload } from "./chatContext";
 import { ChatPanel } from "./ChatPanel";
-import { CanvasNav } from "./CanvasNav";
-import { CopilotPanel } from "./CopilotPanel";
+import { CopilotPanel, type CopilotLayout } from "./CopilotPanel";
+import { GlossaryProvider } from "./GlossaryContext";
+import { useCopilotThreads } from "./hooks/useCopilotThreads";
+import { DailyScanPanel } from "./DailyScanPanel";
 import { DataSourceDetails } from "./DataSourceDetails";
 import { DemoBanner } from "./DemoBanner";
 import { ActionCenter } from "./ActionCenter";
 import { useI18n } from "./i18n";
 import { isLlmConfiguredLocally, isServerLlmConfigured } from "./llmSettings";
 import { formatHeaderUsage, formatLlmUsage } from "./llmUsageFormat";
+import { indexSymbolKey, localizeIndexName } from "./indexLabels";
 import { MarketTicker } from "./MarketTicker";
-import { MarketPanel } from "./MarketPanel";
+import { MarketPanel, type SelectedMarketIndex } from "./MarketPanel";
 import { NewsPanel } from "./NewsPanel";
 import { computePortfolioSummary, computeSectorConcentration } from "./portfolioHelpers";
 import { PortfolioPanel } from "./PortfolioPanel";
 import { RiskPanel } from "./RiskPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { stripDisclaimer } from "./disclaimerText";
+import { seedGlossaryCache } from "./TermPopover";
 import { applyStreamEvent, emptyStreamState } from "./streamEvents";
 import { normalizeStreamEvent } from "./streamI18n";
+import { formatBriefingMarkdown, localizeBriefing } from "./uiLabels";
 import { ModeSwitcher } from "./ModeSwitcher";
 import { Onboarding } from "./Onboarding";
 import { AssetAllocationPanel } from "./AssetAllocationPanel";
+import { BackendHealthBanner } from "./BackendHealthBanner";
 import {
   loadModeSettings,
   modeSettingsFromApiPayload,
@@ -91,24 +98,31 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("portfolio");
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [pageContext, setPageContext] = useState<CopilotContext | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [sessionId, setSessionId] = useState<string>();
+  const {
+    threads: copilotThreads,
+    activeId: activeThreadId,
+    activeThread,
+    messages,
+    sessionId,
+    input,
+    setInput,
+    chatStream,
+    setChatStream,
+    switchThread,
+    newThread: newCopilotThread,
+    renameThread,
+    deleteThread,
+    appendMessages,
+    setSessionId,
+  } = useCopilotThreads({ defaultTitle: t("copilot.untitledThread") });
   const [chatLoading, setChatLoading] = useState(false);
   const [riskLoading, setRiskLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
-  const [chatStream, setChatStream] = useState(emptyStreamState());
   const [news, setNews] = useState<NewsItem[]>([]);
   const [holdings, setHoldings] = useState<HoldingEnriched[]>([]);
   const [holdingsLoading, setHoldingsLoading] = useState(false);
   const [risk, setRisk] = useState<RiskCheckup | null>(null);
   const [error, setError] = useState("");
-  const [holdingInput, setHoldingInput] = useState("");
-  const [holdingCost, setHoldingCost] = useState("");
-  const [holdingLots, setHoldingLots] = useState("");
-  const [holdingDate, setHoldingDate] = useState("");
-  const [lookupResult, setLookupResult] = useState<StockLookupOut | null>(null);
-  const [lookupLoading, setLookupLoading] = useState(false);
   const [newsLoading, setNewsLoading] = useState(false);
   const [clock, setClock] = useState("");
   const [llmConfigured, setLlmConfigured] = useState(false);
@@ -117,8 +131,8 @@ export default function App() {
   const [dataDetailsOpen, setDataDetailsOpen] = useState(false);
   const [dataStatus, setDataStatus] = useState<DataSourceStatus | null>(null);
   const [marketOverview, setMarketOverview] = useState<MarketOverview | null>(null);
+  const [marketChartIndex, setMarketChartIndex] = useState<SelectedMarketIndex | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
-  const [lookupPrice, setLookupPrice] = useState<number | null>(null);
   const [newsSectors, setNewsSectors] = useState<SectorPreferences | null>(null);
   const [sectorSaving, setSectorSaving] = useState(false);
   const [isDemo, setIsDemo] = useState(false);
@@ -126,7 +140,42 @@ export default function App() {
   const autoDemoLoadRequested = useRef(false);
   const [modeSettings, setModeSettings] = useState<ModeSettings>(() => loadModeSettings());
   const [onboardingOpen, setOnboardingOpen] = useState(() => !loadModeSettings().onboarded);
+  const [copilotWidth, setCopilotWidth] = useState(580);
+  const [copilotHeight, setCopilotHeight] = useState(360);
+  const [copilotLayout, setCopilotLayout] = useState<CopilotLayout>("horizontal");
+  const [glossary, setGlossary] = useState<Record<string, GlossaryTerm>>({});
+  const resizingRef = useRef(false);
+  const resizingAxisRef = useRef<"x" | "y">("x");
   const settingsRequired = llmCheckDone && !llmConfigured;
+
+  useEffect(() => {
+    function onMove(e: MouseEvent) {
+      if (!resizingRef.current) return;
+      if (resizingAxisRef.current === "y") {
+        const minH = 200;
+        const maxH = window.innerHeight - 80;
+        const next = window.innerHeight - e.clientY;
+        setCopilotHeight(Math.max(minH, Math.min(maxH, next)));
+      } else {
+        const minW = 360;
+        const maxW = window.innerWidth;
+        const next = window.innerWidth - e.clientX;
+        setCopilotWidth(Math.max(minW, Math.min(maxW, next)));
+      }
+    }
+    function onUp() {
+      if (!resizingRef.current) return;
+      resizingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []);
 
   const chatExamples = useMemo(
     () => [
@@ -157,16 +206,16 @@ export default function App() {
 
   function dataSourceLabel(): string {
     if (!dataStatus) return t("header.dataUnknown");
-    if (dataStatus.use_mock) return t("header.dataMock");
     const overview = dataStatus.overview;
     const quotes = dataStatus.quotes;
     const primary = overview?.primary || quotes?.primary || "sina";
-    const fallback = overview?.fallback || quotes?.fallback;
+    const fallback = overview?.fallback || quotes?.fallback || "akshare";
     const degraded = Boolean(overview?.degraded || quotes?.degraded);
-    if (degraded && fallback) {
+    if (degraded) {
       return t("header.dataDegraded").replace("{primary}", primary).replace("{fallback}", fallback);
     }
-    return t("header.dataLive").replace("{primary}", primary);
+    // 默认并列展示主源 + 备源，让用户看到完整源链路
+    return t("header.dataLiveMulti").replace("{primary}", primary).replace("{fallback}", fallback);
   }
 
   function handleLlmConfigured() {
@@ -250,6 +299,15 @@ export default function App() {
         setModeSettings(cachedModeSettings);
         setOnboardingOpen(!cachedModeSettings.onboarded);
       });
+    void api
+      .glossary()
+      .then((list) => {
+        const map: Record<string, GlossaryTerm> = {};
+        for (const item of list) map[item.id] = item;
+        seedGlossaryCache(map);
+        setGlossary(map);
+      })
+      .catch(() => setGlossary({}));
     void loadOverview();
     void loadHoldings().then(() => {
       api.demoStatus().then((s) => setIsDemo(s.demo)).catch(() => {});
@@ -277,39 +335,21 @@ export default function App() {
   }, [tab]);
 
   useEffect(() => {
-    if (lookupResult?.status !== "confirmed" || !lookupResult.symbol) {
-      setLookupPrice(null);
-      return;
-    }
-    void api
-      .stockQuotes(lookupResult.symbol)
-      .then((quotes) => setLookupPrice(quotes[0]?.price ?? null))
-      .catch(() => setLookupPrice(null));
-  }, [lookupResult]);
-
-  useEffect(() => {
-    const fnMap: Partial<Record<string, Tab>> = {
-      F1: "portfolio",
-      F2: "risk",
-      F3: "market",
-      F4: "news",
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      const next = fnMap[e.key];
-      if (!next) return;
-      e.preventDefault();
-      setTab(next);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
-
-  useEffect(() => {
     if (tab !== "portfolio") return;
-    void loadHoldings();
-    const id = setInterval(() => void loadHoldings(), 30_000);
-    return () => clearInterval(id);
+    let timeoutId = 0;
+
+    async function tick() {
+      const data = await loadHoldings();
+      // 已收盘或没有持仓时停止自动轮询，盘中每 30 秒刷新一次
+      if (data[0]?.market_session === "trading") {
+        timeoutId = window.setTimeout(tick, 30_000);
+      }
+    }
+
+    void tick();
+    return () => {
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
   }, [tab]);
 
   const showError = useCallback((msg: string) => {
@@ -317,7 +357,7 @@ export default function App() {
     setTimeout(() => setError(""), 4000);
   }, []);
 
-  async function loadHoldings() {
+  async function loadHoldings(): Promise<HoldingEnriched[]> {
     try {
       setHoldingsLoading(true);
       const data = await api.holdingsEnriched();
@@ -327,14 +367,18 @@ export default function App() {
         autoDemoLoadRequested.current = true;
         try {
           await api.loadDemo();
-          setHoldings(await api.holdingsEnriched());
+          const demoData = await api.holdingsEnriched();
+          setHoldings(demoData);
           setIsDemo(true);
+          return demoData;
         } catch {
           // ignore auto-load failures
         }
       }
+      return data;
     } catch (e) {
       showError(String(e));
+      return holdings;
     } finally {
       setHoldingsLoading(false);
     }
@@ -350,12 +394,13 @@ export default function App() {
     setChatStream(emptyStreamState());
     let processSnapshot = emptyStreamState();
     const activeContext = contextOverride === undefined ? pageContext : contextOverride;
-    const requestQuery = activeContext
-      ? `${query}\n\n[当前画布上下文：${activeContext.label}${activeContext.detail ? `；${activeContext.detail}` : ""}]`
-      : query;
+    const chatOptions: ChatStreamOptions = {
+      ...options,
+      userContext: activeContext ? copilotContextToPayload(activeContext) : null,
+    };
     try {
       const resp = await api.chatStream(
-        requestQuery,
+        query,
         sessionId,
         (event: AgentStreamEvent) => {
           if (
@@ -375,7 +420,7 @@ export default function App() {
             setStatusMsg(normalized.message);
           }
         },
-        options,
+        chatOptions,
       );
       if (resp) {
         setSessionId(resp.session_id);
@@ -383,42 +428,34 @@ export default function App() {
           ...processSnapshot,
           streamStatus: processSnapshot.streamStatus || statusMsg || t("chat.analysisDone"),
         };
-        const hasResearchCard = resp.cards?.some((c) => c.type === "research");
-        const hasProcessTrail =
-          processSnapshot.streamLog.length > 0 ||
-          processSnapshot.agentSteps.length > 0 ||
-          processSnapshot.debateRounds.length > 0 ||
-          processSnapshot.judgeVerdict != null;
         const assistantMsg: Message = {
           role: "assistant",
           content: stripDisclaimer(resp.reply),
           cards: resp.cards,
           intent: resp.intent,
+          followUpQuestions: resp.follow_up_questions ?? [],
           llmUsage: resp.llm_usage ?? null,
-          process:
-            hasProcessTrail || hasResearchCard
-              ? processSnapshot
-              : undefined,
         };
-        setMessages((m) => [...m, assistantMsg]);
+        appendMessages((m) => [...m, assistantMsg]);
       }
     } catch {
       try {
         setStatusMsg(t("chat.streamFailed"));
-        const resp = await api.chat(requestQuery, sessionId, options);
+        const resp = await api.chat(query, sessionId, chatOptions);
         setSessionId(resp.session_id);
-        setMessages((m) => [
+        appendMessages((m) => [
           ...m,
           {
             role: "assistant",
             content: stripDisclaimer(resp.reply),
             cards: resp.cards,
             intent: resp.intent,
+            followUpQuestions: resp.follow_up_questions ?? [],
             llmUsage: resp.llm_usage ?? null,
           },
         ]);
       } catch (e) {
-        setMessages((m) => [...m, { role: "assistant", content: `Error: ${String(e)}` }]);
+        appendMessages((m) => [...m, { role: "assistant", content: `Error: ${String(e)}` }]);
       }
     } finally {
       setChatLoading(false);
@@ -433,7 +470,7 @@ export default function App() {
     if (!query.trim() || chatLoading) return;
     if (opts?.switchTab) setCopilotOpen(true);
     setInput("");
-    setMessages((m) => [...m, { role: "user", content: query }]);
+    appendMessages((m) => [...m, { role: "user", content: query }]);
     void executeChat(query, undefined, opts?.context);
   }
 
@@ -454,25 +491,56 @@ export default function App() {
     startChatQuery(q, { switchTab: true, context });
   }
 
-  function onTickerIndexClick(_name: string) {
+  function onTickerIndexClick(name: string) {
     setTab("market");
-    setPageContext({ kind: "market", label: _name });
-    setCopilotOpen(true);
-    setInput(t("chat.exampleMarketQuery"));
+    const match = marketOverview?.indices.find(
+      (idx) => localizeIndexName(idx.symbol, idx.name, t) === name,
+    );
+    if (match) {
+      const symbol = indexSymbolKey(match.symbol, match.name);
+      if (symbol) {
+        setMarketChartIndex({ symbol, name: localizeIndexName(match.symbol, match.name, t) });
+        return;
+      }
+    }
+    setMarketChartIndex(null);
   }
 
-  function askCopilot(query: string, context: CopilotContext) {
+  function askCopilot(
+    query: string,
+    context: CopilotContext,
+    options?: { briefingKind?: "intraday" | "postmarket" },
+  ) {
     setPageContext(context);
     setCopilotOpen(true);
+    if (options?.briefingKind) {
+      void runBriefingInCopilot(query, options.briefingKind);
+      return;
+    }
+    if (!query.trim()) return;
     startChatQuery(query, { context });
   }
 
-  function newCopilotThread() {
-    setMessages([]);
-    setSessionId(undefined);
-    setChatStream(emptyStreamState());
-    setStatusMsg("");
+  async function runBriefingInCopilot(userLabel: string, kind: "intraday" | "postmarket") {
+    if (chatLoading) return;
     setInput("");
+    setChatStream(emptyStreamState());
+    appendMessages((m) => [...m, { role: "user", content: userLabel }]);
+    setChatLoading(true);
+    setStatusMsg(t("portfolio.briefingLoading"));
+    try {
+      const raw = await api.generateBriefing(kind);
+      const briefing = localizeBriefing(raw, t);
+      appendMessages((m) => [
+        ...m,
+        { role: "assistant", content: formatBriefingMarkdown(briefing) },
+      ]);
+    } catch (e) {
+      appendMessages((m) => [...m, { role: "assistant", content: `Error: ${String(e)}` }]);
+    } finally {
+      setChatLoading(false);
+      setStatusMsg("");
+    }
   }
 
   function handleActionNavigate(target: string) {
@@ -507,7 +575,7 @@ export default function App() {
 
   function confirmChatStock(originalMessage: string, symbol: string, name: string) {
     if (chatLoading) return;
-    setMessages((m) => [...m, { role: "user", content: `${name}（${symbol}）` }]);
+    appendMessages((m) => [...m, { role: "user", content: `${name}（${symbol}）` }]);
     void executeChat(originalMessage, { confirmedSymbol: symbol, confirmedName: name });
   }
 
@@ -519,7 +587,7 @@ export default function App() {
       preset: t("chat.routePreset"),
       auto: t("chat.routeAuto"),
     };
-    setMessages((m) => [
+    appendMessages((m) => [
       ...m,
       { role: "user", content: t("chat.selectedMode", { mode: labels[preference] }) },
     ]);
@@ -577,62 +645,6 @@ export default function App() {
     }
   }
 
-  async function lookupAndAdd() {
-    if (!holdingInput.trim()) return;
-    setLookupLoading(true);
-    setLookupResult(null);
-    try {
-      const result = await api.lookupStock(holdingInput.trim());
-      setLookupResult(result);
-      if (result.status === "confirmed" && result.symbol && result.name) {
-        const cost = holdingCost ? parseFloat(holdingCost) : 0;
-        const lots = holdingLots ? parseInt(holdingLots) : 1;
-        if (cost <= 0) {
-          showError(t("portfolio.invalidCost"));
-          return;
-        }
-        await api.addHolding({
-          symbol: result.symbol,
-          name: result.name,
-          cost_price: cost,
-          lots,
-          sector: result.sector || undefined,
-          buy_date: holdingDate || undefined,
-        });
-        await loadHoldings();
-        setHoldingInput("");
-        setHoldingCost("");
-        setHoldingLots("");
-        setHoldingDate("");
-        setLookupResult(null);
-      }
-    } catch (e) {
-      showError(String(e));
-    } finally {
-      setLookupLoading(false);
-    }
-  }
-
-  async function confirmCandidate(symbol: string, name: string) {
-    const cost = holdingCost ? parseFloat(holdingCost) : 0;
-    const lots = holdingLots ? parseInt(holdingLots) : 1;
-    if (cost <= 0) {
-      showError(t("portfolio.invalidCost"));
-      return;
-    }
-    try {
-      await api.addHolding({ symbol, name, cost_price: cost, lots, buy_date: holdingDate || undefined });
-      await loadHoldings();
-      setHoldingInput("");
-      setHoldingCost("");
-      setHoldingLots("");
-      setHoldingDate("");
-      setLookupResult(null);
-    } catch (e) {
-      showError(String(e));
-    }
-  }
-
   async function deleteHolding(id: number) {
     try {
       await api.deleteHolding(id);
@@ -643,12 +655,28 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
+    <GlossaryProvider
+      enabled={modeSettings.mode === "advisor" && modeSettings.enableGlossary}
+      terms={glossary}
+    >
+    <div className="app-shell" data-mode={modeSettings.mode}>
       <div className="app-chrome">
         <div className="chrome-left">
           <span className="bbg-logo">StockResearch</span>
           <span className="chrome-sep">·</span>
           <ModeSwitcher settings={modeSettings} onSwitch={handleSwitchMode} />
+          <nav className="chrome-nav" aria-label={t("nav.aria")}>
+            {navItems.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={`chrome-nav-btn${tab === item.key ? " active" : ""}`}
+                onClick={() => setTab(item.key)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
         </div>
         <p className="chrome-disclaimer">{t("chat.disclaimer")}</p>
         <div className="chrome-meta">
@@ -677,6 +705,13 @@ export default function App() {
           </button>
           <button
             type="button"
+            className={`canvas-tool-btn copilot-trigger${copilotOpen ? " active" : ""}`}
+            onClick={() => setCopilotOpen((open) => !open)}
+          >
+            {t("nav.copilot")}
+          </button>
+          <button
+            type="button"
             className="btn btn-ghost btn-sm"
             onClick={toggleLocale}
           >
@@ -694,14 +729,6 @@ export default function App() {
         onRefresh={() => void loadOverview()}
         onIndexClick={onTickerIndexClick}
       />
-      <CanvasNav
-        tab={tab}
-        items={navItems}
-        copilotOpen={copilotOpen}
-        copilotLabel={t("nav.copilot")}
-        onTab={setTab}
-        onCopilot={() => setCopilotOpen((open) => !open)}
-      />
       <SettingsPanel
         open={setupOpen}
         onClose={() => {
@@ -717,9 +744,19 @@ export default function App() {
         <Onboarding onComplete={handleOnboardingComplete} onSkip={handleOnboardingSkip} />
       )}
 
-      <div className={`app-body canvas-shell${copilotOpen ? " copilot-open" : ""}${settingsRequired ? " app-locked" : ""}`}>
+      <div
+        className={`app-body canvas-shell${copilotOpen ? " copilot-open" : ""}${copilotOpen && copilotLayout === "vertical" ? " layout-vertical" : ""}${settingsRequired ? " app-locked" : ""}`}
+        style={
+          copilotOpen
+            ? copilotLayout === "vertical"
+              ? { gridTemplateRows: `minmax(0, 1fr) ${copilotHeight}px` }
+              : { gridTemplateColumns: `minmax(0, 1fr) ${copilotWidth}px` }
+            : undefined
+        }
+      >
         <div className="main">
           {error && <div className="error">{error}</div>}
+          <BackendHealthBanner />
           {holdings.length === 0 && !isDemo && (
             <DemoBanner onLoad={loadDemoHoldings} onClear={clearDemoHoldings} isDemo={isDemo} loading={demoLoading} />
           )}
@@ -741,6 +778,12 @@ export default function App() {
               sectorSaving={sectorSaving}
               onLoadNews={() => void loadNews()}
               onToggleSector={(s) => void toggleNewsSector(s)}
+              onAskCopilot={(query) =>
+                askCopilot(query, {
+                  kind: "news",
+                  label: locale === "zh" ? "新闻·研报" : "News",
+                })
+              }
             />
           )}
 
@@ -761,23 +804,17 @@ export default function App() {
                 portfolioSummary={portfolioSummary}
                 sectorMix={sectorMix}
                 numLocale={numLocale}
-                holdingInput={holdingInput}
-                holdingCost={holdingCost}
-                holdingLots={holdingLots}
-                holdingDate={holdingDate}
-                lookupResult={lookupResult}
-                lookupPrice={lookupPrice}
-                lookupLoading={lookupLoading}
-                onHoldingInputChange={setHoldingInput}
-                onHoldingCostChange={setHoldingCost}
-                onHoldingLotsChange={setHoldingLots}
-                onHoldingDateChange={setHoldingDate}
-                onClearLookup={() => setLookupResult(null)}
+                holdingsView={modeSettings.holdingsView}
+                chatLoading={chatLoading}
                 onLoadHoldings={() => void loadHoldings()}
-                onLookupAndAdd={() => void lookupAndAdd()}
-                onConfirmCandidate={(symbol, name) => void confirmCandidate(symbol, name)}
                 onDeleteHolding={(id) => void deleteHolding(id)}
                 onAnalyzeHolding={analyzeHolding}
+                onAskCopilot={(query, options) =>
+                  askCopilot(query, {
+                    kind: "portfolio",
+                    label: locale === "zh" ? "我的持仓" : "My holdings",
+                  }, options)
+                }
               />
             </>
           )}
@@ -799,6 +836,12 @@ export default function App() {
                 alertHoldingTags={alertHoldingTags}
                 onRunRisk={() => void runRisk()}
                 onGoPortfolio={() => setTab("portfolio")}
+                onAskCopilot={(query) =>
+                  askCopilot(query, {
+                    kind: "risk",
+                    label: locale === "zh" ? "风控体检" : "Risk checkup",
+                  })
+                }
               />
             </>
           )}
@@ -808,6 +851,8 @@ export default function App() {
               overview={marketOverview}
               loading={overviewLoading}
               onRefresh={() => void loadOverview()}
+              selectedIndex={marketChartIndex}
+              onSelectIndex={setMarketChartIndex}
               onAskCopilot={(query) =>
                 askCopilot(query, {
                   kind: "market",
@@ -817,19 +862,38 @@ export default function App() {
               }
             />
           )}
+
+          {tab === "daily_scan" && (
+            <DailyScanPanel
+              holdings={holdings}
+              numLocale={numLocale}
+              onAnalyzeHolding={analyzeHolding}
+            />
+          )}
         </div>
 
         <CopilotPanel
           open={copilotOpen}
-          threadTitle={messages.find((message) => message.role === "user")?.content || ""}
-          userContext={t("chat.holdingsContext", {
-            n: String(holdings.length),
-            mode: t(`mode.${modeSettings.mode}`),
-          })}
-          pageContext={pageContext}
+          threadTitle={activeThread?.title || ""}
+          threads={copilotThreads}
+          activeThreadId={activeThreadId}
+          userContext={pageContext}
+          layout={copilotLayout}
           onClose={() => setCopilotOpen(false)}
           onNewThread={newCopilotThread}
+          onSelectThread={switchThread}
+          onRenameThread={renameThread}
+          onDeleteThread={deleteThread}
           onRemoveContext={() => setPageContext(null)}
+          onToggleLayout={() =>
+            setCopilotLayout((prev) => (prev === "horizontal" ? "vertical" : "horizontal"))
+          }
+          onResizeStart={(axis) => {
+            resizingRef.current = true;
+            resizingAxisRef.current = axis;
+            document.body.style.cursor = axis === "y" ? "row-resize" : "col-resize";
+            document.body.style.userSelect = "none";
+          }}
         >
           <ChatPanel
             messages={messages}
@@ -840,6 +904,7 @@ export default function App() {
             onInputChange={setInput}
             chatExamples={chatExamples}
             holdings={holdings}
+            appMode={modeSettings.mode}
             onStartQuery={(query) => startChatQuery(query)}
             onSend={sendChat}
             onAnalyzeHolding={analyzeHolding}
@@ -849,5 +914,6 @@ export default function App() {
         </CopilotPanel>
       </div>
     </div>
+    </GlossaryProvider>
   );
 }

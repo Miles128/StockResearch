@@ -1,11 +1,11 @@
 """Data provider registry — tracks quote/overview fetch sources and degradation."""
 
-import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
 _PRIMARY_QUOTES = "sina"
 _FALLBACK_QUOTES = "akshare"
+_TERTIARY_QUOTES = "efinance"
 
 _SNAPSHOT_TTL_SECONDS = 300  # 5-minute TTL for provider snapshots
 
@@ -20,6 +20,8 @@ class ProviderSnapshot:
     degraded: bool
     message: str | None
     updated_at: datetime
+    tertiary: str | None = None
+    tertiary_count: int = 0
 
 
 _snapshots: dict[str, ProviderSnapshot] = {}
@@ -31,13 +33,15 @@ def record_quote_fetch(
     requested: int,
     sina_count: int,
     akshare_count: int,
+    efinance_count: int = 0,
     message: str | None = None,
 ) -> None:
-    global _symbol_sources
-    degraded = akshare_count > 0 or (sina_count < requested and requested > 0)
+    degraded = akshare_count > 0 or efinance_count > 0 or (sina_count < requested and requested > 0)
     if requested == 0:
         msg = message
-    elif degraded and akshare_count > 0:
+    elif efinance_count > 0:
+        msg = message or f"部分标的已降级至 {_FALLBACK_QUOTES}/{_TERTIARY_QUOTES}"
+    elif akshare_count > 0:
         msg = message or f"部分标的已降级至 {_FALLBACK_QUOTES}"
     elif sina_count < requested:
         msg = message or "部分标的行情未获取"
@@ -52,6 +56,8 @@ def record_quote_fetch(
         degraded=degraded,
         message=msg,
         updated_at=datetime.now(UTC),
+        tertiary=_TERTIARY_QUOTES if efinance_count else None,
+        tertiary_count=efinance_count,
     )
 
 

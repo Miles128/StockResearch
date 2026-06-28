@@ -11,8 +11,17 @@ from stockresearch.agents.research.react import (
     prepare_react_agent,
     run_react_agent,
 )
+from stockresearch.agents.master_commentary.context import build_research_context
+from stockresearch.agents.master_commentary.stream import get_master_commentary
 from stockresearch.agents.research.report_builder import build_research_report
-from stockresearch.core.schemas import DebateResult, DimensionResult, ResearchReportOut
+from stockresearch.agents.master_commentary.registry import resolve_master_ids
+from stockresearch.core.schemas import (
+    DebateResult,
+    DimensionResult,
+    MasterCommentaryItem,
+    ModeSettingsOut,
+    ResearchReportOut,
+)
 from stockresearch.services.text_factor import build_news_text_factor, fetch_symbol_news_snippets
 from stockresearch.utils.llm import LLMClient, get_llm_client
 from stockresearch.utils.symbols import resolve_name
@@ -84,6 +93,9 @@ async def run_research(
     llm: LLMClient | None = None,
     *,
     with_debate: bool = True,
+    enable_master_commentary: bool = False,
+    mode_settings: ModeSettingsOut | None = None,
+    master_ids: list[str] | None = None,
 ) -> ResearchReportOut:
     client = llm or get_llm_client()
     ctx = ResearchContext(symbol=symbol, llm=client)
@@ -91,11 +103,6 @@ async def run_research(
 
     results = await asyncio.gather(*(_run_agent(agent, ctx) for agent in DIMENSION_AGENTS))
     dimensions = {agent.agent_id: result for agent, result in zip(DIMENSION_AGENTS, results, strict=True)}
-
-    fundamental = dimensions["fundamental"]
-    technical = dimensions["technical"]
-    sentiment = dimensions["sentiment"]
-    chips = dimensions["chips"]
 
     news_snippets = await fetch_symbol_news_snippets(symbol, name)
     news_text_factor = build_news_text_factor(news_snippets, subject=f"{name}({symbol})")
@@ -110,17 +117,26 @@ async def run_research(
         "sentiment": "情绪面",
         "chips": "筹码面",
     }
-    summary_prefix = (
-        f"{name}({symbol}) 加权综合投研，"
-        f"基本面 {fundamental.score}，技术面 {technical.score}，"
-        f"情绪面 {sentiment.score}，筹码面 {chips.score}。"
-    )
-    return build_research_report(
+    report = build_research_report(
         symbol,
         name,
         dimensions,
         debate,
         dimension_labels=_LABELS,
         news_text_factor=news_text_factor,
-        summary_prefix=summary_prefix,
     )
+
+    if enable_master_commentary and mode_settings is not None:
+        masters = master_ids or resolve_master_ids(mode_settings)
+        commentary = await get_master_commentary(
+            client,
+            subject=f"{name}({symbol})",
+            context=build_research_context(report),
+            settings=mode_settings,
+            masters=masters,
+        )
+        report.master_commentary = [
+            MasterCommentaryItem.model_validate(item) for item in commentary
+        ]
+
+    return report

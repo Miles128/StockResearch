@@ -82,8 +82,10 @@ describe("computeSectorConcentration", () => {
     // 科技: 1000 + 200 = 1200, 金融: 1000, total = 2200
     expect(result[0].sector).toBe("科技");
     expect(result[0].pct).toBeCloseTo((1200 / 2200) * 100);
+    expect(result[0].count).toBe(2);
     expect(result[1].sector).toBe("金融");
     expect(result[1].pct).toBeCloseTo((1000 / 2200) * 100);
+    expect(result[1].count).toBe(1);
   });
 
   it("treats empty sector as '未知'", () => {
@@ -94,9 +96,10 @@ describe("computeSectorConcentration", () => {
     const result = computeSectorConcentration(holdings);
     expect(result).toHaveLength(1);
     expect(result[0].sector).toBe("未知");
+    expect(result[0].count).toBe(2);
   });
 
-  it("skips holdings without quotes", () => {
+  it("skips holdings without quotes for weight but counts all holdings in sector", () => {
     const holdings = [
       makeHolding({ quote_available: false, price: null }),
       makeHolding({ sector: "科技", price: 100, quantity: 10 }),
@@ -105,5 +108,6 @@ describe("computeSectorConcentration", () => {
     expect(result).toHaveLength(1);
     expect(result[0].sector).toBe("科技");
     expect(result[0].pct).toBeCloseTo(100);
+    expect(result[0].count).toBe(2);
   });
 });

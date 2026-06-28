@@ -5,26 +5,15 @@ from datetime import UTC, datetime
 
 import pytest
 
-from stockresearch.core.config import Settings
 from stockresearch.core.schemas import IndexQuoteOut, MarketOverviewOut
 from stockresearch.data.providers import market_overview as mod
 from stockresearch.data.providers.market_overview import MarketOverviewProvider
 from stockresearch.data.providers.sina_index import SinaIndexQuote
 
 
-@pytest.fixture
-def live_market_settings(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        mod,
-        "get_settings",
-        lambda: Settings(use_mock_market_data=False),
-    )
-
-
 @pytest.mark.asyncio
 async def test_overview_uses_sina_first(
     monkeypatch: pytest.MonkeyPatch,
-    live_market_settings: None,
 ) -> None:
     monkeypatch.setattr(
         mod,
@@ -53,7 +42,6 @@ async def test_overview_uses_sina_first(
 @pytest.mark.asyncio
 async def test_overview_akshare_fallback_times_out(
     monkeypatch: pytest.MonkeyPatch,
-    live_market_settings: None,
 ) -> None:
     monkeypatch.setattr(mod, "fetch_sina_indices", lambda: (_ for _ in ()).throw(RuntimeError("sina down")))
     monkeypatch.setattr(mod, "_AKSHARE_FALLBACK_TIMEOUT_SEC", 0.2)

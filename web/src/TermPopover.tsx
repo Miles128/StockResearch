@@ -1,113 +1,140 @@
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useI18n } from "./i18n";
-
-interface TermInfo {
-  id: string;
-  short: string;
-  en: string;
-  def: string;
-  analogy: string;
-}
+import { api, type GlossaryTerm } from "./api";
 
 interface TermPopoverProps {
-  term: TermInfo;
+  term: GlossaryTerm;
   children: ReactNode;
 }
 
+interface PopoverPosition {
+  top: number;
+  left: number;
+}
+
+/** 投顾模式专有名词弹窗：点击术语展开通俗解释 + 类比。 */
 export function TermPopover({ term, children }: TermPopoverProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
+  const [position, setPosition] = useState<PopoverPosition | null>(null);
+  const triggerRef = useRef<HTMLSpanElement>(null);
   const { t } = useI18n();
 
-  // Close on outside click
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const popoverWidth = 280;
+    const left = Math.min(
+      Math.max(12, rect.left + rect.width / 2 - popoverWidth / 2),
+      window.innerWidth - popoverWidth - 12,
+    );
+    setPosition({ top: rect.top - 8, left: left + popoverWidth / 2 });
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      if (triggerRef.current && !triggerRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     }
+    function handleScroll() {
+      setOpen(false);
+    }
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    window.addEventListener("scroll", handleScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      window.removeEventListener("scroll", handleScroll, true);
+    };
   }, [open]);
 
   return (
-    <span
-      ref={ref}
-      className="term-inline"
-      onClick={() => setOpen((v) => !v)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setOpen((v) => !v); }}
-    >
-      {children}
-      {open && (
-        <span className="term-popover" role="tooltip">
-          <span className="term-popover-title">
-            {term.short}
-            {term.en && <span className="term-popover-en">{term.en}</span>}
-          </span>
-          <span className="term-popover-def">{term.def}</span>
-          {term.analogy && (
-            <span className="term-popover-analogy">
-              💡 {t("term.analogyLabel")}：{term.analogy}
+    <>
+      <span
+        ref={triggerRef}
+        className="term-inline"
+        onClick={() => setOpen((v) => !v)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setOpen((v) => !v);
+          }
+        }}
+      >
+        {children}
+      </span>
+      {open &&
+        position &&
+        createPortal(
+          <span
+            className="term-popover term-popover-fixed"
+            role="tooltip"
+            style={{
+              top: position.top,
+              left: position.left,
+            }}
+          >
+            <span className="term-popover-title">
+              {term.short}
+              {term.en && <span className="term-popover-en">{term.en}</span>}
             </span>
-          )}
-        </span>
-      )}
-    </span>
+            <span className="term-popover-def">{term.def}</span>
+            {term.analogy && (
+              <span className="term-popover-analogy">
+                💡 {t("termAnalogyLabel")}：{term.analogy}
+              </span>
+            )}
+          </span>,
+          document.body,
+        )}
+    </>
   );
 }
 
-/** Render text containing <term data-id="...">...</term> markup into React elements.
- *  Only used in professional reading mode.
- */
-export function renderTermMarkup(
-  html: string,
-  glossary: Record<string, TermInfo>,
-): ReactNode[] {
-  const parts: ReactNode[] = [];
-  const regex = /<term data-id="([^"]+)">(.*?)<\/term>/g;
-  let lastIdx = 0;
-  let match: RegExpExecArray | null;
-  let key = 0;
+// ── 词库获取（模块级缓存，全应用只拉取一次） ──
 
-  while ((match = regex.exec(html)) !== null) {
-    if (match.index > lastIdx) {
-      parts.push(<span key={key++}>{html.slice(lastIdx, match.index)}</span>);
-    }
-    const termId = match[1];
-    const termText = match[2];
-    const termInfo = glossary[termId] || {
-      id: termId,
-      short: termId,
-      en: "",
-      def: t_ref("term.aiGenerated"),
-      analogy: "",
-    };
-    parts.push(
-      <TermPopover key={key++} term={termInfo}>
-        {termText}
-      </TermPopover>,
-    );
-    lastIdx = regex.lastIndex;
-  }
-  if (lastIdx < html.length) {
-    parts.push(<span key={key}>{html.slice(lastIdx)}</span>);
-  }
-  return parts;
+let _glossaryCache: Record<string, GlossaryTerm> | null = null;
+let _glossaryPromise: Promise<Record<string, GlossaryTerm>> | null = null;
+
+export function seedGlossaryCache(terms: Record<string, GlossaryTerm>): void {
+  _glossaryCache = terms;
 }
 
-// Simple i18n accessor to avoid hook in non-component context
-let _t: ((key: string) => string) | null = null;
-function t_ref(key: string): string {
-  return _t?.(key) ?? key;
+function fetchGlossary(): Promise<Record<string, GlossaryTerm>> {
+  if (_glossaryCache) return Promise.resolve(_glossaryCache);
+  if (!_glossaryPromise) {
+    _glossaryPromise = api
+      .glossary()
+      .then((list) => {
+        const map: Record<string, GlossaryTerm> = {};
+        for (const item of list) map[item.id] = item;
+        _glossaryCache = map;
+        return map;
+      })
+      .catch(() => {
+        _glossaryPromise = null;
+        return {};
+      });
+  }
+  return _glossaryPromise;
 }
 
-// Hook to set the t function for renderTermMarkup
-export function useTermRenderer() {
-  const { t } = useI18n();
+/** 获取词库映射；首次挂载时异步拉取，之后命中模块缓存。 */
+export function useGlossary(): Record<string, GlossaryTerm> | null {
+  const [glossary, setGlossary] = useState<Record<string, GlossaryTerm> | null>(_glossaryCache);
   useEffect(() => {
-    _t = t;
-  }, [t]);
+    if (_glossaryCache) return;
+    let active = true;
+    fetchGlossary().then((g) => {
+      if (active) setGlossary(g);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  return glossary;
 }

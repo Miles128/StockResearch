@@ -5,11 +5,15 @@ from sqlalchemy.orm import Session
 
 from stockresearch.api.deps import get_current_user, handle_stockresearch_error
 from stockresearch.core.exceptions import ValidationError
+from stockresearch.agents.daily_scan.scanner import run_daily_scan
 from stockresearch.core.schemas import (
+    DailyScanOut,
     HoldingConfirmCreate,
     HoldingCreate,
     HoldingEnrichedOut,
     HoldingOut,
+    HoldingTransactionBatch,
+    HoldingTransactionResult,
     SectorBackfillOut,
     StockCandidateOut,
     StockLookupOut,
@@ -51,6 +55,7 @@ def _upsert_holding(
     quantity: int,
     sector: str | None = None,
     buy_date=None,
+    commit: bool = True,
 ) -> Holding:
     existing = (
         db.query(Holding)
@@ -66,8 +71,11 @@ def _upsert_holding(
         existing.name = name
         if sector:
             existing.sector = sector
-        db.commit()
-        db.refresh(existing)
+        if commit:
+            db.commit()
+            db.refresh(existing)
+        else:
+            db.flush()
         return existing
 
     holding = Holding(
@@ -80,9 +88,59 @@ def _upsert_holding(
         buy_date=buy_date,
     )
     db.add(holding)
-    db.commit()
-    db.refresh(holding)
+    if commit:
+        db.commit()
+        db.refresh(holding)
+    else:
+        db.flush()
     return holding
+
+
+def _sell_holding(
+    db: Session,
+    *,
+    user_id: int,
+    symbol: str,
+    quantity: int,
+    name: str | None = None,
+    commit: bool = True,
+) -> None:
+    holding = (
+        db.query(Holding)
+        .filter(Holding.user_id == user_id, Holding.symbol == symbol)
+        .first()
+    )
+    label = name or (holding.name if holding else symbol)
+    if holding is None or holding.quantity < quantity:
+        available = holding.quantity if holding else 0
+        raise ValidationError(f"{label} 卖出数量超出持仓（当前 {available} 股）")
+    holding.quantity -= quantity
+    if holding.quantity == 0:
+        db.delete(holding)
+    if commit:
+        db.commit()
+    else:
+        db.flush()
+
+
+async def _resolve_transaction_symbol_name(
+    item,
+) -> tuple[str, str, str | None]:
+    if item.symbol and item.name:
+        sector = await resolve_stock_sector(item.symbol, item.name)
+        return item.symbol, item.name, sector
+    if item.symbol and not item.name:
+        _, name = resolve_stock_query(item.symbol)
+        sector = await resolve_stock_sector(item.symbol, name)
+        return item.symbol, name, sector
+    query = item.query or item.name
+    if not query:
+        raise ValidationError("请提供股票代码或名称")
+    lookup = await lookup_stock(query, llm=get_llm_client())
+    if lookup.status != "confirmed" or not lookup.symbol or not lookup.name:
+        raise ValidationError(lookup.message or f"无法识别股票：{query}")
+    sector = lookup.sector or await resolve_stock_sector(lookup.symbol, lookup.name)
+    return lookup.symbol, lookup.name, sector
 
 
 def _resolve_holding(payload: HoldingCreate) -> tuple[str, str]:
@@ -163,6 +221,14 @@ async def list_holdings_enriched(
     return [_enrich_holding(h, quote_map, session) for h in holdings]
 
 
+@router.get("/daily-scan", response_model=DailyScanOut)
+async def daily_scan(
+    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> DailyScanOut:
+    holdings = db.query(Holding).filter(Holding.user_id == user.id).all()
+    return await run_daily_scan(holdings)
+
+
 @router.post("/holdings", response_model=HoldingOut)
 async def create_holding(
     payload: HoldingCreate,
@@ -198,6 +264,54 @@ async def create_holding(
         quantity=payload.quantity,
         sector=sector,
         buy_date=payload.buy_date,
+    )
+
+
+@router.post("/holdings/transactions", response_model=HoldingTransactionResult)
+async def apply_holding_transactions(
+    payload: HoldingTransactionBatch,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> HoldingTransactionResult:
+    try:
+        resolved: list[tuple] = []
+        for item in payload.transactions:
+            symbol, name, sector = await _resolve_transaction_symbol_name(item)
+            resolved.append((item, symbol, name, sector))
+
+        for item, symbol, name, sector in resolved:
+            quantity = item.lots * LOTS_SIZE
+            if item.side == "buy":
+                assert item.cost_price is not None
+                _upsert_holding(
+                    db,
+                    user_id=user.id,
+                    symbol=symbol,
+                    name=name,
+                    cost_price=item.cost_price,
+                    quantity=quantity,
+                    sector=sector,
+                    buy_date=item.trade_date,
+                    commit=False,
+                )
+            else:
+                _sell_holding(
+                    db,
+                    user_id=user.id,
+                    symbol=symbol,
+                    quantity=quantity,
+                    name=name,
+                    commit=False,
+                )
+        db.commit()
+    except ValidationError as exc:
+        db.rollback()
+        raise handle_stockresearch_error(exc) from exc
+
+    holdings = db.query(Holding).filter(Holding.user_id == user.id).all()
+    return HoldingTransactionResult(
+        applied=len(payload.transactions),
+        holdings=[HoldingOut.model_validate(h) for h in holdings],
     )
 
 

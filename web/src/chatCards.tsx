@@ -12,6 +12,7 @@ import { useI18n } from "./i18n";
 import { translateRouteOption, translateRouteReason } from "./streamI18n";
 import { localizeDebateAgentName, localizeRating } from "./uiLabels";
 import { MarkdownContent } from "./MarkdownContent";
+import { normalizeResearchConclusion, researchExpandHintsFromReport } from "./researchText";
 import { StockChart } from "./StockChart";
 
 export function RouteChoiceCardView({
@@ -107,7 +108,11 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
               {t("card.bias")} {d.bias}
             </span>
           </div>
-          <p>{d.summary}</p>
+          <p>
+            {normalizeResearchConclusion(d.summary, {
+              expandHints: researchExpandHintsFromReport(d),
+            })}
+          </p>
           {/^\d{6}$/.test(d.symbol) && <StockChart symbol={d.symbol} compact />}
         </div>
       );

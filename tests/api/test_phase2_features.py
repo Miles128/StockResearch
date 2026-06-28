@@ -107,14 +107,27 @@ def test_signal_backtest_endpoint(client: TestClient, db_session: Session) -> No
 
 
 def test_briefing_generate(client: TestClient) -> None:
-    resp = client.post("/api/v1/briefing/generate?kind=morning")
+    resp = client.post("/api/v1/briefing/generate?kind=intraday", json={})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["kind"] == "morning"
+    assert body["kind"] == "intraday"
+    assert body["title"] == "盘中简报"
     assert body["sections"]
+    titles = {s["title"] for s in body["sections"]}
+    assert "综合结论" in titles or "持仓表现" in titles
 
 
-def test_industry_research_endpoint(client: TestClient, db_session: Session) -> None:
+def test_industry_research_endpoint(client: TestClient, db_session: Session, monkeypatch) -> None:
+    from stockresearch.data.providers.sector import SectorDataProvider, SectorLeader
+
+    async def fake_leaders(self, _sector: str, *, limit: int = 3) -> list[SectorLeader]:
+        return [
+            SectorLeader(symbol="600519", name="贵州茅台", change_pct=1.2),
+            SectorLeader(symbol="000858", name="五粮液", change_pct=0.8),
+        ][:limit]
+
+    monkeypatch.setattr(SectorDataProvider, "get_sector_leaders", fake_leaders)
+
     resp = client.post(
         "/api/v1/research/industry",
         json={"sector": "白酒", "query": "白酒板块深度研究"},

@@ -63,8 +63,16 @@ def test_fetch_xueqiu_hot_sync_uses_real_metrics(
 
 
 @pytest.mark.asyncio
-async def test_sentiment_provider_mock_mode() -> None:
+async def test_sentiment_provider_returns_unavailable_when_offline(monkeypatch: pytest.MonkeyPatch) -> None:
+    """网络不可用时，get_xueqiu_hot 应返回 available=False，不抛异常。"""
+    from stockresearch.data.providers import market as market_mod
+
+    async def fake_run_sync_fetch(*args, **kwargs):  # type: ignore[no-untyped-def]
+        return kwargs.get("fallback")
+
+    monkeypatch.setattr(market_mod, "run_sync_fetch", fake_run_sync_fetch)
+
     provider = SentimentDataProvider()
     hot = await provider.get_xueqiu_hot("600519", "贵州茅台")
-    assert hot["available"] is True
-    assert int(hot["post_count"]) > 0
+    assert hot["available"] is False
+    assert hot["source"] == "unavailable"

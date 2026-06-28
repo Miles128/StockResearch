@@ -16,6 +16,10 @@ describe("modeSettings API conversion", () => {
       enableGlossary: true,
       maxSignals: 5,
       onboarded: true,
+      enableMasterCommentary: true,
+      selectedMasters: ["buffett", "munger"],
+      customMasters: [{ id: "dalio", name: "Dalio", systemPrompt: "Macro cycles and risk parity." }],
+      holdingsView: "table",
     };
 
     expect(modeSettingsToApiPayload(settings)).toEqual({
@@ -27,6 +31,9 @@ describe("modeSettings API conversion", () => {
       enable_glossary: true,
       max_signals: 5,
       onboarded: true,
+      enable_master_commentary: true,
+      selected_masters: ["buffett", "munger"],
+      custom_masters: [{ id: "dalio", name: "Dalio", system_prompt: "Macro cycles and risk parity." }],
     });
   });
 
@@ -41,6 +48,9 @@ describe("modeSettings API conversion", () => {
         enable_glossary: false,
         max_signals: 20,
         onboarded: true,
+        enable_master_commentary: false,
+        selected_masters: ["burry"],
+        custom_masters: [],
       }),
     ).toEqual({
       mode: "research",
@@ -51,6 +61,10 @@ describe("modeSettings API conversion", () => {
       enableGlossary: false,
       maxSignals: 20,
       onboarded: true,
+      enableMasterCommentary: false,
+      selectedMasters: ["burry"],
+      customMasters: [],
+      holdingsView: "table",
     });
   });
 });

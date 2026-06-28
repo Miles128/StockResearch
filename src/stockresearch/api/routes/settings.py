@@ -17,6 +17,7 @@ from stockresearch.core.schemas import (
 from stockresearch.db.models import User
 from stockresearch.db.session import get_db
 from stockresearch.services.env_file import save_llm_env
+from stockresearch.services.glossary import get_glossary
 from stockresearch.services.user_preferences import get_mode_settings, save_mode_settings
 from stockresearch.utils.llm import MockLLMClient
 from stockresearch.utils.llm_test import verify_llm_connection
@@ -59,6 +60,21 @@ def get_user_mode_settings(
 ) -> ModeSettingsOut:
     """Return persisted local user mode/risk questionnaire settings."""
     return get_mode_settings(db, user.id)
+
+
+@router.get("/glossary")
+def get_glossary_terms() -> dict[str, dict[str, str]]:
+    """Return static glossary terms for professional-mode term popovers."""
+    return {
+        term_id: {
+            "id": term_id,
+            "short": term.short,
+            "en": term.en,
+            "def": term.def_,
+            "analogy": term.analogy,
+        }
+        for term_id, term in get_glossary().items()
+    }
 
 
 @router.put("/mode", response_model=ModeSettingsOut)

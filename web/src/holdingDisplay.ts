@@ -17,6 +17,11 @@ export function formatSignedMoney(value: number | null | undefined): string {
   return `${sign}¥${Math.abs(value).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+export function formatMoney(value: number | null | undefined, locale = "zh-CN"): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  return `¥${value.toLocaleString(locale, { maximumFractionDigits: 0 })}`;
+}
+
 export function formatPrice(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value)) return "—";
   return value.toFixed(2);
