@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import logging
+
 from stockresearch.core.schemas import ChatUserContext, ModeSettingsOut
+from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.db.models import Holding
 from stockresearch.prompts import load_prompt
+from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
+
+logger = logging.getLogger(__name__)
 
 _KIND_LABELS: dict[str, str] = {
     "portfolio": "持仓组合",
@@ -27,8 +33,9 @@ _MODE_HINTS: dict[str, str] = {
 }
 
 _READING_LABELS: dict[str, str] = {
-    "professional": "专业（术语直出）",
-    "friendly": "友善（大白话）",
+    "friendly": "友善白话",
+    "standard": "标准",
+    "professional": "专业",
 }
 
 
@@ -40,7 +47,42 @@ def _holdings_summary(holdings: list[Holding]) -> str:
     return "；".join(parts) + suffix
 
 
-def build_long_term_context(
+def _format_quote_line(holding: Holding, price: float, change_pct: float) -> str:
+    arrow = "↑" if change_pct > 0 else "↓" if change_pct < 0 else "→"
+    return f"{holding.name}({holding.symbol}) 现价{price:.2f} {arrow}{change_pct:+.2f}%"
+
+
+async def _holdings_quotes_block(
+    holdings: list[Holding],
+    *,
+    mode_settings: ModeSettingsOut,
+) -> str:
+    if not holdings:
+        return "无持仓"
+    try:
+        provider = QuoteProvider()
+        ttl = quote_cache_ttl_seconds(mode_settings)
+        quotes = await provider.get_quotes(
+            [h.symbol for h in holdings],
+            cache_ttl_seconds=ttl,
+        )
+    except Exception:
+        logger.warning("Failed to load cached holdings quotes", exc_info=True)
+        return "暂无缓存行情（前端加载持仓后会写入；收盘后不再刷新）"
+    if not quotes:
+        return "暂无缓存行情（前端加载持仓后会写入；收盘后不再刷新）"
+    lines: list[str] = []
+    for holding in holdings:
+        quote = quotes.get(holding.symbol)
+        if quote is None:
+            continue
+        lines.append(_format_quote_line(holding, quote.price, quote.change_pct))
+    if not lines:
+        return "暂无缓存行情（前端加载持仓后会写入；收盘后不再刷新）"
+    return "；".join(lines)
+
+
+async def build_long_term_context(
     *,
     mode_settings: ModeSettingsOut,
     holdings: list[Holding],
@@ -48,13 +90,19 @@ def build_long_term_context(
     """Render the hidden long-term system context (not shown in UI)."""
     template = load_prompt("long_term_context.md")
     mode = mode_settings.mode
+    advisor_block = ""
+    if mode == "advisor":
+        advisor_block = load_prompt("advisor_plain_language.md").strip()
+    holdings_quotes = await _holdings_quotes_block(holdings, mode_settings=mode_settings)
     return template.format(
         mode_label=_MODE_LABELS.get(mode, mode),
         mode_hint=_MODE_HINTS.get(mode, ""),
         reading_mode_label=_READING_LABELS.get(mode_settings.reading_mode, mode_settings.reading_mode),
         holdings_summary=_holdings_summary(holdings),
+        holdings_quotes=holdings_quotes,
         debate_label="开启" if mode_settings.enable_debate else "关闭",
         glossary_label="开启" if mode_settings.enable_glossary else "关闭",
+        advisor_style_block=advisor_block,
     )
 
 

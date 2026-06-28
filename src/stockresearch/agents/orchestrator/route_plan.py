@@ -11,8 +11,22 @@ from stockresearch.agents.orchestrator.complexity import (
     classify_research_scope,
     is_industry_research,
     is_risk_intent,
+    is_simple_news_explanation,
+    is_stock_analysis_intent,
     resolve_execution_mode,
+    should_auto_plan_execute,
+    should_skip_debate,
+    should_skip_multi_agent,
 )
+from stockresearch.agents.orchestrator.intent_router import route_intent
+from stockresearch.core.constants import (
+    INTENT_CHAT,
+    INTENT_COMPOSITE,
+    INTENT_MARKET,
+    INTENT_NEWS,
+    INTENT_RESEARCH,
+)
+from stockresearch.utils.llm import LLMClient
 
 ExecutionPreference = Literal["react", "plan_execute", "preset", "auto"]
 
@@ -118,11 +132,14 @@ def needs_execution_choice(
 def resolve_preset_mode(message: str, *, enable_debate: bool = False) -> str:
     """Predetermined finance route — never ReAct or Plan-Execute."""
     msg = message.strip()
+    if should_skip_multi_agent(msg):
+        return ComplexityResult.DIRECT
     scope = classify_research_scope(msg)
+    use_debate = enable_debate and not should_skip_debate(msg)
     if scope == "stock":
-        return ComplexityResult.DEBATE if enable_debate else ComplexityResult.RESEARCH
+        return ComplexityResult.DEBATE if use_debate else ComplexityResult.RESEARCH
     if scope == "market":
-        return ComplexityResult.MARKET_DEBATE if enable_debate else ComplexityResult.MARKET_RESEARCH
+        return ComplexityResult.MARKET_DEBATE if use_debate else ComplexityResult.MARKET_RESEARCH
     if is_industry_research(msg):
         return ComplexityResult.INDUSTRY_RESEARCH
 
@@ -155,6 +172,80 @@ def resolve_mode_with_preference(
         return resolve_preset_mode(message, enable_debate=enable_debate), True
 
     return resolve_execution_mode(message, enable_debate=enable_debate), True
+
+
+async def resolve_chat_route(
+    message: str,
+    llm: LLMClient,
+    *,
+    execution_preference: str | None,
+    enable_debate: bool = False,
+) -> tuple[str, bool, bool, str]:
+    """Intent-aware routing: mode, finance tools, research tools, intent label."""
+    pref = execution_preference or "auto"
+    if pref != "auto":
+        mode, finance = resolve_mode_with_preference(
+            message,
+            execution_preference,
+            enable_debate=enable_debate,
+        )
+        research_tools = mode in (
+            ComplexityResult.RESEARCH,
+            ComplexityResult.DEBATE,
+            ComplexityResult.MARKET_RESEARCH,
+            ComplexityResult.MARKET_DEBATE,
+            ComplexityResult.INDUSTRY_RESEARCH,
+        )
+        return mode, finance, research_tools, INTENT_CHAT
+
+    if should_auto_plan_execute(message):
+        return ComplexityResult.PLAN_EXECUTE, True, True, INTENT_COMPOSITE
+
+    if should_skip_multi_agent(message):
+        return ComplexityResult.DIRECT, is_finance_related(message), False, INTENT_NEWS if is_simple_news_explanation(message) else INTENT_CHAT
+
+    intent, symbols, _sectors = await route_intent(message, llm)
+
+    if intent == INTENT_COMPOSITE:
+        return ComplexityResult.PLAN_EXECUTE, True, True, intent
+
+    if intent == INTENT_NEWS or is_simple_news_explanation(message):
+        return ComplexityResult.DIRECT, True, False, INTENT_NEWS
+
+    if intent == INTENT_CHAT:
+        return ComplexityResult.DIRECT, is_finance_related(message), False, intent
+
+    if intent == INTENT_RESEARCH:
+        if should_skip_multi_agent(message):
+            return ComplexityResult.DIRECT, True, False, intent
+        if classify_research_scope(message) == "stock" or (
+            symbols and is_stock_analysis_intent(message)
+        ):
+            use_debate = enable_debate and not should_skip_debate(message)
+            mode = ComplexityResult.DEBATE if use_debate else ComplexityResult.RESEARCH
+            return mode, True, True, intent
+        return ComplexityResult.DIRECT, True, False, intent
+
+    if intent == INTENT_MARKET:
+        if classify_research_scope(message) == "market":
+            use_debate = enable_debate and not should_skip_debate(message)
+            mode = (
+                ComplexityResult.MARKET_DEBATE
+                if use_debate
+                else ComplexityResult.MARKET_RESEARCH
+            )
+            return mode, True, True, intent
+        return ComplexityResult.DIRECT, True, False, intent
+
+    mode = resolve_execution_mode(message, enable_debate=enable_debate)
+    research_tools = mode in (
+        ComplexityResult.RESEARCH,
+        ComplexityResult.DEBATE,
+        ComplexityResult.MARKET_RESEARCH,
+        ComplexityResult.MARKET_DEBATE,
+        ComplexityResult.INDUSTRY_RESEARCH,
+    )
+    return mode, is_finance_related(message), research_tools, intent
 
 
 def build_route_proposal(message: str, *, enable_debate: bool = False) -> RouteProposal:

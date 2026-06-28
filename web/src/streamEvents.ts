@@ -359,6 +359,19 @@ export function applyStreamEvent(
     }
   }
 
+  if (event.type === "master_done" && event.master) {
+    const nextItem = {
+      master: String(event.master),
+      name: String(event.name ?? ""),
+      signal: (event.signal as MasterCommentaryItem["signal"]) ?? "neutral",
+      signal_text: String(event.signal_text ?? "中性"),
+      confidence: Number(event.confidence ?? 0.5),
+      reasoning: String(event.reasoning ?? ""),
+      key_metric: String(event.key_metric ?? ""),
+    };
+    masterCommentary = [...masterCommentary.filter((item) => item.master !== nextItem.master), nextItem];
+  }
+
   if (event.type === "master_commentary" && Array.isArray(event.commentary)) {
     masterCommentary = (event.commentary as MasterCommentaryItem[]).filter(
       (item) => item && typeof item === "object",

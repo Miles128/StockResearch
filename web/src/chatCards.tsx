@@ -91,8 +91,78 @@ export function StockChoiceCardView({
   );
 }
 
+export function PlanCardsFold({ cards }: { cards: ChatResponse["cards"] }) {
+  const { t } = useI18n();
+  const planCards = cards.filter((c) => c.type === "plan");
+  if (!planCards.length) return null;
+  return (
+    <details className="process-trail-fold plan-trail-fold">
+      <summary className="process-trail-summary">{t("card.planTrail")}</summary>
+      <div className="process-trail-body">
+        {planCards.map((card, i) => (
+          <PlanCardItem key={i} card={card} />
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function PlanCardItem({ card }: { card: ChatResponse["cards"][0] }) {
+  const { t } = useI18n();
+  if (card.type !== "plan" || !card.data) return null;
+  const d = card.data as {
+    phase: string;
+    reasoning?: string;
+    steps?: { id: number; description: string }[];
+    step_id?: number;
+    step?: string;
+    result_preview?: string;
+    step_count?: number;
+  };
+  if (d.phase === "plan") {
+    return (
+      <div className="card plan-step-card">
+        <h4>{t("card.plan")}</h4>
+        {d.reasoning && <p className="muted">{d.reasoning}</p>}
+        <ol style={{ margin: "4px 0", paddingLeft: 20 }}>
+          {d.steps?.map((s, i) => (
+            <li key={i}>{s.description}</li>
+          ))}
+        </ol>
+      </div>
+    );
+  }
+  if (d.phase === "execute") {
+    return (
+      <div className="card plan-step-card plan-step-execute">
+        <h4>
+          {t("card.step")} {d.step_id}
+        </h4>
+        <p className="muted">{d.step}</p>
+        {d.result_preview && <p style={{ marginTop: 4 }}>{d.result_preview}</p>}
+      </div>
+    );
+  }
+  if (d.phase === "synthesis") {
+    return (
+      <div className="card plan-step-card plan-step-synthesis">
+        <h4>{t("card.synthesis")}</h4>
+        <p className="muted">
+          {t("card.synthesisHint", {
+            count: String(d.step_count ?? ""),
+          })}
+        </p>
+      </div>
+    );
+  }
+  return null;
+}
+
 export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
   const { t } = useI18n();
+  if (card.type === "plan") {
+    return null;
+  }
   if (card.type === "research" && card.data && "composite_score" in card.data) {
       const d = card.data as unknown as ResearchReport;
       return (
@@ -108,11 +178,13 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
               {t("card.bias")} {d.bias}
             </span>
           </div>
-          <p>
-            {normalizeResearchConclusion(d.summary, {
-              expandHints: researchExpandHintsFromReport(d),
-            })}
-          </p>
+          <div className="light-research-summary">
+            <MarkdownContent
+              text={normalizeResearchConclusion(d.summary, {
+                expandHints: researchExpandHintsFromReport(d),
+              })}
+            />
+          </div>
           {/^\d{6}$/.test(d.symbol) && <StockChart symbol={d.symbol} compact />}
         </div>
       );
@@ -122,31 +194,38 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
       return (
         <div className="card">
           <h4>{t("card.riskCheckup")}</h4>
-          <p>{d.portfolio_summary}</p>
+          <MarkdownContent text={d.portfolio_summary} />
           {d.alerts?.slice(0, 3).map((a, i) => (
             <p key={i} className={`alert-${a.severity}`}>
               {a.human_message}
             </p>
           ))}
           {d.llm_analysis && (
-            <p>
-              <strong>{t("card.aiBrief")}:</strong> {d.llm_analysis.risk_narrative}
-            </p>
+            <div>
+              <strong>{t("card.aiBrief")}:</strong>{" "}
+              <MarkdownContent className="markdown-inline" text={d.llm_analysis.risk_narrative} />
+            </div>
           )}
         </div>
       );
     }
     if (card.type === "news" && card.data && "items" in card.data) {
       const items = (card.data as { items: NewsItem[] }).items || [];
+      if (!items.length) return null;
       return (
-        <div className="card">
-          <h4>{t("card.relatedNews")}</h4>
-          {items.slice(0, 3).map((n, i) => (
-            <p key={i}>
-              {n.title} — {n.summary}
-            </p>
-          ))}
-        </div>
+        <details className="card news-card-fold">
+          <summary className="news-card-summary">
+            {t("card.relatedNews")} ({items.length})
+          </summary>
+          <div className="news-card-body">
+            {items.slice(0, 5).map((n, i) => (
+              <p key={i}>
+                <strong>{n.title}</strong>
+                {n.summary ? ` — ${n.summary}` : ""}
+              </p>
+            ))}
+          </div>
+        </details>
       );
     }
     if (card.type === "debate" && card.data && "positions" in card.data) {
@@ -176,10 +255,11 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
       const stanceLabel = (s: string) =>
         ({ 看多: t("card.long"), 看空: t("card.short"), 中性: t("card.neutral"), Long: t("card.long"), Short: t("card.short"), Neutral: t("card.neutral"), bullish: t("card.long"), bearish: t("card.short") } as Record<string, string>)[s] ?? s;
       return (
-        <div className="card">
-          <h4>
+        <details className="card debate-card-fold">
+          <summary className="news-card-summary">
             {t("card.debate")} · {d.name}({d.symbol})
-          </h4>
+          </summary>
+          <div className="news-card-body">
           <div className="stat-row">
             <span className="stat-pill">
               {t("card.long")} {(d.vote_tally["看多"] || d.vote_tally["Long"] || d.vote_tally["bullish"] || 0)}
@@ -216,7 +296,8 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
               </div>
             </div>
           )}
-        </div>
+          </div>
+        </details>
       );
     }
     if (card.type === "financial" && card.data && "ratios" in card.data) {
@@ -227,11 +308,12 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
         summary: string;
       };
       return (
-        <div className="card">
-          <h4>
+        <details className="card financial-card-fold">
+          <summary className="news-card-summary">
             {t("card.financial")} · {d.name}({d.symbol})
-          </h4>
-          <table className="metrics-table">
+          </summary>
+          <div className="news-card-body">
+            <table className="metrics-table">
             <thead>
               <tr>
                 <th>{t("card.metric")}</th>
@@ -266,54 +348,9 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
               <MarkdownContent text={d.summary} />
             </div>
           )}
-        </div>
+          </div>
+        </details>
       );
-    }
-    if (card.type === "plan" && card.data) {
-      const d = card.data as {
-        phase: string;
-        reasoning?: string;
-        steps?: { id: number; description: string }[];
-        step_id?: number;
-        step?: string;
-        result_preview?: string;
-      };
-      if (d.phase === "plan") {
-        return (
-          <div className="card">
-            <h4>{t("card.plan")}</h4>
-            {d.reasoning && <p className="muted">{d.reasoning}</p>}
-            <ol style={{ margin: "4px 0", paddingLeft: 20 }}>
-              {d.steps?.map((s, i) => (
-                <li key={i}>{s.description}</li>
-              ))}
-            </ol>
-          </div>
-        );
-      }
-      if (d.phase === "execute") {
-        return (
-          <div className="card" style={{ borderLeft: "2px solid var(--bbg-amber)" }}>
-            <h4>
-              {t("card.step")} {d.step_id}
-            </h4>
-            <p className="muted">{d.step}</p>
-            {d.result_preview && <p style={{ marginTop: 4 }}>{d.result_preview}</p>}
-          </div>
-        );
-      }
-      if (d.phase === "synthesis") {
-        return (
-          <div className="card" style={{ borderLeft: "2px solid var(--bbg-green, #3d9970)" }}>
-            <h4>{t("card.synthesis")}</h4>
-            <p className="muted">
-              {t("card.synthesisHint", {
-                count: String((d as { step_count?: number }).step_count ?? ""),
-              })}
-            </p>
-          </div>
-        );
-      }
     }
     if (card.type === "text" && card.data && "content" in card.data) {
       const content = String((card.data as { content: string }).content || "");

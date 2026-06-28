@@ -18,3 +18,5 @@ def test_glossary_term_has_required_fields(client) -> None:
     assert pe["en"] == "Price-to-Earnings Ratio"
     assert pe["def"]
     assert pe["analogy"]
+    assert pe.get("custom") is False
+    assert "量价背离" in by_id

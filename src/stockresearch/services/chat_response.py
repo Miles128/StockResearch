@@ -7,7 +7,7 @@ import logging
 from sqlalchemy.orm import Session
 
 from stockresearch.agents.orchestrator.balance_check import check_balance
-from stockresearch.agents.output_style import get_enable_glossary, get_reading_mode
+from stockresearch.agents.output_style import get_custom_glossary, get_enable_glossary, get_reading_mode
 from stockresearch.core.schemas import (
     CardPayload,
     ChatResponse,
@@ -18,7 +18,7 @@ from stockresearch.core.schemas import (
 from stockresearch.db.models import Conversation
 from stockresearch.services.conversation_memory import MAX_STORED_MESSAGES
 from stockresearch.services.follow_up import build_follow_up_questions
-from stockresearch.services.glossary import mark_terms
+from stockresearch.services.glossary import mark_terms, merge_glossary
 from stockresearch.services.neutral_guard import neutral_guard
 from stockresearch.services.rotation_signal_guard import ensure_rotation_signals
 from stockresearch.utils.disclaimer import strip_disclaimer
@@ -30,7 +30,8 @@ logger = logging.getLogger(__name__)
 def _mark_text_if_enabled(text: str) -> str:
     if not get_enable_glossary() or not text:
         return text
-    return mark_terms(text)
+    glossary = merge_glossary(get_custom_glossary())
+    return mark_terms(text, glossary=glossary)
 
 
 def _mark_str_list(items: list[str]) -> list[str]:
@@ -99,16 +100,32 @@ def finalize_cards(cards: list[dict[str, object]]) -> list[dict[str, object]]:
     """Apply shared output policy to structured card payloads."""
     finalized: list[dict[str, object]] = []
     for card in cards:
-        if card.get("type") != "research" or not isinstance(card.get("data"), dict):
-            finalized.append(card)
+        card_type = card.get("type")
+        data = card.get("data")
+        if card_type == "research" and isinstance(data, dict):
+            try:
+                report = ResearchReportOut.model_validate(data)
+            except Exception:
+                finalized.append(card)
+                continue
+            marked = finalize_research_report(report)
+            finalized.append({"type": "research", "data": marked.model_dump(mode="json")})
             continue
-        try:
-            report = ResearchReportOut.model_validate(card["data"])
-        except Exception:
-            finalized.append(card)
+        if card_type == "text" and isinstance(data, dict) and isinstance(data.get("content"), str):
+            finalized.append(
+                {
+                    "type": "text",
+                    "data": {"content": _mark_text_if_enabled(str(data["content"]))},
+                }
+            )
             continue
-        marked = finalize_research_report(report)
-        finalized.append({"type": "research", "data": marked.model_dump(mode="json")})
+        if card_type == "financial" and isinstance(data, dict):
+            marked_data = dict(data)
+            if isinstance(marked_data.get("summary"), str):
+                marked_data["summary"] = _mark_text_if_enabled(str(marked_data["summary"]))
+            finalized.append({"type": "financial", "data": marked_data})
+            continue
+        finalized.append(card)
     return finalized
 
 

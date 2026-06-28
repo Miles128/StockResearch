@@ -74,6 +74,39 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
           ))}
         </div>
       )}
+      {report.master_commentary && report.master_commentary.length > 0 && (
+        <div className="master-commentary-list light-research-masters">
+          <p className="stream-section-title">{t("stream.masterCommentary")}</p>
+          {report.master_commentary.map((item) => {
+            const label =
+              item.name?.trim() ||
+              (() => {
+                const key = `master.${item.master}`;
+                const translated = t(key);
+                return translated !== key ? translated : item.master;
+              })();
+            return (
+              <div
+                key={item.master}
+                className={`master-commentary-item signal-${item.signal}`}
+              >
+                <div className="master-commentary-head">
+                  <strong>{label}</strong>
+                  <span
+                    className={`stat-pill ${item.signal === "bullish" ? "up" : item.signal === "bearish" ? "down" : ""}`}
+                  >
+                    {item.signal_text}
+                  </span>
+                  {item.key_metric && (
+                    <span className="muted master-commentary-metric">{item.key_metric}</span>
+                  )}
+                </div>
+                <p className="muted">{item.reasoning}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
       <details className="light-research-details">
         <summary>{isExpert ? t("card.expandSources") : t("card.expandProfessional")}</summary>
         <ResearchReportDetails report={report} showDimensions={false} showDebate={isExpert} />

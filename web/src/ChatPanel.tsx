@@ -1,7 +1,7 @@
 import type { ExecutionPreference, HoldingEnriched, RouteChoiceCardData, StockChoiceCardData } from "./api";
 import type { Message } from "./appTypes";
 import type { AppMode } from "./modeSettings";
-import { CardView, RouteChoiceCardView, StockChoiceCardView } from "./chatCards";
+import { CardView, PlanCardsFold, RouteChoiceCardView, StockChoiceCardView } from "./chatCards";
 import { FollowUpChips } from "./FollowUpChips";
 import { LightResearchCard } from "./LightResearchCard";
 import {
@@ -11,6 +11,8 @@ import {
 import { isResearchTurn } from "./disclaimerText";
 import { useI18n } from "./i18n";
 import { MarkdownContent } from "./MarkdownContent";
+import { hasProcessContent, ProcessTrail } from "./ProcessTrail";
+import { cardsWithoutReplyDuplicate, shouldHideReplyBubble } from "./replyCardDedup";
 import { StreamFeed } from "./StreamFeed";
 import type { StreamState } from "./streamEvents";
 
@@ -29,6 +31,31 @@ interface ChatPanelProps {
   onAnalyzeHolding: (h: HoldingEnriched) => void;
   onConfirmStock: (originalMessage: string, symbol: string, name: string) => void;
   onConfirmRoute: (originalMessage: string, preference: ExecutionPreference) => void;
+}
+
+function ProcessStreamFeed({
+  process,
+  statusMsg,
+  live = false,
+}: {
+  process: StreamState;
+  statusMsg: string;
+  live?: boolean;
+}) {
+  return (
+    <ProcessTrail live={live}>
+      <StreamFeed
+        streamStatus={process.streamStatus || statusMsg}
+        streamLog={process.streamLog}
+        agentSteps={process.agentSteps}
+        debateRounds={process.debateRounds}
+        judgeVerdict={process.judgeVerdict}
+        voteTally={process.voteTally}
+        masterCommentary={process.masterCommentary}
+        activeStreamIds={process.activeStreamIds}
+      />
+    </ProcessTrail>
+  );
 }
 
 export function ChatPanel({
@@ -50,11 +77,16 @@ export function ChatPanel({
   const { t } = useI18n();
 
   function renderAssistantContent(m: Message) {
-    const showConclusionShell = isResearchTurn(m.cards, m.intent);
+    const researchReport = findResearchReport(m.cards);
+    const hideReply = shouldHideReplyBubble(m.cards);
+    const showConclusionShell = isResearchTurn(m.cards, m.intent) && !researchReport;
 
     return (
       <>
-        {m.content.trim() &&
+        {hasProcessContent(m.process) && m.process && (
+          <ProcessStreamFeed process={m.process} statusMsg={statusMsg} />
+        )}
+        {!hideReply && m.content.trim() &&
           (showConclusionShell ? (
             <div className="message assistant conclusion-panel">
               <p className="process-panel-title">{t("chat.conclusion")}</p>
@@ -105,6 +137,7 @@ export function ChatPanel({
                 {renderAssistantContent(m)}
                 {(() => {
                   const researchReport = findResearchReport(m.cards);
+                  const visibleCards = cardsWithoutReplyDuplicate(m.cards, m.content);
                   if (researchReport) {
                     return (
                       <LightResearchCard
@@ -114,7 +147,10 @@ export function ChatPanel({
                       />
                     );
                   }
-                  return m.cards?.map((c, j) =>
+                  return (
+                    <>
+                      {visibleCards && <PlanCardsFold cards={visibleCards} />}
+                      {visibleCards?.map((c, j) =>
                     c.type === "stock_choice" ? (
                       <StockChoiceCardView
                         key={j}
@@ -132,6 +168,8 @@ export function ChatPanel({
                     ) : (
                       <CardView key={j} card={c} />
                     ),
+                  )}
+                    </>
                   );
                 })()}
                 {!findResearchReport(m.cards) && m.followUpQuestions && m.followUpQuestions.length > 0 && (
@@ -149,18 +187,9 @@ export function ChatPanel({
             )}
           </div>
         ))}
-        {loading && (
+        {loading && (hasProcessContent(chatStream) || statusMsg) && (
           <div className="message assistant stream-live-panel">
-            <p className="process-panel-title">{t("chat.processLive")}</p>
-            <StreamFeed
-              streamStatus={chatStream.streamStatus || statusMsg}
-              streamLog={chatStream.streamLog}
-              agentSteps={chatStream.agentSteps}
-              debateRounds={chatStream.debateRounds}
-              judgeVerdict={chatStream.judgeVerdict}
-              voteTally={chatStream.voteTally}
-              activeStreamIds={chatStream.activeStreamIds}
-            />
+            <ProcessStreamFeed process={chatStream} statusMsg={statusMsg} live />
           </div>
         )}
       </div>

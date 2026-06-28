@@ -16,7 +16,8 @@ from stockresearch.agents.orchestrator.route_plan import FINANCE_TOOLS
 from stockresearch.agents.research.runner import run_research
 from stockresearch.core.config import get_settings
 from stockresearch.core.constants import DISCLAIMER
-from stockresearch.core.schemas import ResearchReportOut
+from stockresearch.core.schemas import ModeSettingsOut, ResearchReportOut
+from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
 from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.data.providers.market_overview import MarketOverviewProvider
 from stockresearch.db.models import Holding, NewsItem
@@ -47,6 +48,10 @@ ORCHESTRATOR_SYSTEM = f"""你是「StockResearch」的编排 Agent，负责理�
 2. 调用工具获取数据（可以多次调用不同工具）
 3. 基于获取的数据，生成最终回答
 
+简单新闻/消息解读（如「解释这条新闻」「对持仓有什么影响」）：
+- 优先 get_news 获取上下文，必要时 get_stock_quote / 持仓相关工具
+- 直接组织回答，不要调用 get_stock_research 或 debate_stock
+
 可用工具：
 - get_market_data: 获取大盘指数、北向资金、涨跌家数等市场整体数据
 - get_stock_quote: 获取个股实时行情（参数: symbol 如 "600519"）
@@ -67,6 +72,7 @@ ORCHESTRATOR_SYSTEM = f"""你是「StockResearch」的编排 Agent，负责理�
 - 先获取数据再回答，不要凭空编造
 - 可以连续调用多个工具
 - 当你认为数据足够时，调用 reply 工具生成最终回复
+- 长期上下文中已列出持仓缓存行情时，不要对相同标的重复调用 get_stock_quote（收盘后行情不会更新）
 - 不给出买入、卖出、加仓、减仓等操作建议
 - 简明扼要，先结论后分析
 - 末尾加上：{DISCLAIMER}
@@ -96,11 +102,16 @@ class OrchestratorAgent:
         user_id: int = 1,
         *,
         finance_tools: bool = True,
+        research_tools: bool = True,
+        mode_settings: ModeSettingsOut | None = None,
     ) -> None:
         self._db = db
         self._llm = llm
         self._user_id = user_id
         self._finance_tools = finance_tools
+        self._research_tools = research_tools
+        self._mode_settings = mode_settings
+        self._quote_cache_ttl = quote_cache_ttl_seconds(mode_settings)
         self._cards: list[dict[str, Any]] = []
         self._on_progress: Any = None  # optional async callback(str) -> None
 
@@ -147,8 +158,6 @@ class OrchestratorAgent:
                 reply = _clean_reply(response)
                 reply = _reply_from_cards(self._cards) or reply
                 logger.info("ReAct final reply (no tool): %s", reply[:200])
-                if not self._cards:
-                    self._cards.append({"type": "text", "data": {"content": reply}})
                 return reply, self._cards
 
             messages.append({"role": "assistant", "content": response})
@@ -186,8 +195,6 @@ class OrchestratorAgent:
                 if tool_name == "reply":
                     reply = tool_args.get("message", result)
                     logger.info("ReAct final reply (via reply tool): %s", reply[:200])
-                    if not self._cards:
-                        self._cards.append({"type": "text", "data": {"content": reply}})
                     return reply, self._cards
 
         reply = _reply_from_cards(self._cards) or (
@@ -197,13 +204,16 @@ class OrchestratorAgent:
             last_card = self._cards[-1]
             if last_card.get("type") == "text":
                 reply = str(last_card.get("data", {}).get("content", reply))
-        else:
-            self._cards.append({"type": "text", "data": {"content": reply}})
         return reply, self._cards
 
     async def _execute_tool(self, name: str, args: dict[str, Any]) -> str:
         if not self._finance_tools and name in FINANCE_TOOLS:
             return f"工具 {name} 已禁用：当前问题与股票投资无关，请直接基于知识回答。"
+        if not self._research_tools and name in {"get_stock_research", "debate_stock"}:
+            return (
+                f"工具 {name} 已禁用：当前问题不需要四维投研，"
+                "请改用行情/新闻/财报工具或直接 reply。"
+            )
         try:
             if name == "get_market_data":
                 return await self._tool_market_data()
@@ -233,7 +243,7 @@ class OrchestratorAgent:
 
     async def _tool_market_data(self) -> str:
         provider = MarketOverviewProvider()
-        overview = await provider.get_overview()
+        overview = await provider.get_overview(cache_ttl_seconds=self._quote_cache_ttl)
         lines: list[str] = []
         if overview.indices:
             for idx in overview.indices:
@@ -251,17 +261,8 @@ class OrchestratorAgent:
         if not symbol:
             return "请提供股票代码"
         provider = QuoteProvider()
-        quote = await provider.get_quote(symbol)
+        quote = await provider.get_quote(symbol, cache_ttl_seconds=self._quote_cache_ttl)
         arrow = "↑" if quote.change_pct > 0 else "↓" if quote.change_pct < 0 else "→"
-        self._cards.append({
-            "type": "text",
-            "data": {
-                "content": (
-                    f"{quote.name}({quote.symbol}) "
-                    f"现价{quote.price:.2f} {arrow}{quote.change_pct:+.2f}%"
-                )
-            },
-        })
         return (
             f"{quote.name}({quote.symbol})\n"
             f"现价: {quote.price:.2f} {arrow} {quote.change_pct:+.2f}%\n"
@@ -330,7 +331,10 @@ class OrchestratorAgent:
             return "请提供股票代码"
         from stockresearch.agents.financial.agent import FinancialRatioAgent
 
-        agent = FinancialRatioAgent(llm=None)
+        agent = FinancialRatioAgent(
+            llm=None,
+            quote_cache_ttl_seconds=self._quote_cache_ttl,
+        )
         result = await agent.run(symbol, resolve_name(symbol))
         ratios = result.get("ratios", [])
         if not ratios:

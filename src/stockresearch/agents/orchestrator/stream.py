@@ -18,6 +18,7 @@ from stockresearch.agents.orchestrator.complexity import (
 from stockresearch.agents.orchestrator.plan_execute import PlanExecuteAgent
 from stockresearch.agents.orchestrator.react_agent import OrchestratorAgent
 from stockresearch.agents.orchestrator.route_plan import (
+    resolve_chat_route,
     resolve_mode_with_preference,
 )
 from stockresearch.agents.research.stream import run_research_stream
@@ -91,7 +92,7 @@ async def run_chat_stream(
     settings = mode_settings or get_mode_settings(db, user_id)
     master_on = _resolve_master_on(enable_master_commentary, settings)
     master_kwargs = _master_stream_kwargs(master_on, settings)
-    long_term_context = build_long_term_context(mode_settings=settings, holdings=holdings)
+    long_term_context = await build_long_term_context(mode_settings=settings, holdings=holdings)
     user_context_text = format_user_context_block(user_context)
     history = await prepare_chat_history(db, user_id, sid, client)
 
@@ -124,6 +125,7 @@ async def run_chat_stream(
             confirmed_symbol=confirmed_symbol,
             confirmed_name=confirmed_name,
             execution_preference=execution_preference,
+            mode_settings=settings,
         ):
             if isinstance(event, dict) and event.get("type") == "done" and "response" in event:
                 response = event["response"]
@@ -179,6 +181,7 @@ async def _run_chat_stream_body(
     confirmed_symbol: str | None,
     confirmed_name: str | None,
     execution_preference: str | None,
+    mode_settings: ModeSettingsOut,
 ) -> AsyncIterator[dict[str, object]]:
     """Inner chat stream body. Raises LLMConfigError if API key missing."""
     if is_risk:
@@ -206,9 +209,10 @@ async def _run_chat_stream_body(
                 yield event
         return
 
-    mode, finance_tools = resolve_mode_with_preference(
+    mode, finance_tools, research_tools_allowed, routed_intent = await resolve_chat_route(
         message,
-        execution_preference,
+        client,
+        execution_preference=execution_preference,
         enable_debate=debate_on,
     )
     route_symbol = confirmed_symbol
@@ -227,12 +231,13 @@ async def _run_chat_stream_body(
         "status.route",
         debate="on" if debate_on else "off",
         mode=str(mode),
+        intent=routed_intent,
     )
 
     # 收集子流的最终结果（cards/reply/result），统一转换为标准 done 事件。
     cards: list[dict[str, object]] = []
     reply = ""
-    intent = "chat"
+    intent = routed_intent
 
     def _finalize_from_event(event: dict[str, object]) -> None:
         """Extract cards/reply from sub-stream done event into local vars."""
@@ -300,6 +305,7 @@ async def _run_chat_stream_body(
             long_term_context=long_term_context,
             user_context_text=user_context_text,
             history=history,
+            mode_settings=mode_settings,
         ):
             if event.get("type") == "done":
                 _finalize_from_event(event)
@@ -325,7 +331,12 @@ async def _run_chat_stream_body(
             await progress_queue.put(hint)
 
         agent = OrchestratorAgent(
-            db=db, llm=client, user_id=user_id, finance_tools=finance_tools
+            db=db,
+            llm=client,
+            user_id=user_id,
+            finance_tools=finance_tools,
+            research_tools=research_tools_allowed,
+            mode_settings=mode_settings,
         )
         agent.set_progress_callback(on_progress)
 
@@ -503,12 +514,17 @@ async def _run_plan_execute_stream(
     long_term_context: str = "",
     user_context_text: str = "",
     history: list[dict[str, str]] | None = None,
+    mode_settings: ModeSettingsOut | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     """Stream plan-execute mode with progress."""
     yield status_event("status.planning")
 
     react_agent = OrchestratorAgent(
-        db=db, llm=llm, user_id=user_id, finance_tools=finance_tools
+        db=db,
+        llm=llm,
+        user_id=user_id,
+        finance_tools=finance_tools,
+        mode_settings=mode_settings,
     )
 
     async def tool_executor(name: str, args: dict) -> str:

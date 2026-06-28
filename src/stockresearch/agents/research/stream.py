@@ -115,14 +115,6 @@ async def run_research_stream(
 
     yield status_event("status.research.start", name=name, symbol=symbol)
 
-    for agent_id, agent_name, _, _ in _DIMENSION_STREAM_JOBS:
-        yield {
-            "type": "agent_start",
-            "agent_id": agent_id,
-            "agent_name": agent_name,
-            "role": "analyst",
-        }
-
     dimensions: dict[str, DimensionResult] = {}
     queue: asyncio.Queue[object] = asyncio.Queue()
     pumps = [

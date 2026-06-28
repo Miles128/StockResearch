@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+from stockresearch.agents.master_commentary.schemas import MasterCommentaryOut
 from stockresearch.core.schemas import CustomMasterOut, ModeSettingsOut
 from stockresearch.prompts import load_master_prompt
 
@@ -80,6 +81,26 @@ def get_master_config(
 
     msg = f"Unknown master: {master_id}"
     raise KeyError(msg)
+
+
+def to_commentary_payload(
+    result: MasterCommentaryOut,
+    settings: ModeSettingsOut,
+) -> dict[str, str | float]:
+    """Serialize master commentary with resolved display name."""
+    try:
+        display_name = get_master_config(result.master, settings)["name"]
+    except KeyError:
+        display_name = result.master
+    return {
+        "master": result.master,
+        "name": display_name,
+        "signal": result.signal,
+        "signal_text": result.signal_text,
+        "confidence": result.confidence,
+        "reasoning": result.reasoning,
+        "key_metric": result.key_metric,
+    }
 
 
 def list_available_masters(settings: ModeSettingsOut) -> list[dict[str, str]]:

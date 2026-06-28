@@ -64,6 +64,16 @@ interface StreamFeedProps {
 const DEBATE_ROLES = new Set(["bull", "bear", "aggressive", "neutral", "conservative", "vote"]);
 const SUMMARY_ROLES = new Set(["manager", "judge"]);
 
+function masterDisplayName(
+  item: import("./api").MasterCommentaryItem,
+  t: (key: string) => string,
+): string {
+  if (item.name?.trim()) return item.name;
+  const key = `master.${item.master}`;
+  const translated = t(key);
+  return translated !== key ? translated : item.master;
+}
+
 function managerStep(steps: AgentStep[]): AgentStep | undefined {
   return steps.find((step) => step.role === "manager" || step.agent_id === "research_manager");
 }
@@ -412,7 +422,7 @@ export function StreamFeed({
                 className={`master-commentary-item signal-${item.signal}`}
               >
                 <div className="master-commentary-head">
-                  <strong>{item.name}</strong>
+                  <strong>{masterDisplayName(item, t)}</strong>
                   <span className={`stat-pill ${item.signal === "bullish" ? "up" : item.signal === "bearish" ? "down" : ""}`}>
                     {item.signal_text}
                   </span>

@@ -10,6 +10,7 @@ import {
 } from "./llmSettings";
 import {
   api,
+  type GlossaryTerm,
   type MemorySearchResult,
   type ResearchReportListItem,
   type SignalBacktest,
@@ -20,6 +21,7 @@ import {
   modeSettingsToApiPayload,
   saveModeSettings,
   type AppMode,
+  type CustomGlossaryTerm,
   type CustomMaster,
   type ModeSettings,
   type ReadingMode,
@@ -113,6 +115,11 @@ export function SettingsPanel({
   const [backtest, setBacktest] = useState<SignalBacktest | null>(null);
   const [memoryQuery, setMemoryQuery] = useState("");
   const [memoryHits, setMemoryHits] = useState<MemorySearchResult | null>(null);
+  const [glossaryTerms, setGlossaryTerms] = useState<GlossaryTerm[]>([]);
+  const [glossaryFilter, setGlossaryFilter] = useState("");
+  const [newGlossaryShort, setNewGlossaryShort] = useState("");
+  const [newGlossaryDef, setNewGlossaryDef] = useState("");
+  const [newGlossaryAnalogy, setNewGlossaryAnalogy] = useState("");
 
   const tabs: { id: SettingsTab; label: string; hideWhenRequired?: boolean }[] = [
     { id: "general", label: t("settings.tabGeneral"), hideWhenRequired: true },
@@ -153,6 +160,14 @@ export function SettingsPanel({
       setMemoryQuery("");
     }
   }, [open, required]);
+
+  useEffect(() => {
+    if (!open || activeTab !== "analysis") return;
+    api
+      .glossary()
+      .then(setGlossaryTerms)
+      .catch(() => setGlossaryTerms([]));
+  }, [open, activeTab, modeSettingsState.customGlossary]);
 
   if (!open) return null;
 
@@ -218,13 +233,42 @@ export function SettingsPanel({
     });
   }
 
+  function addCustomGlossaryTerm() {
+    const short = newGlossaryShort.trim();
+    const def = newGlossaryDef.trim();
+    if (!short || def.length < 2) return;
+    const id = short.slice(0, 32);
+    if (modeSettingsState.customGlossary.some((term) => term.id === id)) return;
+    const nextTerm: CustomGlossaryTerm = {
+      id,
+      short,
+      def,
+      analogy: newGlossaryAnalogy.trim() || undefined,
+    };
+    persistModeSettings({
+      ...modeSettingsState,
+      customGlossary: [...modeSettingsState.customGlossary, nextTerm],
+    });
+    setNewGlossaryShort("");
+    setNewGlossaryDef("");
+    setNewGlossaryAnalogy("");
+  }
+
+  function removeCustomGlossaryTerm(termId: string) {
+    persistModeSettings({
+      ...modeSettingsState,
+      customGlossary: modeSettingsState.customGlossary.filter((term) => term.id !== termId),
+    });
+  }
+
   function selectReadingMode(readingMode: ReadingMode) {
     persistModeSettings({ ...modeSettingsState, readingMode });
   }
 
   const readingModeOptions: { id: ReadingMode; labelKey: string; hintKey: string }[] = [
-    { id: "professional", labelKey: "settings.modeProfessional", hintKey: "settings.modeProfessionalHint" },
     { id: "friendly", labelKey: "settings.modeFriendly", hintKey: "settings.modeFriendlyHint" },
+    { id: "standard", labelKey: "settings.modeStandard", hintKey: "settings.modeStandardHint" },
+    { id: "professional", labelKey: "settings.modeProfessional", hintKey: "settings.modeProfessionalHint" },
   ];
 
   function saveDataSources() {
@@ -344,6 +388,38 @@ export function SettingsPanel({
                 </button>
               ))}
             </div>
+            <h4 className="settings-section-title">{t("settings.readingMode")}</h4>
+            <p className="settings-hint">{t("settings.readingModeHint")}</p>
+            <p className="settings-muted settings-analysis-note">
+              {t("settings.readingModeNote", {
+                mode: t(modeSettingsState.mode === "research" ? "mode.research" : "mode.advisor"),
+                reading: t(
+                  modeSettingsState.readingMode === "professional"
+                    ? "settings.modeProfessional"
+                    : modeSettingsState.readingMode === "standard"
+                      ? "settings.modeStandard"
+                      : "settings.modeFriendly",
+                ),
+              })}
+            </p>
+            <div className="settings-tone-options" role="radiogroup" aria-label={t("settings.readingMode")}>
+              {readingModeOptions.map((opt) => (
+                <label
+                  key={opt.id}
+                  className={`locale-option${modeSettingsState.readingMode === opt.id ? " active" : ""}`}
+                >
+                  <input
+                    type="radio"
+                    name="reading-mode-general"
+                    value={opt.id}
+                    checked={modeSettingsState.readingMode === opt.id}
+                    onChange={() => selectReadingMode(opt.id)}
+                  />
+                  <span className="theme-option-label">{t(opt.labelKey)}</span>
+                  <span className="theme-option-hint">{t(opt.hintKey)}</span>
+                </label>
+              ))}
+            </div>
             <h4 className="settings-section-title">{t("settings.holdingsViewTitle")}</h4>
             <p className="settings-hint">{t("settings.holdingsViewHint")}</p>
             <div className="holdings-view-picker">
@@ -363,6 +439,33 @@ export function SettingsPanel({
 
         {!required && activeTab === "data" && (
           <>
+            <h4 className="settings-section-title">{t("settings.quoteCacheTitle")}</h4>
+            <p className="settings-hint">{t("settings.quoteCacheHint")}</p>
+            <label className="settings-field">
+              <span>
+                {t("settings.quoteRefreshMinutes")}{" "}
+                <strong>{modeSettingsState.quoteRefreshMinutes}</strong>
+              </span>
+              <input
+                type="range"
+                min={1}
+                max={120}
+                step={1}
+                value={modeSettingsState.quoteRefreshMinutes}
+                onChange={(e) =>
+                  persistModeSettings({
+                    ...modeSettingsState,
+                    quoteRefreshMinutes: parseInt(e.target.value, 10),
+                  })
+                }
+              />
+            </label>
+            <p className="settings-muted settings-analysis-note">
+              {t("settings.quoteRefreshNote", {
+                minutes: String(modeSettingsState.quoteRefreshMinutes),
+              })}
+            </p>
+
             <h4 className="settings-section-title">{t("settings.tushareTitle")}</h4>
             <p className="settings-hint">{t("settings.tushareHint")}</p>
             <label className="settings-field">
@@ -545,7 +648,7 @@ export function SettingsPanel({
                     onChange={(e) => toggleMasterSelection(id, e.target.checked)}
                     disabled={!modeSettingsState.enableMasterCommentary}
                   />
-                  <span>{t(`settings.master.${id}`)}</span>
+                  <span>{t(`settings.masters.${id}`)}</span>
                 </label>
               ))}
               {modeSettingsState.customMasters.map((master) => (
@@ -576,64 +679,114 @@ export function SettingsPanel({
               {t("settings.addCustomMaster")}
             </button>
 
-            {modeSettingsState.mode === "advisor" && (
-              <>
-                <h4 className="settings-section-title">{t("settings.glossary")}</h4>
-                <p className="settings-hint">{t("settings.glossaryHint")}</p>
-                <label className="settings-check">
-                  <input
-                    type="checkbox"
-                    checked={modeSettingsState.enableGlossary}
-                    onChange={(e) =>
-                      persistModeSettings({ ...modeSettingsState, enableGlossary: e.target.checked })
-                    }
-                  />
-                  <span>{t("settings.enableGlossary")}</span>
-                </label>
-                <p className="settings-muted settings-analysis-note">
-                  {modeSettingsState.enableGlossary
-                    ? t("settings.glossaryOnNote")
-                    : t("settings.glossaryOffNote")}
-                </p>
-              </>
-            )}
-
-            <h4 className="settings-section-title">{t("settings.readingMode")}</h4>
-            <p className="settings-hint">{t("settings.readingModeHint")}</p>
+            <h4 className="settings-section-title">{t("settings.glossary")}</h4>
+            <p className="settings-hint">{t("settings.glossaryHint")}</p>
+            <label className="settings-check">
+              <input
+                type="checkbox"
+                checked={modeSettingsState.enableGlossary}
+                onChange={(e) =>
+                  persistModeSettings({ ...modeSettingsState, enableGlossary: e.target.checked })
+                }
+              />
+              <span>{t("settings.enableGlossary")}</span>
+            </label>
             <p className="settings-muted settings-analysis-note">
-              {t("settings.readingModeNote", {
-                mode: t(modeSettingsState.mode === "research" ? "mode.research" : "mode.advisor"),
-                reading: t(
-                  modeSettingsState.readingMode === "professional"
-                    ? "settings.modeProfessional"
-                    : "settings.modeFriendly",
-                ),
-              })}
-              {modeSettingsState.mode === "advisor"
-                ? ` · ${t("settings.readingModePersonal")}`
-                : ` · ${t("settings.readingModeExpert")}`}
+              {modeSettingsState.enableGlossary
+                ? t("settings.glossaryOnNote")
+                : t("settings.glossaryOffNote")}
             </p>
-            <div className="settings-tone-options" role="radiogroup" aria-label={t("settings.readingMode")}>
-              {readingModeOptions.map((opt) => (
-                <label
-                  key={opt.id}
-                  className={`locale-option${modeSettingsState.readingMode === opt.id ? " active" : ""}`}
-                >
-                  <input
-                    type="radio"
-                    name="reading-mode"
-                    value={opt.id}
-                    checked={modeSettingsState.readingMode === opt.id}
-                    onChange={() => selectReadingMode(opt.id)}
-                  />
-                  <span className="theme-option-label">{t(opt.labelKey)}</span>
-                  <span className="theme-option-hint">{t(opt.hintKey)}</span>
-                </label>
-              ))}
+
+            <div className="glossary-settings-panel">
+              <div className="glossary-settings-toolbar">
+                <input
+                  type="search"
+                  className="settings-input"
+                  placeholder={t("settings.glossarySearch")}
+                  value={glossaryFilter}
+                  onChange={(e) => setGlossaryFilter(e.target.value)}
+                />
+                <span className="settings-muted">
+                  {t("settings.glossaryCount", { n: glossaryTerms.length })}
+                </span>
+              </div>
+              <ul className="glossary-term-list">
+                {glossaryTerms
+                  .filter((term) => {
+                    const q = glossaryFilter.trim().toLowerCase();
+                    if (!q) return true;
+                    return (
+                      term.short.toLowerCase().includes(q) ||
+                      term.id.toLowerCase().includes(q) ||
+                      term.def.toLowerCase().includes(q)
+                    );
+                  })
+                  .map((term) => (
+                    <li key={term.id} className="glossary-term-row">
+                      <div className="glossary-term-head">
+                        <strong>{term.short}</strong>
+                        {term.custom ? (
+                          <span className="glossary-term-badge custom">{t("settings.glossaryCustom")}</span>
+                        ) : (
+                          <span className="glossary-term-badge">{t("settings.glossaryBuiltin")}</span>
+                        )}
+                        {term.custom && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => removeCustomGlossaryTerm(term.id)}
+                          >
+                            {t("settings.glossaryRemove")}
+                          </button>
+                        )}
+                      </div>
+                      <p className="glossary-term-def">{term.def}</p>
+                      {term.analogy ? (
+                        <p className="glossary-term-analogy">{term.analogy}</p>
+                      ) : null}
+                    </li>
+                  ))}
+              </ul>
+
+              <h5 className="settings-subsection-title">{t("settings.glossaryAddTitle")}</h5>
+              <p className="settings-hint">{t("settings.glossaryAddHint")}</p>
+              <label className="settings-field">
+                <span>{t("settings.glossaryTermShort")}</span>
+                <input
+                  className="settings-input"
+                  value={newGlossaryShort}
+                  onChange={(e) => setNewGlossaryShort(e.target.value)}
+                  placeholder={t("settings.glossaryTermShortPh")}
+                />
+              </label>
+              <label className="settings-field">
+                <span>{t("settings.glossaryTermDef")}</span>
+                <textarea
+                  className="settings-input"
+                  rows={2}
+                  value={newGlossaryDef}
+                  onChange={(e) => setNewGlossaryDef(e.target.value)}
+                  placeholder={t("settings.glossaryTermDefPh")}
+                />
+              </label>
+              <label className="settings-field">
+                <span>{t("settings.glossaryTermAnalogy")}</span>
+                <input
+                  className="settings-input"
+                  value={newGlossaryAnalogy}
+                  onChange={(e) => setNewGlossaryAnalogy(e.target.value)}
+                  placeholder={t("settings.glossaryTermAnalogyPh")}
+                />
+              </label>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={addCustomGlossaryTerm}
+                disabled={!newGlossaryShort.trim() || newGlossaryDef.trim().length < 2}
+              >
+                {t("settings.glossaryAddBtn")}
+              </button>
             </div>
-            {locale === "en" && (
-              <p className="settings-muted settings-analysis-note">{t("settings.outputLocaleEnNote")}</p>
-            )}
           </>
         )}
 

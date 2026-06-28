@@ -15,6 +15,14 @@ def test_finalize_chat_reply_applies_neutrality_and_partial_marker() -> None:
     assert reply.endswith("（部分分析未完成）")
 
 
+def test_finalize_marks_chinese_short_labels() -> None:
+    """友善模式常用中文简称也应被标记。"""
+    with output_style_scope(reading_mode="friendly", locale="zh", enable_glossary=True):
+        reply = finalize_chat_reply("当前市盈率 35.2，市净率 4.1")
+    assert '<term data-id="PE">市盈率</term>' in reply
+    assert '<term data-id="PB">市净率</term>' in reply
+
+
 def test_finalize_marks_terms_when_glossary_enabled() -> None:
     """投顾模式（enable_glossary=True）应标记术语为可点击。"""
     with output_style_scope(reading_mode="friendly", locale="zh", enable_glossary=True):

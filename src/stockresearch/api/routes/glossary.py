@@ -1,27 +1,22 @@
-"""Glossary routes — expose term dictionary for frontend click-to-show popovers.
+"""Glossary routes — expose term dictionary for frontend click-to-show popovers."""
 
-投顾模式下前端通过此接口获取词库，渲染 <term> 标签的可点击弹窗。
-投研模式后端不标记术语，前端也不会请求本接口的数据。
-"""
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
-from fastapi import APIRouter
-
-from stockresearch.services.glossary import get_glossary
+from stockresearch.api.deps import get_current_user
+from stockresearch.db.models import User
+from stockresearch.db.session import get_db
+from stockresearch.services.glossary import list_glossary_payload
+from stockresearch.services.user_preferences import get_mode_settings
 
 router = APIRouter(prefix="/glossary", tags=["glossary"])
 
 
 @router.get("")
-def list_glossary() -> list[dict[str, str]]:
-    """返回全部词库条目，供前端 TermPopover 查询。"""
-    terms = get_glossary()
-    return [
-        {
-            "id": t.id,
-            "en": t.en,
-            "short": t.short,
-            "def": t.def_,
-            "analogy": t.analogy,
-        }
-        for t in terms.values()
-    ]
+def list_glossary(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict[str, str | bool]]:
+    """返回内置 + 用户自定义词库，供设置页与 TermPopover 使用。"""
+    settings = get_mode_settings(db, user.id)
+    return list_glossary_payload(settings.custom_glossary)

@@ -46,11 +46,17 @@ async def chat(
         x_llm_use_mock=x_llm_use_mock,
     )
     mode_settings = get_mode_settings(db, user.id)
+    glossary_on = (
+        payload.enable_glossary
+        if payload.enable_glossary is not None
+        else mode_settings.enable_glossary
+    )
     orchestrator = Orchestrator(db, llm=llm)
     with output_style_scope(
         reading_mode=payload.reading_mode,
         locale=payload.output_locale,
-        enable_glossary=payload.enable_glossary,
+        enable_glossary=glossary_on,
+        custom_glossary=mode_settings.custom_glossary,
     ):
         return await orchestrator.run(
             user.id,
@@ -88,6 +94,11 @@ async def chat_stream(
         x_llm_use_mock=x_llm_use_mock,
     )
     mode_settings = get_mode_settings(db, user.id)
+    glossary_on = (
+        payload.enable_glossary
+        if payload.enable_glossary is not None
+        else mode_settings.enable_glossary
+    )
 
     async def event_generator() -> AsyncIterator[str]:
         import asyncio
@@ -96,7 +107,8 @@ async def chat_stream(
             with output_style_scope(
                 reading_mode=payload.reading_mode,
                 locale=payload.output_locale,
-                enable_glossary=payload.enable_glossary,
+                enable_glossary=glossary_on,
+                custom_glossary=mode_settings.custom_glossary,
             ):
                 async for event in run_chat_stream(
                     db,

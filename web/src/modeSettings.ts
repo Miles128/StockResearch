@@ -8,7 +8,7 @@ import { loadLocale } from "./localeSettings";
 import { createLocalStorageStore } from "./settingsStore";
 
 export type AppMode = "advisor" | "research";
-export type ReadingMode = "professional" | "friendly";
+export type ReadingMode = "friendly" | "standard" | "professional";
 export type RiskTolerance = "conservative" | "moderate" | "aggressive";
 export type HoldingsView = "table" | "cards";
 
@@ -19,6 +19,14 @@ export interface CustomMaster {
   id: string;
   name: string;
   systemPrompt: string;
+}
+
+export interface CustomGlossaryTerm {
+  id: string;
+  short: string;
+  def: string;
+  analogy?: string;
+  en?: string;
 }
 
 export interface ModeSettings {
@@ -33,7 +41,9 @@ export interface ModeSettings {
   enableMasterCommentary: boolean;
   selectedMasters: string[];
   customMasters: CustomMaster[];
+  customGlossary: CustomGlossaryTerm[];
   holdingsView: HoldingsView;
+  quoteRefreshMinutes: number;
 }
 
 const STORAGE_KEY = "stockresearch.mode.settings";
@@ -60,6 +70,27 @@ function migrateCustomMasters(raw: unknown): CustomMaster[] {
   return out;
 }
 
+function migrateCustomGlossary(raw: unknown): CustomGlossaryTerm[] {
+  if (!Array.isArray(raw)) return [];
+  const out: CustomGlossaryTerm[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Partial<CustomGlossaryTerm & { def?: string }>;
+    const short = typeof row.short === "string" ? row.short.trim() : "";
+    const def = typeof row.def === "string" ? row.def.trim() : "";
+    const id = typeof row.id === "string" && row.id.trim() ? row.id.trim() : short;
+    if (!id || !short || def.length < 2) continue;
+    out.push({
+      id,
+      short,
+      def,
+      analogy: typeof row.analogy === "string" ? row.analogy.trim() : undefined,
+      en: typeof row.en === "string" ? row.en.trim() : undefined,
+    });
+  }
+  return out;
+}
+
 function migrateFromLegacyAnalysis(): Partial<ModeSettings> {
   try {
     const raw = localStorage.getItem(LEGACY_ANALYSIS_KEY);
@@ -75,10 +106,12 @@ function migrateFromLegacyAnalysis(): Partial<ModeSettings> {
     if (typeof parsed.enableMasterCommentary === "boolean") {
       partial.enableMasterCommentary = parsed.enableMasterCommentary;
     }
-    if (parsed.readingMode === "professional" || parsed.readingMode === "friendly") {
+    if (parsed.readingMode === "professional" || parsed.readingMode === "friendly" || parsed.readingMode === "standard") {
       partial.readingMode = parsed.readingMode;
-    } else if (parsed.outputTone === "professional" || parsed.outputTone === "standard") {
+    } else if (parsed.outputTone === "professional") {
       partial.readingMode = "professional";
+    } else if (parsed.outputTone === "standard") {
+      partial.readingMode = "standard";
     } else if (parsed.outputTone === "friendly") {
       partial.readingMode = "friendly";
     }
@@ -94,6 +127,7 @@ function migrateModeSettings(parsed: unknown): Partial<ModeSettings> {
   const partial = parsed as Partial<ModeSettings> & {
     selected_masters?: string[];
     custom_masters?: unknown;
+    custom_glossary?: unknown;
     enable_master_commentary?: boolean;
   };
   const mode: AppMode = partial.mode === "research" ? "research" : "advisor";
@@ -118,7 +152,9 @@ function migrateModeSettings(parsed: unknown): Partial<ModeSettings> {
         ? partial.monthlyIncome
         : undefined,
     readingMode:
-      partial.readingMode === "professional" || partial.readingMode === "friendly"
+      partial.readingMode === "professional" ||
+      partial.readingMode === "friendly" ||
+      partial.readingMode === "standard"
         ? partial.readingMode
         : legacy.readingMode ?? preset.readingMode,
     enableDebate:
@@ -137,10 +173,20 @@ function migrateModeSettings(parsed: unknown): Partial<ModeSettings> {
           : legacy.enableMasterCommentary ?? preset.enableMasterCommentary,
     selectedMasters: selectedMasters.length > 0 ? selectedMasters : [...BUILTIN_MASTER_IDS],
     customMasters: migrateCustomMasters(partial.customMasters ?? partial.custom_masters),
+    customGlossary: migrateCustomGlossary(partial.customGlossary ?? partial.custom_glossary),
     holdingsView:
       partial.holdingsView === "cards" || partial.holdingsView === "table"
         ? partial.holdingsView
         : "table",
+    quoteRefreshMinutes:
+      typeof partial.quoteRefreshMinutes === "number"
+        ? Math.min(120, Math.max(1, partial.quoteRefreshMinutes))
+        : typeof (partial as { quote_refresh_minutes?: number }).quote_refresh_minutes === "number"
+          ? Math.min(
+              120,
+              Math.max(1, (partial as { quote_refresh_minutes: number }).quote_refresh_minutes),
+            )
+          : preset.quoteRefreshMinutes,
   };
 }
 
@@ -148,6 +194,14 @@ export interface CustomMasterApiPayload {
   id: string;
   name: string;
   system_prompt: string;
+}
+
+export interface CustomGlossaryApiPayload {
+  id: string;
+  short: string;
+  def: string;
+  analogy?: string;
+  en?: string;
 }
 
 export interface ModeSettingsApiPayload {
@@ -162,6 +216,8 @@ export interface ModeSettingsApiPayload {
   enable_master_commentary: boolean;
   selected_masters: string[];
   custom_masters: CustomMasterApiPayload[];
+  custom_glossary: CustomGlossaryApiPayload[];
+  quote_refresh_minutes: number;
 }
 
 export const ADVISOR_PRESET: Omit<ModeSettings, "onboarded"> = {
@@ -175,7 +231,9 @@ export const ADVISOR_PRESET: Omit<ModeSettings, "onboarded"> = {
   enableMasterCommentary: false,
   selectedMasters: [...BUILTIN_MASTER_IDS],
   customMasters: [],
+  customGlossary: [],
   holdingsView: "table",
+  quoteRefreshMinutes: 10,
 };
 
 export const RESEARCH_PRESET: Omit<ModeSettings, "onboarded"> = {
@@ -189,7 +247,9 @@ export const RESEARCH_PRESET: Omit<ModeSettings, "onboarded"> = {
   enableMasterCommentary: false,
   selectedMasters: [...BUILTIN_MASTER_IDS],
   customMasters: [],
+  customGlossary: [],
   holdingsView: "table",
+  quoteRefreshMinutes: 10,
 };
 
 export const DEFAULT_MODE_SETTINGS: ModeSettings = {
@@ -255,6 +315,14 @@ export function modeSettingsToApiPayload(settings: ModeSettings): ModeSettingsAp
       name: m.name,
       system_prompt: m.systemPrompt,
     })),
+    custom_glossary: settings.customGlossary.map((term) => ({
+      id: term.id,
+      short: term.short,
+      def: term.def,
+      analogy: term.analogy ?? "",
+      en: term.en ?? "",
+    })),
+    quote_refresh_minutes: settings.quoteRefreshMinutes,
   };
 }
 
@@ -274,7 +342,9 @@ export function modeSettingsFromApiPayload(payload: Partial<ModeSettingsApiPaylo
         ? payload.monthly_income
         : undefined,
     readingMode:
-      payload.reading_mode === "professional" || payload.reading_mode === "friendly"
+      payload.reading_mode === "professional" ||
+      payload.reading_mode === "friendly" ||
+      payload.reading_mode === "standard"
         ? payload.reading_mode
         : preset.readingMode,
     enableDebate:
@@ -293,7 +363,12 @@ export function modeSettingsFromApiPayload(payload: Partial<ModeSettingsApiPaylo
         ? payload.selected_masters
         : [...BUILTIN_MASTER_IDS],
     customMasters: migrateCustomMasters(payload.custom_masters),
+    customGlossary: migrateCustomGlossary(payload.custom_glossary),
     holdingsView: "table",
+    quoteRefreshMinutes:
+      typeof payload.quote_refresh_minutes === "number"
+        ? Math.min(120, Math.max(1, payload.quote_refresh_minutes))
+        : preset.quoteRefreshMinutes,
   };
 }
 
@@ -323,6 +398,27 @@ export function defaultTabForMode(_mode: AppMode): Tab {
   return "portfolio";
 }
 
+export const READING_MODE_I18N_KEYS: Record<
+  ReadingMode,
+  { label: string; hint: string; short: string }
+> = {
+  friendly: {
+    label: "settings.modeFriendly",
+    hint: "settings.modeFriendlyHint",
+    short: "settings.modeFriendlyShort",
+  },
+  standard: {
+    label: "settings.modeStandard",
+    hint: "settings.modeStandardHint",
+    short: "settings.modeStandardShort",
+  },
+  professional: {
+    label: "settings.modeProfessional",
+    hint: "settings.modeProfessionalHint",
+    short: "settings.modeProfessionalShort",
+  },
+};
+
 export function chatBodyField(): {
   enable_debate: boolean;
   enable_master_commentary: boolean;
@@ -334,7 +430,7 @@ export function chatBodyField(): {
   return {
     enable_debate: settings.enableDebate,
     enable_master_commentary: settings.enableMasterCommentary,
-    enable_glossary: settings.mode === "advisor" && settings.enableGlossary,
+    enable_glossary: settings.enableGlossary,
     reading_mode: settings.readingMode,
     output_locale: loadLocale(),
   };
