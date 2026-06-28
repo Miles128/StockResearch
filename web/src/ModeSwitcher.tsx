@@ -1,6 +1,5 @@
 /**
- * 顶栏模式切换器：个人 / 专家
- * 与中/EN 语言切换同级，常驻顶栏
+ * 顶栏模式切换器：个人 / 专家 — 文字标签
  */
 
 import { useI18n } from "./i18n";
@@ -22,31 +21,23 @@ export function ModeSwitcher({ settings, onSwitch }: ModeSwitcherProps) {
         type="button"
         role="tab"
         aria-selected={settings.mode === "advisor"}
-        className={`mode-btn${settings.mode === "advisor" ? " active" : ""}`}
+        className={`mode-tab${settings.mode === "advisor" ? " active" : ""}`}
         onClick={() => onSwitch("advisor")}
         title={t("mode.advisorHint")}
       >
         {t("mode.advisor")}
-        {settings.mode === "advisor" && !pristine && (
-          <span className="mode-customized-badge" title={t("mode.customized")}>
-            *
-          </span>
-        )}
+        {settings.mode === "advisor" && !pristine && <span className="mode-dot" />}
       </button>
       <button
         type="button"
         role="tab"
         aria-selected={settings.mode === "research"}
-        className={`mode-btn${settings.mode === "research" ? " active" : ""}`}
+        className={`mode-tab${settings.mode === "research" ? " active" : ""}`}
         onClick={() => onSwitch("research")}
         title={t("mode.researchHint")}
       >
         {t("mode.research")}
-        {settings.mode === "research" && !pristine && (
-          <span className="mode-customized-badge" title={t("mode.customized")}>
-            *
-          </span>
-        )}
+        {settings.mode === "research" && !pristine && <span className="mode-dot" />}
       </button>
     </div>
   );

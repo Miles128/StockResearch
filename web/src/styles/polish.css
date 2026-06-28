@@ -533,5 +533,5 @@ button.ui-card:hover {
 }
 
 [data-theme="institutional-light"] .ticker-card {
-  background: var(--bbg-panel);
+  background: transparent;
 }

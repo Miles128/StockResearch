@@ -84,7 +84,7 @@ export function useCopilotThreads({ defaultTitle }: UseCopilotThreadsOptions) {
       const nextMessages = updater(activeThread.messages);
       let title = activeThread.title;
       const firstUser = nextMessages.find((m) => m.role === "user");
-      if (firstUser && (title === defaultTitle || !title.trim())) {
+      if (firstUser?.content.trim()) {
         title = autoThreadTitle(firstUser.content, defaultTitle);
       }
       persistThread(activeThread.id, { messages: nextMessages, title });

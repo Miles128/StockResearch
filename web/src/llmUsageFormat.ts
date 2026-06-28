@@ -17,10 +17,5 @@ export function formatLlmUsage(usage: LlmUsage, t: (key: string) => string): str
 }
 
 export function formatHeaderUsage(usage: LlmUsage, t: (key: string) => string): string {
-  const cost =
-    usage.estimated_cost_cny != null
-      ? ` · ${t("chat.usageCost").replace("{cost}", usage.estimated_cost_cny.toFixed(4))}`
-      : "";
-  const estimate = usage.is_estimate ? "*" : "";
-  return t("header.usageShort").replace("{total}", String(usage.total_tokens)) + cost + estimate;
+  return t("header.usageShort").replace("{total}", String(usage.total_tokens));
 }

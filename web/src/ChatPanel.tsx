@@ -194,15 +194,37 @@ export function ChatPanel({
         )}
       </div>
       <div className="chat-footer">
-        <div className="chat-input-row">
-          <input
+        <div className="chat-input-composer">
+          <textarea
+            className="chat-input-textarea"
+            rows={3}
             value={input}
             onChange={(e) => onInputChange(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && onSend()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                onSend();
+              }
+            }}
             placeholder={t("chat.placeholder")}
           />
-          <button className="btn btn-primary" onClick={onSend} disabled={loading}>
-            {loading ? t("chat.sending") : t("chat.send")}
+          <button
+            type="button"
+            className="chat-send-icon"
+            onClick={onSend}
+            disabled={loading || !input.trim()}
+            title={loading ? t("chat.sending") : t("chat.send")}
+            aria-label={t("chat.send")}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M5 12h14M13 6l6 6-6 6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
         </div>
       </div>

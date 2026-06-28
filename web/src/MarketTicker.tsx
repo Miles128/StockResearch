@@ -1,9 +1,7 @@
 import type { MarketOverview } from "./api";
 import { signedClass } from "./holdingDisplay";
-import { QuoteValues } from "./ui/DataValue";
 import { useI18n } from "./i18n";
 import { localizeIndexName } from "./indexLabels";
-import { TickerSparkline } from "./TickerSparkline";
 
 export function MarketTicker({
   overview,
@@ -39,15 +37,14 @@ export function MarketTicker({
               onClick={() => onIndexClick(label)}
               title={label}
             >
-              <TickerSparkline changePct={idx.change_pct ?? 0} />
               <span className="ticker-card-content">
                 <span className="ticker-name">{label}</span>
-                <QuoteValues
-                  inline
-                  price={idx.price}
-                  changePct={idx.change_pct ?? 0}
-                  priceClassName="ticker-price"
-                />
+                <span className={`ticker-price mono ${signedClass(idx.change_pct ?? 0)}`}>
+                  {idx.price != null ? idx.price.toFixed(2) : "—"}
+                </span>
+                <span className={`ticker-change mono ${signedClass(idx.change_pct ?? 0)}`}>
+                  {idx.change_pct != null ? `${idx.change_pct >= 0 ? "+" : ""}${idx.change_pct.toFixed(2)}%` : ""}
+                </span>
               </span>
             </button>
           );

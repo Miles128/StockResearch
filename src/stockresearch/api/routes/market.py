@@ -1,5 +1,6 @@
 """Market data routes."""
 
+from datetime import UTC, datetime
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
@@ -14,11 +15,14 @@ from stockresearch.core.schemas import (
     MarketOverviewOut,
     ProviderMetaOut,
     ProviderStatusOut,
+    SectorBoardOut,
+    SectorMoversOut,
     StockQuoteOut,
 )
 from stockresearch.data.provider_meta import list_provider_catalog
 from stockresearch.data.providers.market import TechnicalDataProvider
 from stockresearch.data.providers.market_overview import BatchQuoteProvider, MarketOverviewProvider
+from stockresearch.data.providers.sector import SectorDataProvider
 from stockresearch.data.registry import ProviderSnapshot, get_snapshots
 from stockresearch.db.models import Holding, User
 from stockresearch.db.session import get_db
@@ -48,13 +52,46 @@ async def stock_quotes(
     return await BatchQuoteProvider().get_quotes(symbol_list)
 
 
+@router.get("/sectors", response_model=SectorMoversOut)
+async def sector_movers(
+    limit: int = Query(default=8, ge=3, le=20),
+    _user: User = Depends(get_current_user),
+) -> SectorMoversOut:
+    boards = await SectorDataProvider().fetch_industry_boards()
+    sorted_boards = sorted(boards, key=lambda b: b.change_pct, reverse=True)
+    gainers = [
+        SectorBoardOut(
+            code=b.code,
+            name=b.name,
+            change_pct=b.change_pct,
+            leader_name=b.leader_name,
+            leader_symbol=b.leader_symbol,
+            leader_change_pct=b.leader_change_pct,
+        )
+        for b in sorted_boards[:limit]
+    ]
+    losers = [
+        SectorBoardOut(
+            code=b.code,
+            name=b.name,
+            change_pct=b.change_pct,
+            leader_name=b.leader_name,
+            leader_symbol=b.leader_symbol,
+            leader_change_pct=b.leader_change_pct,
+        )
+        for b in sorted_boards[-limit:][::-1]
+    ]
+    return SectorMoversOut(gainers=gainers, losers=losers, updated_at=datetime.now(UTC))
+
+
 @router.get("/kline", response_model=KlineChartOut)
 async def stock_kline(
     symbol: str = Query(min_length=6, max_length=6, pattern=r"^\d{6}$"),
-    days: int = Query(default=60, ge=10, le=250),
+    days: int = Query(default=90, ge=10, le=500),
+    before: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     _user: User = Depends(get_current_user),
 ) -> KlineChartOut:
-    raw = await TechnicalDataProvider().get_kline_chart(symbol, days)
+    raw = await TechnicalDataProvider().get_kline_chart(symbol, days, before=before)
     return KlineChartOut.model_validate(raw)
 
 

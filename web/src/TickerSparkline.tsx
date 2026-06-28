@@ -21,10 +21,10 @@ export function TickerSparkline({ changePct }: { changePct: number }) {
         d={sparkPoints(changePct)}
         fill="none"
         stroke={up ? "var(--bbg-up)" : "var(--bbg-down)"}
-        strokeWidth="1.25"
+        strokeWidth="2.75"
         strokeLinecap="round"
         strokeLinejoin="round"
-        opacity="0.55"
+        opacity="0.85"
       />
     </svg>
   );

@@ -1,11 +1,11 @@
 :root,
 [data-theme="institutional-light"] {
-  --surface-0: #f4f6fa;
+  --surface-0: #ffffff;
   --surface-1: #ffffff;
-  --surface-2: #f8fafd;
-  --surface-3: #eef2f7;
+  --surface-2: #f8fafc;
+  --surface-3: #f1f5f9;
 
-  --bbg-black: var(--surface-0);
+  --bbg-black: #ffffff;
   --bbg-panel: var(--surface-1);
   --bbg-panel-2: var(--surface-2);
   --bbg-border: #e2e8f0;

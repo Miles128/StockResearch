@@ -780,3 +780,49 @@ class AssetAllocationOut(BaseModel):
     cash_flow_impact: str | None = Field(default=None, description="现金流影响分析（有月收入时）")
     emergency_fund_note: str | None = Field(default=None, description="应急资金建议（有月收入时）")
     disclaimer: str = DISCLAIMER
+
+
+# ── Sector movers ──────────────────────────────────────
+
+
+class SectorBoardOut(BaseModel):
+    code: str
+    name: str
+    change_pct: float
+    leader_name: str
+    leader_symbol: str
+    leader_change_pct: float
+
+
+class SectorMoversOut(BaseModel):
+    gainers: list[SectorBoardOut]
+    losers: list[SectorBoardOut]
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    disclaimer: str = DISCLAIMER
+
+
+# ── Price alerts ───────────────────────────────────────
+
+
+class PriceAlertSettingsOut(BaseModel):
+    enabled: bool
+    threshold_pct: float
+
+
+class PriceAlertSettingsUpdate(BaseModel):
+    enabled: bool | None = None
+    threshold_pct: float | None = Field(default=None, ge=0.5, le=20)
+
+
+class PriceAlertNotificationOut(BaseModel):
+    id: int
+    symbol: str
+    name: str
+    change_pct: float
+    threshold_pct: float
+    trading_date: date
+    message: str
+    read: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

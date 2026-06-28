@@ -398,8 +398,7 @@
   padding: 6px 12px;
   border-radius: 0;
   background: transparent;
-  border-right: 1px solid var(--bbg-border);
-  border-bottom: none;
+  border: none;
   white-space: nowrap;
 }
 
@@ -417,10 +416,6 @@
 
 .ticker-card-empty {
   padding: 10px;
-}
-
-.ticker-card:last-child {
-  border-right: none;
 }
 
 .ticker-session-inline {
