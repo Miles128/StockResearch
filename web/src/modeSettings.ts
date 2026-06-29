@@ -3,7 +3,6 @@
  * 唯一设置源：localStorage + 后端 SQLite（/settings/mode）
  */
 
-import type { Tab } from "./appTypes";
 import { loadLocale } from "./localeSettings";
 import { createLocalStorageStore } from "./settingsStore";
 
@@ -393,11 +392,6 @@ export function lossToIncomeRatio(lossAmount: number, settings: ModeSettings): s
   const ratio = (lossAmount / settings.monthlyIncome) * 100;
   return `${ratio.toFixed(1)}%`;
 }
-
-export function defaultTabForMode(_mode: AppMode): Tab {
-  return "portfolio";
-}
-
 export const READING_MODE_I18N_KEYS: Record<
   ReadingMode,
   { label: string; hint: string; short: string }

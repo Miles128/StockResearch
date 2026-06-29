@@ -37,7 +37,7 @@ import { isLlmConfiguredLocally, isServerLlmConfigured } from "./llmSettings";
 import { formatHeaderUsage, formatLlmUsage } from "./llmUsageFormat";
 import { indexSymbolKey, localizeIndexName } from "./indexLabels";
 import { MarketTicker } from "./MarketTicker";
-import type { SelectedMarketIndex } from "./MarketPanel";
+import type { SelectedMarketIndex } from "./layoutTypes";
 import { NewsPanel } from "./NewsPanel";
 import { computePortfolioSummary, computeSectorConcentration } from "./portfolioHelpers";
 import { RiskPanel } from "./RiskPanel";
@@ -988,7 +988,7 @@ export default function App() {
                   onNavigate={handleActionNavigate}
                   onChatQuery={(query) => {
                     const context: CopilotContext = {
-                      kind: "portfolio",
+                      kind: "focus",
                       label: locale === "zh" ? "我的持仓" : "My holdings",
                     };
                     setPageContext(context);

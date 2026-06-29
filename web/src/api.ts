@@ -175,7 +175,7 @@ export type StreamEvent = AgentStreamEvent;
 export type ExecutionPreference = "react" | "plan_execute" | "preset" | "auto";
 
 export interface ChatUserContextPayload {
-  kind: "portfolio" | "risk" | "market" | "news" | "daily_scan" | "stock" | "report";
+  kind: "focus" | "risk" | "news" | "stock" | "report";
   label: string;
   detail?: string;
   symbol?: string;
@@ -337,7 +337,6 @@ export const api = {
   clearDemo: () => request<{ status: string; deleted: number }>("/portfolio/demo", { method: "DELETE" }),
   demoStatus: () => request<{ demo: boolean }>("/portfolio/demo/status"),
   dailyActions: () => request<DailyActionCenter>("/action-center/daily"),
-  dailyScan: () => request<DailyScanOut>("/portfolio/daily-scan"),
   watchlist: () => request<WatchlistItem[]>("/portfolio/watchlist"),
   addWatchlist: (payload: { symbol: string; name: string }) =>
     request<WatchlistItem>("/portfolio/watchlist", { method: "POST", body: JSON.stringify(payload) }),
@@ -830,28 +829,6 @@ export interface ActionSignal {
 export interface DailyActionCenter {
   signals: ActionSignal[];
   summary: string;
-}
-
-export interface DailyScanItem {
-  symbol: string;
-  name: string;
-  sector: string;
-  price?: number | null;
-  change_pct?: number | null;
-  cost_price: number;
-  profit_pct?: number | null;
-  technical_score: number;
-  signal: "bullish" | "neutral" | "bearish";
-  signal_text: string;
-  suggestion: string;
-  factors: string[];
-}
-
-export interface DailyScanOut {
-  scan_date: string;
-  summary: string;
-  items: DailyScanItem[];
-  disclaimer: string;
 }
 
 export interface KlineChart {

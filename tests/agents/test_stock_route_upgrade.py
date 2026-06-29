@@ -7,7 +7,7 @@ from stockresearch.agents.orchestrator.complexity import (
     is_stock_analysis_intent,
     resolve_execution_mode,
 )
-from stockresearch.agents.orchestrator.stream import _upgrade_stock_research_route
+from stockresearch.agents.orchestrator.route_plan import upgrade_stock_research_route
 from stockresearch.agents.orchestrator.complexity import ComplexityResult
 from stockresearch.services.message_stock import match_holding_in_message
 from stockresearch.utils.llm import MockLLMClient
@@ -38,7 +38,7 @@ def test_match_holding_in_message() -> None:
 @pytest.mark.asyncio
 async def test_upgrade_route_from_direct_to_debate() -> None:
     holdings = [_Holding("600030", "中信证券")]
-    mode, symbol, name = await _upgrade_stock_research_route(
+    mode, symbol, name = await upgrade_stock_research_route(
         "分析中信证券",
         MockLLMClient(),
         holdings,

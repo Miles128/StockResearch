@@ -13,13 +13,13 @@ from stockresearch.agents.orchestrator.complexity import (
     ComplexityResult,
     extract_industry_sector,
     is_risk_intent,
-    is_stock_analysis_intent,
 )
 from stockresearch.agents.orchestrator.plan_execute import PlanExecuteAgent
 from stockresearch.agents.orchestrator.react_agent import OrchestratorAgent
 from stockresearch.agents.orchestrator.route_plan import (
     resolve_chat_route,
     resolve_mode_with_preference,
+    upgrade_stock_research_route,
 )
 from stockresearch.agents.research.stream import run_research_stream
 from stockresearch.agents.risk.stream import run_risk_checkup_stream
@@ -217,7 +217,7 @@ async def _run_chat_stream_body(
     )
     route_symbol = confirmed_symbol
     route_name = confirmed_name
-    mode, route_symbol, route_name = await _upgrade_stock_research_route(
+    mode, route_symbol, route_name = await upgrade_stock_research_route(
         message,
         client,
         holdings,
@@ -582,53 +582,6 @@ async def _run_plan_execute_stream(
     await task
     merged_cards = _merge_plan_cards(plan_cards, react_agent.tool_cards())
     yield {"type": "done", "cards": merged_cards, "reply": plan_reply}
-
-
-async def _upgrade_stock_research_route(
-    message: str,
-    llm: object,
-    holdings: list[object],
-    *,
-    mode: str,
-    debate_on: bool,
-    execution_preference: str | None,
-    confirmed_symbol: str | None,
-    confirmed_name: str | None,
-) -> tuple[str, str | None, str | None]:
-    """Send holding/name stock analysis to streaming research instead of ReAct direct."""
-    if execution_preference == "react":
-        return mode, confirmed_symbol, confirmed_name
-    if mode in (
-        ComplexityResult.DEBATE,
-        ComplexityResult.RESEARCH,
-        ComplexityResult.MARKET_DEBATE,
-        ComplexityResult.MARKET_RESEARCH,
-        ComplexityResult.INDUSTRY_RESEARCH,
-    ):
-        return mode, confirmed_symbol, confirmed_name
-
-    if not is_stock_analysis_intent(message):
-        return mode, confirmed_symbol, confirmed_name
-
-    holding = match_holding_in_message(message, holdings)
-    if holding:
-        upgraded = ComplexityResult.DEBATE if debate_on else ComplexityResult.RESEARCH
-        return upgraded, holding.symbol, holding.name
-
-    if mode != ComplexityResult.DIRECT:
-        return mode, confirmed_symbol, confirmed_name
-
-    resolved = await resolve_message_stock(
-        message,
-        llm,  # type: ignore[arg-type]
-        confirmed_symbol=confirmed_symbol,
-        confirmed_name=confirmed_name,
-    )
-    if isinstance(resolved, ResolvedStock):
-        upgraded = ComplexityResult.DEBATE if debate_on else ComplexityResult.RESEARCH
-        return upgraded, resolved.symbol, resolved.name
-
-    return mode, confirmed_symbol, confirmed_name
 
 
 def _merge_plan_cards(
