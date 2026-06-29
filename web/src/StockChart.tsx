@@ -1,51 +1,112 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createChart, type IChartApi } from "lightweight-charts";
+import { createChart, type IChartApi, type LogicalRange } from "lightweight-charts";
 import { api, type KlineChart } from "./api";
 import { useI18n } from "./i18n";
 import { baseChartOptions, readChartColors } from "./ui/chartTheme";
 
 export type MarketChartVariant = "stock" | "index";
 
+const INITIAL_DAYS = 90;
+const LOAD_CHUNK = 90;
+const MAX_DAYS = 500;
+
 interface MarketChartProps {
   symbol: string;
-  days?: number;
   compact?: boolean;
   variant?: MarketChartVariant;
 }
 
-/** Unified K-line chart: stock (candles + MACD + RSI) or index (candles + volume). */
-export function MarketChart({ symbol, days = 60, compact = false, variant = "stock" }: MarketChartProps) {
+/** Unified K-line chart with volume, optional MACD/RSI, and scroll-back loading. */
+export function MarketChart({ symbol, compact = false, variant = "stock" }: MarketChartProps) {
   const { t } = useI18n();
   const priceRef = useRef<HTMLDivElement>(null);
-  const secondaryRef = useRef<HTMLDivElement>(null);
+  const volumeRef = useRef<HTMLDivElement>(null);
+  const macdRef = useRef<HTMLDivElement>(null);
   const rsiRef = useRef<HTMLDivElement>(null);
   const chartsRef = useRef<IChartApi[]>([]);
+  const barCountRef = useRef(0);
+  const visibleRangeRef = useRef<LogicalRange | null>(null);
+  const fetchDaysRef = useRef(INITIAL_DAYS);
+  const loadingMoreRef = useRef(false);
+  const exhaustedRef = useRef(false);
+
   const [data, setData] = useState<KlineChart | null>(null);
+  const [fetchDays, setFetchDays] = useState(INITIAL_DAYS);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
+  const [showMacd, setShowMacd] = useState(false);
+  const [showRsi, setShowRsi] = useState(false);
+
+  useEffect(() => {
+    fetchDaysRef.current = INITIAL_DAYS;
+    exhaustedRef.current = false;
+    barCountRef.current = 0;
+    setFetchDays(INITIAL_DAYS);
+  }, [symbol]);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError("");
-    setData(null);
+    const isInitial = fetchDays === INITIAL_DAYS;
+    if (isInitial) {
+      setLoading(true);
+      setError("");
+      setData(null);
+    } else {
+      setLoadingMore(true);
+      loadingMoreRef.current = true;
+    }
 
     api
-      .klineChart(symbol, days)
+      .klineChart(symbol, fetchDays)
       .then((d) => {
-        if (!cancelled) setData(d);
+        if (cancelled) return;
+        const prevCount = barCountRef.current;
+        const added = d.bars.length - prevCount;
+        barCountRef.current = d.bars.length;
+        if (!isInitial && added <= 0) {
+          exhaustedRef.current = true;
+        }
+        if (fetchDays >= MAX_DAYS) {
+          exhaustedRef.current = true;
+        }
+        setData(d);
+        if (!isInitial && added > 0) {
+          const range = visibleRangeRef.current;
+          if (range) {
+            requestAnimationFrame(() => {
+              const chart = chartsRef.current[0];
+              if (!chart) return;
+              chart.timeScale().setVisibleLogicalRange({
+                from: range.from + added,
+                to: range.to + added,
+              });
+            });
+          }
+        }
       })
       .catch((e) => {
         if (!cancelled) setError(String(e));
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (cancelled) return;
+        if (isInitial) setLoading(false);
+        else {
+          setLoadingMore(false);
+          loadingMoreRef.current = false;
+        }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [symbol, days]);
+  }, [symbol, fetchDays]);
+
+  function requestMoreHistory() {
+    if (loadingMoreRef.current || exhaustedRef.current || fetchDaysRef.current >= MAX_DAYS) return;
+    fetchDaysRef.current = Math.min(fetchDaysRef.current + LOAD_CHUNK, MAX_DAYS);
+    setFetchDays(fetchDaysRef.current);
+  }
 
   useLayoutEffect(() => {
     if (!data) return;
@@ -59,7 +120,7 @@ export function MarketChart({ symbol, days = 60, compact = false, variant = "sto
 
     const { up: chartUp, down: chartDown } = readChartColors();
     const priceH = compact ? 180 : 240;
-    const subH = compact ? 72 : 96;
+    const subH = compact ? 72 : 88;
 
     if (priceRef.current) {
       priceRef.current.style.height = `${priceH}px`;
@@ -88,50 +149,58 @@ export function MarketChart({ symbol, days = 60, compact = false, variant = "sto
           .filter((p): p is { time: string; value: number } => p.value != null),
       );
       chart.timeScale().fitContent();
+      chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+        if (!range) return;
+        visibleRangeRef.current = range;
+        if (range.from < 12) requestMoreHistory();
+      });
     }
 
-    if (secondaryRef.current) {
-      secondaryRef.current.style.height = `${subH}px`;
-      const chart = createChart(secondaryRef.current, baseChartOptions(subH));
+    if (volumeRef.current) {
+      volumeRef.current.style.height = `${subH}px`;
+      const chart = createChart(volumeRef.current, baseChartOptions(subH));
       chartsRef.current.push(chart);
-
-      if (variant === "index") {
-        const volume = chart.addHistogramSeries({ title: t("chart.volume") });
-        volume.setData(
-          data.bars.map((b) => ({
-            time: b.date,
-            value: b.volume,
-            color: b.close >= b.open ? `${chartUp}88` : `${chartDown}88`,
-          })),
-        );
-      } else {
-        const hist = chart.addHistogramSeries({ title: "MACD" });
-        hist.setData(
-          data.bars
-            .map((b, i) => ({
-              time: b.date,
-              value: data.indicators.macd_histogram[i] ?? 0,
-              color: (data.indicators.macd_histogram[i] ?? 0) >= 0 ? `${chartUp}88` : `${chartDown}88`,
-            }))
-            .filter((_, i) => data.indicators.macd_histogram[i] != null),
-        );
-        const macdLine = chart.addLineSeries({ color: "#5b9bd5", lineWidth: 1 });
-        macdLine.setData(
-          data.bars
-            .map((b, i) => ({ time: b.date, value: data.indicators.macd[i] }))
-            .filter((p): p is { time: string; value: number } => p.value != null),
-        );
-        const signal = chart.addLineSeries({ color: "#e8a838", lineWidth: 1 });
-        signal.setData(
-          data.bars
-            .map((b, i) => ({ time: b.date, value: data.indicators.macd_signal[i] }))
-            .filter((p): p is { time: string; value: number } => p.value != null),
-        );
-      }
+      const volume = chart.addHistogramSeries({ title: t("chart.volume") });
+      volume.setData(
+        data.bars.map((b) => ({
+          time: b.date,
+          value: b.volume,
+          color: b.close >= b.open ? `${chartUp}88` : `${chartDown}88`,
+        })),
+      );
       chart.timeScale().fitContent();
     }
 
-    if (variant === "stock" && rsiRef.current) {
+    if (showMacd && macdRef.current && variant === "stock") {
+      macdRef.current.style.height = `${subH}px`;
+      const chart = createChart(macdRef.current, baseChartOptions(subH));
+      chartsRef.current.push(chart);
+      const hist = chart.addHistogramSeries({ title: "MACD" });
+      hist.setData(
+        data.bars
+          .map((b, i) => ({
+            time: b.date,
+            value: data.indicators.macd_histogram[i] ?? 0,
+            color: (data.indicators.macd_histogram[i] ?? 0) >= 0 ? `${chartUp}88` : `${chartDown}88`,
+          }))
+          .filter((_, i) => data.indicators.macd_histogram[i] != null),
+      );
+      const macdLine = chart.addLineSeries({ color: "#5b9bd5", lineWidth: 1 });
+      macdLine.setData(
+        data.bars
+          .map((b, i) => ({ time: b.date, value: data.indicators.macd[i] }))
+          .filter((p): p is { time: string; value: number } => p.value != null),
+      );
+      const signal = chart.addLineSeries({ color: "#e8a838", lineWidth: 1 });
+      signal.setData(
+        data.bars
+          .map((b, i) => ({ time: b.date, value: data.indicators.macd_signal[i] }))
+          .filter((p): p is { time: string; value: number } => p.value != null),
+      );
+      chart.timeScale().fitContent();
+    }
+
+    if (showRsi && rsiRef.current && variant === "stock") {
       rsiRef.current.style.height = `${subH}px`;
       const chart = createChart(rsiRef.current, baseChartOptions(subH));
       chartsRef.current.push(chart);
@@ -145,20 +214,43 @@ export function MarketChart({ symbol, days = 60, compact = false, variant = "sto
     }
 
     return dispose;
-  }, [data, compact, variant, t]);
+  }, [data, compact, variant, t, showMacd, showRsi]);
 
   if (loading) return <p className="muted market-chart-status">{t("chart.loading")}</p>;
   if (error) return <p className="muted market-chart-status">{t("chart.error")}: {error}</p>;
 
   return (
     <div className={`market-chart${compact ? " market-chart-compact" : ""}`}>
+      {variant === "stock" && (
+        <div className="market-chart-toggles">
+          <button
+            type="button"
+            className={`chart-toggle-btn${showMacd ? " active" : ""}`}
+            onClick={() => setShowMacd((v) => !v)}
+          >
+            {t("chart.macd")}
+          </button>
+          <button
+            type="button"
+            className={`chart-toggle-btn${showRsi ? " active" : ""}`}
+            onClick={() => setShowRsi((v) => !v)}
+          >
+            {t("chart.rsi")}
+          </button>
+          {loadingMore && <span className="muted market-chart-loading-more">{t("chart.loadingMore")}</span>}
+        </div>
+      )}
       <div className="market-chart-pane-label">{t("chart.price")}</div>
       <div ref={priceRef} className="market-chart-pane" />
-      <div className="market-chart-pane-label">
-        {variant === "index" ? t("chart.volume") : t("chart.macd")}
-      </div>
-      <div ref={secondaryRef} className="market-chart-pane" />
-      {variant === "stock" && (
+      <div className="market-chart-pane-label">{t("chart.volume")}</div>
+      <div ref={volumeRef} className="market-chart-pane" />
+      {variant === "stock" && showMacd && (
+        <>
+          <div className="market-chart-pane-label">{t("chart.macd")}</div>
+          <div ref={macdRef} className="market-chart-pane" />
+        </>
+      )}
+      {variant === "stock" && showRsi && (
         <>
           <div className="market-chart-pane-label">{t("chart.rsi")}</div>
           <div ref={rsiRef} className="market-chart-pane" />

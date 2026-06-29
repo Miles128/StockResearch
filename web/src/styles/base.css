@@ -25,7 +25,7 @@
 body {
   margin: 0;
   font-family: var(--font-ui);
-  font-size: 16.25px;
+  font-size: 14px;
   color: var(--text);
   background: var(--bbg-black);
   min-height: 100vh;

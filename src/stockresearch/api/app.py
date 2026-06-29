@@ -17,6 +17,7 @@ from stockresearch.api.rate_limit import limiter
 from stockresearch.api.routes import (
     action_center,
     advisor,
+    alerts,
     announcements,
     briefing,
     chat,
@@ -46,6 +47,7 @@ from stockresearch.core.exceptions import (
 )
 from stockresearch.db.session import init_db
 from stockresearch.services.briefing_scheduler import get_scheduler
+from stockresearch.services.price_alert_scheduler import get_price_alert_scheduler
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _WEB_DIST = _PROJECT_ROOT / "web" / "dist"
@@ -68,9 +70,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     finally:
         db.close()
     get_scheduler().start()
+    get_price_alert_scheduler().start()
     try:
         yield
     finally:
+        get_price_alert_scheduler().shutdown()
         get_scheduler().shutdown()
 
 
@@ -163,6 +167,7 @@ def create_app() -> FastAPI:
 
     app.include_router(portfolio.router, prefix="/api/v1")
     app.include_router(market.router, prefix="/api/v1")
+    app.include_router(alerts.router, prefix="/api/v1")
     app.include_router(news.router, prefix="/api/v1")
     app.include_router(research.router, prefix="/api/v1")
     app.include_router(briefing.router, prefix="/api/v1")

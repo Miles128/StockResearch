@@ -1,14 +1,29 @@
-export type AppTheme = "orange-black" | "wine-red-white" | "paper-white" | "warm-cream";
+export type AppTheme = "institutional-light" | "institutional-dark";
 
 const STORAGE_KEY = "stockresearch.theme";
 const LEGACY_KEYS = ["stockbuddy.theme", "invesbao.theme"];
 
+const LEGACY_DARK = new Set(["orange-black", "slate-modern", "institutional-dark"]);
+const LEGACY_LIGHT = new Set([
+  "wine-red-white",
+  "dark-red-white",
+  "paper-white",
+  "warm-cream",
+  "institutional-light",
+]);
+
 export const THEME_OPTIONS: { id: AppTheme; label: string; hint: string }[] = [
-  { id: "orange-black", label: "橙黑", hint: "Bloomberg 终端 · 橙顶黑底" },
-  { id: "wine-red-white", label: "改版酒红", hint: "纯白底 · 酒红顶栏与强调" },
-  { id: "paper-white", label: "纸张白", hint: "纯白底 · 中性灰边 · 蓝色强调" },
-  { id: "warm-cream", label: "暖米白", hint: "纯白底 · 暖棕顶栏 · 琥珀强调" },
+  { id: "institutional-light", label: "金融 AI · 浅色", hint: "机构浅色 · 靛蓝信标 · 红涨绿跌" },
+  { id: "institutional-dark", label: "金融 AI · 深色", hint: "机构暗色 · 橘红信标 · 红涨绿跌" },
 ];
+
+function normalizeLegacyTheme(raw: string): AppTheme | null {
+  if (LEGACY_DARK.has(raw)) return "institutional-dark";
+  if (LEGACY_LIGHT.has(raw)) {
+    return raw === "dark-red-white" ? "institutional-light" : "institutional-light";
+  }
+  return null;
+}
 
 export function loadTheme(): AppTheme {
   try {
@@ -19,20 +34,15 @@ export function loadTheme(): AppTheme {
         if (raw) break;
       }
     }
-    if (
-      raw === "wine-red-white" ||
-      raw === "dark-red-white" ||
-      raw === "paper-white" ||
-      raw === "warm-cream"
-    ) {
-      return raw === "dark-red-white" ? "wine-red-white" : (raw as AppTheme);
+    if (raw === "institutional-light" || raw === "institutional-dark") {
+      return raw;
     }
-    if (raw === "orange-black") return raw;
-    if (raw === "slate-modern") return "orange-black";
+    const migrated = raw ? normalizeLegacyTheme(raw) : null;
+    if (migrated) return migrated;
   } catch {
     // ignore
   }
-  return "orange-black";
+  return "institutional-light";
 }
 
 export function saveTheme(theme: AppTheme): void {
@@ -44,5 +54,5 @@ export function applyTheme(theme: AppTheme): void {
 }
 
 export function isLightTheme(theme: AppTheme): boolean {
-  return theme !== "orange-black";
+  return theme === "institutional-light";
 }

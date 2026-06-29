@@ -4,9 +4,11 @@ import App, { ErrorBoundary } from "./App";
 import "./index.css";
 import { I18nProvider } from "./i18n";
 import { applyLocale, loadLocale } from "./localeSettings";
-import { applyTheme, loadTheme } from "./themeSettings";
+import { applyTheme, loadTheme, saveTheme } from "./themeSettings";
 
-applyTheme(loadTheme());
+const theme = loadTheme();
+applyTheme(theme);
+saveTheme(theme);
 applyLocale(loadLocale());
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

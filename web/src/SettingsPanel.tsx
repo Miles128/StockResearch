@@ -319,10 +319,8 @@ export function SettingsPanel({
 
   const busy = testing || saving;
   const themeOptions: { id: AppTheme; label: string; hint: string }[] = [
-    { id: "orange-black", label: t("settings.themeOrange"), hint: t("settings.themeOrangeHint") },
-    { id: "wine-red-white", label: t("settings.themeWine"), hint: t("settings.themeWineHint") },
-    { id: "paper-white", label: t("settings.themePaper"), hint: t("settings.themePaperHint") },
-    { id: "warm-cream", label: t("settings.themeWarm"), hint: t("settings.themeWarmHint") },
+    { id: "institutional-light", label: t("settings.themeLight"), hint: t("settings.themeLightHint") },
+    { id: "institutional-dark", label: t("settings.themeDark"), hint: t("settings.themeDarkHint") },
   ];
 
   const visibleTabs = tabs.filter((tab) => !(required && tab.hideWhenRequired));

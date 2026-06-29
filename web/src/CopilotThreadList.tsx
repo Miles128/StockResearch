@@ -1,13 +1,13 @@
-import { useState } from "react";
 import type { CopilotThread } from "./copilotThreads";
 import { useI18n } from "./i18n";
+import { IconClose } from "./ui/Icons";
 
 interface CopilotThreadListProps {
+  open: boolean;
   threads: CopilotThread[];
   activeId: string;
+  onClose: () => void;
   onSelect: (id: string) => void;
-  onNew: () => void;
-  onRename: (id: string, title: string) => void;
   onDelete: (id: string) => void;
 }
 
@@ -23,117 +23,59 @@ function formatWhen(ts: number, locale: "zh" | "en"): string {
 }
 
 export function CopilotThreadList({
+  open,
   threads,
   activeId,
+  onClose,
   onSelect,
-  onNew,
-  onRename,
   onDelete,
 }: CopilotThreadListProps) {
   const { t, locale } = useI18n();
-  const [collapsed, setCollapsed] = useState(true);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
-
-  function startRename(thread: CopilotThread) {
-    setEditingId(thread.id);
-    setDraft(thread.title);
-  }
-
-  function commitRename(id: string) {
-    onRename(id, draft);
-    setEditingId(null);
-    setDraft("");
-  }
-
-  const activeThread = threads.find((thread) => thread.id === activeId);
+  if (!open) return null;
 
   return (
-    <aside
-      className={`copilot-thread-rail${collapsed ? " collapsed" : ""}`}
-      aria-label={t("copilot.threadList")}
-    >
-      <div className="copilot-thread-rail-head">
-        <button
-          type="button"
-          className="copilot-thread-toggle"
-          onClick={() => setCollapsed((v) => !v)}
-          aria-expanded={!collapsed}
-          title={collapsed ? t("copilot.expandThreads") : t("copilot.collapseThreads")}
-        >
-          <span className={`copilot-thread-chevron${collapsed ? " collapsed" : ""}`}>▾</span>
-          <span>{t("copilot.threadList")}</span>
-        </button>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={onNew} title={t("chat.newThread")}>
-          +
+    <div className="copilot-thread-overlay" aria-label={t("copilot.threadList")}>
+      <div className="copilot-thread-overlay-head">
+        <span className="flat-section-title">{t("copilot.threadList")}</span>
+        <button type="button" className="icon-btn" onClick={onClose} title={t("stockDetail.close")}>
+          <IconClose />
         </button>
       </div>
-      {collapsed ? (
-        activeThread ? (
-          <button
-            type="button"
-            className="copilot-thread-collapsed-active"
-            onClick={() => setCollapsed(false)}
-            title={activeThread.title}
-          >
-            {activeThread.title}
-          </button>
-        ) : null
-      ) : (
-        <ul className="copilot-thread-list">
-          {threads.map((thread) => {
-            const active = thread.id === activeId;
-            const preview =
-              [...thread.messages].reverse().find((m) => m.role === "assistant")?.content ||
-              [...thread.messages].reverse().find((m) => m.role === "user")?.content ||
-              t("chat.threadEmpty");
-            return (
-              <li key={thread.id}>
-                {editingId === thread.id ? (
-                  <input
-                    className="copilot-thread-rename"
-                    value={draft}
-                    autoFocus
-                    onChange={(e) => setDraft(e.target.value)}
-                    onBlur={() => commitRename(thread.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") commitRename(thread.id);
-                      if (e.key === "Escape") setEditingId(null);
-                    }}
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    className={`copilot-thread-item${active ? " active" : ""}`}
-                    onClick={() => onSelect(thread.id)}
-                    onDoubleClick={() => startRename(thread)}
-                  >
-                    <span className="copilot-thread-title">{thread.title}</span>
-                    <span className="copilot-thread-preview">{preview}</span>
-                    <span className="copilot-thread-when">{formatWhen(thread.updatedAt, locale)}</span>
-                  </button>
-                )}
-                {active && editingId !== thread.id && (
-                  <div className="copilot-thread-actions">
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => startRename(thread)}>
-                      {t("copilot.renameThread")}
-                    </button>
-                    {threads.length > 1 && (
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-sm"
-                        onClick={() => onDelete(thread.id)}
-                      >
-                        {t("copilot.deleteThread")}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </aside>
+      <ul className="copilot-thread-list">
+        {threads.map((thread) => {
+          const active = thread.id === activeId;
+          const preview =
+            [...thread.messages].reverse().find((m) => m.role === "assistant")?.content ||
+            [...thread.messages].reverse().find((m) => m.role === "user")?.content ||
+            t("chat.threadEmpty");
+          return (
+            <li key={thread.id}>
+              <button
+                type="button"
+                className={`copilot-thread-item${active ? " active" : ""}`}
+                onClick={() => {
+                  onSelect(thread.id);
+                  onClose();
+                }}
+              >
+                <span className="copilot-thread-title">{thread.title}</span>
+                <span className="copilot-thread-preview">{preview}</span>
+                <span className="copilot-thread-when">{formatWhen(thread.updatedAt, locale)}</span>
+              </button>
+              {threads.length > 1 && (
+                <button
+                  type="button"
+                  className="copilot-thread-delete icon-btn"
+                  onClick={() => onDelete(thread.id)}
+                  title={t("copilot.deleteThread")}
+                >
+                  ×
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

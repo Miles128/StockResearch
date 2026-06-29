@@ -395,20 +395,33 @@ _INDEX_KLINE_SYMBOLS = frozenset({"000001", "399001", "399006", "000300"})
 
 
 class TechnicalDataProvider:
-    async def get_kline_bars(self, symbol: str, days: int = 60) -> list[dict[str, float | str]]:
-        cache_key = f"kline:{symbol}:{days}"
+    @staticmethod
+    def _calendar_start(end: datetime, days: int) -> str:
+        """Approximate calendar lookback for *days* trading bars."""
+        calendar_days = max(int(days * 1.55) + 15, 30)
+        return (end - timedelta(days=calendar_days)).strftime("%Y%m%d")
+
+    async def get_kline_bars(
+        self,
+        symbol: str,
+        days: int = 90,
+        *,
+        before: str | None = None,
+    ) -> list[dict[str, float | str]]:
+        end_dt = datetime.now(UTC)
+        if before:
+            try:
+                end_dt = datetime.strptime(before[:10], "%Y-%m-%d").replace(tzinfo=UTC) - timedelta(days=1)
+            except ValueError:
+                end_dt = datetime.now(UTC)
+        end_date = end_dt.strftime("%Y%m%d")
+        start_date = self._calendar_start(end_dt, days)
+        cache_key = f"kline:{symbol}:{days}:{before or 'latest'}"
         ttl = provider_ttl("akshare_kline")
         cached = get_sqlite_cached(cache_key)
         if cached is not None and isinstance(cached.get("bars"), list):
             return cached["bars"]  # type: ignore[return-value]
 
-        end_date = datetime.now(UTC).strftime("%Y%m%d")
-        now = datetime.now(UTC)
-        if now.month > 2:
-            start = now.replace(month=now.month - 2)
-        else:
-            start = now.replace(year=now.year - 1, month=now.month + 10)
-        start_date = start.strftime("%Y%m%d")
         if symbol in _INDEX_KLINE_SYMBOLS:
             df = await run_sync_fetch(
                 f"akshare index kline {symbol}",
@@ -456,10 +469,16 @@ class TechnicalDataProvider:
         bars = await self.get_kline_bars(symbol, days)
         return [{"close": float(b["close"]), "volume": float(b["volume"])} for b in bars]
 
-    async def get_kline_chart(self, symbol: str, days: int = 60) -> dict[str, object]:
+    async def get_kline_chart(
+        self,
+        symbol: str,
+        days: int = 90,
+        *,
+        before: str | None = None,
+    ) -> dict[str, object]:
         from stockresearch.data.technical_indicators import ma_series, macd_series, rsi_series
 
-        bars = await self.get_kline_bars(symbol, days)
+        bars = await self.get_kline_bars(symbol, days, before=before)
         closes = [float(b["close"]) for b in bars]
         macd = macd_series(closes)
         return {

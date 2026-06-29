@@ -3,7 +3,7 @@
 import decimal
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -125,6 +125,37 @@ class RiskAlertRecord(Base):
     symbol: Mapped[str | None] = mapped_column(String(6), nullable=True)
     message: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class PriceAlertNotification(Base):
+    """In-app price change alerts (deduped per symbol per trading day)."""
+
+    __tablename__ = "price_alert_notifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    symbol: Mapped[str] = mapped_column(String(6), index=True)
+    name: Mapped[str] = mapped_column(String(50))
+    change_pct: Mapped[float] = mapped_column(Numeric(8, 2))
+    threshold_pct: Mapped[float] = mapped_column(Numeric(8, 2))
+    trading_date: Mapped[date] = mapped_column(Date, index=True)
+    message: Mapped[str] = mapped_column(Text)
+    read: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class PriceAlertSetting(Base):
+    """Per-user global price alert threshold."""
+
+    __tablename__ = "price_alert_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    threshold_pct: Mapped[float] = mapped_column(Numeric(8, 2), default=5.0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
 
 
 class BriefingRecord(Base):

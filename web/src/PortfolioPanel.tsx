@@ -22,14 +22,23 @@ interface PortfolioPanelProps {
   onAskCopilot?: (query: string, options?: { briefingKind?: "intraday" | "postmarket" }) => void;
 }
 
-const SECTOR_PALETTE = ["#ff6600", "#00c853", "#4fc3f7", "#ffab00", "#8a8a8a", "#e91e63", "#9c27b0", "#795548"];
+import { loadTheme } from "./themeSettings";
+
+const SECTOR_PALETTE_LIGHT = ["#3b9eff", "#f23645", "#00b386", "#c9a227", "#64748b", "#8b5cf6", "#ec4899", "#14b8a6"];
+const SECTOR_PALETTE_DARK = ["#f04a3a", "#f23645", "#00b386", "#c9a227", "#64748b", "#ff6b52", "#ec4899", "#e6a817"];
+
+function sectorPalette(): string[] {
+  const theme = document.documentElement.dataset.theme ?? loadTheme();
+  return theme === "institutional-dark" ? SECTOR_PALETTE_DARK : SECTOR_PALETTE_LIGHT;
+}
 
 function sectorColor(sector: string): string {
+  const palette = sectorPalette();
   let hash = 0;
   for (let i = 0; i < sector.length; i++) {
     hash = (hash * 31 + sector.charCodeAt(i)) >>> 0;
   }
-  return SECTOR_PALETTE[hash % SECTOR_PALETTE.length];
+  return palette[hash % palette.length];
 }
 
 function SectorDonut({ sectors }: { sectors: SectorWeight[] }) {

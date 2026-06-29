@@ -1,6 +1,6 @@
 # StockResearch
 
-**[中文](#中文) · [English](#english)** · [PRD v8.7](docs/PRD.md)
+**[中文](#中文) · [English](#english)** · [PRD v9.0](docs/PRD.md)
 
 [![Tests](https://img.shields.io/badge/backend-250%20passed-brightgreen)](.)
 [![Frontend](https://img.shields.io/badge/frontend-22%20vitest%20passed-brightgreen)](.)
@@ -14,9 +14,9 @@
 
 ---
 
-## 本地 AI 原生投资研究 MVP
+## 开源 A 股市场研究 Agent
 
-StockResearch 不是准备上线运营的股票服务，也不是传统终端再加一个聊天框。它是一个本地联网运行的产品原型，用来展示 AI 如何把持仓、行情、新闻、风险和多 Agent 研究组织成易理解、可追问的完整体验。
+StockResearch 是一个**开源、本机运行的 A 股市场研究 Agent**。它不是券商终端，也不是托管 SaaS；它用 LangGraph 编排多 Agent 投研，把 A 股行情、新闻、持仓、风险与四维研究组织成可对话、可追问的研究体验。
 
 核心入口是「今天与我有关的变化」和自然语言任务，而不是密集菜单、指标矩阵与全市场扫描器。
 
@@ -113,19 +113,20 @@ BYOK 大模型、博查 AI 搜索、可选 Tushare、辩论开关、报告导出
 
 ## 中文
 
-面向 A 股个人投资者的 **双模式本机 AI 投资助手**。个人模式帮你看懂「今天发生了什么、为什么与我有关」，专家模式提供可展开的四维研究。项目只在本机运行，单用户、SQLite、BYOK，不注册、不上线、不连接交易。
+面向 A 股投资者的 **开源双模式市场研究 Agent**。个人模式帮你看懂「今天发生了什么、为什么与我有关」，专家模式提供可展开的四维研究。项目在本机运行，SQLite 持久化、BYOK 大模型，不注册、不上云、不连接交易。
 
 > **免责声明**：所有 AI 输出仅供学习与研究参考，不构成任何投资建议。
 
 ### 产品定位
 
-StockResearch 是**长期开源 MVP**：跑在你自己电脑上的投资助手，不是公网 SaaS。
+StockResearch 是**开源 A 股市场研究 Agent**：代码可 fork、可自部署，跑在你自己的电脑上，不是多租户公网服务。
 
 | 原则 | 说明 |
 |------|------|
+| **A 股原生** | 涨跌停、龙虎榜、北向资金、解禁等 A 股因子作为显式研究证据 |
 | **双模式** | 个人（默认，人话+主动建议）/ 专家（术语+深度），顶栏一键切换 |
-| **本机优先** | `venv` + SQLite + `localhost`，无 Docker/Redis/Postgres |
-| **单用户** | 固定本地用户 `mvp`，无需登录 |
+| **本机优先** | `uv` + SQLite + `localhost`，无 Docker/Redis/Postgres |
+| **单用户本地** | 无需注册登录，数据留在本机 |
 | **同一份数据** | 双模式共享后端推理与数据，只有呈现层和写作风格按模式切换 |
 | **Research 先于 Battle** | 四维研究完成后再可选多空辩论 |
 | **工具隔离** | 各维度 Agent 仅调用本域工具 |
@@ -155,6 +156,16 @@ StockResearch 是**长期开源 MVP**：跑在你自己电脑上的投资助手�
 | 后端健康监控 | 后端不可用时顶部红色横幅提示，避免误判前端 bug |
 | 简报定时任务 | APScheduler 盘前 09:00 / 收盘 15:30，仅 A 股交易日执行 |
 | 国际化 | 中/英界面；橙黑 / 酒红主题；顶栏指数卡片带**背景行情线** |
+
+### 下一步开发
+
+| 优先级 | 方向 | 说明 |
+|--------|------|------|
+| 1 | **自选股** | 独立于持仓的观察列表；支持增删、纳入今日关注与 AI 对话上下文 |
+| 2 | **涨跌提醒** | 定时监测持仓与自选股；涨跌幅超过用户设定阈值时触发提醒（应用内，可选邮件/桌面通知） |
+| 3 | **行业板块涨跌** | 市场视角展示行业/概念板块涨跌幅排行、强弱对比与轮动摘要 |
+
+详见 [PRD §十三 未来开发方向](docs/PRD.md#十三未来开发方向)。
 
 ### 架构
 
@@ -219,7 +230,7 @@ SCREENSHOT_BASE_URL=http://127.0.0.1:5174 node scripts/capture_screenshots.mjs
 
 ### 文档与贡献
 
-- [PRD v8.7（单画布 + AI 对话 + 分层数据源 + 健康监控）](docs/PRD.md)
+- [PRD v9.0（开源 A 股研究 Agent + 单画布 + 分层数据源）](docs/PRD.md)
 - [产品战略方案](docs/PRODUCT_STRATEGY.md)
 - 历史 `docs/DEVELOPMENT_PLAN.md` 已废弃；工程附录见 PRD §十五
 - 欢迎 Issue 与 PR；开发前请阅读 PRD 路线图
@@ -234,19 +245,20 @@ MIT — 见 [LICENSE](LICENSE)。本产品 AI 内容仅供学习与研究，**�
 
 ## English
 
-A **dual-mode local AI investment assistant** for China A-share investors. **Advisor mode** considers your cash flow and risk tolerance, explaining in plain language; **Research mode** focuses on four-dimensional deep analysis with direct terminology, not tied to personal finances. LangGraph orchestration, **SQLite on your machine, BYOK in the browser** — no sign-up, no hosted SaaS, no paywall.
+An **open-source A-share market research agent** with dual modes for China investors. **Advisor mode** considers your cash flow and risk tolerance, explaining in plain language; **Research mode** focuses on four-dimensional deep analysis with direct terminology. LangGraph multi-agent orchestration, **SQLite on your machine, BYOK** — forkable, self-hosted, no sign-up, no trading connection.
 
 > **Disclaimer**: All AI output is for learning and research only. Not investment advice.
 
 ### Positioning
 
-StockResearch is a **long-term open-source MVP**: a personal investment assistant on your PC, not a multi-tenant cloud product.
+StockResearch is an **open-source A-share market research agent**: forkable, runs on your PC, not a multi-tenant cloud product.
 
 | Principle | Detail |
 |-----------|--------|
+| **A-share native** | Limit-up/down, dragon-tiger board, northbound flow, lock-up expiry as explicit research evidence |
 | **Dual mode** | Advisor (default, plain language + proactive) / Research (terms + depth), top-bar toggle |
-| **Local-first** | `venv` + SQLite + `localhost`; no Docker/Redis/Postgres |
-| **Single user** | Fixed local user `mvp`; no login |
+| **Local-first** | `uv` + SQLite + `localhost`; no Docker/Redis/Postgres |
+| **Single-user local** | No sign-up; data stays on your machine |
 | **Same data** | Both modes share backend reasoning & data; only presentation and writing style switch |
 | **Research before battle** | Four dimensions finish independently, then optional debate |
 | **Tool isolation** | Each agent only calls domain tools |
@@ -275,6 +287,16 @@ StockResearch is a **long-term open-source MVP**: a personal investment assistan
 | Backend health | Red banner when backend unreachable |
 | Scheduled briefing | APScheduler pre-market 09:00 / post-close 15:30, A-share trading days only |
 | i18n | Chinese / English UI; two themes |
+
+### Next up
+
+| Priority | Feature | Description |
+|----------|---------|-------------|
+| 1 | **Watchlist** | Stocks you track outside holdings; feeds today’s focus and AI context |
+| 2 | **Price alerts** | Scheduled checks on holdings + watchlist; notify when change exceeds your threshold |
+| 3 | **Sector movers** | Industry/concept board gainers/losers and rotation summary in Market view |
+
+See [PRD §13 roadmap](docs/PRD.md#十三未来开发方向).
 
 ### Architecture
 
@@ -336,7 +358,7 @@ Saving in Settings writes `.env`; the backend reads it on the next request.
 
 ### Docs & contributing
 
-- [PRD v8.7 (single canvas + AI Chat + layered data sources + health monitoring)](docs/PRD.md)
+- [PRD v9.0 (open-source A-share research agent + single canvas + layered data)](docs/PRD.md)
 - [Product strategy](docs/PRODUCT_STRATEGY.md)
 - Legacy `docs/DEVELOPMENT_PLAN.md` is deprecated; see PRD §15 for engineering appendix
 - Issues and PRs welcome; read the PRD roadmap before large features

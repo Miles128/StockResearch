@@ -306,8 +306,11 @@ export const api = {
   marketOverview: () => request<MarketOverview>("/market/overview"),
   stockQuotes: (symbols: string) => request<StockQuoteOut[]>(`/market/quotes?symbols=${symbols}`),
   dataSourceStatus: () => request<DataSourceStatus>("/market/data-status"),
-  klineChart: (symbol: string, days = 60) =>
-    request<KlineChart>(`/market/kline?symbol=${symbol}&days=${days}`),
+  klineChart: (symbol: string, days = 90, before?: string) => {
+    const params = new URLSearchParams({ symbol, days: String(days) });
+    if (before) params.set("before", before);
+    return request<KlineChart>(`/market/kline?${params.toString()}`);
+  },
   listReports: () => request<ResearchReportListItem[]>("/research/reports"),
   downloadReportMarkdown: (id: number) => {
     window.open(apiUrl(`/research/reports/${id}/markdown`), "_blank", "noopener,noreferrer");
@@ -335,6 +338,20 @@ export const api = {
   demoStatus: () => request<{ demo: boolean }>("/portfolio/demo/status"),
   dailyActions: () => request<DailyActionCenter>("/action-center/daily"),
   dailyScan: () => request<DailyScanOut>("/portfolio/daily-scan"),
+  watchlist: () => request<WatchlistItem[]>("/portfolio/watchlist"),
+  addWatchlist: (payload: { symbol: string; name: string }) =>
+    request<WatchlistItem>("/portfolio/watchlist", { method: "POST", body: JSON.stringify(payload) }),
+  deleteWatchlist: (id: number) =>
+    request(`/portfolio/watchlist/${id}`, { method: "DELETE" }),
+  sectorMovers: (limit = 8) => request<SectorMovers>(`/market/sectors?limit=${limit}`),
+  priceAlertSettings: () => request<PriceAlertSettings>("/alerts/settings"),
+  updatePriceAlertSettings: (payload: Partial<PriceAlertSettings>) =>
+    request<PriceAlertSettings>("/alerts/settings", { method: "PUT", body: JSON.stringify(payload) }),
+  priceAlertNotifications: (unreadOnly = false) =>
+    request<PriceAlertNotification[]>(`/alerts/notifications?unread_only=${unreadOnly}`),
+  markPriceAlertRead: (id: number) =>
+    request(`/alerts/notifications/${id}/read`, { method: "POST" }),
+  markAllPriceAlertsRead: () => request<{ updated: number }>("/alerts/notifications/read-all", { method: "POST" }),
   analyzeNews: (
     newsId: number,
     symbol: string,
@@ -706,6 +723,45 @@ export interface StockQuoteOut {
   name: string;
   price: number;
   change_pct: number;
+}
+
+export interface WatchlistItem {
+  id: number;
+  symbol: string;
+  name: string;
+}
+
+export interface SectorBoard {
+  code: string;
+  name: string;
+  change_pct: number;
+  leader_name: string;
+  leader_symbol: string;
+  leader_change_pct: number;
+}
+
+export interface SectorMovers {
+  gainers: SectorBoard[];
+  losers: SectorBoard[];
+  updated_at: string;
+  disclaimer: string;
+}
+
+export interface PriceAlertSettings {
+  enabled: boolean;
+  threshold_pct: number;
+}
+
+export interface PriceAlertNotification {
+  id: number;
+  symbol: string;
+  name: string;
+  change_pct: number;
+  threshold_pct: number;
+  trading_date: string;
+  message: string;
+  read: boolean;
+  created_at: string;
 }
 
 export interface SignalBacktestHorizon {
