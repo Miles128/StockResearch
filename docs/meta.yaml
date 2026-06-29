@@ -1,0 +1,41 @@
+type: ai-agent
+answers:
+  problem: |
+    A 股个人投资者信息过载，需要本地 AI 研究助手理解持仓相关变化与风险，
+    且不连接券商、不给买卖建议。
+  users: |
+    个人投资者（个人/专家双模式）；本地单用户部署；BYOK。
+  goal: |
+    三 Tab tri-shell 下完成感知→关联→判断→呈现；同步/流式 chat 路由一致；
+    价格告警与简报可配置；Phase 2 接 Tushare 与 CLI/MCP。
+  role: |
+    开源 A 股市场研究 Agent — 理解「今天与我何干、风险在哪、下一步查什么」。
+  scope:
+    - Tri-shell：ListsSidebar + 焦点/风控/新闻 + Copilot
+    - 四维投研、辩论、风控、新闻过滤、Action Center
+    - 价格告警 + 定时简报（APScheduler）
+    - 推送 P1：浏览器 Notification
+    - Phase 2：Tushare Registry、CLI/MCP、Skills
+  non_goals:
+    - 四 Tab / 独立市场页 / daily-scan
+    - iFinD Wind 万元级 API
+    - 飞书推送（远期）
+    - 自动交易
+  input_contract: |
+    ChatRequest（message、session、user_context kind=focus|risk|news|stock|report）；
+    BYOK headers 或 .env。
+  output_contract: |
+    ChatResponse / SSE；cards（research|risk|news）；disclaimer 必填。
+  evaluation: |
+    pytest sync/stream parity；E2E 核心路径；npm run build。
+  failure_modes:
+    - 数据源失败 → partial + 不编造
+    - LLM 未配置 → 明确错误
+    - Cron 无 server Key → 跳过并 Settings 提示
+  tech_stack: |
+    FastAPI, LangGraph, SQLite, React/Vite, APScheduler, AkShare/Tushare。
+  acceptance:
+    - resolve_chat_route 用于 /chat 与 /chat/stream
+    - 无 PortfolioPanel/MarketPanel/TabNav/DailyScan 死代码
+    - docs 仅 PRD.md + meta.yaml
+    - pytest + web build 通过

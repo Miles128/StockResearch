@@ -2,6 +2,7 @@
 
 import asyncio
 import uuid
+from types import SimpleNamespace
 from typing import Annotated, TypedDict
 
 from langgraph.graph import END, StateGraph
@@ -17,9 +18,10 @@ from stockresearch.agents.orchestrator.complexity import (
 from stockresearch.agents.orchestrator.plan_execute import PlanExecuteAgent
 from stockresearch.agents.orchestrator.react_agent import OrchestratorAgent
 from stockresearch.agents.orchestrator.route_plan import (
-    resolve_mode_with_preference,
+    resolve_chat_route,
+    upgrade_stock_research_route,
 )
-from stockresearch.agents.research.runner import run_research
+from stockresearch.agents.research.stream import run_research_stream
 from stockresearch.agents.risk.engine import run_risk_checkup
 from stockresearch.core.config import get_settings
 from stockresearch.core.constants import INTENT_CHAT, INTENT_RISK
@@ -84,19 +86,44 @@ class Orchestrator:
 
         async def node_route(state: OrchestratorState) -> dict:
             msg = state["message"].strip()
-            # Risk keywords → risk intent
             if is_risk_intent(msg) and state["holdings"]:
-                return {"intent": INTENT_RISK, "mode": "risk"}
-            mode, finance_tools = resolve_mode_with_preference(
-                msg,
-                state.get("execution_preference"),
-                enable_debate=(
-                    True
-                    if state.get("enable_debate") is None
-                    else bool(state.get("enable_debate"))
-                ),
+                return {"intent": INTENT_RISK, "mode": "risk", "finance_tools": True}
+
+            debate_on = (
+                True
+                if state.get("enable_debate") is None
+                else bool(state.get("enable_debate"))
             )
-            return {"intent": INTENT_CHAT, "mode": mode, "finance_tools": finance_tools}
+            mode, finance_tools, _research_tools, routed_intent = await resolve_chat_route(
+                msg,
+                llm,
+                execution_preference=state.get("execution_preference"),
+                enable_debate=debate_on,
+            )
+            holding_refs = [
+                SimpleNamespace(symbol=h["symbol"], name=h["name"])
+                for h in state.get("holdings", [])
+            ]
+            mode, route_symbol, route_name = await upgrade_stock_research_route(
+                msg,
+                llm,
+                holding_refs,
+                mode=mode,
+                debate_on=debate_on,
+                execution_preference=state.get("execution_preference"),
+                confirmed_symbol=state.get("confirmed_symbol"),
+                confirmed_name=state.get("confirmed_name"),
+            )
+            updates: dict[str, object] = {
+                "intent": routed_intent,
+                "mode": mode,
+                "finance_tools": finance_tools,
+            }
+            if route_symbol:
+                updates["confirmed_symbol"] = route_symbol
+            if route_name:
+                updates["confirmed_name"] = route_name
+            return updates
 
         async def node_chat(state: OrchestratorState) -> dict:
             mode = state.get("mode", ComplexityResult.DIRECT)
@@ -172,7 +199,7 @@ class Orchestrator:
 
         graph.add_conditional_edges(
             "route",
-            lambda state: state["intent"],
+            lambda state: "risk" if state["intent"] == INTENT_RISK else "chat",
             {
                 "chat": "chat",
                 "risk": "risk",
@@ -284,16 +311,24 @@ async def _run_stock_research(
         card = stock_choice_card(msg, resolved)
         return {"cards": [card], "reply": resolved.message}
 
-    result = await run_research(
+    payload: dict[str, object] | None = None
+    async for event in run_research_stream(
         resolved.symbol,
-        llm,
+        llm=llm,
         with_debate=with_debate,
         enable_master_commentary=_master_enabled(state),
         mode_settings=state["mode_settings"],
-    )
+    ):
+        if event.get("type") == "done":
+            raw = event.get("result")
+            if isinstance(raw, dict):
+                payload = raw
+    if payload is None:
+        return {"cards": [], "reply": "个股深度投研暂时无法完成，请稍后重试。"}
+    summary = str(payload.get("summary", ""))
     return {
-        "cards": [{"type": "research", "data": result.model_dump(mode="json")}],
-        "reply": result.summary,
+        "cards": [{"type": "research", "data": payload}],
+        "reply": summary,
     }
 
 

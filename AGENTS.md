@@ -1,59 +1,40 @@
 # AGENTS.md — StockResearch
 
-AI stock research assistant (formerly InvesBao). Multi-agent LangGraph backend + React/Vite UI.
+AI stock research assistant. LangGraph backend + React tri-shell UI (lists · focus · copilot).
 
 ## Quick start
 
 ```bash
 cd "/Users/sihai/Documents/My Projects/StockResearch"
-uv sync
-cp .env.example .env   # LLM keys; USE_MOCK_LLM=true for offline dev
+uv sync && cp .env.example .env
 cd web && npm install
 ```
 
-**Dev (two terminals):**
-
 ```bash
-# API :8000 — --app-dir src is required
 uv run uvicorn stockresearch.api.app:app --reload --host 127.0.0.1 --port 8000 --app-dir src
-
-# UI :5174
-cd web && npm run dev
+cd web && npm run dev   # :5174
 ```
 
 ## Verification
 
 ```bash
-pytest
-cd web && npm run build
+pytest && cd web && npm run build
 ```
+
+## Documentation
+
+- **PRD:** `docs/PRD.md` (only product spec)
+- **Meta:** `docs/meta.yaml` (prd-first fields)
+- **Screenshots:** `docs/screenshots/` (README assets only)
+
+**Rules:** Do not add PRD copies under `documents/`, `.prd/`, or repo root. Do not add extra markdown specs under `docs/` — update `docs/PRD.md` §十一 instead.
 
 ## Architecture
 
-```
-src/stockresearch/   Python package (api, agents, services, data, db)
-web/src/             React UI (Chat, News, Portfolio, Risk, Settings)
-tests/               pytest
-```
+Center tabs: **focus | risk | news** (no fourth market tab). Copilot is global right rail.
 
-Flow: browser `:5174` → REST/SSE → FastAPI `:8000` → SQLite + LangGraph orchestrator.
+Cron (briefings, price alerts) runs inside uvicorn lifespan.
 
-## Conventions
+## Active branch note
 
-- Package lives under `src/`; always use `--app-dir src` with uvicorn.
-- Use `uv sync`, not raw pip.
-- Local-first: SQLite only, single-user MVP.
-
-## Gotchas
-
-- Two processes required (API + Vite); frontend proxies to `:8000`.
-- Default `USE_MOCK_LLM=true` in `.env.example`; set real keys and `USE_MOCK_LLM=false` for live LLM.
-- Settings may write keys to project-root `.env` (gitignored).
-- No `npm test` on frontend; use `npm run build` for FE checks.
-- Port 8000 conflicts with other local services (e.g. claude-mem Chroma) — keep one listener.
-
-## Agent workflows
-
-- Large features: brainstorm → plan → small PR-sized steps.
-- After changes: run `pytest` + `web` build before claiming done.
-- Remember renames/decisions in local-memory (`StockResearch` was renamed from InvesBao).
+Latest UI is on `codex/ai-native-mvp-canvas` (may be ahead of `main`). Prefer that branch for tri-shell work.

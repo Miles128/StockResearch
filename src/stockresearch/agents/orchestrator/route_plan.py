@@ -26,6 +26,11 @@ from stockresearch.core.constants import (
     INTENT_NEWS,
     INTENT_RESEARCH,
 )
+from stockresearch.services.message_stock import (
+    ResolvedStock,
+    match_holding_in_message,
+    resolve_message_stock,
+)
 from stockresearch.utils.llm import LLMClient
 
 ExecutionPreference = Literal["react", "plan_execute", "preset", "auto"]
@@ -246,6 +251,53 @@ async def resolve_chat_route(
         ComplexityResult.INDUSTRY_RESEARCH,
     )
     return mode, is_finance_related(message), research_tools, intent
+
+
+async def upgrade_stock_research_route(
+    message: str,
+    llm: LLMClient,
+    holdings: list[object],
+    *,
+    mode: str,
+    debate_on: bool,
+    execution_preference: str | None,
+    confirmed_symbol: str | None,
+    confirmed_name: str | None,
+) -> tuple[str, str | None, str | None]:
+    """Send holding/name stock analysis to research instead of ReAct direct."""
+    if execution_preference == "react":
+        return mode, confirmed_symbol, confirmed_name
+    if mode in (
+        ComplexityResult.DEBATE,
+        ComplexityResult.RESEARCH,
+        ComplexityResult.MARKET_DEBATE,
+        ComplexityResult.MARKET_RESEARCH,
+        ComplexityResult.INDUSTRY_RESEARCH,
+    ):
+        return mode, confirmed_symbol, confirmed_name
+
+    if not is_stock_analysis_intent(message):
+        return mode, confirmed_symbol, confirmed_name
+
+    holding = match_holding_in_message(message, holdings)
+    if holding:
+        upgraded = ComplexityResult.DEBATE if debate_on else ComplexityResult.RESEARCH
+        return upgraded, holding.symbol, holding.name
+
+    if mode != ComplexityResult.DIRECT:
+        return mode, confirmed_symbol, confirmed_name
+
+    resolved = await resolve_message_stock(
+        message,
+        llm,
+        confirmed_symbol=confirmed_symbol,
+        confirmed_name=confirmed_name,
+    )
+    if isinstance(resolved, ResolvedStock):
+        upgraded = ComplexityResult.DEBATE if debate_on else ComplexityResult.RESEARCH
+        return upgraded, resolved.symbol, resolved.name
+
+    return mode, confirmed_symbol, confirmed_name
 
 
 def build_route_proposal(message: str, *, enable_debate: bool = False) -> RouteProposal:

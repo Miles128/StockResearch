@@ -1,3 +1,8 @@
+export interface SelectedMarketIndex {
+  symbol: string;
+  name: string;
+}
+
 export type CenterTab = "focus" | "risk" | "news";
 
 export type ListsLayoutMode = "sidebar" | "hidden" | "center";

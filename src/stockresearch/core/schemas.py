@@ -348,27 +348,6 @@ class RiskCheckupOut(BaseModel):
     disclaimer: str = DISCLAIMER
 
 
-class DailyScanItem(BaseModel):
-    symbol: str
-    name: str
-    sector: str
-    price: float | None = None
-    change_pct: float | None = None
-    cost_price: float
-    profit_pct: float | None = None
-    technical_score: int = Field(ge=0, le=100)
-    signal: Literal["bullish", "neutral", "bearish"] = "neutral"
-    signal_text: str = "中性"
-    suggestion: str = ""
-    factors: list[str] = Field(default_factory=list)
-
-
-class DailyScanOut(BaseModel):
-    scan_date: date
-    summary: str
-    items: list[DailyScanItem]
-    disclaimer: str = DISCLAIMER
-
 
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant"]
@@ -443,9 +422,7 @@ class RiskCheckupRequest(BaseModel):
 
 
 class ChatUserContext(BaseModel):
-    kind: Literal[
-        "portfolio", "risk", "market", "news", "daily_scan", "stock", "report"
-    ]
+    kind: Literal["focus", "risk", "news", "stock", "report"]
     label: str = Field(min_length=1, max_length=120)
     detail: str | None = Field(default=None, max_length=500)
     symbol: str | None = Field(default=None, min_length=6, max_length=6, pattern=r"^\d{6}$")

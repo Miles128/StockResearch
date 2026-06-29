@@ -20,9 +20,15 @@ from stockresearch.services.text_factor import build_text_factor_summary
 from stockresearch.agents.research.summary_length import normalize_summary
 
 
+_DIM_ORDER = ("fundamental", "technical", "sentiment", "chips")
+
+
 def _dimension_expand_parts(dimensions: dict[str, DimensionResult]) -> list[str]:
     parts: list[str] = []
-    for dim in dimensions.values():
+    for key in _DIM_ORDER:
+        dim = dimensions.get(key)
+        if dim is None:
+            continue
         for highlight in dim.highlights[:2]:
             line = highlight.strip()
             if line and line not in parts:

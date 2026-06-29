@@ -13,11 +13,9 @@ from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
 logger = logging.getLogger(__name__)
 
 _KIND_LABELS: dict[str, str] = {
-    "portfolio": "持仓组合",
+    "focus": "焦点视图",
     "risk": "风控视图",
-    "market": "市场视图",
     "news": "资讯视图",
-    "daily_scan": "每日扫描",
     "stock": "个股",
     "report": "研报",
 }
