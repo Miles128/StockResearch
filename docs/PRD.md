@@ -1,146 +1,133 @@
 # StockResearch 产品需求文档
 
-**版本：V10.0 · 开源 A 股市场研究 Agent**
+**V10.2 · 开源 A 股市场研究 Agent**
 
-> **唯一 PRD**：`docs/PRD.md`。`docs/` 下仅保留本文件与 `meta.yaml`（`screenshots/` 为 README 配图）。  
-> 结构化字段见 `docs/meta.yaml`（供 prd-first 等工具读取）。
+> 唯一 PRD：`docs/PRD.md`。结构化字段见 `docs/meta.yaml`。
 
 ---
 
-## 一、产品定位
+## 一、定位
 
-StockResearch 是**开源的 A 股市场研究 Agent**，在本机联网运行。
+本机联网运行的 **A 股 AI 研究 Agent**。不连券商、不代交易。
 
-不连接券商，不替用户交易，不提供买卖建议。帮助用户理解：**今天发生了什么、为什么与我有关、还需要验证什么**。
+**北极星（Phase 1）**：单机体验完整 — 本地 Web UI + FastAPI + SQLite + BYOK。
 
-## 二、目标用户
+帮助用户回答：**今天发生了什么 · 为什么与我有关 · 还需要验证什么**。
 
-### 个人模式
+## 二、用户与双模式
 
-人话、金额、关联原因：持仓相关变化、指标含义、组合可能损失、可继续查看的信息。
+| | 个人（advisor） | 专家（research） |
+|--|----------------|-----------------|
+| 语言 | 人话、金额、关联原因 | 术语直出、全量指标 |
+| 术语弹窗 | 默认开 | 无 |
+| 辩论 | 默认关 | 默认开 |
+| 资产配置 | 按风险/现金流给参考 | 用户手动设目标，展示偏差 |
 
-### 专家模式
+**契约**：同一推理管线产出同一 JSON/cards；仅渲染策略不同。禁止因模式改变事实层数值。
 
-多维指标与来源、四维评分、多空分歧、数据缺口与可验证路径。
-
-两模式共享同一事实与推理，仅改变表达密度。界面统一称 **个人 / 专家**。
-
-## 三、设计原则
-
-1. **AI 是主界面** — 用户描述目标，系统决定查行情、新闻、持仓或启动投研。
-2. **渐进披露** — 结论先行，专业指标可展开；常用功能 ≤2 次点击。
-3. **三 Tab 焦点** — 中心区仅 **焦点 / 风控 / 新闻**；市场能力并入焦点，不做第四 Tab。
-4. **事实与推理分离** — 数据失败显式降级；不输出买卖/目标价/仓位指令。
-5. **本地可信** — 单用户、SQLite、localhost、BYOK。
-
-## 四、Tri-Shell 界面
+## 三、界面（Tri-Shell）
 
 ```text
 ┌─ 顶栏：指数 · 搜索 · 模式 · 告警铃 · 数据源 · 设置 ─────────────────────┐
-├─ MarketTicker ───────────────────────────────────────────────────────────┤
 ├ lists-column ──┬─ center: [焦点][风控][新闻] ────┬─ copilot-column ──────┤
-│ ListsSidebar   │ StockFocusView / Risk / News    │ Copilot + Chat        │
-│ 持仓 · 自选    │ SectorMovers · ActionCenter     │ 多线程 · SSE          │
+│ 持仓 · 自选    │ 多 Tab · K线 · ActionCenter     │ 多线程 · SSE · 免责    │
 └────────────────┴─────────────────────────────────┴───────────────────────┘
 ```
 
-### 4.1 焦点（含行情与持仓）
+- **三 Tab**：焦点 / 风控 / 新闻（无第四「市场」Tab，行情并入焦点）
+- **焦点多 Tab**：Sidebar 选中、Copilot 指令、顶栏指数各可占一 Tab
+- **Copilot = 焦点 source of truth**：「分析茅台」→ 茅台 Tab；「茅台 vs 当前选中」→ 交叉对比
+- **Demo 持仓**：空组合时 `/portfolio/demo` 快速体验
+- 对话结束展示 **disclaimer**（与 API 字段同文）
 
-- ListsSidebar：组合摘要、持仓、自选股；
-- 选中股票：K 线、SectorMovers、ActionCenter；
-- 顶栏指数点击可在焦点区展开走势。
-
-### 4.2 风控
-
-- 规则告警、集中度、压力情景；VaR/Sharpe 等可折叠；
-- 个人模式可展示资产配置建议。
-
-### 4.3 新闻·研报
-
-- 与我相关 / 市场要闻 / AI 研报；
-- ingest 可手动触发；规划后台定时入库。
-
-### 4.4 Copilot
-
-- 右侧可调宽、可折叠、多线程；
-- 流式展示过程，完成后折叠轨迹保留卡片；
-- **同步与流式 `/chat` 共用 `resolve_chat_route()` 路由**（V10 已统一）。
-
-## 五、核心能力
+## 四、核心能力
 
 | 能力 | 说明 |
 |------|------|
-| 四维投研 + 可选辩论 | fundamental / technical / sentiment / chips → SSE |
-| 风控体检 | 规则引擎 + 可选 LLM 人话 |
-| 新闻过滤 | 三层规则，3s SLA，无 LLM |
-| 价格告警 | APScheduler 5min + 库内通知 + PriceAlertBell 轮询 |
-| 定时简报 | APScheduler intraday/postmarket |
+| 四维投研 | 基本面 / 技术面 / 情绪 / 筹码 → SSE 流式 |
+| 多空辩论 | 可选；个人默认关、专家默认开 |
+| 风控体检 | 规则引擎 + 可选 LLM 解读 |
+| 新闻过滤 | 三层规则，3s SLA，零 LLM；统一 interest（持仓/自选/板块） |
+| 价格告警 | APScheduler 5min；铃铛 + 可选浏览器 Notification |
+| 定时简报 | 盘前 / 收盘；Cron 绑 uvicorn lifespan（Phase 1） |
 | Action Center | 规则信号，零 LLM |
-| 双模式 | advisor / research + 术语弹窗 |
-| BYOK | LLM / Tushare / Bocha 经请求头或 `.env` |
+| 合规输出 | §六 语言政策 |
 
-## 六、数据源
+## 五、数据源
 
-| 层级 | 来源 |
-|------|------|
-| 行情 | 新浪 → AkShare → efinance |
-| 新闻 | AkShare + Bocha 兜底 |
-| 财务增强 | Tushare Pro（用户 Key，200 元/年档起） |
-| 降级 | `partial` / `missing`，禁止 LLM 编造 |
+**原则**：分层降级、`partial` 显式标注缺口、禁止编造。不做 iFinD / Wind / Choice。
 
-**不做** iFinD / Wind / Choice 万元级终端 API。
+### 5.1 行情与 K 线
 
-## 七、推送与主动触达（规划）
+| 数据 | 主源 | 备源（按序） | 接口/说明 |
+|------|------|--------------|-----------|
+| 实时报价 | **新浪财经** `hq.sinajs.cn` | AkShare hist → **efinance** | 三源兜底 |
+| 日 K 线 | **AkShare**（前复权 `stock_zh_a_hist`） | 新浪 K 线 → efinance | 指数用 `index_zh_a_hist` |
+| 指数概览 | **新浪指数** | AkShare | 北向：AkShare `stock_hsgt_north_net_flow_in_em` |
 
-当前：告警/简报写 SQLite，UI **轮询**（非系统 push）。
+### 5.2 新闻、公告、研报
 
-| 阶段 | 通道 | 说明 |
+| 数据 | 来源 | 说明 |
 |------|------|------|
-| **P1** | App + **浏览器 Notification** | 价格告警、重大新闻、简报完成；需用户授权 |
-| **P2** | **邮件**（外挂 Agent CLI 推送） | StockResearch MCP/CLI 生成摘要 → 用户自配 SMTP/Agent 发出 |
-| **P3** | **短信** 等 | 第三方网关，用户自配 Key |
-| **远期** | **飞书机器人** 等 | 大后期；需合规评估 |
+| 快讯 | **AkShare**（东方财富新闻） | 主路径 |
+| 新闻兜底 | **博查 AI 搜索** | 需用户 `BOCHA_API_KEY`；AkShare 无结果时启用 |
+| 上市公司公告 | **巨潮资讯** via AkShare | `stock_zh_a_disclosure_report_cninfo` |
+| 机构研报 | **东方财富** via AkShare | `stock_research_report_em` |
 
-所有推送带 disclaimer 与数据时间戳，不含买卖指令。
+### 5.3 财务与因子
 
-## 八、Phase 2 路线图
+| 数据 | 来源 | 说明 |
+|------|------|------|
+| 财务/估值 | AkShare | 默认 |
+| 财务增强 | **Tushare Pro**（可选，用户 Token） | 有 Key 时优先；与 AkShare 冲突 → Tushare 为准 + UI 并列预警 |
+| 筹码面 | AkShare | 龙虎榜、资金流、北向持股、两融、股东户数、解禁 |
+| 情绪面 | AkShare + 东方财富个股新闻 + 雪球热度 | — |
 
-| 支柱 | 内容 |
-|------|------|
-| **闭环** | Settings 接简报/告警开关；ingest 后台化；App 拆分 |
-| **数据** | Tushare Registry；JQData 可选 |
-| **外化** | `stockresearch` CLI + MCP；Codex/Claude/OpenCode/Kimi Skills |
-| **Prompt** | `prompts/` 外置 |
+### 5.4 冲突与降级
 
-## 九、非功能与合规
+- **多源价差 >1%**：顶栏黄色预警；输出标注延迟/口径差异
+- **`partial=true`**：可给方向性结论，须列出信息缺口
+- **Tushare 未配置**：核心路径仍可用免费源
 
-- API 含 `disclaimer`；禁止确定性买卖措辞；
-- Cron 绑定 API 进程 — 服务未运行则不执行；
-- 仅浏览器 BYOK 时，cron LLM 任务需 Settings 明示或跳过。
+## 六、合规
 
-## 十、工程附录
+| 禁止 | 加仓、减仓、持有观望（全界面） |
+|------|-------------------------------|
+| 默认允许 | 仓位偏高/偏低/适中；建议控制仓位；描述性风险 |
+| 条件允许 | 建议买入/卖出 — 须同段附带 disclaimer |
+| 禁止 | 目标价；确定性措辞；自动交易指令 |
 
-### 10.1 部署（摘要）
+## 七、推送与开关
 
-- **本地**：`uv run uvicorn stockresearch.api.app:app --reload --host 127.0.0.1 --port 8000 --app-dir src` + `cd web && npm run dev`
-- **Fly.io**：见仓库 `fly.toml`；`main` push 可触发 GitHub Actions
+| 开关 | 关 | 开 |
+|------|----|----|
+| 定时简报 | Cron 跳过，不写库 | 按 schedule 生成 |
+| 价格告警 | Cron 跳过，不写库 | 5min 评估 |
+| UI 轮询（默认关） | 不轮询 | 按间隔轮询；开启前展示延迟说明 |
 
-### 10.2 验证
+推送阶段：P1 浏览器 Notification → P2 邮件（外挂 CLI）→ P3 短信 → 远期飞书。
+
+Phase 2：`stockresearch worker` 独立 Cron + 可选 launchd 示例。
+
+## 八、Phase 2 优先级
+
+1. Settings 接 §七 开关；ingest 后台化；`stockresearch worker`
+2. `prompts/` 外置
+3. Tushare Registry 完善（可选）
+4. CLI + MCP + Skills 外化（后期）
+
+## 九、工程
 
 ```bash
-pytest
-cd web && npm run build
+uv run uvicorn stockresearch.api.app:app --reload --host 127.0.0.1 --port 8000 --app-dir src
+cd web && npm run dev   # :5174
+uv run pytest && cd web && npm run build
 ```
 
-### 10.3 文档规则
-
-- `docs/` 仅 `PRD.md` + `meta.yaml`（+ `screenshots/`）
-- 禁止在根目录、`documents/`、`.prd/` 另建 PRD
-- 产品变更更新 §十一 版本记录
-
-## 十一、版本记录
+## 十、版本记录
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
-| **V10.0** | 2026-06-29 | 唯一 PRD；三 Tab tri-shell；删除四视角与历史文档；统一 chat 路由；推送四阶段规划；移除 daily-scan 死代码 |
-| V9.0 | 2026-06-28 | 开源定位；自选股、涨跌提醒（归档，细节以 V10 为准） |
+| **V10.2** | 2026-07-01 | 精简 PRD；数据源按代码现状重写（新浪/AkShare/efinance 三层行情；K 线 AkShare 优先） |
+| V10.1 | 2026-06-30 | 双模式契约；合规语言；Focus 多 Tab；§7 开关语义 |
+| V10.0 | 2026-06-29 | 唯一 PRD；三 Tab tri-shell；统一 chat 路由 |

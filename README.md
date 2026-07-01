@@ -1,9 +1,7 @@
 # StockResearch
 
-**[中文](#中文) · [English](#english)** · [PRD v9.0](docs/PRD.md)
+**[中文](#中文) · [English](#english)** · [PRD v10.1](docs/PRD.md)
 
-[![Tests](https://img.shields.io/badge/backend-250%20passed-brightgreen)](.)
-[![Frontend](https://img.shields.io/badge/frontend-22%20vitest%20passed-brightgreen)](.)
 [![Python](https://img.shields.io/badge/python-3.12+-blue)](pyproject.toml)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
@@ -16,96 +14,49 @@
 
 ## 开源 A 股市场研究 Agent
 
-StockResearch 是一个**开源、本机运行的 A 股市场研究 Agent**。它不是券商终端，也不是托管 SaaS；它用 LangGraph 编排多 Agent 投研，把 A 股行情、新闻、持仓、风险与四维研究组织成可对话、可追问的研究体验。
-
-核心入口是「今天与我有关的变化」和自然语言任务，而不是密集菜单、指标矩阵与全市场扫描器。
+本机运行的 A 股 AI 研究助手：LangGraph 多 Agent 投研 + React 三栏 UI。**不连券商、不代交易**，帮助理解「今天发生了什么、与我何关、还需验证什么」。
 
 ```text
-┌──────────────────────────────────────────────────────────┐
-│ 上证  沪深300  深证  创业板       模式 / 数据 / 设置       │
-├──────────────────────────────────────────────────────────┤
-│ [持仓] [风控] [市场] [新闻·研报]              [AI 对话] │
-├───────────────────────────────────────┬──────────────────┤
-│               单一主画布               │ AI 对话          │
-│                                       │ （横/竖排可切换） │
-└───────────────────────────────────────┴──────────────────┘
+┌─ 顶栏：指数 · 搜索 · 模式 · 告警 · 数据源 · 设置 ─────────────────────┐
+├ lists ─────────┬─ center: [焦点][风控][新闻] ────┬─ Copilot ────────────┤
+│ 持仓 · 自选    │ K线 · 多 Tab · ActionCenter     │ 多线程 · SSE · 免责   │
+└────────────────┴─────────────────────────────────┴───────────────────────┘
 ```
 
-AI 对话在所有工作区共用，但不会把所有内容混成一锅：
+- **个人 / 专家**双模式：同一事实层 JSON，不同渲染密度与合规过滤
+- **Copilot** 驱动焦点 Tab（分析某股 → 新开 Tab；对比 → 交叉分析）
+- **BYOK**：LLM / Tushare / 博查 Key 存浏览器或 `.env`，不上云
 
-- 持仓、风险偏好和模式属于全局用户上下文；
-- 连续问答与研究对象属于当前线程；
-- 当前股票、新闻、组合或报告作为可见、可移除的临时页面上下文；
-- 切换页面保留线程，但不会偷偷替换当前研究对象。
-
-## 双模式 · Dual Mode
-
-**个人**（默认）考虑你的现金流和风险承受能力，用大白话解释；**专家**专注四维深度分析，术语直出，不结合个人财务。顶栏一键切换，同一份数据，两种视角。
-
-```
-┌──────────────────────────────────────────────────────┐
-│ StockResearch   [个人] [专家]      中/EN  数据  ⚙️   │
-├──────────────────────────────────────────────────────┤
-│      [持仓] [风控] [市场] [新闻·研报]  [AI 对话]     │
-└──────────────────────────────────────────────────────┘
-```
-
-**两个核心差异**（其他差异都派生自这两点）：
-
-| 核心差异 | 个人 | 专家 |
-|---------|---------|---------|
-| 现金流/风险承受能力 | 考虑（"浮亏 ¥2,300，相当于月收入 15%"） | 不考虑（纯指标 VaR 4.32%） |
-| 语言表现 | 大白话，避免金融术语 | 术语直出，专业口径 |
-
-| 其他维度 | 个人 | 专家 |
-|---------|---------|---------|
-| 信息密度 | 首屏 ≤ 5 条 | 完整数据 |
-| 辩论 | 默认关 | 默认开 |
-| 术语弹窗 | 默认开（PE / VaR 等悬浮解释） | 默认关 |
-
-模式持久化，可随时切换；模式内单项可微调（Settings）。首次访问引导选模式 + 个人模式填风险分级/现金流 + 加载示例持仓。
+> **免责声明**：AI 输出仅供学习与研究，不构成投资建议。
 
 ---
 
-## Screenshots · 界面预览
+## 数据源
 
-> 截图由 `scripts/capture_screenshots.mjs` 通过 Playwright 在 1440×900 视口下自动捕获，覆盖四个主视角 + AI 对话面板 + 设置面板。
+所有结论可追溯来源；失败时显式 `partial` / 降级，禁止 LLM 编造。多源价差 **>1%** 时顶栏黄色预警。
 
-### Portfolio · 持仓
+| 数据域 | 主源 | 备源（按序） | 说明 |
+|--------|------|--------------|------|
+| **实时行情** | [新浪财经](https://finance.sina.com.cn) `hq.sinajs.cn` | AkShare → [efinance](https://github.com/Micro-sheep/efinance) | 三源兜底；Sina 与 AkShare 价差 >1% 告警 |
+| **K 线** | AkShare（前复权） | 新浪 → efinance | 指数用 `index_zh_a_hist` |
+| **指数概览** | 新浪指数 | AkShare | 北向资金：AkShare 东方财富接口 |
+| **新闻快讯** | AkShare（东方财富） | [博查 AI 搜索](https://open.bochaai.com) | 博查需 `BOCHA_API_KEY`；≤3s SLA，零 LLM |
+| **公告** | 巨潮资讯 via AkShare | — | `stock_zh_a_disclosure_report_cninfo` |
+| **机构研报** | 东方财富 via AkShare | — | `stock_research_report_em` |
+| **财务/估值** | AkShare | **Tushare Pro**（可选） | 有 Tushare Token 时优先；冲突 UI 并列预警 |
+| **筹码/情绪** | AkShare | 雪球热度 | 龙虎榜、资金流、北向、两融、股东户数、解禁等 |
 
-成本与手数、实时盈亏、行业集中度、一键分析与 AI 快捷动作。
+**不做** iFinD / Wind / Choice 等万元级终端 API。
 
-![Portfolio](docs/screenshots/portfolio.png)
+---
 
-### Risk · 风控
+## Screenshots
 
-Sharpe、VaR、集中度、规则告警与 AI 解读；个人模式先人话，专家模式先指标。
+> `node scripts/capture_screenshots.mjs`（需先启动前后端）
 
-![Risk](docs/screenshots/risk.png)
-
-### Market · 市场
-
-指数走势、市场宽度、强弱行业、AI 市场摘要。
-
-![Market](docs/screenshots/market.png)
-
-### News · 新闻·研报
-
-三层规则过滤快讯，按持仓 / 板块 / 市场分组；可一键追问 AI。
-
-![News](docs/screenshots/news.png)
-
-### AI Chat · 全局 AI 对话
-
-SSE 流式四维投研、多空辩论与裁判；支持横/竖排布局切换与可调宽度。
-
-![Chat](docs/screenshots/chat.png)
-
-### Settings · 设置
-
-BYOK 大模型、博查 AI 搜索、可选 Tushare、辩论开关、报告导出、模式微调。
-
-![Settings](docs/screenshots/settings.png)
+| 今日关注 | 风控 | 新闻 | Copilot | 设置 |
+|----------|------|------|---------|------|
+| ![Focus](docs/screenshots/focus.png) | ![Risk](docs/screenshots/risk.png) | ![News](docs/screenshots/news.png) | ![Copilot](docs/screenshots/copilot.png) | ![Settings](docs/screenshots/settings.png) |
 
 ---
 
@@ -113,105 +64,22 @@ BYOK 大模型、博查 AI 搜索、可选 Tushare、辩论开关、报告导出
 
 ## 中文
 
-面向 A 股投资者的 **开源双模式市场研究 Agent**。个人模式帮你看懂「今天发生了什么、为什么与我有关」，专家模式提供可展开的四维研究。项目在本机运行，SQLite 持久化、BYOK 大模型，不注册、不上云、不连接交易。
-
-> **免责声明**：所有 AI 输出仅供学习与研究参考，不构成任何投资建议。
-
-### 产品定位
-
-StockResearch 是**开源 A 股市场研究 Agent**：代码可 fork、可自部署，跑在你自己的电脑上，不是多租户公网服务。
-
-| 原则 | 说明 |
-|------|------|
-| **A 股原生** | 涨跌停、龙虎榜、北向资金、解禁等 A 股因子作为显式研究证据 |
-| **双模式** | 个人（默认，人话+主动建议）/ 专家（术语+深度），顶栏一键切换 |
-| **本机优先** | `uv` + SQLite + `localhost`，无 Docker/Redis/Postgres |
-| **单用户本地** | 无需注册登录，数据留在本机 |
-| **同一份数据** | 双模式共享后端推理与数据，只有呈现层和写作风格按模式切换 |
-| **Research 先于 Battle** | 四维研究完成后再可选多空辩论 |
-| **工具隔离** | 各维度 Agent 仅调用本域工具 |
-| **规则与模型分工** | 快讯/风控走规则；LLM 负责推理与生成 |
-| **BYOK** | Key 不进入数据库；可保存在浏览器，或由用户明确写入本机 `.env` |
-| **真实联网** | 默认连接真实行情和新闻；Mock 仅用于无 Key 演示和显式降级 |
-| **数据源透明** | AI 结论可查看来源、时间、缓存、Mock、降级与冲突状态 |
-| **健康自检** | 顶部 `BackendHealthBanner` 监控后端可用性，宕机时红色提示 |
-
-### 功能一览
-
-| 模块 | 说明 |
-|------|------|
-| **双模式切换** | 顶栏个人/专家一键切换，持久化，模式内可微调 |
-| **全局 AI 对话** | 所有工作区共享外壳；横/竖排布局可切换，宽度可调；**流式结束后仅保留结论**；Copilot 打开时顶栏按钮反色高亮 |
-| **首次引导** | 选模式 + 示例持仓 + LLM 配置，3 步完成 |
-| 智能对话 | 个股/市场意图路由；歧义股票卡片确认 |
-| 四维投研 | 基本面、技术面、情绪面、筹码面 ReAct 并行；**维度默认折叠为 4 卡片**；新闻已并入情绪维度，**不再单独展示新闻文本因子** |
-| A 股因子检查 | 研究报告可展开查看涨跌停/ST、龙虎榜、资金、解禁、财务、技术结构等验证状态和来源明细 |
-| 多空辩论 | 设置中可开关（个人默认关，专家默认开） |
-| 新闻快讯 | ≤3s SLA，零 LLM；博查 AI 联网搜索兜底 |
-| 巨潮公告 | 上市公司公告 provider |
-| 研报中心 | 东方财富研报 provider |
-| 持仓管理 | 成本、盈亏、板块、定时刷新；收盘后停止刷新；**设置可选表格/卡片** |
-| 风控体检 | VaR、回撤、集中度 + AI 解读（个人先人话，专家先指标） |
-| 数据源详情 | 顶栏点击数据状态，查看真实源、缓存、Mock、降级和增强数据配置 |
-| 后端健康监控 | 后端不可用时顶部红色横幅提示，避免误判前端 bug |
-| 简报定时任务 | APScheduler 盘前 09:00 / 收盘 15:30，仅 A 股交易日执行 |
-| 国际化 | 中/英界面；橙黑 / 酒红主题；顶栏指数卡片带**背景行情线** |
-
-### 下一步开发
-
-| 优先级 | 方向 | 说明 |
-|--------|------|------|
-| 1 | **自选股** | 独立于持仓的观察列表；支持增删、纳入今日关注与 AI 对话上下文 |
-| 2 | **涨跌提醒** | 定时监测持仓与自选股；涨跌幅超过用户设定阈值时触发提醒（应用内，可选邮件/桌面通知） |
-| 3 | **行业板块涨跌** | 市场视角展示行业/概念板块涨跌幅排行、强弱对比与轮动摘要 |
-
-详见 [PRD §十三 未来开发方向](docs/PRD.md#十三未来开发方向)。
-
-### 架构
-
-```
-┌─────────────────────────────────────────────────────┐
-│  模式层  个人 ←→ 专家  顶栏切换 · 持久化             │
-├─────────────────────────────────────────────────────┤
-│  呈现层（前端，按模式差异化）                          │
-├─────────────────────────────────────────────────────┤
-│  推理层（后端，模式无关）LangGraph + 四维 ReAct + 辩论 │
-├─────────────────────────────────────────────────────┤
-│  数据层（后端，模式无关）行情 · 新闻 · 财报 · 持仓     │
-└─────────────────────────────────────────────────────┘
-
-浏览器 (:5174)  ──REST/SSE──▶  FastAPI (:8000) + SQLite
-```
-
 ### 快速开始
 
 **环境**：Python 3.12+、[uv](https://docs.astral.sh/uv/)、Node.js 18+
 
 ```bash
-git clone https://github.com/Miles128/StockResearch.git
-cd StockResearch
+git clone https://github.com/Miles128/StockResearch.git && cd StockResearch
+uv sync && cp .env.example .env
 
-# 后端（uv 管理虚拟环境与依赖，见 uv.lock）
-uv sync
-cp .env.example .env   # 编辑 .env 填写 LLM_API_KEY / LLM_BASE_URL / LLM_MODEL
+# 终端 1 — API
 uv run uvicorn stockresearch.api.app:app --reload --host 127.0.0.1 --port 8000 --app-dir src
 
-# 前端（新终端）
+# 终端 2 — Web
 cd web && npm install && npm run dev
 ```
 
-打开 **http://localhost:5174**。首次进入触发引导：选模式（个人/专家）→ 示例持仓已加载 → 配置 LLM（或 Mock 模式先体验）。也可随时点击顶栏 **设置** 打开配置页。保存后自动写入项目根 `.env`（已 gitignore）。支持 [DeepSeek](https://platform.deepseek.com/)、[DashScope 兼容模式](https://help.aliyun.com/zh/model-studio/) 等 OpenAI 兼容接口。
-
-```bash
-pytest          # 246 tests
-cd web && npm run lint && npm run build && npm test   # 22 vitest tests
-
-# 显式验证真实新浪 / 东方财富等外网 Provider
-RUN_LIVE_TESTS=1 pytest -m live
-
-# 重新生成界面截图（需先启动前后端）
-SCREENSHOT_BASE_URL=http://127.0.0.1:5174 node scripts/capture_screenshots.mjs
-```
+打开 **http://localhost:5174**。首次引导：选模式 → Demo 持仓 → 配置 LLM（或 `USE_MOCK_LLM=true` 先体验）。
 
 ### 环境变量
 
@@ -219,25 +87,24 @@ SCREENSHOT_BASE_URL=http://127.0.0.1:5174 node scripts/capture_screenshots.mjs
 
 | 变量 | 说明 |
 |------|------|
-| `LLM_API_KEY` | 本机大模型 Key（勿提交） |
-| `LLM_BASE_URL` | OpenAI 兼容 Base URL，如 `https://api.deepseek.com/v1` |
-| `LLM_MODEL` | 模型名，如 `deepseek-chat` |
-| `USE_MOCK_LLM` | `true` 时 Mock 回复，便于无 Key 演示 |
-| `LLM_HTTP_PROXY` | 本机访问 API 的代理，如 `http://127.0.0.1:7890` |
-| `BOCHA_API_KEY` | 博查 AI 联网搜索 Key（新闻兜底；留空则跳过联网搜索） |
+| `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` | OpenAI 兼容大模型（DeepSeek、DashScope 等） |
+| `USE_MOCK_LLM` | `true` 无 Key 演示 |
+| `BOCHA_API_KEY` | 博查联网搜索（新闻兜底，可留空） |
 
-在设置页保存后，后端从 `.env` 读取；无需每次在浏览器重复填 Key。
+Tushare Token 在设置页填写（浏览器 BYOK），非 `.env` 必填项。
 
-### 文档与贡献
+### 验证
 
-- [PRD v9.0（开源 A 股研究 Agent + 单画布 + 分层数据源）](docs/PRD.md)
-- [产品战略方案](docs/PRODUCT_STRATEGY.md)
-- 历史 `docs/DEVELOPMENT_PLAN.md` 已废弃；工程附录见 PRD §十五
-- 欢迎 Issue 与 PR；开发前请阅读 PRD 路线图
+```bash
+uv run pytest && cd web && npm run build
+```
 
-### 许可证与免责
+### 文档
 
-MIT — 见 [LICENSE](LICENSE)。本产品 AI 内容仅供学习与研究，**不构成投资建议**。
+- 产品规格：[docs/PRD.md](docs/PRD.md)
+- Agent 开发：[AGENTS.md](AGENTS.md)
+
+MIT — 见 [LICENSE](LICENSE)。
 
 ---
 
@@ -245,124 +112,27 @@ MIT — 见 [LICENSE](LICENSE)。本产品 AI 内容仅供学习与研究，**�
 
 ## English
 
-An **open-source A-share market research agent** with dual modes for China investors. **Advisor mode** considers your cash flow and risk tolerance, explaining in plain language; **Research mode** focuses on four-dimensional deep analysis with direct terminology. LangGraph multi-agent orchestration, **SQLite on your machine, BYOK** — forkable, self-hosted, no sign-up, no trading connection.
+Open-source **A-share market research agent** running locally. LangGraph multi-agent research + React tri-shell UI (lists · focus · copilot). No broker connection, no trading.
 
-> **Disclaimer**: All AI output is for learning and research only. Not investment advice.
-
-### Positioning
-
-StockResearch is an **open-source A-share market research agent**: forkable, runs on your PC, not a multi-tenant cloud product.
-
-| Principle | Detail |
-|-----------|--------|
-| **A-share native** | Limit-up/down, dragon-tiger board, northbound flow, lock-up expiry as explicit research evidence |
-| **Dual mode** | Advisor (default, plain language + proactive) / Research (terms + depth), top-bar toggle |
-| **Local-first** | `uv` + SQLite + `localhost`; no Docker/Redis/Postgres |
-| **Single-user local** | No sign-up; data stays on your machine |
-| **Same data** | Both modes share backend reasoning & data; only presentation and writing style switch |
-| **Research before battle** | Four dimensions finish independently, then optional debate |
-| **Tool isolation** | Each agent only calls domain tools |
-| **Rules vs models** | News/risk thresholds are rule-based; LLM for reasoning |
-| **BYOK** | API keys stay in the browser, never stored server-side |
-| **Backend health** | Top `BackendHealthBanner` warns when API is down |
-
-### Features
-
-| Module | Description |
-|--------|-------------|
-| **Dual-mode toggle** | Top-bar Advisor/Research switch, persisted, fine-tunable per mode |
-| **Global AI chat** | Shared shell across workspaces; horizontal/vertical layout toggle, resizable; thread continues, page context explicit; thinking steps hide after stream completes |
-| **Index ticker** | Index cards with background sparkline from daily change |
-| **Holdings layout** | Settings: table (default) or cards for portfolio detail |
-| **Onboarding** | Pick mode + demo holdings + LLM config in 3 steps |
-| Chat | Intent routing; ambiguous ticker picker |
-| 4D research | Four collapsible dimension cards (default folded); full report text; news text factor removed (covered in sentiment dimension) |
-| Debate | Optional bull/bear rounds + judge (off in Advisor, on in Research) |
-| News | ≤3s SLA, zero LLM; Bocha AI search fallback |
-| CNInfo announcements | Listed-company announcement provider |
-| Research reports | East Money research report provider |
-| Portfolio | P&amp;L, sectors, periodic refresh; stops refreshing after market close |
-| Risk checkup | VaR, drawdown, concentration + AI summary (Advisor: plain first; Research: metrics first) |
-| Data source details | Click top status badge to view real source, cache, Mock, degradation, enhanced config |
-| Backend health | Red banner when backend unreachable |
-| Scheduled briefing | APScheduler pre-market 09:00 / post-close 15:30, A-share trading days only |
-| i18n | Chinese / English UI; two themes |
-
-### Next up
-
-| Priority | Feature | Description |
-|----------|---------|-------------|
-| 1 | **Watchlist** | Stocks you track outside holdings; feeds today’s focus and AI context |
-| 2 | **Price alerts** | Scheduled checks on holdings + watchlist; notify when change exceeds your threshold |
-| 3 | **Sector movers** | Industry/concept board gainers/losers and rotation summary in Market view |
-
-See [PRD §13 roadmap](docs/PRD.md#十三未来开发方向).
-
-### Architecture
-
-```
-┌─────────────────────────────────────────────────────┐
-│  Mode layer  Advisor ←→ Research  top-bar · persist  │
-├─────────────────────────────────────────────────────┤
-│  Presentation (frontend, mode-differentiated)        │
-├─────────────────────────────────────────────────────┤
-│  Reasoning (backend, mode-agnostic) LangGraph + 4D  │
-├─────────────────────────────────────────────────────┤
-│  Data (backend, mode-agnostic) quotes·news·reports  │
-└─────────────────────────────────────────────────────┘
-
-Browser (:5174)  ──REST/SSE──▶  FastAPI (:8000) + SQLite
-```
+**Dual mode**: Advisor (plain language) / Research (full metrics) — same fact layer, different rendering.
 
 ### Quick start
 
-**Requires** Python 3.12+, [uv](https://docs.astral.sh/uv/), Node.js 18+
-
 ```bash
-git clone https://github.com/Miles128/StockResearch.git
-cd StockResearch
-
-# Backend (uv manages the venv; see uv.lock)
-uv sync
-cp .env.example .env   # set LLM_API_KEY / LLM_BASE_URL / LLM_MODEL
+git clone https://github.com/Miles128/StockResearch.git && cd StockResearch
+uv sync && cp .env.example .env
 uv run uvicorn stockresearch.api.app:app --reload --host 127.0.0.1 --port 8000 --app-dir src
-
-# Frontend (new terminal)
-cd web && npm install && npm run dev
+cd web && npm install && npm run dev   # http://localhost:5174
 ```
 
-Open **http://localhost:5174**. First visit triggers onboarding: pick mode (Advisor/Research) → demo holdings loaded → configure LLM (or Mock mode). Use the header **Settings** button anytime. Saving writes to the project root `.env` (gitignored) automatically. Works with [DeepSeek](https://platform.deepseek.com/), [DashScope compatible mode](https://help.aliyun.com/zh/model-studio/), and other OpenAI-compatible APIs.
+### Data sources
+
+See the table above. Layered fallbacks: **Sina → AkShare → efinance** for quotes; **AkShare → Sina → efinance** for K-lines. News via AkShare with optional Bocha web search. Optional Tushare Pro for financials. No Wind/iFinD/Choice.
+
+### Verify
 
 ```bash
-pytest          # 246 tests
-cd web && npm run lint && npm run build && npm test   # 22 vitest tests
-
-# Regenerate screenshots (start backend + frontend first)
-SCREENSHOT_BASE_URL=http://127.0.0.1:5174 node scripts/capture_screenshots.mjs
+uv run pytest && cd web && npm run build
 ```
 
-### Environment
-
-See [.env.example](.env.example).
-
-| Variable | Purpose |
-|----------|---------|
-| `LLM_API_KEY` | Local LLM API key (never commit) |
-| `LLM_BASE_URL` | OpenAI-compatible base URL |
-| `LLM_MODEL` | Model id, e.g. `deepseek-chat` |
-| `USE_MOCK_LLM` | Mock replies when `true` |
-| `LLM_HTTP_PROXY` | HTTP proxy for API calls, e.g. `http://127.0.0.1:7890` |
-| `BOCHA_API_KEY` | Bocha AI web search key (news fallback; skipped if empty) |
-
-Saving in Settings writes `.env`; the backend reads it on the next request.
-
-### Docs & contributing
-
-- [PRD v9.0 (open-source A-share research agent + single canvas + layered data)](docs/PRD.md)
-- [Product strategy](docs/PRODUCT_STRATEGY.md)
-- Legacy `docs/DEVELOPMENT_PLAN.md` is deprecated; see PRD §15 for engineering appendix
-- Issues and PRs welcome; read the PRD roadmap before large features
-
-### License & disclaimer
-
-MIT — see [LICENSE](LICENSE). AI output is for learning and research only. **Not investment advice.**
+Full spec: [docs/PRD.md](docs/PRD.md) · MIT [LICENSE](LICENSE).

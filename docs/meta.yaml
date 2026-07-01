@@ -2,40 +2,60 @@ type: ai-agent
 answers:
   problem: |
     A 股个人投资者信息过载，需要本地 AI 研究助手理解持仓相关变化与风险，
-    且不连接券商、不给买卖建议。
+    且不连接券商；合规输出见 PRD §9。
   users: |
-    个人投资者（个人/专家双模式）；本地单用户部署；BYOK。
+    散户与个人爱好者（贡献者）；本地单用户；个人/专家双模式；BYOK。
   goal: |
-    三 Tab tri-shell 下完成感知→关联→判断→呈现；同步/流式 chat 路由一致；
-    价格告警与简报可配置；Phase 2 接 Tushare 与 CLI/MCP。
+    Phase 1 单机体验完整：三 Tab tri-shell、Copilot 驱动焦点、双模式同一事实层；
+    合规语言与 disclaimer；Phase 2 闭环优先，CLI/MCP/Skills 后期。
   role: |
     开源 A 股市场研究 Agent — 理解「今天与我何干、风险在哪、下一步查什么」。
   scope:
-    - Tri-shell：ListsSidebar + 焦点/风控/新闻 + Copilot
-    - 四维投研、辩论、风控、新闻过滤、Action Center
-    - 价格告警 + 定时简报（APScheduler）
-    - 推送 P1：浏览器 Notification
-    - Phase 2：Tushare Registry、CLI/MCP、Skills
+    - Tri-shell：ListsSidebar + 焦点多 Tab/风控/新闻 + Copilot
+    - 双模式：同一 JSON/cards + 两套渲染（density + 合规过滤）
+    - 四维投研、辩论、风控、新闻过滤（统一 interest）、Action Center
+    - 价格告警 + 定时简报（APScheduler）；§7.2 开关语义；Phase 1 Cron 绑 API（§7.3 A）
+    - 推送 P1：浏览器 Notification；轮询默认关
+    - Demo 持仓；Settings 外链 CLI/MCP 文档（Phase 2）
+    - Tushare 可选财务增强（非支柱）
+    - Phase 2：stockresearch worker + launchd 示例（§7.3 B）
   non_goals:
     - 四 Tab / 独立市场页 / daily-scan
     - iFinD Wind 万元级 API
     - 飞书推送（远期）
     - 自动交易
+    - 加仓/减仓/持有观望 任何界面出现
+    - Phase 1 内置 MCP 服务端
   input_contract: |
-    ChatRequest（message、session、user_context kind=focus|risk|news|stock|report）；
+    ChatRequest（message、session、user_context kind=focus|risk|news|stock|report，自动切换）；
     BYOK headers 或 .env。
   output_contract: |
-    ChatResponse / SSE；cards（research|risk|news）；disclaimer 必填。
+    ChatResponse / SSE；cards（research|risk|news）；disclaimer 必填；
+    对话结束 UI 展示 disclaimer；仓位倾向偏高/偏低/适中；禁止加仓减仓持有观望；
+    建议买入/卖出仅带 disclaimer 时出现。
   evaluation: |
-    pytest sync/stream parity；E2E 核心路径；npm run build。
+    工程：pytest sync/stream parity；npm run build。
+    产品：PRD §10.3 / meta acceptance 条目。
   failure_modes:
-    - 数据源失败 → partial + 不编造
+    - 数据源失败 → partial + 不编造 + 坦诚缺口
+    - 多源价差 >1% → 顶栏黄警 + 标注延迟可能
+    - Tushare/AkShare 冲突 → Tushare 优先 + 并列预警
     - LLM 未配置 → 明确错误
     - Cron 无 server Key → 跳过并 Settings 提示
+    - 开关关 → Cron 跳过 + 不写库 + 不通知（§7.2）
+    - Phase 1 API 未运行 → Cron 不执行（§7.3 A）；Phase 2 Worker 可独立运行（§7.3 B）
   tech_stack: |
-    FastAPI, LangGraph, SQLite, React/Vite, APScheduler, AkShare/Tushare。
+    FastAPI, LangGraph, SQLite, React/Vite, APScheduler。
+    数据源：新浪/AkShare/efinance 行情；AkShare K线/新闻/因子；博查兜底；Tushare 可选财务增强。
   acceptance:
     - resolve_chat_route 用于 /chat 与 /chat/stream
     - 无 PortfolioPanel/MarketPanel/TabNav/DailyScan 死代码
     - docs 仅 PRD.md + meta.yaml
     - pytest + web build 通过
+    - 空持仓 ≤3 步 Demo + Copilot 问答 + 对话结束 disclaimer
+    - 全路径无加仓/减仓/持有观望；建议买入/卖出必带 disclaimer
+    - 双模式切换同一标的 cards 事实字段一致
+    - 价差 >1% 顶栏黄警
+    - 简报/告警/轮询关闭符合 §7.2；轮询默认关、开启前有说明
+    - Copilot「分析 X」新开焦点 Tab；「X vs 选中」交叉对比
+    - 术语弹窗仅个人模式默认开
