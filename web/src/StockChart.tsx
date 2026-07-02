@@ -7,7 +7,7 @@ import {
   type Time,
 } from "lightweight-charts";
 import { api, type KlineChart } from "./api";
-import { mergeKlineBars, type KlineBar } from "./chartIndicators";
+import { mergeKlineBars, maSeries, type KlineBar } from "./chartIndicators";
 import { useI18n } from "./i18n";
 import { getCachedKline, patchCachedKline, setCachedKline } from "./klineCache";
 import { baseChartOptions, applyChartEdgeAlignment, readChartColors } from "./ui/chartTheme";
@@ -20,6 +20,15 @@ const MAX_BARS = 500;
 /** Sina returns up to ~1023 bars — expand window from same source for seamless joins. */
 const SINA_EXPAND_LIMIT = 1000;
 const LOAD_TRIGGER_BARS = 18;
+const MA_PERIODS = [5, 10, 20, 60, 120, 180] as const;
+const MA_COLORS: Record<number, string> = {
+  5: "#9ca3af",
+  10: "#a8a29e",
+  20: "#d4a017",
+  60: "#5b9bd5",
+  120: "#9b7fd4",
+  180: "#e87878",
+};
 
 interface MarketChartProps {
   symbol: string;
@@ -31,7 +40,7 @@ interface ChartRuntime {
   mainChart?: IChartApi;
   subCharts: IChartApi[];
   candles?: ISeriesApi<"Candlestick">;
-  ma?: ISeriesApi<"Line">;
+  maLines: Map<number, ISeriesApi<"Line">>;
   volume?: ISeriesApi<"Histogram">;
   macdHist?: ISeriesApi<"Histogram">;
   macdLine?: ISeriesApi<"Line">;
@@ -64,7 +73,7 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
   const mainRef = useRef<HTMLDivElement>(null);
   const macdRef = useRef<HTMLDivElement>(null);
   const rsiRef = useRef<HTMLDivElement>(null);
-  const runtimeRef = useRef<ChartRuntime>({ subCharts: [], mounted: [] });
+  const runtimeRef = useRef<ChartRuntime>({ subCharts: [], mounted: [], maLines: new Map() });
   const visibleRangeRef = useRef<LogicalRange | null>(null);
   const loadingMoreRef = useRef(false);
   const exhaustedRef = useRef(false);
@@ -74,11 +83,15 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
   const barsRef = useRef<KlineBar[]>([]);
 
   const [data, setData] = useState<KlineChart | null>(() => getCachedKline(symbol));
+  const dataRef = useRef<KlineChart | null>(data);
+  dataRef.current = data;
   const [loading, setLoading] = useState(() => getCachedKline(symbol) == null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [showMacd, setShowMacd] = useState(false);
   const [showRsi, setShowRsi] = useState(false);
+  const [selectedMa, setSelectedMa] = useState<number[]>([20]);
+  const [maMenuOpen, setMaMenuOpen] = useState(false);
 
   const allCharts = useCallback((): IChartApi[] => {
     const rt = runtimeRef.current;
@@ -127,17 +140,20 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
         low: b.low,
         close: b.close,
       }));
-      const maData = chart.bars
-        .map((b, i) => ({ time: barTime(b.date), value: chart.indicators.ma20[i] }))
-        .filter((p): p is { time: Time; value: number } => p.value != null);
+      const closes = chart.bars.map((b) => b.close);
       const volumeData = chart.bars.map((b) => ({
         time: barTime(b.date),
         value: b.volume,
         color: b.close >= b.open ? `${chartUp}88` : `${chartDown}88`,
       }));
-
       rt.candles?.setData(candleData);
-      rt.ma?.setData(maData);
+      rt.maLines.forEach((series, period) => {
+        const ma = maSeries(closes, period);
+        const maData = chart.bars
+          .map((b, i) => ({ time: barTime(b.date), value: ma[i] }))
+          .filter((p): p is { time: Time; value: number } => p.value != null);
+        series.setData(maData);
+      });
       rt.volume?.setData(volumeData);
 
       if (rt.macdHist && rt.macdLine && rt.macdSignal) {
@@ -288,7 +304,7 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
     const dispose = () => {
       runtimeRef.current.mainChart?.remove();
       runtimeRef.current.subCharts.forEach((c) => c.remove());
-      runtimeRef.current = { subCharts: [], mounted: [] };
+      runtimeRef.current = { subCharts: [], mounted: [], maLines: new Map() };
     };
     dispose();
 
@@ -327,7 +343,17 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
         wickDownColor: chartDown,
       });
       chart.priceScale("right").applyOptions({ scaleMargins: { top: 0.06, bottom: 0.28 } });
-      rt.ma = chart.addLineSeries({ color: "#d4a017", lineWidth: 1, title: "MA20" });
+      rt.maLines = new Map();
+      for (const period of selectedMa) {
+        rt.maLines.set(
+          period,
+          chart.addLineSeries({
+            color: MA_COLORS[period] ?? "#d4a017",
+            lineWidth: 1,
+            title: `MA${period}`,
+          }),
+        );
+      }
       rt.volume = chart.addHistogramSeries({
         title: t("chart.volumeUnit"),
         priceFormat: { type: "volume" },
@@ -370,11 +396,46 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => resizeAll()) : null;
     if (ro && rootRef.current) ro.observe(rootRef.current);
 
+    const snapshot = dataRef.current;
+    if (snapshot?.bars.length && snapshot.symbol === symbol && rt.candles) {
+      applyChart(snapshot, visibleRangeRef.current ? undefined : { initial: true });
+    }
+
     return () => {
       ro?.disconnect();
       dispose();
     };
   }, [symbol, compact, variant, showMacd, showRsi, t, requestMoreHistory, applyChart, syncVisibleRange]);
+
+  useEffect(() => {
+    const rt = runtimeRef.current;
+    const chart = rt.mainChart;
+    if (!chart) return;
+
+    for (const [period, series] of [...rt.maLines.entries()]) {
+      if (!selectedMa.includes(period)) {
+        chart.removeSeries(series);
+        rt.maLines.delete(period);
+      }
+    }
+    for (const period of selectedMa) {
+      if (!rt.maLines.has(period)) {
+        rt.maLines.set(
+          period,
+          chart.addLineSeries({
+            color: MA_COLORS[period] ?? "#d4a017",
+            lineWidth: 1,
+            title: `MA${period}`,
+          }),
+        );
+      }
+    }
+
+    const snapshot = dataRef.current;
+    if (snapshot?.bars.length && snapshot.symbol === symbol && rt.candles) {
+      applyChart(snapshot);
+    }
+  }, [selectedMa, symbol, applyChart]);
 
   useEffect(() => {
     if (skipDataEffectRef.current) {
@@ -386,6 +447,25 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
     if (!runtimeRef.current.candles) return;
     applyChart(data, initialPaintRef.current ? { initial: true } : undefined);
   }, [data, loading, applyChart, symbol]);
+
+  const maLabel =
+    selectedMa.length > 0
+      ? selectedMa
+          .slice()
+          .sort((a, b) => a - b)
+          .map((p) => `MA${p}`)
+          .join(", ")
+      : t("chart.ma");
+
+  function toggleMaPeriod(period: number) {
+    setSelectedMa((prev) => {
+      if (prev.includes(period)) {
+        if (prev.length === 1) return prev;
+        return prev.filter((p) => p !== period);
+      }
+      return [...prev, period].sort((a, b) => a - b);
+    });
+  }
 
   return (
     <div ref={rootRef} className={`market-chart${compact ? " market-chart-compact" : ""}`}>
@@ -428,6 +508,31 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
             <div className="market-chart-stage-main">
               <div className="market-chart-pane-head">
                 <span className="market-chart-pane-label">{t("chart.price")}</span>
+                <div className="chart-ma-select">
+                  <button
+                    type="button"
+                    className="chart-ma-trigger"
+                    onClick={() => setMaMenuOpen((v) => !v)}
+                    disabled={loading || !!error}
+                    aria-expanded={maMenuOpen}
+                  >
+                    {t("chart.ma")} · {maLabel} ▾
+                  </button>
+                  {maMenuOpen && (
+                    <div className="chart-ma-menu" role="menu">
+                      {MA_PERIODS.map((period) => (
+                        <label key={period} className="chart-ma-option">
+                          <input
+                            type="checkbox"
+                            checked={selectedMa.includes(period)}
+                            onChange={() => toggleMaPeriod(period)}
+                          />
+                          <span style={{ color: MA_COLORS[period] }}>{t("chart.maOption", { period: String(period) })}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <span className="market-chart-pane-meta muted">{t("chart.volumeUnit")}</span>
               </div>
               <div ref={mainRef} className="market-chart-pane market-chart-main" />

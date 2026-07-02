@@ -1,5 +1,6 @@
 """Market data routes."""
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -11,6 +12,8 @@ from stockresearch.core.data_source_config import get_tushare_token
 from stockresearch.core.schemas import (
     DataSourceDetailOut,
     DataSourceStatusOut,
+    IndexIntradayOut,
+    IntradayPointOut,
     KlineChartOut,
     MarketOverviewOut,
     ProviderMetaOut,
@@ -20,6 +23,7 @@ from stockresearch.core.schemas import (
     SectorMoversOut,
     StockQuoteOut,
 )
+from stockresearch.data.providers.sina_kline import fetch_sina_intraday
 from stockresearch.data.provider_meta import list_provider_catalog
 from stockresearch.data.providers.market import TechnicalDataProvider
 from stockresearch.data.providers.market_overview import BatchQuoteProvider, MarketOverviewProvider
@@ -62,36 +66,50 @@ async def stock_quotes(
     )
 
 
+def _sector_board_out(board) -> SectorBoardOut:
+    return SectorBoardOut(
+        code=board.code,
+        name=board.name,
+        change_pct=board.change_pct,
+        leader_name=board.leader_name,
+        leader_symbol=board.leader_symbol,
+        leader_change_pct=board.leader_change_pct,
+    )
+
+
 @router.get("/sectors", response_model=SectorMoversOut)
 async def sector_movers(
     limit: int = Query(default=8, ge=3, le=20),
+    all_boards: bool = Query(default=False, alias="all"),
     _user: User = Depends(get_current_user),
 ) -> SectorMoversOut:
     boards = await SectorDataProvider().fetch_industry_boards()
     sorted_boards = sorted(boards, key=lambda b: b.change_pct, reverse=True)
-    gainers = [
-        SectorBoardOut(
-            code=b.code,
-            name=b.name,
-            change_pct=b.change_pct,
-            leader_name=b.leader_name,
-            leader_symbol=b.leader_symbol,
-            leader_change_pct=b.leader_change_pct,
+    if all_boards:
+        return SectorMoversOut(
+            boards=[_sector_board_out(b) for b in sorted_boards],
+            updated_at=datetime.now(UTC),
         )
-        for b in sorted_boards[:limit]
-    ]
-    losers = [
-        SectorBoardOut(
-            code=b.code,
-            name=b.name,
-            change_pct=b.change_pct,
-            leader_name=b.leader_name,
-            leader_symbol=b.leader_symbol,
-            leader_change_pct=b.leader_change_pct,
-        )
-        for b in sorted_boards[-limit:][::-1]
-    ]
+    gainers = [_sector_board_out(b) for b in sorted_boards[:limit]]
+    losers = [_sector_board_out(b) for b in sorted_boards[-limit:][::-1]]
     return SectorMoversOut(gainers=gainers, losers=losers, updated_at=datetime.now(UTC))
+
+
+@router.get("/intraday", response_model=list[IndexIntradayOut])
+async def index_intraday(
+    symbols: str = Query(..., description="Comma-separated index symbols, e.g. 000001,399001"),
+    _user: User = Depends(get_current_user),
+) -> list[IndexIntradayOut]:
+    symbol_list = list(dict.fromkeys(s.strip() for s in symbols.split(",") if s.strip()))
+    results: list[IndexIntradayOut] = []
+    for symbol in symbol_list:
+        try:
+            raw = await asyncio.to_thread(fetch_sina_intraday, symbol)
+            points = [IntradayPointOut(time=str(p["time"]), price=float(p["price"])) for p in raw]
+        except Exception:
+            points = []
+        results.append(IndexIntradayOut(symbol=symbol, points=points))
+    return results
 
 
 @router.get("/kline", response_model=KlineChartOut)

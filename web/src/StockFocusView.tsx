@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { NewsItem } from "./api";
 import { formatPrice, formatSignedPct, signedClass } from "./holdingDisplay";
 import { useI18n } from "./i18n";
+import { indexSearchTerms } from "./indexLabels";
 import type { FocusContext } from "./layoutTypes";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { MarketChart } from "./StockChart";
@@ -26,6 +27,23 @@ function filterNews(focus: FocusContext, news: NewsItem[]): NewsItem[] {
         n.summary.includes(focus.name) ||
         n.summary.includes(focus.symbol),
     );
+  }
+  if (focus.kind === "index") {
+    const needles = indexSearchTerms(focus.symbol, focus.name);
+    const market = news.filter((n) => n.category === "market");
+    const matched = news.filter((n) =>
+      needles.some(
+        (needle) =>
+          n.title.includes(needle) ||
+          n.summary.includes(needle) ||
+          n.entities.some((e) => e.includes(needle)),
+      ),
+    );
+    const merged = [...matched];
+    for (const item of market) {
+      if (!merged.some((row) => row.id === item.id)) merged.push(item);
+    }
+    return merged;
   }
   const needle = focus.name;
   return news.filter(

@@ -471,6 +471,16 @@ class IndexQuoteOut(BaseModel):
     change_pct: float
 
 
+class IntradayPointOut(BaseModel):
+    time: str
+    price: float
+
+
+class IndexIntradayOut(BaseModel):
+    symbol: str
+    points: list[IntradayPointOut]
+
+
 class StockQuoteOut(BaseModel):
     symbol: str
     name: str
@@ -786,8 +796,9 @@ class SectorBoardOut(BaseModel):
 
 
 class SectorMoversOut(BaseModel):
-    gainers: list[SectorBoardOut]
-    losers: list[SectorBoardOut]
+    gainers: list[SectorBoardOut] = Field(default_factory=list)
+    losers: list[SectorBoardOut] = Field(default_factory=list)
+    boards: list[SectorBoardOut] | None = None
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     disclaimer: str = DISCLAIMER
 

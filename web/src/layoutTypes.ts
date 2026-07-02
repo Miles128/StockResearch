@@ -3,7 +3,7 @@ export interface SelectedMarketIndex {
   name: string;
 }
 
-export type CenterTab = "focus" | "risk" | "news";
+export type CenterTab = "focus" | "market" | "risk" | "news";
 
 export type ListsLayoutMode = "sidebar" | "hidden" | "center";
 

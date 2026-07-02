@@ -365,6 +365,9 @@ export const api = {
   deleteWatchlist: (id: number) =>
     request(`/portfolio/watchlist/${id}`, { method: "DELETE" }),
   sectorMovers: (limit = 8) => request<SectorMovers>(`/market/sectors?limit=${limit}`),
+  sectorBoardsAll: () => request<SectorBoardsAll>(`/market/sectors?all=true`),
+  indexIntraday: (symbols: string[]) =>
+    request<IndexIntraday[]>(`/market/intraday?symbols=${symbols.join(",")}`),
   priceAlertSettings: () => request<PriceAlertSettings>("/alerts/settings"),
   updatePriceAlertSettings: (payload: Partial<PriceAlertSettings>) =>
     request<PriceAlertSettings>("/alerts/settings", { method: "PUT", body: JSON.stringify(payload) }),
@@ -777,8 +780,25 @@ export interface SectorBoard {
 export interface SectorMovers {
   gainers: SectorBoard[];
   losers: SectorBoard[];
+  boards?: SectorBoard[];
   updated_at: string;
   disclaimer: string;
+}
+
+export interface SectorBoardsAll {
+  boards: SectorBoard[];
+  updated_at: string;
+  disclaimer: string;
+}
+
+export interface IntradayPoint {
+  time: string;
+  price: number;
+}
+
+export interface IndexIntraday {
+  symbol: string;
+  points: IntradayPoint[];
 }
 
 export interface PriceAlertSettings {

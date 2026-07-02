@@ -45,6 +45,7 @@ import { useI18n } from "./i18n";
 import { formatHeaderUsage, formatLlmUsage } from "./llmUsageFormat";
 import { indexSymbolKey, localizeIndexName } from "./indexLabels";
 import { MarketTicker } from "./MarketTicker";
+import { MarketPanel } from "./MarketPanel";
 import { NewsPanel } from "./NewsPanel";
 import { computePortfolioSummary, computeSectorConcentration } from "./portfolioHelpers";
 import { RiskPanel } from "./RiskPanel";
@@ -69,6 +70,7 @@ export default function App() {
   const centerTabs = useMemo(
     () => [
       { key: "focus" as CenterTab, label: t("center.focus") },
+      { key: "market" as CenterTab, label: t("center.market") },
       { key: "risk" as CenterTab, label: t("center.risk") },
       { key: "news" as CenterTab, label: t("center.news") },
     ],
@@ -152,7 +154,9 @@ export default function App() {
     removeWatchlistItem,
   } = useWatchlist(showError);
   const { news, newsLoading, newsSectors, sectorSaving, loadNews, toggleNewsSector } = useNews(
-    centerTab === "news",
+    centerTab === "news" ||
+      centerTab === "market" ||
+      (centerTab === "focus" && focusContext != null),
     showError,
   );
   const { risk, riskLoading, riskStream, riskStatusMsg, runRisk } = useRiskCheckup(showError, t);
@@ -181,6 +185,7 @@ export default function App() {
     deleteThread,
     appendMessages,
     setSessionId,
+    prepareUserTurn,
   } = useCopilotThreads({ defaultTitle: t("copilot.untitledThread") });
 
   const settingsRequired = llmCheckDone && !llmConfigured;
@@ -206,6 +211,7 @@ export default function App() {
     focusContext,
     knownSymbols,
     appendMessages,
+    prepareUserTurn,
     input,
     setInput,
     setChatStream,
@@ -358,6 +364,7 @@ export default function App() {
   function handleActionNavigate(target: string) {
     if (target === "risk") setCenterTab("risk");
     else if (target === "news") setCenterTab("news");
+    else if (target === "market") setCenterTab("market");
     else {
       setCopilotOpen(true);
     }
@@ -412,6 +419,10 @@ export default function App() {
     }
     if (centerTab === "news") {
       setPageContext({ kind: "news", label: t("center.news") });
+      return;
+    }
+    if (centerTab === "market") {
+      setPageContext({ kind: "focus", label: t("center.market") });
       return;
     }
     setPageContext({ kind: "focus", label: t("center.focus") });
@@ -704,6 +715,25 @@ export default function App() {
                   }}
                 />
               </>
+            )}
+
+            {centerTab === "market" && (
+              <MarketPanel
+                overview={marketOverview}
+                overviewLoading={overviewLoading}
+                onRefreshOverview={() => void loadOverview()}
+                news={news}
+                newsLoading={newsLoading}
+                onLoadNews={() => void loadNews()}
+                onIndexClick={onTickerIndexClick}
+                onSectorClick={selectSector}
+                onAskCopilot={(query) =>
+                  askCopilot(query, {
+                    kind: "focus",
+                    label: locale === "zh" ? "市场" : "Market",
+                  })
+                }
+              />
             )}
 
             {centerTab === "risk" && (

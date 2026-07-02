@@ -34,20 +34,24 @@ export interface UseChatExecutionOptions {
   t: (key: string, params?: Record<string, string | number>) => string;
   locale: string;
   sessionId: string | undefined;
-  setSessionId: (id: string) => void;
   pageContext: CopilotContext | null;
   focusContext: FocusContext | null;
   knownSymbols: KnownSymbol[];
-  appendMessages: (updater: (messages: Message[]) => Message[]) => void;
+  appendMessages: (updater: (messages: Message[]) => Message[], threadId?: string) => void;
+  prepareUserTurn: (
+    query: string,
+    knownSymbols: { symbol: string; name: string }[],
+  ) => { threadId: string; sessionId: string | undefined; forked: boolean };
   input: string;
   setInput: (value: string) => void;
   setChatStream: (updater: (prev: StreamState) => StreamState) => void;
   setFocusTabs: (updater: (tabs: FocusTab[]) => FocusTab[]) => void;
   setActiveFocusTabId: (id: string | null) => void;
-  setCenterTab: (tab: "focus" | "risk" | "news") => void;
+  setCenterTab: (tab: "focus" | "market" | "risk" | "news") => void;
   setCopilotOpen: (open: boolean) => void;
   setPageContext: (ctx: CopilotContext | null) => void;
   openFocus: (context: FocusContext) => void;
+  setSessionId: (id: string | undefined, threadId?: string) => void;
 }
 
 export interface ChatExecutionState {
@@ -80,6 +84,7 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
     focusContext,
     knownSymbols,
     appendMessages,
+    prepareUserTurn,
     input,
     setInput,
     setChatStream,
@@ -99,7 +104,10 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
       query: string,
       chatOptions?: ChatStreamOptions,
       contextOverride?: CopilotContext | null,
+      turn?: { threadId: string; sessionId: string | undefined },
     ) => {
+      const threadId = turn?.threadId;
+      const activeSessionId = turn?.sessionId ?? sessionId;
       setChatLoading(true);
       setStatusMsg(t("chat.connecting"));
       setChatStream(() => emptyStreamState());
@@ -112,7 +120,7 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
       try {
         const resp = await api.chatStream(
           query,
-          sessionId,
+          activeSessionId,
           (event: AgentStreamEvent) => {
             if (event.type === "analysis_choice" || event.type === "stock_choice") return;
             const normalized = normalizeStreamEvent(event, t);
@@ -128,23 +136,26 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
           resolvedOptions,
         );
         if (resp) {
-          setSessionId(resp.session_id);
+          setSessionId(resp.session_id, threadId);
           processSnapshot = finalizeStreamState(
             { ...processSnapshot, streamStatus: t("chat.analysisDone") },
             t("chat.analysisDone"),
           );
-          appendMessages((m) => [
-            ...m,
-            {
-              role: "assistant",
-              content: stripDisclaimer(resp.reply),
-              cards: resp.cards,
-              intent: resp.intent,
-              followUpQuestions: resp.follow_up_questions ?? [],
-              llmUsage: resp.llm_usage ?? null,
-              process: hasProcessContent(processSnapshot) ? processSnapshot : undefined,
-            },
-          ]);
+          appendMessages(
+            (m) => [
+              ...m,
+              {
+                role: "assistant",
+                content: stripDisclaimer(resp.reply),
+                cards: resp.cards,
+                intent: resp.intent,
+                followUpQuestions: resp.follow_up_questions ?? [],
+                llmUsage: resp.llm_usage ?? null,
+                process: hasProcessContent(processSnapshot) ? processSnapshot : undefined,
+              },
+            ],
+            threadId,
+          );
           setFocusTabs((prevTabs) => {
             const synced = syncFocusTabsFromChat(query, resp, prevTabs, focusContext, knownSymbols);
             if (synced.activeId) {
@@ -157,27 +168,30 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
         }
       } catch (err) {
         if (err instanceof TypeError && String(err).includes("Failed to fetch")) {
-          appendMessages((m) => [
-            ...m,
-            { role: "assistant", content: formatChatRequestError(err, t) },
-          ]);
+          appendMessages(
+            (m) => [...m, { role: "assistant", content: formatChatRequestError(err, t) }],
+            threadId,
+          );
           return;
         }
         try {
           setStatusMsg(t("chat.streamFailed"));
-          const resp = await api.chat(query, sessionId, resolvedOptions);
-          setSessionId(resp.session_id);
-          appendMessages((m) => [
-            ...m,
-            {
-              role: "assistant",
-              content: stripDisclaimer(resp.reply),
-              cards: resp.cards,
-              intent: resp.intent,
-              followUpQuestions: resp.follow_up_questions ?? [],
-              llmUsage: resp.llm_usage ?? null,
-            },
-          ]);
+          const resp = await api.chat(query, activeSessionId, resolvedOptions);
+          setSessionId(resp.session_id, threadId);
+          appendMessages(
+            (m) => [
+              ...m,
+              {
+                role: "assistant",
+                content: stripDisclaimer(resp.reply),
+                cards: resp.cards,
+                intent: resp.intent,
+                followUpQuestions: resp.follow_up_questions ?? [],
+                llmUsage: resp.llm_usage ?? null,
+              },
+            ],
+            threadId,
+          );
           setFocusTabs((prevTabs) => {
             const synced = syncFocusTabsFromChat(query, resp, prevTabs, focusContext, knownSymbols);
             if (synced.activeId) {
@@ -188,10 +202,10 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
             return prevTabs;
           });
         } catch (e) {
-          appendMessages((m) => [
-            ...m,
-            { role: "assistant", content: formatChatRequestError(e, t) },
-          ]);
+          appendMessages(
+            (m) => [...m, { role: "assistant", content: formatChatRequestError(e, t) }],
+            threadId,
+          );
         }
       } finally {
         setChatLoading(false);
@@ -218,10 +232,10 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
       if (!query.trim() || chatLoading) return;
       if (opts?.switchTab) setCopilotOpen(true);
       setInput("");
-      appendMessages((m) => [...m, { role: "user", content: query }]);
-      void executeChat(query, undefined, opts?.context);
+      const turn = prepareUserTurn(query, knownSymbols);
+      void executeChat(query, undefined, opts?.context, turn);
     },
-    [appendMessages, chatLoading, executeChat, setCopilotOpen, setInput],
+    [chatLoading, executeChat, knownSymbols, prepareUserTurn, setCopilotOpen, setInput],
   );
 
   const sendChat = useCallback(() => {

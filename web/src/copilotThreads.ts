@@ -29,6 +29,125 @@ export function autoThreadTitle(firstQuery: string, fallback: string): string {
   return title || fallback;
 }
 
+export interface TopicSymbol {
+  symbol: string;
+  name: string;
+}
+
+const MARKET_CUES = ["大盘", "市场", "a股", "指数", "上证", "深证", "创业板", "沪深", "行情", "北向"];
+const RISK_CUES = ["风控", "风险", "回撤", "var", "持仓"];
+const NEWS_CUES = ["新闻", "快讯", "要闻", "研报"];
+
+function normalizeTopicText(text: string): string {
+  return text.toLowerCase().replace(/\s+/g, "");
+}
+
+function hasTopicCue(text: string, cues: string[]): boolean {
+  const normalized = normalizeTopicText(text);
+  return cues.some((cue) => normalized.includes(normalizeTopicText(cue)));
+}
+
+function mentionedSymbols(text: string, knownSymbols: TopicSymbol[]): string[] {
+  const found: string[] = [];
+  for (const item of knownSymbols) {
+    if (text.includes(item.symbol)) found.push(item.symbol);
+    else if (item.name.length >= 2 && text.includes(item.name)) found.push(item.symbol);
+  }
+  return [...new Set(found)];
+}
+
+function isSameStockFollowUp(
+  prevText: string,
+  newText: string,
+  knownSymbols: TopicSymbol[],
+): boolean {
+  for (const item of knownSymbols) {
+    const prevHit =
+      prevText.includes(item.symbol) || (item.name.length >= 2 && prevText.includes(item.name));
+    if (!prevHit) continue;
+    if (newText.includes(item.symbol) || newText.includes(item.name)) return true;
+    for (let i = 0; i < item.name.length - 1; i += 1) {
+      const part = item.name.slice(i, i + 2);
+      if (part.length === 2 && newText.includes(part)) return true;
+    }
+  }
+  return false;
+}
+
+function tokenOverlap(prevText: string, newText: string): number {
+  const tokenize = (value: string) =>
+    new Set(
+      value
+        .replace(/[^\u4e00-\u9fffA-Za-z0-9]/g, " ")
+        .split(/\s+/)
+        .filter((word) => word.length >= 2),
+    );
+  const prev = tokenize(prevText);
+  const next = tokenize(newText);
+  if (next.size === 0) return 1;
+  let common = 0;
+  for (const token of next) {
+    if (prev.has(token)) common += 1;
+  }
+  return common / next.size;
+}
+
+/** Fork a new thread when the latest question is clearly unrelated to recent turns. */
+export function shouldForkCopilotThread(
+  messages: Message[],
+  newQuery: string,
+  knownSymbols: TopicSymbol[],
+): boolean {
+  const userMessages = messages.filter((m) => m.role === "user");
+  if (userMessages.length === 0) return false;
+
+  const prevText = userMessages
+    .slice(-2)
+    .map((m) => m.content)
+    .join(" ");
+  const prevSymbols = mentionedSymbols(prevText, knownSymbols);
+  const newSymbols = mentionedSymbols(newQuery, knownSymbols);
+
+  if (prevSymbols.length > 0 && newSymbols.length > 0 && !newSymbols.some((s) => prevSymbols.includes(s))) {
+    return true;
+  }
+
+  const prevDomain = hasTopicCue(prevText, RISK_CUES)
+    ? "risk"
+    : hasTopicCue(prevText, MARKET_CUES)
+      ? "market"
+      : prevSymbols.length > 0
+        ? "stock"
+        : hasTopicCue(prevText, NEWS_CUES)
+          ? "news"
+          : "general";
+  const newDomain = hasTopicCue(newQuery, RISK_CUES)
+    ? "risk"
+    : hasTopicCue(newQuery, MARKET_CUES)
+      ? "market"
+      : newSymbols.length > 0
+        ? "stock"
+        : hasTopicCue(newQuery, NEWS_CUES)
+          ? "news"
+          : "general";
+
+  if (prevDomain !== "general" && newDomain !== "general" && prevDomain !== newDomain) {
+    return true;
+  }
+
+  if (isSameStockFollowUp(prevText, newQuery, knownSymbols)) {
+    return false;
+  }
+
+  return tokenOverlap(prevText, newQuery) < 0.1 && newQuery.trim().length >= 6;
+}
+
+export function titleFromMessages(messages: Message[], fallback: string): string {
+  const latestUser = [...messages].reverse().find((m) => m.role === "user" && m.content.trim());
+  if (!latestUser) return fallback;
+  return autoThreadTitle(latestUser.content, fallback);
+}
+
 export function createThread(title: string): CopilotThread {
   const now = Date.now();
   return {

@@ -5,13 +5,22 @@ import {
   createThread,
   loadCopilotThreads,
   saveCopilotThreads,
+  shouldForkCopilotThread,
+  titleFromMessages,
   touchThread,
   type CopilotThread,
+  type TopicSymbol,
 } from "../copilotThreads";
 import { emptyStreamState, type StreamState } from "../streamEvents";
 
 interface UseCopilotThreadsOptions {
   defaultTitle: string;
+}
+
+export interface PrepareUserTurnResult {
+  threadId: string;
+  sessionId: string | undefined;
+  forked: boolean;
 }
 
 export function useCopilotThreads({ defaultTitle }: UseCopilotThreadsOptions) {
@@ -20,7 +29,9 @@ export function useCopilotThreads({ defaultTitle }: UseCopilotThreadsOptions) {
   const [chatStream, setChatStream] = useState(emptyStreamState());
   const [input, setInput] = useState("");
   const threadsRef = useRef(threads);
+  const activeIdRef = useRef(activeId);
   threadsRef.current = threads;
+  activeIdRef.current = activeId;
 
   const activeThread = threads.find((t) => t.id === activeId) ?? threads[0];
   const messages = activeThread?.messages ?? [];
@@ -34,29 +45,31 @@ export function useCopilotThreads({ defaultTitle }: UseCopilotThreadsOptions) {
     setThreads((prev) => prev.map((t) => (t.id === id ? touchThread(t, patch) : t)));
   }, []);
 
-  const switchThread = useCallback(
-    (id: string) => {
-      if (id === activeId) return;
-      setActiveId(id);
-      setChatStream(emptyStreamState());
-      setInput("");
-    },
-    [activeId],
-  );
+  const switchThread = useCallback((id: string) => {
+    if (id === activeIdRef.current) return;
+    setActiveId(id);
+    activeIdRef.current = id;
+    setChatStream(emptyStreamState());
+    setInput("");
+  }, []);
 
   const newThread = useCallback(() => {
     const thread = createThread(defaultTitle);
     setThreads((prev) => [thread, ...prev].slice(0, 40));
     setActiveId(thread.id);
+    activeIdRef.current = thread.id;
     setChatStream(emptyStreamState());
     setInput("");
   }, [defaultTitle]);
 
-  const renameThread = useCallback((id: string, title: string) => {
-    const next = title.trim();
-    if (!next) return;
-    persistThread(id, { title: next });
-  }, [persistThread]);
+  const renameThread = useCallback(
+    (id: string, title: string) => {
+      const next = title.trim();
+      if (!next) return;
+      persistThread(id, { title: next });
+    },
+    [persistThread],
+  );
 
   const deleteThread = useCallback(
     (id: string) => {
@@ -65,47 +78,96 @@ export function useCopilotThreads({ defaultTitle }: UseCopilotThreadsOptions) {
         if (next.length === 0) {
           const created = createThread(defaultTitle);
           setActiveId(created.id);
+          activeIdRef.current = created.id;
           return [created];
         }
-        if (id === activeId) {
+        if (id === activeIdRef.current) {
           setActiveId(next[0].id);
+          activeIdRef.current = next[0].id;
           setChatStream(emptyStreamState());
           setInput("");
         }
         return next;
       });
     },
-    [activeId, defaultTitle],
+    [defaultTitle],
+  );
+
+  const prepareUserTurn = useCallback(
+    (query: string, knownSymbols: TopicSymbol[]): PrepareUserTurnResult => {
+      const trimmed = query.trim();
+      const current =
+        threadsRef.current.find((t) => t.id === activeIdRef.current) ?? threadsRef.current[0];
+      if (!current) {
+        const thread = createThread(autoThreadTitle(trimmed, defaultTitle));
+        setThreads([thread]);
+        setActiveId(thread.id);
+        activeIdRef.current = thread.id;
+        const nextMessages: Message[] = [{ role: "user", content: trimmed }];
+        persistThread(thread.id, { messages: nextMessages, title: autoThreadTitle(trimmed, defaultTitle) });
+        return { threadId: thread.id, sessionId: undefined, forked: false };
+      }
+
+      let target = current;
+      let forked = false;
+      if (shouldForkCopilotThread(current.messages, trimmed, knownSymbols)) {
+        const thread = createThread(autoThreadTitle(trimmed, defaultTitle));
+        setThreads((prev) => [thread, ...prev].slice(0, 40));
+        setActiveId(thread.id);
+        activeIdRef.current = thread.id;
+        target = thread;
+        forked = true;
+        setChatStream(emptyStreamState());
+      }
+
+      const nextMessages: Message[] = [...target.messages, { role: "user", content: trimmed }];
+      const title = titleFromMessages(nextMessages, defaultTitle);
+      persistThread(target.id, {
+        messages: nextMessages,
+        title,
+        ...(forked ? { sessionId: undefined } : {}),
+      });
+
+      return {
+        threadId: target.id,
+        sessionId: forked ? undefined : target.sessionId,
+        forked,
+      };
+    },
+    [defaultTitle, persistThread],
   );
 
   const appendMessages = useCallback(
-    (updater: (prev: Message[]) => Message[]) => {
-      if (!activeThread) return;
-      const nextMessages = updater(activeThread.messages);
-      let title = activeThread.title;
-      const firstUser = nextMessages.find((m) => m.role === "user");
-      if (firstUser?.content.trim()) {
-        title = autoThreadTitle(firstUser.content, defaultTitle);
-      }
-      persistThread(activeThread.id, { messages: nextMessages, title });
+    (updater: (prev: Message[]) => Message[], threadId?: string) => {
+      const id = threadId ?? activeIdRef.current;
+      const thread = threadsRef.current.find((t) => t.id === id);
+      if (!thread) return;
+      const nextMessages = updater(thread.messages);
+      persistThread(id, {
+        messages: nextMessages,
+        title: titleFromMessages(nextMessages, defaultTitle),
+      });
     },
-    [activeThread, defaultTitle, persistThread],
+    [defaultTitle, persistThread],
   );
 
   const setSessionId = useCallback(
-    (nextSessionId: string | undefined) => {
-      if (!activeThread) return;
-      persistThread(activeThread.id, { sessionId: nextSessionId });
+    (nextSessionId: string | undefined, threadId?: string) => {
+      const id = threadId ?? activeIdRef.current;
+      persistThread(id, { sessionId: nextSessionId });
     },
-    [activeThread, persistThread],
+    [persistThread],
   );
 
   const replaceMessages = useCallback(
-    (nextMessages: Message[]) => {
-      if (!activeThread) return;
-      persistThread(activeThread.id, { messages: nextMessages });
+    (nextMessages: Message[], threadId?: string) => {
+      const id = threadId ?? activeIdRef.current;
+      persistThread(id, {
+        messages: nextMessages,
+        title: titleFromMessages(nextMessages, defaultTitle),
+      });
     },
-    [activeThread, persistThread],
+    [defaultTitle, persistThread],
   );
 
   return {
@@ -122,6 +184,7 @@ export function useCopilotThreads({ defaultTitle }: UseCopilotThreadsOptions) {
     newThread,
     renameThread,
     deleteThread,
+    prepareUserTurn,
     appendMessages,
     replaceMessages,
     setSessionId,

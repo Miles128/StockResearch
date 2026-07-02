@@ -64,3 +64,30 @@ def fetch_sina_kline(symbol: str, days: int) -> list[_KlineBar]:
     trimmed = bars[-days:]
     logger.info("Fetched %d/%d kline bars from Sina for %s", len(trimmed), len(bars), symbol)
     return trimmed
+
+
+def fetch_sina_intraday(symbol: str, *, scale: int = 5, datalen: int = 96) -> list[dict[str, str | float]]:
+    """Fetch intraday price points (5-min bars by default) for sparkline charts."""
+    sina_sym = _sina_kline_code(symbol)
+    url = "https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData"
+    params = {"symbol": sina_sym, "scale": str(scale), "ma": "no", "datalen": str(datalen)}
+    headers = {"Referer": "https://finance.sina.com.cn"}
+
+    with httpx.Client(timeout=_SINA_TIMEOUT_SEC, trust_env=False) as client:
+        resp = client.get(url, params=params, headers=headers)
+        resp.raise_for_status()
+        rows = resp.json()
+
+    if not isinstance(rows, list) or not rows:
+        return []
+
+    points: list[dict[str, str | float]] = []
+    for row in rows:
+        try:
+            day = str(row["day"])
+            time_part = day[11:16] if len(day) >= 16 else day[-5:]
+            points.append({"time": time_part, "price": float(row["close"])})
+        except (KeyError, TypeError, ValueError) as exc:
+            logger.debug("Sina intraday parse skip for %s: %s", symbol, exc)
+            continue
+    return points
