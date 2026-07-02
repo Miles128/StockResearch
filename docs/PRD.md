@@ -2,7 +2,7 @@
 
 **V10.2 · 开源 A 股市场研究 Agent**
 
-> 唯一 PRD：`docs/PRD.md`。结构化字段见 `docs/meta.yaml`。
+> 唯一 PRD：`docs/PRD.md`（Git 中 `docs/` 仅推送本文件）。本地可选 `docs/meta.yaml` 供 prd-first 工具读取。
 
 ---
 

@@ -50,13 +50,15 @@
 
 ---
 
-## Screenshots
+## 界面预览
 
-> `node scripts/capture_screenshots.mjs`（需先启动前后端）
+本地生成截图（不纳入 Git）：启动前后端后运行
 
-| 今日关注 | 风控 | 新闻 | Copilot | 设置 |
-|----------|------|------|---------|------|
-| ![Focus](docs/screenshots/focus.png) | ![Risk](docs/screenshots/risk.png) | ![News](docs/screenshots/news.png) | ![Copilot](docs/screenshots/copilot.png) | ![Settings](docs/screenshots/settings.png) |
+```bash
+NODE_PATH=web/node_modules node scripts/capture_screenshots.mjs
+```
+
+输出至 `docs/screenshots/`（focus · risk · news · copilot · settings）。
 
 ---
 

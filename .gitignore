@@ -39,3 +39,7 @@ blob-report/
 # IDE (optional local)
 .cursor/
 .idea/
+
+# docs — only PRD.md is tracked; meta.yaml & screenshots stay local
+docs/*
+!docs/PRD.md

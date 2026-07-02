@@ -15,19 +15,29 @@ uv run uvicorn stockresearch.api.app:app --reload --host 127.0.0.1 --port 8000 -
 cd web && npm run dev   # :5174
 ```
 
-## Verification
+## Testing
+
+**During development** — run only what you touched:
+
+```bash
+pytest tests/services/test_compliance_language.py   # one file
+pytest tests/agents/                               # one directory
+```
+
+**Before claiming done or pushing** — full suite + frontend build:
 
 ```bash
 pytest && cd web && npm run build
 ```
 
+`pre-push` hook runs full `pytest` and `npm run build` automatically.
+
 ## Documentation
 
-- **PRD:** `docs/PRD.md` (only product spec)
-- **Meta:** `docs/meta.yaml` (prd-first fields)
-- **Screenshots:** `docs/screenshots/` (README assets only)
+- **PRD:** `docs/PRD.md` — **only file under `docs/` pushed to GitHub**
+- **Local only:** `docs/meta.yaml` (prd-first), `docs/screenshots/` (capture script output)
 
-**Rules:** Do not add PRD copies under `documents/`, `.prd/`, or repo root. Do not add extra markdown specs under `docs/` — update `docs/PRD.md` §十一 instead.
+**Rules:** Do not add PRD copies under `documents/`, `.prd/`, or repo root. Do not track other files under `docs/` — update `docs/PRD.md` §十 instead.
 
 ## Architecture
 
