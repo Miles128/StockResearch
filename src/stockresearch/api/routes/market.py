@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from stockresearch.api.deps import get_current_user
@@ -15,6 +15,7 @@ from stockresearch.core.schemas import (
     MarketOverviewOut,
     ProviderMetaOut,
     ProviderStatusOut,
+    QuotePriceConflictOut,
     SectorBoardOut,
     SectorMoversOut,
     StockQuoteOut,
@@ -23,9 +24,11 @@ from stockresearch.data.provider_meta import list_provider_catalog
 from stockresearch.data.providers.market import TechnicalDataProvider
 from stockresearch.data.providers.market_overview import BatchQuoteProvider, MarketOverviewProvider
 from stockresearch.data.providers.sector import SectorDataProvider
-from stockresearch.data.registry import ProviderSnapshot, get_snapshots
+from stockresearch.data.registry import ProviderSnapshot, get_quote_conflicts, get_snapshots
 from stockresearch.db.models import Holding, User
 from stockresearch.db.session import get_db
+from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
+from stockresearch.services.user_preferences import get_mode_settings
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -40,6 +43,7 @@ async def market_overview(
 @router.get("/quotes", response_model=list[StockQuoteOut])
 async def stock_quotes(
     symbols: str = Query(default="", description="Comma-separated symbols, e.g. 600519,300750"),
+    force_refresh: bool = Query(default=False, description="Bypass quote cache for live refresh"),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[StockQuoteOut]:
@@ -49,7 +53,13 @@ async def stock_quotes(
         symbol_list = list(dict.fromkeys(h.symbol for h in holdings))
     if not symbol_list:
         return []
-    return await BatchQuoteProvider().get_quotes(symbol_list)
+    mode = get_mode_settings(db, user.id)
+    ttl = quote_cache_ttl_seconds(mode)
+    return await BatchQuoteProvider().get_quotes(
+        symbol_list,
+        cache_ttl_seconds=ttl,
+        force_refresh=force_refresh,
+    )
 
 
 @router.get("/sectors", response_model=SectorMoversOut)
@@ -92,6 +102,11 @@ async def stock_kline(
     _user: User = Depends(get_current_user),
 ) -> KlineChartOut:
     raw = await TechnicalDataProvider().get_kline_chart(symbol, days, before=before)
+    if not raw.get("bars"):
+        raise HTTPException(
+            status_code=503,
+            detail="K 线数据暂不可用（行情源连接失败），请稍后刷新",
+        )
     return KlineChartOut.model_validate(raw)
 
 
@@ -129,6 +144,18 @@ async def data_source_status(
         use_mock=False,
         tushare_configured=tushare_configured,
         tushare_available=tushare_available,
+        price_conflicts=[
+            QuotePriceConflictOut(
+                symbol=item.symbol,
+                name=item.name,
+                primary_source=item.primary_source,
+                primary_price=item.primary_price,
+                compare_source=item.compare_source,
+                compare_price=item.compare_price,
+                diff_pct=item.diff_pct,
+            )
+            for item in get_quote_conflicts()
+        ],
     )
 
 

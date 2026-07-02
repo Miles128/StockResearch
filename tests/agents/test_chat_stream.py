@@ -7,6 +7,7 @@ from stockresearch.agents.orchestrator.stream import run_chat_stream
 from stockresearch.agents.output_style import output_style_scope
 from stockresearch.db.models import User
 
+
 @pytest.mark.asyncio
 async def test_chat_stream_stock_without_debate(db_session: Session) -> None:
     user = User(username="stream-choice", password_hash="")
@@ -24,13 +25,8 @@ async def test_chat_stream_stock_without_debate(db_session: Session) -> None:
         events.append(event)
 
     assert events[0].get("type") == "status"
-    status_events = [e for e in events if e.get("type") == "status"]
-    assert any(
-        e.get("message_key") == "status.route"
-        and (e.get("message_params") or {}).get("debate") == "off"
-        for e in status_events
-    )
     types = [str(e.get("type")) for e in events]
+    assert "skill_start" in types
     assert "debate_round" not in types
 
 
@@ -73,7 +69,7 @@ async def test_chat_stream_uses_shared_reply_finalization(db_session: Session) -
             async for event in run_chat_stream(
                 db_session,
                 user.id,
-                "请直接回答：建议买入这只股票",
+                "请直接回答：组合整体倾向减仓",
                 execution_preference="react",
             )
         ]
@@ -81,7 +77,7 @@ async def test_chat_stream_uses_shared_reply_finalization(db_session: Session) -
     response = events[-1].get("response")
     assert isinstance(response, dict)
     reply = str(response.get("reply", ""))
-    assert "建议买入" not in reply
+    assert "减仓" not in reply
 
 
 @pytest.mark.asyncio

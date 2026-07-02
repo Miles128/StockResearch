@@ -84,10 +84,14 @@ class TestGlossary:
 
 
 class TestNeutralGuard:
-    def test_ban_filter_suggests_buy(self):
+    def test_ban_filter_suggests_buy_allowed(self):
         result = apply_ban_filter("建议买入招商银行")
-        assert "买入" not in result
-        assert "关注" in result
+        assert "建议买入" in result
+
+    def test_ban_filter_bans_reduce(self):
+        result = apply_ban_filter("组合倾向减仓")
+        assert "减仓" not in result
+        assert "仓位偏高" in result
 
     def test_ban_filter_target_price(self):
         result = apply_ban_filter("目标价55.5元")
@@ -105,11 +109,12 @@ class TestNeutralGuard:
 
     def test_tone_calibration_system_suggestion(self):
         result = apply_tone_calibration("系统建议减仓")
-        assert "你的数据显示" in result
+        assert "减仓" not in result
+        assert "仓位偏高" in result
 
     def test_neutral_guard_full_pipeline(self):
         result = neutral_guard("建议买入招商银行，目标价55.5，应该买")
-        assert "买入" not in result
+        assert "建议买入" in result
         assert "目标价" not in result
         assert "应该" not in result
 

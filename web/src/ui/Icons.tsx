@@ -94,6 +94,19 @@ export function IconPlus({ className = "ui-icon", size = 16 }: IconProps) {
   );
 }
 
+export function IconEdit({ className = "ui-icon", size = 16 }: IconProps) {
+  return (
+    <svg className={className} width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M10.5 2.5l3 3L6 13H3v-3L10.5 2.5Z"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function IconClose({ className = "ui-icon", size = 16 }: IconProps) {
   return (
     <svg className={className} width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">

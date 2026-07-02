@@ -20,6 +20,7 @@ interface HoldingTradeModalProps {
   holdings: HoldingEnriched[];
   onClose: () => void;
   onApplied: () => void | Promise<void>;
+  initialRow?: Partial<TradeDraft> | null;
 }
 
 function emptyRow(): TradeDraft {
@@ -104,7 +105,13 @@ async function buildPayload(rows: TradeDraft[]): Promise<HoldingTransactionItem[
   return payload;
 }
 
-export function HoldingTradeModal({ open, holdings, onClose, onApplied }: HoldingTradeModalProps) {
+export function HoldingTradeModal({
+  open,
+  holdings,
+  onClose,
+  onApplied,
+  initialRow = null,
+}: HoldingTradeModalProps) {
   const { t } = useI18n();
   const [rows, setRows] = useState<TradeDraft[]>(() => [emptyRow()]);
   const [submitting, setSubmitting] = useState(false);
@@ -112,10 +119,18 @@ export function HoldingTradeModal({ open, holdings, onClose, onApplied }: Holdin
 
   useEffect(() => {
     if (open) {
-      setRows([emptyRow()]);
+      const base = emptyRow();
+      const seed = initialRow
+        ? {
+            ...base,
+            ...initialRow,
+            query: initialRow.query ?? initialRow.name ?? initialRow.symbol ?? "",
+          }
+        : base;
+      setRows([seed]);
       setError("");
     }
-  }, [open]);
+  }, [open, initialRow]);
 
   if (!open) return null;
 
@@ -207,6 +222,16 @@ export function HoldingTradeModal({ open, holdings, onClose, onApplied }: Holdin
                   {row.side === "buy" && (
                     <>
                       <label className="field">
+                        <span className="field-label">{t("portfolio.tradeDate")}</span>
+                        <input
+                          type="date"
+                          required
+                          max={new Date().toISOString().slice(0, 10)}
+                          value={row.tradeDate}
+                          onChange={(e) => updateRow(row.key, { tradeDate: e.target.value })}
+                        />
+                      </label>
+                      <label className="field">
                         <span className="field-label">{t("portfolio.tradeCost")}</span>
                         <input
                           type="number"
@@ -215,15 +240,6 @@ export function HoldingTradeModal({ open, holdings, onClose, onApplied }: Holdin
                           placeholder="0.00"
                           value={row.costPrice}
                           onChange={(e) => updateRow(row.key, { costPrice: e.target.value })}
-                        />
-                      </label>
-                      <label className="field">
-                        <span className="field-label">{t("portfolio.tradeDate")}</span>
-                        <input
-                          type="date"
-                          max={new Date().toISOString().slice(0, 10)}
-                          value={row.tradeDate}
-                          onChange={(e) => updateRow(row.key, { tradeDate: e.target.value })}
                         />
                       </label>
                     </>

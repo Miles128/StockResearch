@@ -19,17 +19,55 @@ export function readChartTheme() {
   return { textColor: text, gridColor: grid };
 }
 
-export function baseChartOptions(height: number): DeepPartial<ChartOptions> {
+export function baseChartOptions(width: number, height: number): DeepPartial<ChartOptions> {
   const { textColor, gridColor } = readChartTheme();
   return {
+    width: Math.max(width, 1),
     height,
     layout: {
       background: { type: ColorType.Solid, color: "transparent" },
       textColor,
+      attributionLogo: false,
     },
     grid: { vertLines: { color: gridColor }, horzLines: { color: gridColor } },
-    rightPriceScale: { borderColor: gridColor },
-    timeScale: { borderColor: gridColor },
-    autoSize: true,
+    rightPriceScale: {
+      visible: true,
+      borderVisible: true,
+      borderColor: gridColor,
+      minimumWidth: 52,
+    },
+    leftPriceScale: {
+      visible: false,
+    },
+    timeScale: {
+      visible: true,
+      borderVisible: true,
+      borderColor: gridColor,
+      fixLeftEdge: false,
+      fixRightEdge: true,
+      rightOffset: 2,
+      timeVisible: true,
+      secondsVisible: false,
+    },
+    handleScroll: {
+      mouseWheel: true,
+      pressedMouseMove: true,
+      horzTouchDrag: true,
+      vertTouchDrag: false,
+    },
+    handleScale: {
+      axisPressedMouseMove: { time: true, price: true },
+      mouseWheel: true,
+      pinch: true,
+    },
   };
+}
+
+export function applyChartEdgeAlignment(chart: {
+  timeScale: () => { applyOptions: (opts: object) => void };
+}) {
+  chart.timeScale().applyOptions({
+    fixRightEdge: true,
+    rightOffset: 2,
+  });
 }

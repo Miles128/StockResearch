@@ -137,15 +137,19 @@ def localize_risk_level(level: str) -> str:
 
 
 def localize_position_action(action: str) -> str:
+    from stockresearch.services.compliance_language import normalize_position_action
+
+    normalized = normalize_position_action(action, portfolio=False)
     mapping = {
-        "加仓": "Add",
-        "减仓": "Reduce",
-        "持有观望": "Hold & watch",
-        "观望": "Watch",
+        "仓位偏高": "Overweight",
+        "仓位偏低": "Underweight",
+        "仓位适中": "Balanced",
+        "建议控制仓位": "Consider position sizing",
+        "暂不调整": "No change for now",
     }
     if _en():
-        return mapping.get(action, action)
-    return action
+        return mapping.get(normalized, normalized)
+    return normalized
 
 
 def portfolio_summary_verdict(
@@ -160,4 +164,4 @@ def portfolio_summary_verdict(
         suffix = f"Per holding: {holding_bits}" if holding_bits else summary
         return f"{rl} risk · Portfolio bias {pa} · {summary} {suffix}".strip()
     suffix = f"逐股：{holding_bits}" if holding_bits else summary
-    return f"{risk_level}风险 · 组合倾向{position_action} · {summary} {suffix}".strip()
+    return f"{risk_level}风险 · 组合仓位倾向{position_action} · {summary} {suffix}".strip()

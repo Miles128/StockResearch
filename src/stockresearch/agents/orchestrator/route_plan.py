@@ -1,10 +1,14 @@
-"""Execution route proposal for complex chat queries — ReAct vs Plan-Execute vs preset."""
+"""Execution route proposal for complex chat queries — ReAct vs Plan-Execute vs preset.
+
+Legacy module: kept for unit tests and future execution-choice UI.
+Production chat (/chat, /chat/stream) uses skill-first ReAct via chat_execute.py.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Literal
 
+from stockresearch.agents.orchestrator.tools_registry import FINANCE_TOOLS
 from stockresearch.agents.orchestrator.complexity import (
     ComplexityResult,
     classify_query,
@@ -71,37 +75,6 @@ _MODE_LABELS: dict[str, str] = {
     ComplexityResult.INDUSTRY_RESEARCH: "行业深度研究",
 }
 
-FINANCE_TOOLS: frozenset[str] = frozenset(
-    {
-        "get_market_data",
-        "get_stock_quote",
-        "get_stock_research",
-        "debate_stock",
-        "get_financial_ratios",
-        "get_news",
-        "get_sector_holdings",
-        "get_sector_news",
-    }
-)
-
-
-@dataclass(frozen=True)
-class RouteOption:
-    id: str
-    label_key: str
-    description_key: str
-    label_params: dict[str, object] | None = None
-    description_params: dict[str, object] | None = None
-
-
-@dataclass(frozen=True)
-class RouteProposal:
-    finance_related: bool
-    reason_key: str
-    reason_params: dict[str, object] | None
-    preset_mode: str | None
-    options: list[RouteOption]
-
 
 def is_finance_related(message: str) -> bool:
     """True when the query is scoped to stocks, markets, sectors, or risk."""
@@ -135,10 +108,10 @@ def needs_execution_choice(
 
 
 def resolve_preset_mode(message: str, *, enable_debate: bool = False) -> str:
-    """Predetermined finance route — never ReAct or Plan-Execute."""
+    """Predetermined finance route — never bare ReAct for scoped finance queries."""
     msg = message.strip()
-    if should_skip_multi_agent(msg):
-        return ComplexityResult.DIRECT
+    if should_auto_plan_execute(msg):
+        return ComplexityResult.PLAN_EXECUTE
     scope = classify_research_scope(msg)
     use_debate = enable_debate and not should_skip_debate(msg)
     if scope == "stock":
@@ -298,78 +271,3 @@ async def upgrade_stock_research_route(
         return upgraded, resolved.symbol, resolved.name
 
     return mode, confirmed_symbol, confirmed_name
-
-
-def build_route_proposal(message: str, *, enable_debate: bool = False) -> RouteProposal:
-    """Build options shown before running a complex query."""
-    msg = message.strip()
-    finance = is_finance_related(msg)
-    preset_mode: str | None = None
-
-    if finance:
-        preset_mode = resolve_preset_mode(msg, enable_debate=enable_debate)
-
-    reason_key = "route.reason.finance_complex" if finance and preset_mode else "route.reason.non_finance"
-    reason_params: dict[str, object] | None = None
-
-    options: list[RouteOption] = []
-    if finance and preset_mode:
-        options.append(
-            RouteOption(
-                id="preset",
-                label_key="route.option.preset",
-                description_key="route.option.preset_desc",
-                label_params={"mode": preset_mode},
-            )
-        )
-    options.extend(
-        [
-            RouteOption(
-                id="react",
-                label_key="route.option.react",
-                description_key=(
-                    "route.option.react.desc" if finance else "route.option.react.desc_non_finance"
-                ),
-            ),
-            RouteOption(
-                id="plan_execute",
-                label_key="route.option.plan_execute",
-                description_key=(
-                    "route.option.plan_execute.desc"
-                    if finance
-                    else "route.option.plan_execute.desc_non_finance"
-                ),
-            ),
-        ]
-    )
-
-    return RouteProposal(
-        finance_related=finance,
-        reason_key=reason_key,
-        reason_params=reason_params,
-        preset_mode=preset_mode,
-        options=options,
-    )
-
-
-def route_choice_card(original_message: str, proposal: RouteProposal) -> dict[str, object]:
-    return {
-        "type": "route_choice",
-        "data": {
-            "reason_key": proposal.reason_key,
-            "reason_params": proposal.reason_params or {},
-            "original_message": original_message,
-            "finance_related": proposal.finance_related,
-            "preset_mode": proposal.preset_mode,
-            "options": [
-                {
-                    "id": o.id,
-                    "label_key": o.label_key,
-                    "description_key": o.description_key,
-                    "label_params": o.label_params or {},
-                    "description_params": o.description_params or {},
-                }
-                for o in proposal.options
-            ],
-        },
-    }

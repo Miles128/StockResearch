@@ -18,6 +18,14 @@ const INDUSTRY_START_KEYS = new Set(["status.industry.start"]);
 const MARKET_START_KEYS = new Set(["status.market.research.start"]);
 
 const SKIP_LOG_KEYS = new Set([
+  "status.understanding",
+  "status.react.thinking",
+  "status.react.reply",
+  "status.react.tool",
+  "status.react.market_data",
+  "status.react.stock_quote",
+  "status.react.news",
+  "status.react.skill",
   "status.research.start",
   "status.market.research.start",
   "status.industry.start",
@@ -28,6 +36,9 @@ const SKIP_LOG_KEYS = new Set([
   "status.research.battle_start",
   "status.market.research.battle_start",
   "status.industry.battle_start",
+  "status.risk.analysis",
+  "status.risk.manager",
+  "status.risk.judge",
 ]);
 
 export function statusEventKey(event: AgentStreamEvent): string | null {

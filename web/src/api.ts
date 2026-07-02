@@ -246,7 +246,10 @@ export const api = {
         event.type === "done" && event.response ? (event.response as ChatResponse) : undefined,
     }),
   holdings: () => request<Holding[]>("/portfolio/holdings"),
-  holdingsEnriched: () => request<HoldingEnriched[]>("/portfolio/holdings/enriched"),
+  holdingsEnriched: (opts?: { forceRefresh?: boolean }) => {
+    const qs = opts?.forceRefresh ? "?force_refresh=true" : "";
+    return request<HoldingEnriched[]>(`/portfolio/holdings/enriched${qs}`);
+  },
   addHolding: (h: HoldingCreatePayload) =>
     request("/portfolio/holdings", { method: "POST", body: JSON.stringify(h) }),
   deleteHolding: (id: number) =>
@@ -287,6 +290,21 @@ export const api = {
       },
       120_000,
     ),
+  riskCheckupStream: (
+    onEvent?: (event: AgentStreamEvent) => void,
+    signal?: AbortSignal,
+  ) =>
+    createJsonSseStream<RiskCheckup, AgentStreamEvent>({
+      url: apiUrl("/risk/checkup/stream"),
+      method: "POST",
+      headers: llmRequestHeaders(),
+      body: { ...chatBodyField() },
+      signal,
+      timeoutMs: 120_000,
+      onEvent,
+      extractResult: (event) =>
+        event.type === "done" && event.result ? (event.result as unknown as RiskCheckup) : undefined,
+    }),
   advisorAllocation: (
     riskTolerance: "conservative" | "moderate" | "aggressive",
     monthlyIncome?: number,
@@ -304,7 +322,11 @@ export const api = {
       60_000,
     ),
   marketOverview: () => request<MarketOverview>("/market/overview"),
-  stockQuotes: (symbols: string) => request<StockQuoteOut[]>(`/market/quotes?symbols=${symbols}`),
+  stockQuotes: (symbols: string, opts?: { forceRefresh?: boolean }) => {
+    const params = new URLSearchParams({ symbols });
+    if (opts?.forceRefresh) params.set("force_refresh", "true");
+    return request<StockQuoteOut[]>(`/market/quotes?${params.toString()}`);
+  },
   dataSourceStatus: () => request<DataSourceStatus>("/market/data-status"),
   klineChart: (symbol: string, days = 90, before?: string) => {
     const params = new URLSearchParams({ symbol, days: String(days) });
@@ -443,6 +465,7 @@ export interface Card {
 export interface HoldingEnriched extends Holding {
   price?: number | null;
   change_pct?: number | null;
+  open?: number | null;
   price_label: string;
   market_session: "trading" | "closed";
   profit_amount?: number | null;
@@ -620,7 +643,7 @@ export interface PortfolioMetrics {
 
 export interface RiskCheckup {
   portfolio_summary: string;
-  alerts: { rule_id: string; severity: string; human_message: string }[];
+  alerts: { rule_id: string; severity: string; human_message: string; symbol?: string | null }[];
   llm_analysis?: {
     market_assessment: string;
     correlation_analysis: string;
@@ -636,7 +659,7 @@ export interface RiskCheckup {
     var_pct: number;
     cvar_value: number;
     cvar_pct: number;
-    holdings_var: { name: string; weight: number; var_value: number }[];
+    holdings_var: { name: string; symbol?: string; weight: number; var_value: number }[];
   };
   master_commentary?: MasterCommentaryItem[];
 }
@@ -697,6 +720,16 @@ export interface DataSourceDetail {
   status: DataSourceDetailStatus;
 }
 
+export interface QuotePriceConflict {
+  symbol: string;
+  name: string;
+  primary_source: string;
+  primary_price: number;
+  compare_source: string;
+  compare_price: number;
+  diff_pct: number;
+}
+
 export interface DataSourceStatus {
   quotes: ProviderStatus | null;
   overview: ProviderStatus | null;
@@ -704,6 +737,7 @@ export interface DataSourceStatus {
   use_mock: boolean;
   tushare_configured?: boolean;
   tushare_available?: boolean;
+  price_conflicts?: QuotePriceConflict[];
 }
 
 export interface ResearchReportListItem {
@@ -722,6 +756,7 @@ export interface StockQuoteOut {
   name: string;
   price: number;
   change_pct: number;
+  open?: number;
 }
 
 export interface WatchlistItem {

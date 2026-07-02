@@ -1,5 +1,6 @@
 """Market data providers — Sina quotes on hot path, AkShare for historical."""
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -11,11 +12,13 @@ from stockresearch.core.config import get_settings
 from stockresearch.core.exceptions import DataProviderError
 from stockresearch.data.providers.akshare_quote import fetch_akshare_hist_quotes
 from stockresearch.data.providers.base import run_async_fetch, run_sync_fetch
-from stockresearch.data.providers.efinance_quote import fetch_efinance_quotes
+from stockresearch.data.providers.efinance_quote import fetch_efinance_kline, fetch_efinance_quotes
 from stockresearch.data.providers.news import _fetch_em_symbol_news_sync
+from stockresearch.data.providers.sina_kline import fetch_sina_kline
 from stockresearch.data.providers.sina_quote import QuoteRow, fetch_sina_quotes
 from stockresearch.data.providers.tushare_financial import fetch_daily_basic_sync
-from stockresearch.data.registry import record_quote_fetch, record_symbol_sources
+from stockresearch.data.registry import record_quote_fetch, record_quote_conflicts, record_symbol_sources
+from stockresearch.data.registry import QuotePriceConflict
 from stockresearch.data.provider_meta import get_provider_meta
 from stockresearch.services.cache import get_cached
 from stockresearch.services.provider_cache_policy import (
@@ -62,10 +65,38 @@ class Quote:
     name: str
     price: float
     change_pct: float
+    open: float
     high: float
     low: float
     volume: float
     updated_at: datetime
+
+
+_MOCK_QUOTE_DEFAULTS: dict[str, tuple[float, str]] = {
+    "600519": (1800.0, "贵州茅台"),
+    "300750": (250.0, "宁德时代"),
+    "601318": (50.0, "中国平安"),
+}
+
+
+def _use_mock_market_data() -> bool:
+    return get_settings().use_mock_market_data
+
+
+def _mock_quote(symbol: str) -> Quote:
+    price, name = _MOCK_QUOTE_DEFAULTS.get(symbol, (100.0, resolve_name(symbol)))
+    now = datetime.now(UTC)
+    return Quote(
+        symbol=symbol,
+        name=name,
+        price=price,
+        change_pct=1.2,
+        open=round(price * 0.99, 4),
+        high=round(price * 1.02, 4),
+        low=round(price * 0.98, 4),
+        volume=1_000_000.0,
+        updated_at=now,
+    )
 
 
 def _quote_to_cache(quote: Quote) -> dict[str, object]:
@@ -74,6 +105,7 @@ def _quote_to_cache(quote: Quote) -> dict[str, object]:
         "name": quote.name,
         "price": quote.price,
         "change_pct": quote.change_pct,
+        "open": quote.open,
         "high": quote.high,
         "low": quote.low,
         "volume": quote.volume,
@@ -97,6 +129,7 @@ def _quote_from_cache(payload: dict[str, object]) -> Quote | None:
             name=str(payload.get("name", "")),
             price=_as_float(payload.get("price")),
             change_pct=_as_float(payload.get("change_pct")),
+            open=_as_float(payload.get("open")),
             high=_as_float(payload.get("high")),
             low=_as_float(payload.get("low")),
             volume=_as_float(payload.get("volume")),
@@ -123,10 +156,14 @@ class QuoteProvider:
         symbols: list[str],
         *,
         cache_ttl_seconds: int | None = None,
+        force_refresh: bool = False,
     ) -> dict[str, Quote]:
         unique = list(dict.fromkeys(symbols))
         if not unique:
             return {}
+
+        if _use_mock_market_data():
+            return {sym: _mock_quote(sym) for sym in unique}
 
         ttl = (
             cache_ttl_seconds
@@ -134,30 +171,142 @@ class QuoteProvider:
             else DEFAULT_QUOTE_CACHE_TTL_SECONDS
         )
         out: dict[str, Quote] = {}
-        missing: list[str] = []
-        for sym in unique:
-            cached = get_sqlite_cached(f"quote:{sym}")
-            if cached is not None:
-                quote = _quote_from_cache(cached)
-                if quote is not None:
+        to_fetch: list[str] = []
+        if force_refresh:
+            to_fetch = unique
+        else:
+            for sym in unique:
+                cached = get_sqlite_cached(f"quote:{sym}")
+                if cached is not None:
+                    quote = _quote_from_cache(cached)
+                    if quote is not None:
+                        out[sym] = quote
+                        continue
+                to_fetch.append(sym)
+
+        if to_fetch:
+            raw = await self._fetch_quote_rows(to_fetch, background_ttl=ttl)
+            fetched = self._rows_to_quotes(raw)
+            for sym in to_fetch:
+                if sym in fetched:
+                    quote = fetched[sym]
+                    set_sqlite_cached(f"quote:{sym}", _quote_to_cache(quote), ttl)
                     out[sym] = quote
                     continue
-            missing.append(sym)
-
-        if missing:
-            raw = await self._fetch_quote_rows(missing)
-            fetched = self._rows_to_quotes(raw)
-            for sym, quote in fetched.items():
-                set_sqlite_cached(f"quote:{sym}", _quote_to_cache(quote), ttl)
-                out[sym] = quote
+                if force_refresh:
+                    cached = get_sqlite_cached(f"quote:{sym}")
+                    if cached is not None:
+                        quote = _quote_from_cache(cached)
+                        if quote is not None:
+                            out[sym] = quote
 
         return {sym: out[sym] for sym in unique if sym in out}
 
+    async def _verify_cross_source_quotes(
+        self,
+        symbols: list[str],
+        sina_rows: dict[str, QuoteRow],
+    ) -> None:
+        """PRD §6.1 — Sina vs AkShare price diff; runs off the request hot path."""
+        try:
+            verify_rows = await run_sync_fetch(
+                "akshare cross-check quotes",
+                lambda: fetch_akshare_hist_quotes(symbols),
+                timeout=max(_QUOTE_TIMEOUT_SEC, 12.0),
+                fallback=None,
+            )
+            if not verify_rows:
+                return
+            conflicts: list[QuotePriceConflict] = []
+            for sym in symbols:
+                sina_row = sina_rows.get(sym)
+                ak_row = verify_rows.get(sym)
+                if not sina_row or not ak_row:
+                    continue
+                primary_price = _as_float(sina_row.get("price"))
+                compare_price = _as_float(ak_row.get("price"))
+                if primary_price <= 0 or compare_price <= 0:
+                    continue
+                diff_pct = abs(primary_price - compare_price) / primary_price * 100.0
+                if diff_pct > 1.0:
+                    conflicts.append(
+                        QuotePriceConflict(
+                            symbol=sym,
+                            name=str(sina_row.get("name") or ak_row.get("name") or sym),
+                            primary_source="sina",
+                            primary_price=primary_price,
+                            compare_source="akshare",
+                            compare_price=compare_price,
+                            diff_pct=round(diff_pct, 2),
+                        )
+                    )
+            record_quote_conflicts(conflicts)
+        except Exception as exc:
+            logger.debug("Background quote cross-check skipped: %s", exc)
+
+    async def _background_fill_missing_quotes(
+        self,
+        symbols: list[str],
+        cache_ttl_seconds: int,
+    ) -> None:
+        """Fill missing symbols off the request hot path."""
+        if not symbols:
+            return
+        try:
+            fallback_rows = await self._fetch_fallback_rows(symbols)
+            if not fallback_rows:
+                return
+            fetched = self._rows_to_quotes(fallback_rows)
+            for sym, quote in fetched.items():
+                set_sqlite_cached(f"quote:{sym}", _quote_to_cache(quote), cache_ttl_seconds)
+            record_symbol_sources(
+                {
+                    sym: str(fallback_rows[sym].get("_source", "efinance"))
+                    for sym in symbols
+                    if sym in fallback_rows
+                }
+            )
+        except Exception as exc:
+            logger.debug("Background quote fill failed: %s", exc)
+
+    async def _fetch_fallback_rows(self, symbols: list[str]) -> dict[str, QuoteRow]:
+        """Secondary sources for missing symbols (efinance, then akshare)."""
+        raw: dict[str, QuoteRow] = {}
+
+        ef_rows = await run_sync_fetch(
+            "efinance quote fallback",
+            lambda: fetch_efinance_quotes(symbols),
+            timeout=max(_QUOTE_TIMEOUT_SEC, 8.0),
+            fallback=None,
+        )
+        if ef_rows:
+            for sym, ef_row in ef_rows.items():
+                raw[sym] = cast(QuoteRow, {**ef_row, "_source": "efinance"})
+
+        missing = [sym for sym in symbols if sym not in raw]
+        if missing:
+            ak_rows = await run_sync_fetch(
+                "akshare hist quote fallback",
+                lambda: fetch_akshare_hist_quotes(missing),
+                timeout=max(_QUOTE_TIMEOUT_SEC, 8.0),
+                fallback=None,
+            )
+            if ak_rows:
+                for sym, ak_row in ak_rows.items():
+                    raw[sym] = cast(QuoteRow, {**ak_row, "_source": "akshare"})
+
+        return raw
+
     async def _fetch_quote_rows(
-        self, symbols: list[str]
+        self,
+        symbols: list[str],
+        *,
+        background_ttl: int = DEFAULT_QUOTE_CACHE_TTL_SECONDS,
     ) -> dict[str, QuoteRow]:
         raw: dict[str, QuoteRow] = {}
         sina_error: str | None = None
+        ak_count = 0
+        ef_count = 0
 
         sina_rows = await run_sync_fetch(
             "sina batch quotes",
@@ -170,41 +319,45 @@ class QuoteProvider:
         else:
             for sym, row in sina_rows.items():
                 raw[sym] = {**row, "_source": "sina"}
+            asyncio.create_task(self._verify_cross_source_quotes(symbols, sina_rows))
 
         missing = [sym for sym in symbols if sym not in raw]
-        ak_count = 0
-        if missing:
-            ak_rows = await run_sync_fetch(
-                "akshare hist quote fallback",
-                lambda: fetch_akshare_hist_quotes(missing),
-                timeout=max(_QUOTE_TIMEOUT_SEC, 12.0),
-                fallback=None,
-            )
-            if ak_rows is None:
-                logger.warning("AkShare 备源也失败，尝试 efinance 第三层兜底")
-            else:
-                for sym, ak_row in ak_rows.items():
-                    raw[sym] = cast(QuoteRow, {**ak_row, "_source": "akshare"})
-                ak_count = len(ak_rows)
-                logger.info("AkShare hist fallback filled %d symbols", ak_count)
 
-        # 第三层兜底：efinance（与 Sina/AkShare 独立，避免单点失败）
-        missing = [sym for sym in symbols if sym not in raw]
-        ef_count = 0
-        if missing:
-            ef_rows = await run_sync_fetch(
-                "efinance quote fallback",
-                lambda: fetch_efinance_quotes(missing),
-                timeout=max(_QUOTE_TIMEOUT_SEC, 10.0),
-                fallback=None,
+        # Partial Sina success: return immediately; fill gaps in background.
+        if missing and raw:
+            asyncio.create_task(
+                self._background_fill_missing_quotes(missing, background_ttl)
             )
-            if ef_rows is None:
-                logger.warning("efinance 兜底失败")
-            else:
-                for sym, ef_row in ef_rows.items():
-                    raw[sym] = cast(QuoteRow, {**ef_row, "_source": "efinance"})
-                ef_count = len(ef_rows)
-                logger.info("efinance fallback filled %d symbols", ef_count)
+            sina_count = sum(
+                1 for sym in symbols if sym in raw and raw[sym].get("_source") == "sina"
+            )
+            record_quote_fetch(
+                requested=len(symbols),
+                sina_count=sina_count,
+                akshare_count=0,
+                efinance_count=0,
+                message=sina_error,
+            )
+            record_symbol_sources(
+                {sym: str(raw[sym].get("_source", "sina")) for sym in symbols if sym in raw}
+            )
+            return raw
+
+        if missing:
+            fallback_rows = await self._fetch_fallback_rows(missing)
+            for sym, row in fallback_rows.items():
+                raw[sym] = row
+            ak_count = sum(
+                1 for sym in symbols if sym in raw and raw[sym].get("_source") == "akshare"
+            )
+            ef_count = sum(
+                1 for sym in symbols if sym in raw and raw[sym].get("_source") == "efinance"
+            )
+            missing = [sym for sym in symbols if sym not in raw]
+            if missing:
+                asyncio.create_task(
+                    self._background_fill_missing_quotes(missing, background_ttl)
+                )
 
         if not raw:
             raise DataProviderError(sina_error or "行情数据不可用（sina/akshare/efinance 均失败）")
@@ -232,6 +385,7 @@ class QuoteProvider:
                 name=str(row["name"]),
                 price=_as_float(row["price"]),
                 change_pct=_as_float(row["change_pct"]),
+                open=_as_float(row.get("open")),
                 high=_as_float(row["high"]),
                 low=_as_float(row["low"]),
                 volume=_as_float(row["volume"]),
@@ -243,6 +397,18 @@ class QuoteProvider:
 
 class MarketRuleProvider:
     async def get_trading_rules(self, symbol: str) -> dict[str, object]:
+        if _use_mock_market_data():
+            return {
+                "source": "mock",
+                "verified": True,
+                "status": "normal",
+                "is_st": False,
+                "is_suspended": False,
+                "is_limit_up": False,
+                "is_limit_down": False,
+                "limit_pct": self._limit_pct(symbol, resolve_name(symbol)),
+                "missing": [],
+            }
         rows = await run_sync_fetch(
             f"sina trading rules {symbol}",
             lambda: fetch_sina_quotes([symbol]),
@@ -316,6 +482,15 @@ class MarketRuleProvider:
 
 class FinancialDataProvider:
     async def get_financials(self, symbol: str) -> dict[str, float | str]:
+        if _use_mock_market_data():
+            return {
+                "revenue_yoy": 0.12,
+                "net_margin": 0.25,
+                "roe": 0.18,
+                "pe_percentile": 0.50,
+                "debt_ratio": 0.35,
+                "goodwill_ratio": 0.03,
+            }
         cache_key = f"financials:indicator:{symbol}"
         ttl = provider_ttl("akshare_financials")
 
@@ -349,6 +524,8 @@ class FinancialDataProvider:
         return {k: v for k, v in cached.items()}  # type: ignore[misc]
 
     async def get_valuation(self, symbol: str) -> dict[str, float | str]:
+        if _use_mock_market_data():
+            return {"pe_ttm": 28.0, "pe_percentile": 0.5, "source": "mock"}
         cache_key = f"financials:valuation:{symbol}"
         ttl = provider_ttl("akshare_financials")
 
@@ -401,6 +578,55 @@ class TechnicalDataProvider:
         calendar_days = max(int(days * 1.55) + 15, 30)
         return (end - timedelta(days=calendar_days)).strftime("%Y%m%d")
 
+    @staticmethod
+    def _bars_from_akshare_df(df: Any, days: int) -> list[dict[str, float | str]]:
+        if df is None or df.empty:
+            return []
+        recent = df.tail(days)
+        return [
+            {
+                "date": str(row["日期"])[:10],
+                "open": float(row["开盘"]),
+                "high": float(row["最高"]),
+                "low": float(row["最低"]),
+                "close": float(row["收盘"]),
+                "volume": float(row["成交量"]),
+            }
+            for _, row in recent.iterrows()
+        ]
+
+    async def _fetch_akshare_kline_df(
+        self,
+        symbol: str,
+        *,
+        start_date: str,
+        end_date: str,
+    ) -> Any:
+        if symbol in _INDEX_KLINE_SYMBOLS:
+            return await run_sync_fetch(
+                f"akshare index kline {symbol}",
+                lambda: ak.index_zh_a_hist(
+                    symbol=symbol,
+                    period="daily",
+                    start_date=start_date,
+                    end_date=end_date,
+                ),
+                timeout=10.0,
+                fallback=None,
+            )
+        return await run_sync_fetch(
+            f"akshare kline {symbol}",
+            lambda: ak.stock_zh_a_hist(
+                symbol=symbol,
+                period="daily",
+                start_date=start_date,
+                end_date=end_date,
+                adjust="qfq",
+            ),
+            timeout=10.0,
+            fallback=None,
+        )
+
     async def get_kline_bars(
         self,
         symbol: str,
@@ -408,6 +634,21 @@ class TechnicalDataProvider:
         *,
         before: str | None = None,
     ) -> list[dict[str, float | str]]:
+        if _use_mock_market_data():
+            quote = _mock_quote(symbol)
+            base = quote.price
+            return [
+                {
+                    "date": (datetime.now(UTC).date().isoformat()),
+                    "open": round(base * 0.99, 4),
+                    "high": round(base * 1.01, 4),
+                    "low": round(base * 0.98, 4),
+                    "close": round(base * (1 + 0.002 * i), 4),
+                    "volume": 1_000_000.0 + i * 10_000,
+                }
+                for i in range(max(days, 20))
+            ]
+
         end_dt = datetime.now(UTC)
         if before:
             try:
@@ -420,49 +661,52 @@ class TechnicalDataProvider:
         ttl = provider_ttl("akshare_kline")
         cached = get_sqlite_cached(cache_key)
         if cached is not None and isinstance(cached.get("bars"), list):
-            return cached["bars"]  # type: ignore[return-value]
+            cached_bars = cached["bars"]
+            if cached_bars:
+                return cached_bars  # type: ignore[return-value]
 
-        if symbol in _INDEX_KLINE_SYMBOLS:
-            df = await run_sync_fetch(
-                f"akshare index kline {symbol}",
-                lambda: ak.index_zh_a_hist(
-                    symbol=symbol,
-                    period="daily",
-                    start_date=start_date,
-                    end_date=end_date,
-                ),
-                timeout=10.0,
+        bars: list[dict[str, float | str]] = []
+        source = "unknown"
+
+        # Fast path: Sina HTTP (~200ms) for latest window; akshare for paginated history.
+        if before is None:
+            sina_bars = await run_sync_fetch(
+                f"sina kline {symbol}",
+                lambda: fetch_sina_kline(symbol, days),
+                timeout=8.0,
                 fallback=None,
             )
-        else:
-            df = await run_sync_fetch(
-                f"akshare kline {symbol}",
-                lambda: ak.stock_zh_a_hist(
-                    symbol=symbol,
-                    period="daily",
-                    start_date=start_date,
-                    end_date=end_date,
-                    adjust="qfq",
-                ),
-                timeout=10.0,
+            if sina_bars:
+                bars = sina_bars
+                source = "sina"
+
+        if not bars:
+            ak_df = await self._fetch_akshare_kline_df(
+                symbol, start_date=start_date, end_date=end_date
+            )
+            bars = self._bars_from_akshare_df(ak_df, days)
+            if bars:
+                source = "akshare"
+
+        if not bars:
+            ef_bars = await run_sync_fetch(
+                f"efinance kline {symbol}",
+                lambda: fetch_efinance_kline(symbol, days),
+                timeout=12.0,
                 fallback=None,
             )
-        if df is None or df.empty:
-            return []
-        recent = df.tail(days)
-        bars = [
-            {
-                "date": str(row["日期"])[:10],
-                "open": float(row["开盘"]),
-                "high": float(row["最高"]),
-                "low": float(row["最低"]),
-                "close": float(row["收盘"]),
-                "volume": float(row["成交量"]),
-            }
-            for _, row in recent.iterrows()
-        ]
+            if ef_bars:
+                bars = ef_bars
+                source = "efinance"
+
         if bars:
-            set_sqlite_cached(cache_key, {"bars": bars}, ttl)
+            if before:
+                cutoff = before[:10]
+                bars = [b for b in bars if str(b["date"])[:10] < cutoff]
+            set_sqlite_cached(cache_key, {"bars": bars, "source": source}, ttl)
+            logger.info("Kline for %s: %d bars via %s", symbol, len(bars), source)
+        else:
+            logger.warning("Kline unavailable for %s after akshare/sina/efinance", symbol)
         return bars
 
     async def get_kline(self, symbol: str, days: int = 60) -> list[dict[str, float]]:
@@ -615,6 +859,8 @@ def _fetch_xueqiu_hot_sync(symbol: str, name: str) -> dict[str, float | int | st
 
 class SentimentDataProvider:
     async def get_symbol_news(self, symbol: str, name: str, limit: int = 8) -> list[dict[str, str]]:
+        if _use_mock_market_data():
+            return [{"title": f"{name or symbol} 行业政策讨论", "source": "mock"}]
         from stockresearch.data.providers.news import NewsProvider
 
         provider = NewsProvider()
@@ -650,6 +896,14 @@ class SentimentDataProvider:
         return max(-1.0, min(1.0, score / max(len(titles), 1)))
 
     async def get_xueqiu_hot(self, symbol: str, name: str = "") -> dict[str, float | int | str | bool]:
+        if _use_mock_market_data():
+            return {
+                "bull_ratio": 0.55,
+                "heat_score": 42,
+                "post_count": 120,
+                "available": True,
+                "source": "mock",
+            }
         return await run_sync_fetch(
             f"xueqiu hot {symbol}",
             lambda: _fetch_xueqiu_hot_sync(symbol, name or resolve_name(symbol)),
@@ -672,6 +926,14 @@ class SentimentDataProvider:
 
 class ChipsDataProvider:
     async def get_dragon_tiger(self, symbol: str) -> dict[str, str | float | int]:
+        if _use_mock_market_data():
+            return {
+                "appearances": 0,
+                "net_buy": 0.0,
+                "institution_ratio": 0.0,
+                "signal": "暂无数据",
+                "source": "mock",
+            }
         cache_key = f"dragon_tiger:{symbol}"
         ttl = provider_ttl("akshare_lhb")
         cached = get_sqlite_cached(cache_key)
@@ -688,6 +950,13 @@ class ChipsDataProvider:
         return result
 
     async def get_fund_flow(self, symbol: str) -> dict[str, float | str]:
+        if _use_mock_market_data():
+            return {
+                "main_net_inflow": 0.0,
+                "main_net_pct": 0.0,
+                "days_positive": 0,
+                "source": "mock",
+            }
         cache_key = f"fund_flow:{symbol}"
         ttl = provider_ttl("akshare_fund_flow")
         cached = get_sqlite_cached(cache_key)
@@ -764,6 +1033,8 @@ class ChipsDataProvider:
         return result
 
     async def get_holder_count(self, symbol: str) -> dict[str, float | str]:
+        if _use_mock_market_data():
+            return {"holder_count": 0.0, "qoq_change": 0.0, "source": "mock"}
         cache_key = f"holder_count:{symbol}"
         ttl = provider_ttl("akshare_gdhs")
         cached = get_sqlite_cached(cache_key)
@@ -780,6 +1051,8 @@ class ChipsDataProvider:
         return result
 
     async def get_lockup(self, symbol: str) -> dict[str, str | float | int]:
+        if _use_mock_market_data():
+            return {"upcoming_count": 0, "next_date": "", "ratio_pct": 0.0, "source": "mock"}
         cache_key = f"lockup:{symbol}"
         ttl = provider_ttl("akshare_lockup")
         cached = get_sqlite_cached(cache_key)

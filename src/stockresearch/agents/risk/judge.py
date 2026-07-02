@@ -12,9 +12,15 @@ from stockresearch.core.constants import (
 )
 from stockresearch.core.schemas import HoldingActionOut, RiskAlertOut
 from stockresearch.db.models import Holding
+from stockresearch.services.compliance_language import (
+    HOLDING_NO_CHANGE,
+    POSITION_BIAS_HIGH,
+    POSITION_BIAS_LOW,
+    POSITION_BIAS_NEUTRAL,
+    normalize_position_action,
+)
 
 _JSON_BLOCK = re.compile(r"\{[\s\S]*\}")
-_VALID_ACTIONS = frozenset({"加仓", "减仓", "持有观望", "暂不调整"})
 _VALID_PRIORITIES = frozenset({"高", "中", "低"})
 
 
@@ -32,12 +38,12 @@ class JudgeVerdict:
 def derive_portfolio_action(alerts: list[RiskAlertOut]) -> str:
     severities = {a.severity for a in alerts}
     if severities & {SEVERITY_CRITICAL, SEVERITY_RED}:
-        return "减仓"
+        return POSITION_BIAS_HIGH
     if not alerts:
-        return "加仓"
+        return POSITION_BIAS_LOW
     if SEVERITY_WARNING in severities or SEVERITY_YELLOW in severities:
-        return "持有观望"
-    return "持有观望"
+        return POSITION_BIAS_NEUTRAL
+    return POSITION_BIAS_NEUTRAL
 
 
 def derive_stock_action(
@@ -51,7 +57,7 @@ def derive_stock_action(
         return HoldingActionOut(
             symbol=holding.symbol,
             name=holding.name,
-            action="减仓",
+            action=POSITION_BIAS_HIGH,
             reason=top.message,
             priority="高",
         )
@@ -60,7 +66,7 @@ def derive_stock_action(
         return HoldingActionOut(
             symbol=holding.symbol,
             name=holding.name,
-            action="持有观望",
+            action=POSITION_BIAS_NEUTRAL,
             reason=top.message,
             priority="中",
         )
@@ -68,14 +74,14 @@ def derive_stock_action(
         return HoldingActionOut(
             symbol=holding.symbol,
             name=holding.name,
-            action="持有观望",
-            reason="组合层面存在集中度等预警，该股暂以观望为主。",
+            action=POSITION_BIAS_NEUTRAL,
+            reason="组合层面存在集中度等预警，该股暂以观察为主。",
             priority="中",
         )
     return HoldingActionOut(
         symbol=holding.symbol,
         name=holding.name,
-        action="暂不调整",
+        action=HOLDING_NO_CHANGE,
         reason="未触发个股规则告警，当前无需优先处置。",
         priority="低",
     )
@@ -90,13 +96,11 @@ def _parse_holding_actions(raw_items: object) -> list[HoldingActionOut]:
             continue
         symbol = str(item.get("symbol", "")).strip()
         name = str(item.get("name", "")).strip()
-        action = str(item.get("action", "")).strip() or "持有观望"
+        action = normalize_position_action(str(item.get("action", "")).strip(), portfolio=False)
         reason = str(item.get("reason", "")).strip()
         priority = str(item.get("priority", "中")).strip() or "中"
         if not symbol or not name:
             continue
-        if action not in _VALID_ACTIONS:
-            action = "持有观望"
         if priority not in _VALID_PRIORITIES:
             priority = "中"
         parsed.append(
@@ -121,10 +125,21 @@ def ensure_all_holdings_covered(
     for holding in holdings:
         existing = by_symbol.get(holding.symbol)
         if existing and existing.reason:
-            merged.append(existing)
+            merged.append(
+                existing.model_copy(
+                    update={"action": normalize_position_action(existing.action, portfolio=False)}
+                )
+            )
         elif existing:
             fallback = derive_stock_action(holding, alerts)
-            merged.append(existing.model_copy(update={"reason": fallback.reason}))
+            merged.append(
+                existing.model_copy(
+                    update={
+                        "action": normalize_position_action(existing.action, portfolio=False),
+                        "reason": fallback.reason,
+                    }
+                )
+            )
         else:
             merged.append(derive_stock_action(holding, alerts))
     priority_rank = {"高": 0, "中": 1, "低": 2}
@@ -148,7 +163,9 @@ def format_judge_display(verdict: JudgeVerdict) -> str:
     lines.append(verdict.summary)
     if verdict.reason and verdict.reason != verdict.summary:
         lines.append(verdict.reason)
-    lines.append(f"整体风险{verdict.risk_level}，组合倾向{verdict.position_action}，分歧{verdict.divergence}。")
+    lines.append(
+        f"整体风险{verdict.risk_level}，组合仓位倾向{verdict.position_action}，分歧{verdict.divergence}。"
+    )
     return "\n".join(lines)
 
 
@@ -169,7 +186,10 @@ def parse_judge(
         try:
             data = json.loads(match.group(0))
             risk_level = str(data.get("risk_level", "中")).strip() or "中"
-            action = str(data.get("position_action", fallback_action)).strip() or fallback_action
+            action = normalize_position_action(
+                str(data.get("position_action", fallback_action)).strip() or fallback_action,
+                portfolio=True,
+            )
             summary = str(data.get("summary", "")).strip()
             reason = str(data.get("reason", "")).strip()
             divergence = str(data.get("divergence", "分歧中等")).strip()
@@ -179,8 +199,6 @@ def parse_judge(
                 _parse_holding_actions(data.get("holding_actions")),
                 alerts,
             )
-            if action not in ("加仓", "减仓", "持有观望"):
-                action = fallback_action
             if risk_level not in ("低", "中", "高"):
                 risk_level = "中"
             return JudgeVerdict(

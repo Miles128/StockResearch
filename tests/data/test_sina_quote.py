@@ -7,6 +7,12 @@ from stockresearch.data.providers.market import MarketRuleProvider, QuoteProvide
 from stockresearch.data.providers.sina_quote import QuoteRow
 
 
+@pytest.fixture(autouse=True)
+def noop_sqlite_quote_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(market_mod, "get_sqlite_cached", lambda _key: None)
+    monkeypatch.setattr(market_mod, "set_sqlite_cached", lambda *_args, **_kwargs: None)
+
+
 @pytest.mark.asyncio
 async def test_batch_quotes_use_sina_only(
     monkeypatch: pytest.MonkeyPatch,
@@ -30,7 +36,9 @@ async def test_batch_quotes_use_sina_only(
 
     monkeypatch.setattr(market_mod, "fetch_sina_quotes", fake_sina)
 
-    quotes = await QuoteProvider().get_quotes(["600519", "300750", "600519"])
+    quotes = await QuoteProvider().get_quotes(
+        ["600519", "300750", "600519"], force_refresh=True
+    )
     assert set(quotes) == {"600519", "300750"}
     assert quotes["600519"].price == 10.0
 
@@ -60,11 +68,49 @@ async def test_quotes_fallback_to_akshare_when_sina_fails(
         }
 
     monkeypatch.setattr(market_mod, "fetch_sina_quotes", sina_fail)
+    monkeypatch.setattr(market_mod, "fetch_efinance_quotes", lambda _s: {})
     monkeypatch.setattr(market_mod, "fetch_akshare_hist_quotes", fake_ak)
 
-    quotes = await QuoteProvider().get_quotes(["600519"])
+    quotes = await QuoteProvider().get_quotes(["600519"], force_refresh=True)
     assert quotes["600519"].price == 99.0
     assert quotes["600519"].name == "Ak600519"
+
+
+@pytest.mark.asyncio
+async def test_quotes_return_partial_sina_without_blocking_on_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from datetime import UTC, datetime
+
+    ak_called = False
+
+    def fake_sina(symbols: list[str]) -> dict[str, QuoteRow]:
+        return {
+            "600519": {
+                "symbol": "600519",
+                "name": "贵州茅台",
+                "price": 10.0,
+                "change_pct": 1.0,
+                "high": 11.0,
+                "low": 9.0,
+                "volume": 100.0,
+                "updated_at": datetime.now(UTC),
+            }
+        }
+
+    def fake_ak(_symbols: list[str]) -> dict[str, QuoteRow]:
+        nonlocal ak_called
+        ak_called = True
+        return {}
+
+    monkeypatch.setattr(market_mod, "fetch_sina_quotes", fake_sina)
+    monkeypatch.setattr(market_mod, "fetch_akshare_hist_quotes", fake_ak)
+    monkeypatch.setattr(market_mod, "fetch_efinance_quotes", fake_ak)
+
+    quotes = await QuoteProvider().get_quotes(["600519", "300750"], force_refresh=True)
+    assert quotes["600519"].price == 10.0
+    assert "300750" not in quotes
+    assert ak_called is False
 
 
 @pytest.mark.asyncio

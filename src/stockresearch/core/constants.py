@@ -177,11 +177,13 @@ NEWS_SOURCE_AUTHORITY: dict[str, float] = {
 
 # Output banned patterns for neutral_guard: (regex, replacement)
 # replacement=None means delete the matched text entirely
+# PRD §9.1: 建议买入/卖出 allowed (with disclaimer in UI); 加仓/减仓/持有观望 forbidden.
 OUTPUT_BANNED_PATTERNS: tuple[tuple[str, str | None], ...] = (
-    (r"建议\s*买入", "建议关注"),
-    (r"建议\s*卖出", "建议评估"),
-    (r"建议\s*加仓", "建议留意"),
-    (r"建议\s*减仓", "建议评估"),
+    (r"持有观望", "仓位适中"),
+    (r"建议\s*加仓", "建议控制仓位"),
+    (r"建议\s*减仓", "建议控制仓位"),
+    (r"加仓", "仓位偏低"),
+    (r"减仓", "仓位偏高"),
     (r"目标价\s*[\d.]+", "合理估值区间"),
     (r"(强烈|坚决)\s*(推荐|建议)", "值得关注"),
     (r"赶紧|立即|马上|务必", None),

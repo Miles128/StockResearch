@@ -26,7 +26,7 @@ def apply_ban_filter(text: str) -> str:
 
 
 # Tone calibration: softer alternatives for directive language
-# Note: "建议买入/卖出/加仓/减仓" is already handled by OUTPUT_BANNED_PATTERNS.
+# Note: forbidden position terms handled by OUTPUT_BANNED_PATTERNS (PRD §9.1).
 # These patterns catch remaining directive language not covered by the ban filter.
 _TONE_CALIBRATIONS: list[tuple[str, str]] = [
     (r"应该\s*买", "可能值得留意"),
@@ -37,6 +37,8 @@ _TONE_CALIBRATIONS: list[tuple[str, str]] = [
     (r"推荐\s*卖出", "评估"),
     (r"预计\s*将", "历史上类似情况可能"),
     (r"将会", "可能"),
+    (r"系统建议\s*减仓", "从数据看仓位偏高"),
+    (r"系统建议\s*加仓", "从数据看仓位偏低"),
     (r"系统建议", "你的数据显示"),
     (r"我们建议", "从数据看"),
 ]

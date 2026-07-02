@@ -43,6 +43,8 @@ export interface ModeSettings {
   customGlossary: CustomGlossaryTerm[];
   holdingsView: HoldingsView;
   quoteRefreshMinutes: number;
+  briefingAutoEnabled: boolean;
+  uiPollingEnabled: boolean;
 }
 
 const STORAGE_KEY = "stockresearch.mode.settings";
@@ -186,6 +188,10 @@ function migrateModeSettings(parsed: unknown): Partial<ModeSettings> {
               Math.max(1, (partial as { quote_refresh_minutes: number }).quote_refresh_minutes),
             )
           : preset.quoteRefreshMinutes,
+    briefingAutoEnabled:
+      typeof partial.briefingAutoEnabled === "boolean" ? partial.briefingAutoEnabled : true,
+    uiPollingEnabled:
+      typeof partial.uiPollingEnabled === "boolean" ? partial.uiPollingEnabled : false,
   };
 }
 
@@ -217,6 +223,8 @@ export interface ModeSettingsApiPayload {
   custom_masters: CustomMasterApiPayload[];
   custom_glossary: CustomGlossaryApiPayload[];
   quote_refresh_minutes: number;
+  briefing_auto_enabled: boolean;
+  ui_polling_enabled: boolean;
 }
 
 export const ADVISOR_PRESET: Omit<ModeSettings, "onboarded"> = {
@@ -233,6 +241,8 @@ export const ADVISOR_PRESET: Omit<ModeSettings, "onboarded"> = {
   customGlossary: [],
   holdingsView: "table",
   quoteRefreshMinutes: 10,
+  briefingAutoEnabled: true,
+  uiPollingEnabled: false,
 };
 
 export const RESEARCH_PRESET: Omit<ModeSettings, "onboarded"> = {
@@ -249,6 +259,8 @@ export const RESEARCH_PRESET: Omit<ModeSettings, "onboarded"> = {
   customGlossary: [],
   holdingsView: "table",
   quoteRefreshMinutes: 10,
+  briefingAutoEnabled: true,
+  uiPollingEnabled: false,
 };
 
 export const DEFAULT_MODE_SETTINGS: ModeSettings = {
@@ -322,6 +334,8 @@ export function modeSettingsToApiPayload(settings: ModeSettings): ModeSettingsAp
       en: term.en ?? "",
     })),
     quote_refresh_minutes: settings.quoteRefreshMinutes,
+    briefing_auto_enabled: settings.briefingAutoEnabled,
+    ui_polling_enabled: settings.uiPollingEnabled,
   };
 }
 
@@ -368,6 +382,12 @@ export function modeSettingsFromApiPayload(payload: Partial<ModeSettingsApiPaylo
       typeof payload.quote_refresh_minutes === "number"
         ? Math.min(120, Math.max(1, payload.quote_refresh_minutes))
         : preset.quoteRefreshMinutes,
+    briefingAutoEnabled:
+      typeof payload.briefing_auto_enabled === "boolean"
+        ? payload.briefing_auto_enabled
+        : true,
+    uiPollingEnabled:
+      typeof payload.ui_polling_enabled === "boolean" ? payload.ui_polling_enabled : false,
   };
 }
 

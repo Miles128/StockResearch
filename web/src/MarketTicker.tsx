@@ -4,6 +4,7 @@ import { useI18n } from "./i18n";
 import { localizeIndexName } from "./indexLabels";
 
 export function MarketTicker({
+  inline = false,
   overview,
   loading,
   sessionLabel,
@@ -13,6 +14,7 @@ export function MarketTicker({
   onRefresh,
   onIndexClick,
 }: {
+  inline?: boolean;
   overview: MarketOverview | null;
   loading: boolean;
   sessionLabel: string;
@@ -25,7 +27,9 @@ export function MarketTicker({
   const { t } = useI18n();
 
   return (
-    <div className="market-ticker-wrap market-ticker-oneline">
+    <div
+      className={`market-ticker-wrap market-ticker-oneline${inline ? " market-ticker-inline" : ""}`}
+    >
       <div className="ticker-strip">
         {(overview?.indices ?? []).map((idx) => {
           const label = localizeIndexName(idx.symbol, idx.name, t);

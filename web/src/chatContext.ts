@@ -7,11 +7,15 @@ export function copilotContextToPayload(context: CopilotContext): {
   symbol?: string;
   metadata?: Record<string, string>;
 } {
-  const symbolMatch = context.label.match(/\b(\d{6})\b/);
+  const symbolFromLabel = context.label.match(/\b(\d{6})\b/)?.[1];
+  const symbolFromDetail =
+    context.detail && /^\d{6}$/.test(context.detail) ? context.detail : undefined;
+  const sectorMatch = context.detail?.match(/^板块：(.+)$/);
   return {
     kind: context.kind,
     label: context.label,
     detail: context.detail,
-    symbol: symbolMatch?.[1],
+    symbol: symbolFromDetail ?? symbolFromLabel,
+    metadata: sectorMatch?.[1] ? { sector: sectorMatch[1] } : undefined,
   };
 }

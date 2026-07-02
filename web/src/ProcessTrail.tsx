@@ -1,31 +1,25 @@
 import type { ReactNode } from "react";
-import { useI18n } from "./i18n";
+import { processTrailLabel } from "./processKind";
 import type { StreamState } from "./streamEvents";
+import { hasProcessContent } from "./streamEvents";
+import { useI18n } from "./i18n";
 
-export function hasProcessContent(process?: StreamState): boolean {
-  if (!process) return false;
-  return (
-    process.streamLog.length > 0 ||
-    process.agentSteps.length > 0 ||
-    process.debateRounds.length > 0 ||
-    process.judgeVerdict != null ||
-    process.voteTally != null ||
-    process.masterCommentary.length > 0
-  );
-}
+export { hasProcessContent };
 
 interface ProcessTrailProps {
   label?: string;
   live?: boolean;
+  /** When set, summary reflects react / plan / multi-agent workflow. */
+  process?: StreamState;
   children: ReactNode;
 }
 
-/** 默认折叠的多 Agent 思考过程容器 */
-export function ProcessTrail({ label, live = false, children }: ProcessTrailProps) {
+/** Collapsible process panel — title matches the actual agent workflow. */
+export function ProcessTrail({ label, live = false, process, children }: ProcessTrailProps) {
   const { t } = useI18n();
-  const summary = label ?? (live ? t("chat.processLive") : t("chat.processTitle"));
+  const summary = processTrailLabel(process, live, t, label);
   return (
-    <details className="process-trail-fold">
+    <details className="process-trail-fold" open={live || undefined}>
       <summary className="process-trail-summary">{summary}</summary>
       <div className="process-trail-body">{children}</div>
     </details>

@@ -25,6 +25,10 @@ def test_put_mode_settings_persists(client) -> None:
         "enable_master_commentary": True,
         "selected_masters": ["buffett", "munger"],
         "custom_masters": [],
+        "custom_glossary": [],
+        "quote_refresh_minutes": 10,
+        "briefing_auto_enabled": True,
+        "ui_polling_enabled": False,
         "max_signals": 5,
         "onboarded": True,
     }

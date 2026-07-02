@@ -13,13 +13,16 @@ async def test_stop_loss_red_alert(monkeypatch) -> None:
 
     from stockresearch.data.providers.market import Quote, QuoteProvider
 
-    async def fake_get_quotes(self, symbols: list[str]) -> dict[str, Quote]:
+    async def fake_get_quotes(
+        self, symbols: list[str], *, cache_ttl_seconds: int | None = None
+    ) -> dict[str, Quote]:
         return {
             sym: Quote(
                 symbol=sym,
                 name="宁德时代",
                 price=200.0,
                 change_pct=-2.0,
+                open=205.0,
                 high=210.0,
                 low=198.0,
                 volume=10000.0,

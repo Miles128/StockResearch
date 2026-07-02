@@ -4,6 +4,7 @@ import os
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 
 # Force test settings before imports
@@ -31,16 +32,43 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             item.add_marker(skip_live)
 
 
-@pytest.fixture()
-def db_session() -> object:
+def _reset_test_database() -> None:
     engine = db_session_module.engine
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     with engine.begin() as conn:
         _migration_002_user_preferences(conn)
         _migration_003_provider_cache(conn)
+        conn.execute(text("DELETE FROM provider_cache"))
+
+
+def _clear_provider_cache() -> None:
+    engine = db_session_module.engine
+    with engine.begin() as conn:
+        try:
+            conn.execute(text("DELETE FROM provider_cache"))
+        except Exception:
+            pass
+
+
+@pytest.fixture(autouse=True)
+def _isolated_provider_cache() -> None:
+    _clear_provider_cache()
+    yield
+    _clear_provider_cache()
+
+
+@pytest.fixture()
+def db_session() -> object:
+    _reset_test_database()
     session = db_session_module.SessionLocal()
-    yield session
-    session.close()
+    try:
+        yield session
+    finally:
+        session.rollback()
+        session.close()
+        _clear_provider_cache()
+        Base.metadata.drop_all(bind=db_session_module.engine)
 
 
 @pytest.fixture()

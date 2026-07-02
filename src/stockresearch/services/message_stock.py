@@ -6,16 +6,7 @@ from dataclasses import dataclass
 from stockresearch.core.constants import NAME_TO_SYMBOL
 from stockresearch.services.stock_lookup import STOCK_ALIASES, StockLookupResult, lookup_stock
 from stockresearch.utils.llm import LLMClient
-from stockresearch.utils.symbols import resolve_name
-
-_STOCK_CODE_RE = re.compile(r"(?<!\d)(\d{6})(?!\d)")
-_STOCK_NAME_RE = re.compile(
-    r"(茅台|宁德时代|宁德|比亚迪|招商银行|招行|平安银行|中国平安|平安|中芯国际|中芯"
-    r"|腾讯|阿里|阿里巴巴|五粮液|泸州老窖|恒瑞医药|美的|格力"
-    r"|工商银行|建行|农行|中行|交行|兴业|浦发|民生"
-    r"|海康威视|药明康德|隆基绿能|隆基|通威|紫金矿业|长江电力"
-    r"|中国移动|中国石油|中国石化|神华|中远海控|徐工机械|徐工|招商证券|中信证券|中信)"
-)
+from stockresearch.utils.symbols import STOCK_CODE_RE, STOCK_NAME_RE, resolve_name
 
 
 @dataclass(frozen=True)
@@ -45,7 +36,7 @@ def extract_stock_query(message: str) -> str | None:
     if not text:
         return None
 
-    code_match = _STOCK_CODE_RE.search(text)
+    code_match = STOCK_CODE_RE.search(text)
     if code_match:
         return code_match.group(1)
 
@@ -57,9 +48,9 @@ def extract_stock_query(message: str) -> str | None:
         if alias in text:
             return alias
 
-    name_match = _STOCK_NAME_RE.search(text)
+    name_match = STOCK_NAME_RE.search(text)
     if name_match:
-        return name_match.group(1)
+        return name_match.group(0)
 
     return None
 

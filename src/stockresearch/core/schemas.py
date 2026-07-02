@@ -112,6 +112,7 @@ class HoldingEnrichedOut(HoldingOut):
 
     price: float | None = None
     change_pct: float | None = None
+    open: float | None = None
     price_label: str = "收盘"
     market_session: Literal["trading", "closed"] = "closed"
     profit_amount: float | None = None
@@ -404,6 +405,8 @@ class ModeSettingsOut(BaseModel):
     custom_masters: list[CustomMasterOut] = Field(default_factory=list)
     custom_glossary: list[CustomGlossaryTermOut] = Field(default_factory=list)
     quote_refresh_minutes: int = Field(default=10, ge=1, le=120)
+    briefing_auto_enabled: bool = True
+    ui_polling_enabled: bool = False
 
 
 class ModeSettingsUpdate(ModeSettingsOut):
@@ -457,7 +460,6 @@ class CardPayload(BaseModel):
         "plan",
         "financial",
         "stock_choice",
-        "route_choice",
     ]
     data: dict[str, object]
 
@@ -474,6 +476,7 @@ class StockQuoteOut(BaseModel):
     name: str
     price: float
     change_pct: float
+    open: float = 0
     high: float
     low: float
     volume: float
@@ -560,6 +563,16 @@ class ProviderMetaOut(BaseModel):
     default_ttl_seconds: int | None = None
 
 
+class QuotePriceConflictOut(BaseModel):
+    symbol: str
+    name: str
+    primary_source: str
+    primary_price: float
+    compare_source: str
+    compare_price: float
+    diff_pct: float
+
+
 class DataSourceStatusOut(BaseModel):
     quotes: ProviderStatusOut | None = None
     overview: ProviderStatusOut | None = None
@@ -568,6 +581,7 @@ class DataSourceStatusOut(BaseModel):
     use_mock: bool = False
     tushare_configured: bool = False
     tushare_available: bool = False
+    price_conflicts: list[QuotePriceConflictOut] = Field(default_factory=list)
 
 
 class ResearchReportListItem(BaseModel):

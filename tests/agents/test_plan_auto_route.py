@@ -30,7 +30,7 @@ def test_single_stock_not_plan() -> None:
 def test_single_market_not_plan() -> None:
     assert is_single_focus_scope("今天大盘走势怎么样")
     assert not should_auto_plan_execute("今天大盘行情")
-    assert resolve_execution_mode("今天大盘行情") == ComplexityResult.MARKET_RESEARCH
+    assert resolve_execution_mode("今天大盘行情") == ComplexityResult.DIRECT
 
 
 def test_single_industry_not_plan() -> None:

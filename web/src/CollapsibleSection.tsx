@@ -21,17 +21,19 @@ export function CollapsibleSection({
 
   return (
     <section className={`flat-section collapsible-section${collapsed ? " collapsed" : ""}${className ? ` ${className}` : ""}`}>
-      <button
-        type="button"
-        className="collapsible-section-head"
-        onClick={() => setCollapsed((v) => !v)}
-        aria-expanded={!collapsed}
-      >
-        <span className={`collapsible-chevron${collapsed ? " collapsed" : ""}`}>▾</span>
-        <span className="flat-section-title">{title}</span>
-        {summary ? <span className="collapsible-summary">{summary}</span> : null}
+      <div className="collapsible-section-head">
+        <button
+          type="button"
+          className="collapsible-section-toggle"
+          onClick={() => setCollapsed((v) => !v)}
+          aria-expanded={!collapsed}
+        >
+          <span className={`collapsible-chevron${collapsed ? " collapsed" : ""}`}>▾</span>
+          <span className="flat-section-title">{title}</span>
+          {summary ? <span className="collapsible-summary">{summary}</span> : null}
+        </button>
         {headerExtra}
-      </button>
+      </div>
       {!collapsed && <div className="collapsible-section-body">{children}</div>}
     </section>
   );

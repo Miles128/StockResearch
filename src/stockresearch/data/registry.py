@@ -24,8 +24,20 @@ class ProviderSnapshot:
     tertiary_count: int = 0
 
 
+@dataclass(frozen=True)
+class QuotePriceConflict:
+    symbol: str
+    name: str
+    primary_source: str
+    primary_price: float
+    compare_source: str
+    compare_price: float
+    diff_pct: float
+
+
 _snapshots: dict[str, ProviderSnapshot] = {}
 _symbol_sources: dict[str, str] = {}
+_price_conflicts: list[QuotePriceConflict] = []
 
 
 def record_quote_fetch(
@@ -70,6 +82,15 @@ def get_symbol_source(symbol: str) -> str | None:
     return _symbol_sources.get(symbol)
 
 
+def record_quote_conflicts(conflicts: list[QuotePriceConflict]) -> None:
+    global _price_conflicts
+    _price_conflicts = conflicts
+
+
+def get_quote_conflicts() -> list[QuotePriceConflict]:
+    return list(_price_conflicts)
+
+
 def record_overview_fetch(
     *,
     source: str,
@@ -106,6 +127,7 @@ def _clear_expired_snapshots() -> None:
 
 
 def reset_snapshots_for_tests() -> None:
-    global _symbol_sources
+    global _symbol_sources, _price_conflicts
     _snapshots.clear()
     _symbol_sources.clear()
+    _price_conflicts.clear()

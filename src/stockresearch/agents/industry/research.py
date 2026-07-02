@@ -3,7 +3,7 @@
 from sqlalchemy.orm import Session
 
 from stockresearch.agents.industry.stream import run_industry_research_stream
-from stockresearch.core.schemas import ResearchReportOut
+from stockresearch.core.schemas import ModeSettingsOut, ResearchReportOut
 from stockresearch.utils.llm import LLMClient
 
 
@@ -16,6 +16,7 @@ async def run_industry_research(
     *,
     with_debate: bool = False,
     enable_master_commentary: bool = False,
+    mode_settings: ModeSettingsOut | None = None,
 ) -> tuple[str, list[dict[str, object]]]:
     report: ResearchReportOut | None = None
     async for event in run_industry_research_stream(
@@ -26,6 +27,7 @@ async def run_industry_research(
         llm,
         with_debate=with_debate,
         enable_master_commentary=enable_master_commentary,
+        mode_settings=mode_settings,
     ):
         if event.get("type") == "done":
             raw = event.get("result")

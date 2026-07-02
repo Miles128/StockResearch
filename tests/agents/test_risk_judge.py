@@ -28,15 +28,15 @@ def test_parse_judge_json_covers_all_holdings() -> None:
     ]
     raw = (
         '{"analysis_process":"1. 看告警\\n2. 看辩论\\n3. 逐股结论",'
-        '"risk_level":"高","position_action":"减仓",'
-        '"holding_actions":[{"symbol":"300750","name":"宁德时代","action":"减仓",'
+        '"risk_level":"高","position_action":"仓位偏高",'
+        '"holding_actions":[{"symbol":"300750","name":"宁德时代","action":"仓位偏高",'
         '"reason":"回撤过大","priority":"高"}],'
         '"summary":"优先处理回撤标的","reason":"组合仍有联动风险","divergence":"分歧中等"}'
     )
     verdict = parse_judge(raw, [], holdings)
     assert len(verdict.holding_actions) == 4
     assert verdict.holding_actions[0].symbol == "300750"
-    assert verdict.holding_actions[0].action == "减仓"
+    assert verdict.holding_actions[0].action == "仓位偏高"
     assert any(item.symbol == "600519" for item in verdict.holding_actions)
 
 
@@ -52,9 +52,9 @@ def test_parse_judge_fallback_from_alerts() -> None:
         )
     ]
     verdict = _parse_judge("无法解析", alerts, holdings)
-    assert verdict.position_action == "减仓"
+    assert verdict.position_action == "仓位偏高"
     assert len(verdict.holding_actions) == 1
-    assert verdict.holding_actions[0].action == "减仓"
+    assert verdict.holding_actions[0].action == "仓位偏高"
     assert verdict.analysis_process
 
 

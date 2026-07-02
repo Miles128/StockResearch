@@ -22,6 +22,8 @@ describe("modeSettings API conversion", () => {
       customGlossary: [{ id: "测试术语", short: "测试术语", def: "用于单测的自定义词条" }],
       holdingsView: "table",
       quoteRefreshMinutes: 10,
+      briefingAutoEnabled: true,
+      uiPollingEnabled: false,
     };
 
     expect(modeSettingsToApiPayload(settings)).toEqual({
@@ -38,6 +40,8 @@ describe("modeSettings API conversion", () => {
       custom_masters: [{ id: "dalio", name: "Dalio", system_prompt: "Macro cycles and risk parity." }],
       custom_glossary: [{ id: "测试术语", short: "测试术语", def: "用于单测的自定义词条", analogy: "", en: "" }],
       quote_refresh_minutes: 10,
+      briefing_auto_enabled: true,
+      ui_polling_enabled: false,
     });
   });
 
@@ -57,6 +61,8 @@ describe("modeSettings API conversion", () => {
         custom_masters: [],
         custom_glossary: [],
         quote_refresh_minutes: 20,
+        briefing_auto_enabled: false,
+        ui_polling_enabled: true,
       }),
     ).toEqual({
       mode: "research",
@@ -73,6 +79,8 @@ describe("modeSettings API conversion", () => {
       customGlossary: [],
       holdingsView: "table",
       quoteRefreshMinutes: 20,
+      briefingAutoEnabled: false,
+      uiPollingEnabled: true,
     });
   });
 });

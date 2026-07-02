@@ -1,7 +1,7 @@
-import type { ExecutionPreference, HoldingEnriched, RouteChoiceCardData, StockChoiceCardData } from "./api";
+import type { ExecutionPreference, HoldingEnriched, StockChoiceCardData } from "./api";
 import type { Message } from "./appTypes";
 import type { AppMode } from "./modeSettings";
-import { CardView, PlanCardsFold, RouteChoiceCardView, StockChoiceCardView } from "./chatCards";
+import { CardView, PlanCardsFold, StockChoiceCardView } from "./chatCards";
 import { FollowUpChips } from "./FollowUpChips";
 import { LightResearchCard } from "./LightResearchCard";
 import {
@@ -11,10 +11,13 @@ import {
 import { isResearchTurn } from "./disclaimerText";
 import { useI18n } from "./i18n";
 import { MarkdownContent } from "./MarkdownContent";
-import { hasProcessContent, ProcessTrail } from "./ProcessTrail";
+import { ProcessTrail } from "./ProcessTrail";
+import { skillStepLabel } from "./processKind";
+import { CollapsibleSection } from "./CollapsibleSection";
 import { cardsWithoutReplyDuplicate, shouldHideReplyBubble } from "./replyCardDedup";
 import { StreamFeed } from "./StreamFeed";
 import type { StreamState } from "./streamEvents";
+import { hasLiveProcessContent, hasProcessContent } from "./streamEvents";
 
 interface ChatPanelProps {
   messages: Message[];
@@ -42,18 +45,71 @@ function ProcessStreamFeed({
   statusMsg: string;
   live?: boolean;
 }) {
+  const { t } = useI18n();
+  const topHasBody =
+    process.streamLog.length > 0 ||
+    process.agentSteps.length > 0 ||
+    process.debateRounds.length > 0 ||
+    process.judgeVerdict != null ||
+    process.voteTally != null ||
+    process.masterCommentary.length > 0;
+  const singleSkill = process.skillSteps.length === 1 && !topHasBody;
+
   return (
-    <ProcessTrail live={live}>
-      <StreamFeed
-        streamStatus={process.streamStatus || statusMsg}
-        streamLog={process.streamLog}
-        agentSteps={process.agentSteps}
-        debateRounds={process.debateRounds}
-        judgeVerdict={process.judgeVerdict}
-        voteTally={process.voteTally}
-        masterCommentary={process.masterCommentary}
-        activeStreamIds={process.activeStreamIds}
-      />
+    <ProcessTrail live={live} process={process}>
+      {process.skillSteps.map((skill) =>
+        singleSkill ? (
+          <StreamFeed
+            key={skill.skillRunId}
+            streamStatus={skill.nested.streamStatus || statusMsg}
+            streamLog={skill.nested.streamLog}
+            agentSteps={skill.nested.agentSteps}
+            debateRounds={skill.nested.debateRounds}
+            judgeVerdict={skill.nested.judgeVerdict}
+            voteTally={skill.nested.voteTally}
+            masterCommentary={skill.nested.masterCommentary}
+            activeStreamIds={skill.nested.activeStreamIds}
+            live={live}
+          />
+        ) : (
+          <CollapsibleSection
+            key={skill.skillRunId}
+            title={skillStepLabel(skill, t)}
+            summary={
+              skill.status === "running"
+                ? "…"
+                : skill.summary?.slice(0, 80) ?? t("chat.processDone")
+            }
+            defaultCollapsed={skill.status === "done"}
+            className="skill-process-block"
+          >
+            <StreamFeed
+              streamStatus={skill.nested.streamStatus || statusMsg}
+              streamLog={skill.nested.streamLog}
+              agentSteps={skill.nested.agentSteps}
+              debateRounds={skill.nested.debateRounds}
+              judgeVerdict={skill.nested.judgeVerdict}
+              voteTally={skill.nested.voteTally}
+              masterCommentary={skill.nested.masterCommentary}
+              activeStreamIds={skill.nested.activeStreamIds}
+              live={live}
+            />
+          </CollapsibleSection>
+        ),
+      )}
+      {topHasBody && (
+        <StreamFeed
+          streamStatus={process.streamStatus || statusMsg}
+          streamLog={process.streamLog}
+          agentSteps={process.agentSteps}
+          debateRounds={process.debateRounds}
+          judgeVerdict={process.judgeVerdict}
+          voteTally={process.voteTally}
+          masterCommentary={process.masterCommentary}
+          activeStreamIds={process.activeStreamIds}
+          live={live}
+        />
+      )}
     </ProcessTrail>
   );
 }
@@ -76,28 +132,26 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const { t } = useI18n();
 
-  function renderAssistantContent(m: Message) {
+  function renderAssistantConclusion(m: Message) {
     const researchReport = findResearchReport(m.cards);
     const hideReply = shouldHideReplyBubble(m.cards);
     const showConclusionShell = isResearchTurn(m.cards, m.intent) && !researchReport;
 
+    if (hideReply || !m.content.trim()) return null;
+
+    if (showConclusionShell) {
+      return (
+        <div className="message assistant conclusion-panel">
+          <p className="process-panel-title">{t("chat.conclusion")}</p>
+          <MarkdownContent text={m.content} />
+        </div>
+      );
+    }
+
     return (
-      <>
-        {hasProcessContent(m.process) && m.process && (
-          <ProcessStreamFeed process={m.process} statusMsg={statusMsg} />
-        )}
-        {!hideReply && m.content.trim() &&
-          (showConclusionShell ? (
-            <div className="message assistant conclusion-panel">
-              <p className="process-panel-title">{t("chat.conclusion")}</p>
-              <MarkdownContent text={m.content} />
-            </div>
-          ) : (
-            <div className="message assistant">
-              <MarkdownContent text={m.content} />
-            </div>
-          ))}
-      </>
+      <div className="message assistant">
+        <MarkdownContent text={m.content} />
+      </div>
     );
   }
 
@@ -134,7 +188,7 @@ export function ChatPanel({
               </div>
             ) : (
               <>
-                {renderAssistantContent(m)}
+                {renderAssistantConclusion(m)}
                 {(() => {
                   const researchReport = findResearchReport(m.cards);
                   const visibleCards = cardsWithoutReplyDuplicate(m.cards, m.content);
@@ -158,13 +212,6 @@ export function ChatPanel({
                         disabled={loading}
                         onConfirm={onConfirmStock}
                       />
-                    ) : c.type === "route_choice" ? (
-                      <RouteChoiceCardView
-                        key={j}
-                        data={c.data as unknown as RouteChoiceCardData}
-                        disabled={loading}
-                        onConfirm={onConfirmRoute}
-                      />
                     ) : (
                       <CardView key={j} card={c} />
                     ),
@@ -172,10 +219,15 @@ export function ChatPanel({
                     </>
                   );
                 })()}
+                {hasProcessContent(m.process) && m.process && (
+                  <ProcessStreamFeed process={m.process} statusMsg={statusMsg} />
+                )}
                 {!findResearchReport(m.cards) && m.followUpQuestions && m.followUpQuestions.length > 0 && (
                   <FollowUpChips questions={m.followUpQuestions} onSelect={onStartQuery} />
                 )}
-                {isResearchTurn(m.cards, m.intent) && <p className="turn-disclaimer">{t("chat.turnDisclaimer")}</p>}
+                {m.role === "assistant" && (
+                  <p className="turn-disclaimer">{t("chat.turnDisclaimer")}</p>
+                )}
                 {!loading &&
                   i === messages.length - 1 &&
                   findResearchReport(m.cards) != null &&
@@ -187,7 +239,7 @@ export function ChatPanel({
             )}
           </div>
         ))}
-        {loading && (hasProcessContent(chatStream) || statusMsg) && (
+        {loading && (hasLiveProcessContent(chatStream) || statusMsg) && (
           <div className="message assistant stream-live-panel">
             <ProcessStreamFeed process={chatStream} statusMsg={statusMsg} live />
           </div>

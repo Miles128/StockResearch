@@ -54,11 +54,26 @@ const VOTE_ZH: Record<string, string> = {
 };
 
 const POSITION_ACTION_ZH: Record<string, string> = {
-  加仓: "stream.actions.add",
-  减仓: "stream.actions.reduce",
-  持有观望: "stream.actions.hold",
-  观望: "stream.actions.hold",
+  仓位偏高: "stream.actions.high",
+  仓位偏低: "stream.actions.low",
+  仓位适中: "stream.actions.neutral",
+  建议控制仓位: "stream.actions.control",
+  暂不调整: "stream.actions.noChange",
 };
+
+/** Stable CSS class suffix for position-bias styling (PRD §9.1). */
+export function positionActionCssClass(action: string): string {
+  const key = POSITION_ACTION_ZH[action.trim()];
+  if (key === "stream.actions.high") return "reduce";
+  if (key === "stream.actions.low") return "add";
+  if (key === "stream.actions.noChange") return "hold_no_change";
+  if (key === "stream.actions.control" || key === "stream.actions.neutral") return "hold";
+  const localized = action.toLowerCase();
+  if (localized.includes("overweight") || localized.includes("high")) return "reduce";
+  if (localized.includes("underweight") || localized.includes("low")) return "add";
+  if (localized.includes("no change")) return "hold_no_change";
+  return "hold";
+}
 
 export function localizeAgentDisplay(agentId: string, fallback: string, t: TFn): string {
   const byId = t(`stream.agents.${agentId}`);

@@ -7,7 +7,7 @@ from stockresearch.api.app import create_app
 from stockresearch.api.llm_deps import merge_llm_settings
 from stockresearch.core.llm_config import LlmOverrides, resolve_chat_completions_url
 from stockresearch.core.schemas import LlmUserSettings
-from stockresearch.utils.llm import MockLLMClient, OpenAICompatibleClient, get_llm_client
+from stockresearch.utils.llm import MockLLMClient, OpenAICompatibleClient, _httpx_client_kwargs, get_llm_client
 from stockresearch.utils.llm_test import verify_llm_connection
 
 
@@ -32,6 +32,12 @@ def test_llm_overrides_clamp_temperature() -> None:
 def test_get_llm_client_mock_override() -> None:
     client = get_llm_client(LlmOverrides(use_mock=True))
     assert isinstance(client, MockLLMClient)
+
+
+def test_httpx_client_kwargs_ignore_system_proxy() -> None:
+    kwargs = _httpx_client_kwargs()
+    assert kwargs.get("trust_env") is False
+    assert "timeout" in kwargs
 
 
 @pytest.mark.asyncio

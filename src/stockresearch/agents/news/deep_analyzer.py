@@ -196,18 +196,45 @@ async def run_news_deep_analysis_stream(
     client = llm or get_llm_client()
     name = resolve_name(symbol)
 
+    try:
+        async for event in _run_news_deep_analysis_body(
+            title=title,
+            summary=summary,
+            content=content,
+            source=source,
+            symbol=symbol,
+            entities=entities,
+            news_id=news_id,
+            client=client,
+            name=name,
+        ):
+            yield event
+    except Exception as exc:
+        logger.exception("News deep analysis failed news_id=%s symbol=%s", news_id, symbol)
+        yield {
+            "type": "error",
+            "code": "news_analysis_failed",
+            "message": str(exc) or "新闻深度分析失败，请稍后重试",
+        }
+
+
+async def _run_news_deep_analysis_body(
+    *,
+    title: str,
+    summary: str,
+    content: str,
+    source: str,
+    symbol: str,
+    entities: list[str],
+    news_id: int,
+    client: LLMClient,
+    name: str,
+) -> AsyncIterator[dict[str, object]]:
     yield status_event("status.news.analyze", news=str(news_id), symbol=symbol, name=name)
 
     news_text = f"【{source}】{title}\n摘要：{summary}"
     if content:
         news_text += f"\n正文：{content[:1200]}"
-
-    yield {
-        "type": "agent_start",
-        "agent_id": f"stock_{symbol}",
-        "agent_name": name,
-        "role": "analyst",
-    }
 
     yield status_event("status.news.fetching", symbol=symbol, name=name)
     data = await _fetch_stock_data(symbol)
@@ -249,13 +276,6 @@ async def run_news_deep_analysis_stream(
         key_points=key_points,
     )
 
-    yield {
-        "type": "agent_done",
-        "agent_id": f"stock_{symbol}",
-        "agent_name": name,
-        "role": "analyst",
-        "content": impact_text,
-    }
     yield {
         "type": "stock_impact",
         "symbol": symbol,

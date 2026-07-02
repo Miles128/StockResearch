@@ -14,12 +14,15 @@ logger = logging.getLogger(__name__)
 
 
 def _httpx_client_kwargs() -> dict:
-    """Build common httpx.AsyncClient kwargs including proxy if configured.
+    """Build httpx.AsyncClient kwargs for LLM calls.
 
-    超时取自 settings.llm_timeout_seconds（默认 30s），必须小于 agent_timeout_seconds（45s），
-    否则 agent 已超时取消但 LLM 请求仍在后台跑，浪费配额。
+    trust_env=False ignores shell HTTP_PROXY/HTTPS_PROXY (often breaks local dev
+    when a stale proxy is set). Use LLM_HTTP_PROXY in .env when a proxy is required.
     """
-    kwargs: dict = {"timeout": float(get_settings().llm_timeout_seconds)}
+    kwargs: dict = {
+        "timeout": float(get_settings().llm_timeout_seconds),
+        "trust_env": False,
+    }
     proxy = get_settings().llm_http_proxy
     if proxy:
         kwargs["proxy"] = proxy
@@ -64,22 +67,58 @@ class MockLLMClient(LLMClient):
         for offset in range(0, len(text), step):
             yield text[offset : offset + step]
 
+    def _mock_stock_skill_args(self, user: str) -> dict[str, object] | None:
+        sym = re.search(r"\d{6}", user)
+        if sym:
+            return {"symbol": sym.group()}
+        if "茅台" in user:
+            return {"symbol": "600519"}
+        last_user = user.rsplit("[user]", 1)[-1].strip() if "[user]" in user else user
+        first_line = last_user.split("\n", 1)[0].strip()
+        if any(kw in first_line for kw in ("分析", "研究", "看看", "怎么样", "值不值得")):
+            return {"query": first_line or last_user.split("\n", 1)[-1].strip()}
+        return None
+
+    async def complete_messages(self, messages: list[dict[str, str]]) -> str:
+        system = ""
+        user = ""
+        for m in messages:
+            role = m.get("role")
+            if role == "system":
+                system = str(m.get("content", ""))
+            elif role == "user":
+                user = str(m.get("content", ""))
+        return await self.complete(system, user)
+
     def _mock_reply(self, system: str, user: str) -> str:
         if "编排 Agent" in system or "调用工具" in system:
+            if any(kw in user for kw in ("新闻", "快讯", "消息", "资讯", "公告", "报道")):
+                sym_match = re.search(r"\d{6}", user)
+                if sym_match:
+                    sym = sym_match.group()
+                    return (
+                        f'```tool\n{{"tool": "get_news", "args": {{"symbol": "{sym}"}}}}\n```\n'
+                        '```tool\n{"tool": "reply", "args": {"message": "已结合相关快讯完成新闻解读。\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
+                    )
+                return (
+                    '```tool\n{"tool": "get_news", "args": {}}\n```\n'
+                    '```tool\n{"tool": "reply", "args": {"message": "已为您获取最新快讯并完成解读。\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
+                )
             if any(kw in user for kw in ("大盘", "市场", "股市", "走势", "行情", "板块")):
                 return (
                     '```tool\n{"tool": "get_market_data", "args": {}}\n```\n'
                     '```tool\n{"tool": "reply", "args": {"message": "当前大盘震荡，建议您关注政策面变化。\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
                 )
-            if any(kw in user for kw in ("分析", "研究", "茅台", "宁德")):
+            skill_args = self._mock_stock_skill_args(user)
+            if skill_args and any(
+                kw in user
+                for kw in ("分析", "研究", "看看", "怎么样", "值不值得", "茅台", "600519", "宁德")
+            ):
                 return (
-                    '```tool\n{"tool": "get_stock_quote", "args": {"symbol": "600519"}}\n```\n'
-                    '```tool\n{"tool": "reply", "args": {"message": "该股当前震荡，基本面尚可，技术面偏中性。\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
-                )
-            if any(kw in user for kw in ("新闻", "快讯", "消息")):
-                return (
-                    '```tool\n{"tool": "get_news", "args": {}}\n```\n'
-                    '```tool\n{"tool": "reply", "args": {"message": "已为您获取最新快讯，请见下方卡片。\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
+                    "```tool\n"
+                    f'{{"tool": "skill_stock_research", "args": {json.dumps(skill_args, ensure_ascii=False)}}}\n'
+                    "```\n"
+                    '```tool\n{"tool": "reply", "args": {"message": "投研分析已完成，请见下方卡片与过程详情。\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
                 )
             return (
                 '```tool\n{"tool": "reply", "args": {"message": "您好，我是 StockResearch，专注A股投研分析。请问有什么金融投资方面的问题可以帮您？\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
@@ -148,6 +187,12 @@ class MockLLMClient(LLMClient):
                 return '{"status":"confirmed","symbol":"600999","name":"招商证券"}'
             if "徐工" in query:
                 return '{"status":"confirmed","symbol":"000425","name":"徐工机械"}'
+            if "平安" in query:
+                return (
+                    '{"status":"ambiguous","candidates":['
+                    '{"symbol":"601318","name":"中国平安"},'
+                    '{"symbol":"000001","name":"平安银行"}]}'
+                )
             if "银行" in query and "招商" not in query:
                 return (
                     '{"status":"ambiguous","candidates":['
@@ -220,8 +265,8 @@ class MockLLMClient(LLMClient):
                         {
                             "symbol": symbol,
                             "name": name,
-                            "action": "减仓",
-                            "reason": f"{name} 告警或回撤相对突出，建议优先控仓。",
+                            "action": "仓位偏高",
+                            "reason": f"{name} 告警或回撤相对突出，建议优先控制仓位。",
                             "priority": "高",
                         }
                     )
@@ -230,8 +275,8 @@ class MockLLMClient(LLMClient):
                         {
                             "symbol": symbol,
                             "name": name,
-                            "action": "持有观望",
-                            "reason": f"{name} 信号中性，暂以观望为主。",
+                            "action": "仓位适中",
+                            "reason": f"{name} 信号中性，暂以观察为主。",
                             "priority": "中",
                         }
                     )
@@ -252,7 +297,7 @@ class MockLLMClient(LLMClient):
                     "3. 吸收三方辩论与 Research Manager 意见，逐股形成处置优先级。"
                 ),
                 "risk_level": "中",
-                "position_action": "持有观望",
+                "position_action": "仓位适中",
                 "holding_actions": holding_actions,
                 "summary": f"您当前 {len(holdings)} 只持仓整体风险可控，优先处理告警较突出的标的。",
                 "reason": "激进派看到结构性机会，审慎派强调集中度与波动，需分股处置。",
@@ -269,7 +314,7 @@ class MockLLMClient(LLMClient):
             return "技术面动量偏弱，情绪未企稳，短期回撤风险仍不能忽视。"
         if "裁判 Agent" in system and "风控" in system:
             return (
-                '{"risk_level":"中","position_action":"持有观望",'
+                '{"risk_level":"中","position_action":"仓位适中",'
                 '"summary":"建议您先观望控仓",'
                 '"reason":"有集中度预警，请您谨慎",'
                 '"divergence":"分歧中等"}'

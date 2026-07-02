@@ -67,9 +67,15 @@ export function StockFocusView({
           </CollapsibleSection>
 
           <CollapsibleSection title={t("chart.price")}>
-            <MarketChart symbol={focus.symbol} />
+            <MarketChart key={focus.symbol} symbol={focus.symbol} />
           </CollapsibleSection>
         </>
+      )}
+
+      {focus.kind === "index" && (
+        <CollapsibleSection title={t("chart.price")} summary={focus.name}>
+          <MarketChart key={focus.symbol} symbol={focus.symbol} variant="index" />
+        </CollapsibleSection>
       )}
 
       {focus.kind === "sector" && (

@@ -8,7 +8,8 @@ import json
 import logging
 from typing import Any
 
-from stockresearch.agents.orchestrator.route_plan import FINANCE_TOOLS
+from stockresearch.agents.orchestrator.card_merge import merge_plan_cards
+from stockresearch.agents.orchestrator.tools_registry import FINANCE_TOOLS, format_tools_for_prompt
 from stockresearch.i18n.status_events import status_event
 from stockresearch.utils.llm import LLMClient
 
@@ -45,14 +46,7 @@ _PLAN_SYSTEM = """你是「StockResearch」的研究规划 Agent。用户提出�
 ```
 
 可用工具：
-- get_market_data: 获取大盘指数、北向资金等市场整体数据
-- get_stock_quote: 获取个股实时行情（参数: symbol）
-- get_stock_research: 获取个股四维投研分析（参数: symbol）
-- debate_stock: 个股 Multi-Agent 多空辩论投研（参数: symbol, 可选 name）
-- get_financial_ratios: 获取个股财报比率（参数: symbol）
-- get_news: 获取最新财经新闻
-- get_sector_holdings: 获取用户持仓中某板块的股票（参数: sector）
-- get_sector_news: 获取与某板块相关的快讯（参数: sector）
+{tools_block}
 
 规则：
 - **禁止只规划 1 个数据步骤**；金融问题至少 3 步，最后一步用 tool:auto 做归纳分析
@@ -148,13 +142,13 @@ def _normalize_plan_steps(query: str, steps: list[dict[str, Any]]) -> list[dict[
         return _reindex_steps(_MARKET_PLAN_TEMPLATE)
 
     from stockresearch.agents.orchestrator.complexity import (
-        _STOCK_CODE_RE,
         count_stock_mentions,
         is_stock_comparison,
     )
+    from stockresearch.utils.symbols import STOCK_CODE_RE
 
     if is_stock_comparison(msg) and count_stock_mentions(msg) >= 2:
-        codes = list(dict.fromkeys(_STOCK_CODE_RE.findall(msg)))
+        codes = list(dict.fromkeys(STOCK_CODE_RE.findall(msg)))
         if len(codes) < 2:
             codes = ["600519", "000858"]
         return _reindex_steps(
@@ -162,13 +156,13 @@ def _normalize_plan_steps(query: str, steps: list[dict[str, Any]]) -> list[dict[
                 {
                     "id": 1,
                     "description": f"获取 {codes[0]} 多维投研",
-                    "tool": "get_stock_research",
+                    "tool": "skill_stock_research",
                     "args": {"symbol": codes[0]},
                 },
                 {
                     "id": 2,
                     "description": f"获取 {codes[1]} 多维投研",
-                    "tool": "get_stock_research",
+                    "tool": "skill_stock_research",
                     "args": {"symbol": codes[1]},
                 },
                 {
@@ -200,7 +194,7 @@ def _normalize_plan_steps(query: str, steps: list[dict[str, Any]]) -> list[dict[
                 {
                     "id": 2,
                     "description": f"获取 {sym} 多维投研分析",
-                    "tool": "get_stock_research",
+                    "tool": "skill_stock_research",
                     "args": {"symbol": sym},
                 },
                 {
@@ -329,7 +323,13 @@ class PlanExecuteAgent:
 
         # Phase 1: Planning
         await self._progress(status_event("status.planning"))
-        plan_prompt = _PLAN_SYSTEM if self._finance_tools else _PLAN_GENERAL_SYSTEM
+        plan_prompt = (
+            _PLAN_SYSTEM.format(
+                tools_block=format_tools_for_prompt(include_research_skills=True),
+            )
+            if self._finance_tools
+            else _PLAN_GENERAL_SYSTEM
+        )
         if long_term_context.strip():
             plan_prompt = f"{plan_prompt.rstrip()}\n\n{long_term_context.strip()}"
         plan_response = await self._llm.complete(plan_prompt, user_query)

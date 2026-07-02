@@ -1,7 +1,7 @@
 import { MarkdownContent } from "./MarkdownContent";
 import { useI18n } from "./i18n";
 import type { HoldingAction, JudgeVerdict } from "./StreamFeed";
-import { localizePositionAction } from "./uiLabels";
+import { localizePositionAction, positionActionCssClass } from "./uiLabels";
 
 interface JudgeVerdictCardProps {
   verdict: JudgeVerdict;
@@ -10,7 +10,7 @@ interface JudgeVerdictCardProps {
 
 export function JudgeVerdictCard({ verdict, isTyping }: JudgeVerdictCardProps) {
   const { t } = useI18n();
-  const actionKey = localizePositionAction(verdict.position_action ?? "hold", t).toLowerCase().replace(/\s+/g, "_");
+  const actionKey = positionActionCssClass(verdict.position_action ?? "仓位适中");
 
   return (
     <div className={`message assistant stream-msg stream-judge action-${actionKey}`}>
@@ -47,7 +47,7 @@ export function JudgeVerdictCard({ verdict, isTyping }: JudgeVerdictCardProps) {
           </p>
           <div className="holding-action-list">
             {verdict.holding_actions.map((item: HoldingAction) => (
-              <div key={item.symbol} className={`holding-action action-${item.action}`}>
+              <div key={item.symbol} className={`holding-action action-${positionActionCssClass(item.action)}`}>
                 <div className="holding-action-head">
                   <strong>
                     {item.name}（{item.symbol}）

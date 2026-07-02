@@ -45,6 +45,7 @@ def fetch_akshare_hist_quotes(symbols: list[str]) -> dict[str, dict[str, float |
             "symbol": symbol,
             "name": resolve_name(symbol),
             "price": price,
+            "open": float(last["开盘"]),
             "change_pct": change_pct,
             "high": float(last["最高"]),
             "low": float(last["最低"]),

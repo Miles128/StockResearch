@@ -1,6 +1,6 @@
 """Holdings and watchlist routes."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from stockresearch.api.deps import get_current_user, handle_stockresearch_error
@@ -23,6 +23,8 @@ from stockresearch.core.schemas import (
 from stockresearch.data.providers.market_overview import BatchQuoteProvider
 from stockresearch.db.models import Holding, User, WatchlistItem
 from stockresearch.db.session import get_db
+from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
+from stockresearch.services.user_preferences import get_mode_settings
 from stockresearch.services.holding_metrics import (
     annualized_return_pct,
     profit_amount,
@@ -197,6 +199,7 @@ def _enrich_holding(
         **base.model_dump(),
         price=q.price,
         change_pct=q.change_pct,
+        open=q.open,
         price_label=label,
         market_session=session,
         profit_amount=profit_amount(holding.float_cost_price, holding.quantity, q.price),
@@ -208,13 +211,22 @@ def _enrich_holding(
 
 @router.get("/holdings/enriched", response_model=list[HoldingEnrichedOut])
 async def list_holdings_enriched(
-    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    force_refresh: bool = Query(default=False, description="Bypass quote cache for live refresh"),
 ) -> list[HoldingEnrichedOut]:
     holdings = db.query(Holding).filter(Holding.user_id == user.id).all()
     if not holdings:
         return []
     session = a_share_market_session()
-    quotes = await BatchQuoteProvider().get_quotes([h.symbol for h in holdings])
+    mode = get_mode_settings(db, user.id)
+    ttl = quote_cache_ttl_seconds(mode)
+    quotes = await BatchQuoteProvider().get_quotes(
+        [h.symbol for h in holdings],
+        include_sector=False,
+        cache_ttl_seconds=ttl,
+        force_refresh=force_refresh,
+    )
     quote_map = {q.symbol: q for q in quotes}
     return [_enrich_holding(h, quote_map, session) for h in holdings]
 

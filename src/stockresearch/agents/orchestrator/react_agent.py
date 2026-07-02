@@ -4,7 +4,6 @@ Like Claude Code: the LLM is the orchestrator, tools are sub-agent capabilities.
 The LLM decides what data to fetch, when to analyze, and when to reply.
 """
 
-import asyncio
 import json
 import logging
 from typing import Any
@@ -12,16 +11,21 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from stockresearch.agents.news.agent import get_news_for_user
-from stockresearch.agents.orchestrator.route_plan import FINANCE_TOOLS
-from stockresearch.agents.research.runner import run_research
-from stockresearch.core.config import get_settings
+from stockresearch.agents.orchestrator.skills import SKILL_IDS, SkillRunner
+from stockresearch.agents.orchestrator.tools_registry import (
+    FINANCE_TOOLS,
+    format_tools_for_prompt,
+    research_skills_prompt_note,
+)
 from stockresearch.core.constants import DISCLAIMER
-from stockresearch.core.schemas import ModeSettingsOut, ResearchReportOut
+from stockresearch.core.schemas import ModeSettingsOut
 from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
 from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.data.providers.market_overview import MarketOverviewProvider
 from stockresearch.db.models import Holding, NewsItem
 from stockresearch.i18n.status_events import status_event
+from stockresearch.prompts import load_prompt
+from stockresearch.services.chat_scope import PORTFOLIO_TOOL_NAMES
 from stockresearch.utils.llm import LLMClient
 from stockresearch.utils.symbols import resolve_name
 
@@ -41,57 +45,62 @@ ORCHESTRATOR_GENERAL_SYSTEM = f"""你是「StockResearch」的对话助手。用
 {{"tool": "reply", "args": {{"message": "你的回答"}}}}
 ```"""
 
-ORCHESTRATOR_SYSTEM = f"""你是「StockResearch」的编排 Agent，负责理解用户问题并调用工具获取数据后回答。
+ORCHESTRATOR_SYSTEM = """你是「StockResearch」的编排 Agent。由你决定调用哪些轻量工具或打包 Skill，无需用户选手动模式。
 
 工作流程：
-1. 分析用户问题，决定需要哪些数据
-2. 调用工具获取数据（可以多次调用不同工具）
-3. 基于获取的数据，生成最终回答
+1. 理解用户问题与对话上下文
+2. 简单问题：轻量工具（行情/新闻/财报）即可
+3. 深度问题：调用对应 Skill（风控、四维投研、多空辩论、大师点评）
+4. 复合问题：可串联多个 Skill，后序 Skill 的 context 参数引用前序结果摘要
+5. 先在心里形成总体结论，调用 reply 输出给用户（各 Skill 过程已自动展开）
 
-简单新闻/消息解读（如「解释这条新闻」「对持仓有什么影响」）：
-- 优先 get_news 获取上下文，必要时 get_stock_quote / 持仓相关工具
-- 直接组织回答，不要调用 get_stock_research 或 debate_stock
+简单新闻/快讯：get_news + get_stock_quote，不要启动 Skill。
+走势/涨跌/原因类（用户未要求深度投研）：先 get_stock_quote + get_news(symbol=...) 或 get_market_data + get_news，结合相关新闻解读可能驱动因素，不要启动 Skill。
 
-可用工具：
-- get_market_data: 获取大盘指数、北向资金、涨跌家数等市场整体数据
-- get_stock_quote: 获取个股实时行情（参数: symbol 如 "600519"）
-- get_stock_research: 获取个股四维投研分析（参数: symbol 如 "600519"）
-- debate_stock: 个股 Multi-Agent 多空辩论投研（参数: symbol, 可选 name）
-- get_financial_ratios: 获取个股财报比率（参数: symbol）含PE/PB/ROE/毛利率等
-- get_news: 获取最新财经新闻
-- get_sector_holdings: 获取用户持仓中某板块的股票（参数: sector）
-- get_sector_news: 获取与某板块相关的快讯（参数: sector）
-- reply: 生成最终回复给用户（当你认为数据足够时调用）
+{context_rules}
 
-调用格式：在回复中使用 JSON 块调用工具：
+轻量工具：
+{tools_list}
+{skills_note}
+
+调用格式：
 ```tool
-{{"tool": "工具名", "args": {{"参数名": "参数值"}}}}
+{"tool": "工具或Skill名", "args": {...}}
 ```
 
 规则：
-- 先获取数据再回答，不要凭空编造
-- 可以连续调用多个工具
-- 当你认为数据足够时，调用 reply 工具生成最终回复
-- 长期上下文中已列出持仓缓存行情时，不要对相同标的重复调用 get_stock_quote（收盘后行情不会更新）
+- Skill 过程会自动流式展开，reply 中写总体结论即可
+- skill_master_commentary 的 context 应传入前文投研/风控/新闻的摘要
+- 多大师点评后若需互辩，设 debate_masters: true
 - 不给出买入、卖出、加仓、减仓等操作建议
-- 简明扼要，先结论后分析
-- 末尾加上：{DISCLAIMER}
+- 末尾加上：{disclaimer}"""
 
-示例：
-用户：中国股市未来走势如何
-```tool
-{{"tool": "get_market_data", "args": {{}}}}
-```
-[系统返回数据后]
-```tool
-{{"tool": "get_news", "args": {{}}}}
-```
-[系统返回新闻后]
-```tool
-{{"tool": "reply", "args": {{"message": "基于数据的分析..."}}}}
-```"""
 
-_MAX_ITERATIONS = 6
+def _build_orchestrator_system(tools_list: str, skills_note: str) -> str:
+    """Assemble system prompt without str.format — skills JSON contains braces."""
+    context_rules = load_prompt("context_rules.md")
+    return (
+        ORCHESTRATOR_SYSTEM.replace("{context_rules}", context_rules)
+        .replace("{tools_list}", tools_list)
+        .replace("{skills_note}", skills_note)
+        .replace("{disclaimer}", DISCLAIMER)
+    )
+
+_RESEARCH_SKILL_BLOCK = frozenset(
+    {
+        "skill_stock_research",
+        "skill_bull_bear_debate",
+        "skill_market_research",
+        "skill_industry_research",
+    }
+)
+
+_MAX_ITERATIONS = 8
+
+_LEGACY_SKILL_ALIASES: dict[str, str] = {
+    "get_stock_research": "skill_stock_research",
+    "debate_stock": "skill_bull_bear_debate",
+}
 
 
 class OrchestratorAgent:
@@ -104,6 +113,13 @@ class OrchestratorAgent:
         finance_tools: bool = True,
         research_tools: bool = True,
         mode_settings: ModeSettingsOut | None = None,
+        holdings: list[Holding] | None = None,
+        debate_default: bool = False,
+        master_default: bool = False,
+        portfolio_context: bool = False,
+        news_explain_only: bool = False,
+        confirmed_symbol: str | None = None,
+        confirmed_name: str | None = None,
     ) -> None:
         self._db = db
         self._llm = llm
@@ -111,13 +127,42 @@ class OrchestratorAgent:
         self._finance_tools = finance_tools
         self._research_tools = research_tools
         self._mode_settings = mode_settings
+        self._holdings = holdings or []
+        self._portfolio_context = portfolio_context
+        self._news_explain_only = news_explain_only
+        self._debate_default = debate_default
+        self._master_default = master_default
+        self._confirmed_symbol = confirmed_symbol
+        self._confirmed_name = confirmed_name
         self._quote_cache_ttl = quote_cache_ttl_seconds(mode_settings)
         self._cards: list[dict[str, Any]] = []
-        self._on_progress: Any = None  # optional async callback(str) -> None
+        self._on_progress: Any = None
+        self._skill_runner: SkillRunner | None = None
 
     def set_progress_callback(self, cb: Any) -> None:
-        """Set an async callback(msg: str) called at each step."""
+        """Set async callback for status + skill stream events."""
         self._on_progress = cb
+
+    def _skills(self) -> SkillRunner:
+        if self._skill_runner is None:
+            settings = self._mode_settings
+            if settings is None:
+                from stockresearch.core.schemas import ModeSettingsOut
+
+                settings = ModeSettingsOut()
+            self._skill_runner = SkillRunner(
+                db=self._db,
+                llm=self._llm,
+                user_id=self._user_id,
+                holdings=self._holdings,
+                mode_settings=settings,
+                debate_default=self._debate_default,
+                master_default=self._master_default,
+                confirmed_symbol=self._confirmed_symbol,
+                confirmed_name=self._confirmed_name,
+                on_event=self._progress,
+            )
+        return self._skill_runner
 
     def tool_cards(self) -> list[dict[str, Any]]:
         """Cards accumulated from tool calls (research, news, etc.)."""
@@ -135,7 +180,15 @@ class OrchestratorAgent:
         long_term_context: str = "",
         user_context_text: str = "",
     ) -> tuple[str, list[dict[str, Any]]]:
-        system = ORCHESTRATOR_SYSTEM if self._finance_tools else ORCHESTRATOR_GENERAL_SYSTEM
+        if self._finance_tools:
+            tools_list = format_tools_for_prompt(
+                include_research_skills=True,
+                include_portfolio_tools=self._portfolio_context,
+            )
+            skills_note = research_skills_prompt_note(skills_available=True)
+            system = _build_orchestrator_system(tools_list, skills_note)
+        else:
+            system = ORCHESTRATOR_GENERAL_SYSTEM
         if long_term_context.strip():
             system = f"{system.rstrip()}\n\n{long_term_context.strip()}"
         user_content = message.strip()
@@ -172,21 +225,16 @@ class OrchestratorAgent:
                         "status.react.stock_quote",
                         {"symbol": str(tool_args.get("symbol", ""))},
                     ),
-                    "get_stock_research": (
-                        "status.react.stock_research",
-                        {"symbol": str(tool_args.get("symbol", ""))},
-                    ),
-                    "debate_stock": (
-                        "status.react.debate_stock",
-                        {"symbol": str(tool_args.get("symbol", ""))},
-                    ),
                     "get_news": ("status.react.news", {}),
                     "reply": ("status.react.reply", {}),
                 }
-                key, params = tool_status_keys.get(
-                    tool_name,
-                    ("status.react.tool", {"tool": tool_name}),
-                )
+                if tool_name in SKILL_IDS or tool_name in _LEGACY_SKILL_ALIASES:
+                    key, params = ("status.react.skill", {"tool": tool_name})
+                else:
+                    key, params = tool_status_keys.get(
+                        tool_name,
+                        ("status.react.tool", {"tool": tool_name}),
+                    )
                 await self._progress(status_event(key, **params))
 
                 result = await self._execute_tool(tool_name, tool_args)
@@ -209,27 +257,28 @@ class OrchestratorAgent:
     async def _execute_tool(self, name: str, args: dict[str, Any]) -> str:
         if not self._finance_tools and name in FINANCE_TOOLS:
             return f"工具 {name} 已禁用：当前问题与股票投资无关，请直接基于知识回答。"
-        if not self._research_tools and name in {"get_stock_research", "debate_stock"}:
+        skill_name = _LEGACY_SKILL_ALIASES.get(name, name)
+        if skill_name in PORTFOLIO_TOOL_NAMES and not self._portfolio_context:
             return (
-                f"工具 {name} 已禁用：当前问题不需要四维投研，"
-                "请改用行情/新闻/财报工具或直接 reply。"
+                f"工具 {name} 不可用：当前问题未涉及持仓组合，"
+                "请勿调用持仓相关工具。"
             )
+        if self._news_explain_only and skill_name in _RESEARCH_SKILL_BLOCK:
+            return (
+                f"工具 {name} 不可用：当前为新闻解读问题，"
+                "请基于已预取快讯直接 reply，勿启动投研 Skill。"
+            )
+        if skill_name in SKILL_IDS:
+            return await self._run_skill(skill_name, args)
         try:
             if name == "get_market_data":
                 return await self._tool_market_data()
             if name == "get_stock_quote":
                 return await self._tool_stock_quote(args.get("symbol", ""))
-            if name == "get_stock_research":
-                return await self._tool_stock_research(args.get("symbol", ""))
-            if name == "debate_stock":
-                return await self._tool_debate_stock(
-                    args.get("symbol", ""),
-                    str(args.get("name", "")),
-                )
             if name == "get_financial_ratios":
                 return await self._tool_financial_ratios(args.get("symbol", ""))
             if name == "get_news":
-                return await self._tool_news()
+                return await self._tool_news(args)
             if name == "get_sector_holdings":
                 return await self._tool_sector_holdings(args)
             if name == "get_sector_news":
@@ -240,6 +289,17 @@ class OrchestratorAgent:
         except Exception as exc:
             logger.warning("Tool %s failed: %s", name, exc)
             return f"工具 {name} 执行失败: {exc}"
+
+    async def _run_skill(self, skill_id: str, args: dict[str, Any]) -> str:
+        if skill_id == "skill_stock_research" and not args.get("with_debate"):
+            args = {**args, "with_debate": self._debate_default}
+        result = await self._skills().run(skill_id, args)
+        for card in result.cards:
+            ctype = card.get("type")
+            if ctype == "research":
+                self._cards = [c for c in self._cards if c.get("type") != "research"]
+            self._cards.append(card)
+        return result.summary
 
     async def _tool_market_data(self) -> str:
         provider = MarketOverviewProvider()
@@ -270,62 +330,6 @@ class OrchestratorAgent:
             f"成交量: {quote.volume:.0f}"
         )
 
-    async def _tool_stock_research(self, symbol: str) -> str:
-        if not symbol:
-            return "请提供股票代码"
-        return await self._format_research_report(
-            symbol,
-            await self._run_research_report(symbol),
-        )
-
-    async def _tool_debate_stock(self, symbol: str, name: str = "") -> str:
-        if not symbol:
-            return "请提供股票代码"
-        result = await self._run_research_report(symbol)
-        if result is None:
-            return f"{name or resolve_name(symbol)} 多空辩论投研超时，请稍后重试"
-        return await self._format_research_report(symbol, result, debate_focus=True)
-
-    async def _run_research_report(self, symbol: str) -> ResearchReportOut | None:
-        result, timed_out = await _run_with_timeout(
-            run_research(symbol, self._llm, with_debate=True),
-            get_settings().agent_timeout_seconds,
-        )
-        if timed_out or not isinstance(result, ResearchReportOut):
-            return None
-        self._cards.append({"type": "research", "data": result.model_dump(mode="json")})
-        return result
-
-    async def _format_research_report(
-        self,
-        symbol: str,
-        result: ResearchReportOut | None,
-        *,
-        debate_focus: bool = False,
-    ) -> str:
-        if result is None:
-            return f"{resolve_name(symbol)} 投研分析失败或超时，请稍后重试"
-        dims = [f"  {dim_name}: 评分{dim_data.score}/10" for dim_name, dim_data in result.dimensions.items()]
-        lines = [
-            f"{result.name}({result.symbol}) 投研报告",
-            f"综合评分: {result.composite_score}/10 倾向: {result.bias}",
-            f"摘要: {result.summary}",
-            *dims,
-        ]
-        debate = result.debate
-        if debate_focus and debate:
-            lines.extend(
-                [
-                    "多空辩论:",
-                    f"  共识: {debate.consensus}",
-                    f"  裁判结论: {debate.judge_verdict}",
-                    f"  最终倾向: {debate.final_bias}",
-                ]
-            )
-        elif debate:
-            lines.append(f"裁判倾向: {debate.final_bias} — {debate.judge_verdict[:120]}")
-        return "\n".join(lines)
-
     async def _tool_financial_ratios(self, symbol: str) -> str:
         if not symbol:
             return "请提供股票代码"
@@ -350,8 +354,32 @@ class OrchestratorAgent:
             )
         return "\n".join(lines)
 
-    async def _tool_news(self) -> str:
-        from stockresearch.services.text_factor import build_news_text_factor, news_from_out
+    async def _tool_news(self, args: dict[str, Any] | None = None) -> str:
+        from stockresearch.services.text_factor import (
+            build_news_text_factor,
+            fetch_symbol_news_snippets,
+            news_from_out,
+        )
+
+        payload = args or {}
+        symbol = str(payload.get("symbol", "") or "").strip()
+        name = str(payload.get("name", "") or "").strip()
+        if symbol:
+            display = name or resolve_name(symbol)
+            snippets = await fetch_symbol_news_snippets(symbol, display)
+            if not snippets:
+                return f"暂无与 {display}({symbol}) 相关的最新新闻"
+            factor = build_news_text_factor(snippets, subject=f"{display}({symbol}) 相关新闻")
+            self._cards.append({
+                "type": "news",
+                "data": {
+                    "items": [
+                        {"title": s.title, "summary": s.summary, "source": s.source}
+                        for s in snippets
+                    ],
+                },
+            })
+            return factor
 
         news = await get_news_for_user(self._db, self._user_id, related_only=False, limit=8)
         if not news:
@@ -369,14 +397,15 @@ class OrchestratorAgent:
         sector = str(args.get("sector", "")).strip()
         if not sector:
             return "请提供板块名称"
-        rows = (
-            self._db.query(Holding)
-            .filter(Holding.user_id == self._user_id, Holding.sector.contains(sector))
-            .all()
-        )
+        if not self._holdings:
+            return f"持仓中暂无「{sector}」板块标的"
+        rows = [h for h in self._holdings if sector in (h.sector or "")]
         if not rows:
             return f"持仓中暂无「{sector}」板块标的"
-        lines = [f"- {h.name}({h.symbol}) 成本{h.float_cost_price:.2f} · {h.quantity}股" for h in rows]
+        lines = [
+            f"- {h.name}({h.symbol}) 成本{h.float_cost_price:.2f} · {h.quantity}股"
+            for h in rows
+        ]
         return f"「{sector}」板块持仓：\n" + "\n".join(lines)
 
     async def _tool_sector_news(self, args: dict[str, Any]) -> str:
@@ -398,14 +427,6 @@ class OrchestratorAgent:
             return f"暂无与「{sector}」相关的快讯"
         lines = [f"- {n.title} [{n.sentiment}]" for n in matched]
         return f"「{sector}」板块快讯：\n" + "\n".join(lines)
-
-
-async def _run_with_timeout[T](coro, timeout: int) -> tuple[T | None, bool]:
-    try:
-        result = await asyncio.wait_for(coro, timeout=timeout)
-        return result, False
-    except TimeoutError:
-        return None, True
 
 
 def _extract_tool_calls(text: str) -> list[dict[str, Any]]:

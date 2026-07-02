@@ -25,6 +25,7 @@ async def test_build_long_term_context_includes_holdings(monkeypatch: pytest.Mon
                 name="贵州茅台",
                 price=1680.0,
                 change_pct=1.2,
+                open=1670.0,
                 high=1690.0,
                 low=1670.0,
                 volume=1000.0,
@@ -36,6 +37,7 @@ async def test_build_long_term_context_includes_holdings(monkeypatch: pytest.Mon
     text = await build_long_term_context(
         mode_settings=ModeSettingsOut(mode="research"),
         holdings=[_H()],  # type: ignore[list-item]
+        message="我的持仓怎么样",
     )
     assert "贵州茅台" in text
     assert "1680.00" in text
@@ -56,6 +58,33 @@ async def test_build_long_term_context_advisor_plain_language(monkeypatch: pytes
     monkeypatch.setattr(QuoteProvider, "get_quotes", _fake_quotes)
     text = await build_long_term_context(mode_settings=ModeSettingsOut(mode="advisor"), holdings=[])
     assert "个人版表达要求" in text
+
+
+@pytest.mark.asyncio
+async def test_build_long_term_context_defers_holdings_for_stock_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _H:
+        symbol = "600519"
+        name = "贵州茅台"
+        sector = "白酒"
+
+    async def _fake_quotes(
+        _self: QuoteProvider,
+        _symbols: list[str],
+        *,
+        cache_ttl_seconds: int | None = None,
+    ) -> dict[str, Quote]:
+        return {}
+
+    monkeypatch.setattr(QuoteProvider, "get_quotes", _fake_quotes)
+    text = await build_long_term_context(
+        mode_settings=ModeSettingsOut(mode="advisor"),
+        holdings=[_H()],  # type: ignore[name-defined]
+        message="分析一下600519",
+    )
+    assert "勿主动结合或展开持仓分析" in text
+    assert "1680" not in text
 
 
 def test_format_user_context_block() -> None:

@@ -7,6 +7,7 @@ from stockresearch.agents.orchestrator.complexity import (
     is_market_scope,
     is_news_intent,
     is_simple_news_explanation,
+    is_trend_explanation_intent,
     resolve_execution_mode,
     should_skip_debate,
     should_skip_multi_agent,
@@ -100,3 +101,11 @@ def test_deep_stock_still_debates_when_enabled() -> None:
         == ComplexityResult.DEBATE
     )
     assert not should_skip_debate("600519 深度分析")
+
+
+def test_trend_explanation_intent() -> None:
+    assert is_trend_explanation_intent("贵州茅台最近走势怎么样")
+    assert is_trend_explanation_intent("600519 今天为什么涨")
+    assert is_trend_explanation_intent("今天大盘走势如何")
+    assert not is_trend_explanation_intent("600519 深度四维分析")
+    assert not is_trend_explanation_intent("什么是市盈率")

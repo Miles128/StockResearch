@@ -28,6 +28,25 @@ class MarketOverviewProvider:
         *,
         cache_ttl_seconds: int | None = None,
     ) -> MarketOverviewOut:
+        from stockresearch.core.config import get_settings
+
+        if get_settings().use_mock_market_data:
+            return MarketOverviewOut(
+                indices=[
+                    IndexQuoteOut(name="上证指数", symbol="000001", price=3200.0, change_pct=0.5),
+                    IndexQuoteOut(name="深证成指", symbol="399001", price=10500.0, change_pct=-0.3),
+                    IndexQuoteOut(name="创业板指", symbol="399006", price=2100.0, change_pct=0.8),
+                    IndexQuoteOut(name="沪深300", symbol="000300", price=3800.0, change_pct=0.2),
+                ],
+                northbound_net_yi=12.5,
+                advancers=2800,
+                decliners=1900,
+                source="mock",
+                data_status="mock",
+                message=None,
+                updated_at=datetime.now(UTC),
+            )
+
         ttl = cache_ttl_seconds or DEFAULT_QUOTE_CACHE_TTL_SECONDS
         cached = get_sqlite_cached("market:overview")
         if cached is not None:
@@ -163,25 +182,39 @@ class BatchQuoteProvider:
     def __init__(self) -> None:
         self._quote = QuoteProvider()
 
-    async def get_quotes(self, symbols: list[str]) -> list[StockQuoteOut]:
+    async def get_quotes(
+        self,
+        symbols: list[str],
+        *,
+        include_sector: bool = False,
+        cache_ttl_seconds: int | None = None,
+        force_refresh: bool = False,
+    ) -> list[StockQuoteOut]:
         unique = list(dict.fromkeys(symbols))
         if not unique:
             return []
         try:
-            quote_map = await self._quote.get_quotes(unique)
+            quote_map = await self._quote.get_quotes(
+                unique,
+                cache_ttl_seconds=cache_ttl_seconds,
+                force_refresh=force_refresh,
+            )
         except Exception as exc:
             logger.warning("Batch quotes failed: %s", exc)
             quote_map = {}
 
+        sectors: dict[str, str] = {}
+        if include_sector:
+            sector_symbols = [symbol for symbol in unique if symbol in quote_map]
+            sector_values = await asyncio.gather(
+                *[
+                    resolve_stock_sector(symbol, quote_map[symbol].name)
+                    for symbol in sector_symbols
+                ]
+            )
+            sectors = dict(zip(sector_symbols, sector_values, strict=True))
+
         results: list[StockQuoteOut] = []
-        sector_symbols = [symbol for symbol in unique if symbol in quote_map]
-        sector_values = await asyncio.gather(
-            *[
-                resolve_stock_sector(symbol, quote_map[symbol].name)
-                for symbol in sector_symbols
-            ]
-        )
-        sectors = dict(zip(sector_symbols, sector_values, strict=True))
         for symbol in unique:
             q = quote_map.get(symbol)
             if q is None:
@@ -193,6 +226,7 @@ class BatchQuoteProvider:
                     name=q.name or resolve_name(q.symbol),
                     price=q.price,
                     change_pct=q.change_pct,
+                    open=q.open,
                     high=q.high,
                     low=q.low,
                     volume=q.volume,

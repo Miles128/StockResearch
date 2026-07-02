@@ -185,7 +185,7 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
               })}
             />
           </div>
-          {/^\d{6}$/.test(d.symbol) && <StockChart symbol={d.symbol} compact />}
+          {/^\d{6}$/.test(d.symbol) && <StockChart key={d.symbol} symbol={d.symbol} compact />}
         </div>
       );
     }

@@ -5,40 +5,17 @@ import logging
 import uuid
 from collections.abc import AsyncIterator
 
+import httpx
 from sqlalchemy.orm import Session
 
-from stockresearch.agents.industry.stream import run_industry_research_stream
-from stockresearch.agents.market.research_stream import run_market_research_stream
-from stockresearch.agents.orchestrator.complexity import (
-    ComplexityResult,
-    extract_industry_sector,
-    is_risk_intent,
-)
-from stockresearch.agents.orchestrator.plan_execute import PlanExecuteAgent
-from stockresearch.agents.orchestrator.react_agent import OrchestratorAgent
-from stockresearch.agents.orchestrator.route_plan import (
-    resolve_chat_route,
-    resolve_mode_with_preference,
-    upgrade_stock_research_route,
-)
-from stockresearch.agents.research.stream import run_research_stream
-from stockresearch.agents.risk.stream import run_risk_checkup_stream
-from stockresearch.core.constants import INTENT_RISK
-from stockresearch.agents.master_commentary.registry import resolve_master_ids
+from stockresearch.agents.orchestrator.chat_execute import execute_chat_turn
 from stockresearch.core.exceptions import LLMConfigError
-from stockresearch.core.schemas import ChatUserContext, ModeSettingsOut, ResearchReportOut, RiskCheckupOut
+from stockresearch.core.schemas import ChatUserContext, ModeSettingsOut
 from stockresearch.db.models import Holding
 from stockresearch.i18n.status_events import status_event
-from stockresearch.services.chat_context import build_long_term_context, format_user_context_block
+from stockresearch.services.chat_scope import PreparedChatTurn, prepare_chat_turn
 from stockresearch.services.chat_response import assemble_chat_response, save_conversation
 from stockresearch.services.conversation_memory import prepare_chat_history
-from stockresearch.services.message_stock import (
-    ResolvedStock,
-    match_holding_in_message,
-    resolve_message_stock,
-    stock_choice_card,
-)
-from stockresearch.services.stock_lookup import StockLookupResult
 from stockresearch.services.stream_checkpoint import clear_checkpoint, save_checkpoint
 from stockresearch.services.user_preferences import get_mode_settings
 from stockresearch.utils.llm import LLMClient, get_llm_client
@@ -58,16 +35,6 @@ def _resolve_master_on(
     if request_flag is not None:
         return bool(request_flag)
     return bool(settings.enable_master_commentary)
-
-
-def _master_stream_kwargs(enable: bool, settings: ModeSettingsOut) -> dict[str, object]:
-    if not enable:
-        return {}
-    return {
-        "enable_master_commentary": True,
-        "mode_settings": settings,
-        "master_ids": resolve_master_ids(settings),
-    }
 
 
 async def run_chat_stream(
@@ -91,41 +58,43 @@ async def run_chat_stream(
     holdings = db.query(Holding).filter(Holding.user_id == user_id).all()
     settings = mode_settings or get_mode_settings(db, user_id)
     master_on = _resolve_master_on(enable_master_commentary, settings)
-    master_kwargs = _master_stream_kwargs(master_on, settings)
-    long_term_context = await build_long_term_context(mode_settings=settings, holdings=holdings)
-    user_context_text = format_user_context_block(user_context)
+    prepared = await prepare_chat_turn(
+        mode_settings=settings,
+        holdings=holdings,
+        message=message,
+        user_context=user_context,
+        confirmed_symbol=confirmed_symbol,
+        confirmed_name=confirmed_name,
+    )
     history = await prepare_chat_history(db, user_id, sid, client)
 
     yield status_event("status.understanding")
 
-    msg = message.strip()
-    is_risk = is_risk_intent(msg) and bool(holdings)
-
-    debate_on = True if enable_debate is None else bool(enable_debate)
-
+    debate_on = (
+        settings.enable_debate if enable_debate is None else bool(enable_debate)
+    )
     cards: list[dict[str, object]] = []
     reply = ""
     partial = False
-    intent = INTENT_RISK if is_risk else "chat"
+    intent = "chat"
 
     try:
         async for event in _run_chat_stream_body(
             db=db,
             user_id=user_id,
-            message=msg,
+            message=prepared.message,
             sid=sid,
             client=client,
-            holdings=holdings,
-            is_risk=is_risk,
+            holdings=prepared.holdings,
             debate_on=debate_on,
-            master_kwargs=master_kwargs,
-            long_term_context=long_term_context,
-            user_context_text=user_context_text,
+            master_on=master_on,
+            prepared=prepared,
             history=history,
             confirmed_symbol=confirmed_symbol,
             confirmed_name=confirmed_name,
             execution_preference=execution_preference,
             mode_settings=settings,
+            user_context=user_context,
         ):
             if isinstance(event, dict) and event.get("type") == "done" and "response" in event:
                 response = event["response"]
@@ -159,7 +128,7 @@ async def run_chat_stream(
     )
     clear_checkpoint(db, user_id, sid)
 
-    save_conversation(db, user_id, sid, message, response.reply)
+    save_conversation(db, user_id, sid, prepared.message, response.reply)
 
     yield {"type": "done", "response": response.model_dump(mode="json")}
 
@@ -172,205 +141,119 @@ async def _run_chat_stream_body(
     sid: str,
     client: LLMClient,
     holdings: list[Holding],
-    is_risk: bool,
     debate_on: bool,
-    master_kwargs: dict[str, object],
-    long_term_context: str,
-    user_context_text: str,
+    master_on: bool,
+    prepared: PreparedChatTurn,
     history: list[dict[str, str]],
     confirmed_symbol: str | None,
     confirmed_name: str | None,
     execution_preference: str | None,
     mode_settings: ModeSettingsOut,
+    user_context: ChatUserContext | None,
 ) -> AsyncIterator[dict[str, object]]:
-    """Inner chat stream body. Raises LLMConfigError if API key missing."""
-    if is_risk:
-        yield status_event("status.routed_risk")
-        async for event in run_risk_checkup_stream(holdings, llm=client, **master_kwargs):
-            if event.get("type") == "done":
-                payload = event.get("result")
-                if isinstance(payload, dict):
-                    result = RiskCheckupOut.model_validate(payload)
-                    cards = [{"type": "risk", "data": result.model_dump(mode="json")}]
-                    reply = result.portfolio_summary
-                    yield {
-                        "type": "done",
-                        "response": {
-                            "session_id": sid,
-                            "reply": reply,
-                            "cards": cards,
-                            "intent": INTENT_RISK,
-                            "partial": False,
-                            "llm_usage": usage_to_out(get_usage()),
-                        },
-                    }
-                    return
-            else:
-                yield event
-        return
-
-    mode, finance_tools, research_tools_allowed, routed_intent = await resolve_chat_route(
-        message,
-        client,
-        execution_preference=execution_preference,
-        enable_debate=debate_on,
-    )
-    route_symbol = confirmed_symbol
-    route_name = confirmed_name
-    mode, route_symbol, route_name = await upgrade_stock_research_route(
-        message,
-        client,
-        holdings,
-        mode=mode,
-        debate_on=debate_on,
-        execution_preference=execution_preference,
-        confirmed_symbol=route_symbol,
-        confirmed_name=route_name,
-    )
-    yield status_event(
-        "status.route",
-        debate="on" if debate_on else "off",
-        mode=str(mode),
-        intent=routed_intent,
-    )
-
-    # 收集子流的最终结果（cards/reply/result），统一转换为标准 done 事件。
+    """Skill-first ReAct stream — shared execute path with sync /chat."""
     cards: list[dict[str, object]] = []
     reply = ""
-    intent = routed_intent
+    intent = "chat"
+    partial = False
+    progress_queue: asyncio.Queue[dict[str, object] | None] = asyncio.Queue()
 
-    def _finalize_from_event(event: dict[str, object]) -> None:
-        """Extract cards/reply from sub-stream done event into local vars."""
-        nonlocal cards, reply, intent
-        if "result" in event and isinstance(event["result"], dict):
-            payload = event["result"]
-            # Research/market/industry streams return a report dict.
-            try:
-                report = ResearchReportOut.model_validate(payload)
-                cards = [{"type": "research", "data": payload}]
-                reply = report.summary
-                intent = "research"
-            except Exception:
-                # Risk stream returns a risk checkup dict.
-                try:
-                    result = RiskCheckupOut.model_validate(payload)
-                    cards = [{"type": "risk", "data": result.model_dump(mode="json")}]
-                    reply = result.portfolio_summary
-                    intent = "risk"
-                except Exception:
-                    cards = []
-                    reply = ""
-        elif "cards" in event or "reply" in event:
-            ev_cards = event.get("cards")
-            if isinstance(ev_cards, list):
-                cards = list(ev_cards)
-            ev_reply = event.get("reply")
-            if isinstance(ev_reply, str):
-                reply = ev_reply
+    async def on_progress(hint: dict[str, object]) -> None:
+        await progress_queue.put(hint)
 
-    if mode in (ComplexityResult.MARKET_DEBATE, ComplexityResult.MARKET_RESEARCH):
-        intent = "research"
-        async for event in _run_market_research_stream(
-            client,
-            message,
-            with_debate=mode == ComplexityResult.MARKET_DEBATE,
-            **master_kwargs,
-        ):
-            if event.get("type") == "done":
-                _finalize_from_event(event)
-            else:
-                yield event
-    elif mode in (ComplexityResult.DEBATE, ComplexityResult.RESEARCH):
-        intent = "research"
-        async for event in _run_stock_research_stream(
-            client,
-            message,
-            with_debate=mode == ComplexityResult.DEBATE,
-            confirmed_symbol=route_symbol,
-            confirmed_name=route_name,
-            **master_kwargs,
-        ):
-            if event.get("type") == "done":
-                _finalize_from_event(event)
-            else:
-                yield event
-    elif mode == ComplexityResult.PLAN_EXECUTE:
-        async for event in _run_plan_execute_stream(
-            db,
-            client,
-            message,
-            user_id,
-            sid,
-            finance_tools=finance_tools,
-            long_term_context=long_term_context,
-            user_context_text=user_context_text,
-            history=history,
-            mode_settings=mode_settings,
-        ):
-            if event.get("type") == "done":
-                _finalize_from_event(event)
-            else:
-                yield event
-    elif mode == ComplexityResult.INDUSTRY_RESEARCH:
-        intent = "research"
-        sectors = [h.sector for h in holdings]
-        sector = extract_industry_sector(message, sectors) or "行业"
-        save_checkpoint(db, user_id, sid, {"mode": mode, "sector": sector, "message": message})
-        async for event in _run_industry_research_stream(
-            db, client, user_id, sector, message, sid, with_debate=debate_on, **master_kwargs
-        ):
-            if event.get("type") == "done":
-                _finalize_from_event(event)
-            else:
-                yield event
-    else:
-        # Direct ReAct mode with progress
-        progress_queue: asyncio.Queue[dict[str, object] | None] = asyncio.Queue()
-
-        async def on_progress(hint: dict[str, object]) -> None:
-            await progress_queue.put(hint)
-
-        agent = OrchestratorAgent(
-            db=db,
-            llm=client,
-            user_id=user_id,
-            finance_tools=finance_tools,
-            research_tools=research_tools_allowed,
-            mode_settings=mode_settings,
-        )
-        agent.set_progress_callback(on_progress)
-
-        async def _run_agent():
-            nonlocal cards, reply
-            r, c = await agent.run(
-                message,
+    async def _run_turn() -> None:
+        nonlocal cards, reply, intent, partial
+        try:
+            result = await execute_chat_turn(
+                db=db,
+                user_id=user_id,
+                message=message,
+                llm=client,
+                holdings=holdings,
+                debate_on=debate_on,
+                master_on=master_on,
+                mode_settings=mode_settings,
+                long_term_context=prepared.long_term_context,
+                user_context_text=prepared.user_context_text,
                 history=history,
-                long_term_context=long_term_context,
-                user_context_text=user_context_text,
+                confirmed_symbol=confirmed_symbol,
+                confirmed_name=confirmed_name,
+                execution_preference=execution_preference,
+                user_context=user_context,
+                scope=prepared.scope,
+                on_progress=on_progress,
             )
-            reply = r
-            cards = c
+            reply = result.reply
+            cards = result.cards
+            intent = result.intent
+            partial = result.partial
+        except LLMConfigError as exc:
+            logger.warning("LLM config error in chat turn: %s", exc)
+            reply = "LLM 未配置，请在设置中填写 API Key 或开启 Mock 模式。"
+            partial = True
+            await on_progress(
+                {
+                    "type": "error",
+                    "code": "llm_not_configured",
+                    "message": str(exc),
+                }
+            )
+        except httpx.RequestError as exc:
+            logger.exception("LLM request failed: %s", exc)
+            reply = "网络或 LLM 服务暂时不可用，请稍后重试。"
+            partial = True
+            await on_progress(
+                {
+                    "type": "error",
+                    "code": "llm_request_failed",
+                    "message": str(exc),
+                }
+            )
+        except Exception as exc:
+            logger.exception("Chat stream turn failed: %s", exc)
+            reply = "抱歉，分析过程出错，请稍后重试。"
+            partial = True
+            await on_progress(
+                {
+                    "type": "error",
+                    "code": "chat_turn_failed",
+                    "message": str(exc),
+                }
+            )
+        finally:
             await progress_queue.put(None)
 
-        agent_task = asyncio.create_task(_run_agent())
+    turn_task = asyncio.create_task(_run_turn())
 
-        while True:
-            hint = await progress_queue.get()
-            if hint is None:
-                break
-            yield hint
+    while True:
+        hint = await progress_queue.get()
+        if hint is None:
+            break
+        yield hint
+        if hint.get("type") == "skill_start":
             save_checkpoint(
                 db,
                 user_id,
                 sid,
                 {
-                    "mode": mode,
+                    "mode": "skill",
+                    "skill_id": hint.get("skill_id"),
+                    "skill_run_id": hint.get("skill_run_id"),
+                },
+            )
+        elif hint.get("message_key"):
+            save_checkpoint(
+                db,
+                user_id,
+                sid,
+                {
+                    "mode": "react",
                     "message_key": hint.get("message_key"),
                     "message_params": hint.get("message_params"),
                 },
             )
 
-        await agent_task
+    await turn_task
 
     yield {
         "type": "done",
@@ -379,223 +262,7 @@ async def _run_chat_stream_body(
             "reply": reply,
             "cards": cards,
             "intent": intent,
-            "partial": False,
+            "partial": partial,
             "llm_usage": usage_to_out(get_usage()),
         },
     }
-
-
-async def _run_market_research_stream(
-    llm: object,
-    message: str,
-    *,
-    with_debate: bool = True,
-    **stream_kwargs: object,
-) -> AsyncIterator[dict[str, object]]:
-    """大盘深度投研：宏观/行业/技术/情绪，可选多空辩论 + 裁判。"""
-    async for event in run_market_research_stream(
-        message,
-        llm=llm,  # type: ignore[arg-type]
-        with_debate=with_debate,
-        **stream_kwargs,  # type: ignore[arg-type]
-    ):
-        yield event
-
-
-async def _run_stock_research_stream(
-    llm: object,
-    message: str,
-    *,
-    with_debate: bool = True,
-    confirmed_symbol: str | None = None,
-    confirmed_name: str | None = None,
-    **stream_kwargs: object,
-) -> AsyncIterator[dict[str, object]]:
-    """个股深度投研：四维 ReAct，可选多空辩论 + 裁判。"""
-    yield status_event("status.identifying_stock")
-    resolved = await resolve_message_stock(
-        message,
-        llm,  # type: ignore[arg-type]
-        confirmed_symbol=confirmed_symbol,
-        confirmed_name=confirmed_name,
-    )
-    if isinstance(resolved, StockLookupResult):
-        card = stock_choice_card(message, resolved)
-        yield {
-            "type": "stock_choice",
-            "message": resolved.message,
-            "candidates": card["data"]["candidates"],
-            "original_message": message,
-        }
-        yield {"type": "done", "cards": [card], "reply": resolved.message}
-        return
-
-    symbol = resolved.symbol
-    _name = resolved.name
-
-    cards: list[dict[str, object]] = []
-    reply = ""
-    async for event in run_research_stream(
-        symbol,
-        llm=llm,  # type: ignore[arg-type]
-        with_debate=with_debate,
-        **stream_kwargs,  # type: ignore[arg-type]
-    ):
-        if event.get("type") == "done":
-            payload = event.get("result")
-            if isinstance(payload, dict):
-                report = ResearchReportOut.model_validate(payload)
-                cards = [{"type": "research", "data": payload}]
-                reply = report.summary
-        else:
-            yield event
-    yield {"type": "done", "cards": cards, "reply": reply}
-
-
-async def _run_industry_research_stream(
-    db: Session,
-    llm,
-    user_id: int,
-    sector: str,
-    message: str,
-    session_id: str,
-    *,
-    with_debate: bool = False,
-    **stream_kwargs: object,
-) -> AsyncIterator[dict[str, object]]:
-    save_checkpoint(
-        db,
-        user_id,
-        session_id,
-        {"mode": ComplexityResult.INDUSTRY_RESEARCH, "sector": sector, "message": message},
-    )
-    report: ResearchReportOut | None = None
-    async for event in run_industry_research_stream(
-        db,
-        user_id,
-        sector,
-        message,
-        llm,
-        with_debate=with_debate,
-        **stream_kwargs,  # type: ignore[arg-type]
-    ):
-        if event.get("type") == "status":
-            save_checkpoint(
-                db,
-                user_id,
-                session_id,
-                {"mode": ComplexityResult.INDUSTRY_RESEARCH, "message": event.get("message", "")},
-            )
-        if event.get("type") == "done":
-            raw = event.get("result")
-            if isinstance(raw, dict):
-                report = ResearchReportOut.model_validate(raw)
-            continue
-        yield event
-
-    if report is None:
-        yield {"type": "done", "cards": [], "reply": "板块投研暂时无法完成，请稍后重试。"}
-        return
-
-    cards: list[dict[str, object]] = [
-        {"type": "research", "data": report.model_dump(mode="json")},
-    ]
-    yield {"type": "done", "cards": cards, "reply": report.summary}
-
-
-async def _run_plan_execute_stream(
-    db: Session,
-    llm,
-    message: str,
-    user_id: int,
-    session_id: str,
-    *,
-    finance_tools: bool = True,
-    long_term_context: str = "",
-    user_context_text: str = "",
-    history: list[dict[str, str]] | None = None,
-    mode_settings: ModeSettingsOut | None = None,
-) -> AsyncIterator[dict[str, object]]:
-    """Stream plan-execute mode with progress."""
-    yield status_event("status.planning")
-
-    react_agent = OrchestratorAgent(
-        db=db,
-        llm=llm,
-        user_id=user_id,
-        finance_tools=finance_tools,
-        mode_settings=mode_settings,
-    )
-
-    async def tool_executor(name: str, args: dict) -> str:
-        return await react_agent._execute_tool(name, args)
-
-    agent = PlanExecuteAgent(
-        llm=llm, tool_executor=tool_executor, finance_tools=finance_tools
-    )
-
-    # Use progress callback for real-time status
-    progress_queue: asyncio.Queue[dict[str, object] | None] = asyncio.Queue()
-
-    async def on_progress(hint: dict[str, object]) -> None:
-        await progress_queue.put(hint)
-
-    agent.set_progress_callback(on_progress)
-
-    plan_cards: list[dict] = []
-    plan_reply = ""
-
-    async def _run():
-        nonlocal plan_cards, plan_reply
-        r, c = await agent.run(
-            message,
-            history=history,
-            long_term_context=long_term_context,
-            user_context_text=user_context_text,
-        )
-        plan_reply = r
-        plan_cards = c
-        await progress_queue.put(None)
-
-    task = asyncio.create_task(_run())
-
-    # Yield progress events
-    while True:
-        try:
-            hint = await asyncio.wait_for(progress_queue.get(), timeout=0.5)
-            if hint is None:
-                break
-            yield hint
-            save_checkpoint(
-                db,
-                user_id,
-                session_id,
-                {
-                    "mode": ComplexityResult.PLAN_EXECUTE,
-                    "message_key": hint.get("message_key"),
-                    "message_params": hint.get("message_params"),
-                },
-            )
-        except TimeoutError:
-            pass
-
-    await task
-    merged_cards = _merge_plan_cards(plan_cards, react_agent.tool_cards())
-    yield {"type": "done", "cards": merged_cards, "reply": plan_reply}
-
-
-def _merge_plan_cards(
-    plan_cards: list[dict[str, object]],
-    tool_cards: list[dict[str, object]],
-) -> list[dict[str, object]]:
-    """Attach research/news/etc. cards produced by tools during Plan-Execute."""
-    merged: list[dict[str, object]] = list(plan_cards)
-    for card in tool_cards:
-        ctype = card.get("type")
-        if ctype == "research":
-            merged = [c for c in merged if c.get("type") != "research"]
-            merged.append(card)
-        elif ctype in ("news", "financial", "debate", "market"):
-            if not any(c.get("type") == ctype for c in merged):
-                merged.append(card)
-    return merged

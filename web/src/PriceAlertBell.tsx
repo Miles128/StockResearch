@@ -5,9 +5,15 @@ import { IconBell } from "./ui/Icons";
 
 interface PriceAlertBellProps {
   onSelectSymbol: (symbol: string, name: string) => void;
+  pollingEnabled?: boolean;
+  pollingIntervalMs?: number;
 }
 
-export function PriceAlertBell({ onSelectSymbol }: PriceAlertBellProps) {
+export function PriceAlertBell({
+  onSelectSymbol,
+  pollingEnabled = false,
+  pollingIntervalMs = 60_000,
+}: PriceAlertBellProps) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<PriceAlertNotification[]>([]);
@@ -28,9 +34,10 @@ export function PriceAlertBell({ onSelectSymbol }: PriceAlertBellProps) {
 
   useEffect(() => {
     void refresh();
-    const id = window.setInterval(() => void refresh(), 60_000);
+    if (!pollingEnabled) return;
+    const id = window.setInterval(() => void refresh(), pollingIntervalMs);
     return () => window.clearInterval(id);
-  }, []);
+  }, [pollingEnabled, pollingIntervalMs]);
 
   const unread = items.length;
 

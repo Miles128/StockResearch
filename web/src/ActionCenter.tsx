@@ -38,14 +38,7 @@ export function ActionCenter({ onNavigate, onChatQuery }: ActionCenterProps) {
   if (loading && !data) {
     return (
       <div className={`action-center${collapsed ? " collapsed" : ""}`}>
-        {renderHeader(undefined, <span className="action-center-loading skeleton-block" style={{ width: 48, height: 10 }} aria-hidden="true" />)}
-        {!collapsed && (
-          <div className="action-center-skeleton" aria-busy="true" aria-label={t("actionCenter.loading")}>
-            <div className="skeleton-block" />
-            <div className="skeleton-block" />
-            <div className="skeleton-block" />
-          </div>
-        )}
+        {renderHeader(t("actionCenter.loading"))}
       </div>
     );
   }

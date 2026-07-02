@@ -1,6 +1,6 @@
 """Plan-Execute should surface research cards from tool calls."""
 
-from stockresearch.agents.orchestrator.stream import _merge_plan_cards
+from stockresearch.agents.orchestrator.card_merge import merge_plan_cards
 
 
 def test_merge_plan_cards_attaches_research() -> None:
@@ -19,7 +19,7 @@ def test_merge_plan_cards_attaches_research() -> None:
             },
         }
     ]
-    merged = _merge_plan_cards(plan_cards, tool_cards)
+    merged = merge_plan_cards(plan_cards, tool_cards)
     types = [c["type"] for c in merged]
     assert "research" in types
     research = next(c for c in merged if c["type"] == "research")

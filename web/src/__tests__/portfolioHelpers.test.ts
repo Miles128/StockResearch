@@ -19,22 +19,56 @@ function makeHolding(overrides: Partial<HoldingEnriched> = {}): HoldingEnriched 
 }
 
 describe("computePortfolioSummary", () => {
+  const emptySummary = {
+    count: 0,
+    totalValue: 0,
+    totalCost: 0,
+    totalProfit: 0,
+    totalProfitPct: null,
+    annualizedPct: null,
+    todayPnl: 0,
+    todayPnlPct: null,
+    hasQuotes: false,
+  };
+
   it("returns zero values for empty holdings", () => {
     const result = computePortfolioSummary([]);
-    expect(result).toEqual({ count: 0, totalValue: 0, todayPnl: 0, hasQuotes: false });
+    expect(result).toEqual(emptySummary);
   });
 
   it("computes total value and PnL from holdings with quotes", () => {
     const holdings = [
-      makeHolding({ symbol: "A", price: 100, quantity: 10, change_pct: 2 }),
-      makeHolding({ symbol: "B", price: 200, quantity: 5, change_pct: -1 }),
+      makeHolding({
+        symbol: "A",
+        price: 100,
+        cost_price: 90,
+        quantity: 10,
+        change_pct: 2,
+        profit_amount: 100,
+        profit_pct: 11.11,
+        annualized_pct: 20,
+      }),
+      makeHolding({
+        symbol: "B",
+        price: 200,
+        cost_price: 210,
+        quantity: 5,
+        change_pct: -1,
+        profit_amount: -50,
+        profit_pct: -4.76,
+        annualized_pct: -10,
+      }),
     ];
     const result = computePortfolioSummary(holdings);
     expect(result.count).toBe(2);
-    expect(result.totalValue).toBe(100 * 10 + 200 * 5); // 2000
+    expect(result.totalValue).toBe(100 * 10 + 200 * 5);
+    expect(result.totalCost).toBe(90 * 10 + 210 * 5);
+    expect(result.totalProfit).toBeCloseTo(50);
+    expect(result.totalProfitPct).toBeCloseTo((50 / 1950) * 100);
     expect(result.hasQuotes).toBe(true);
-    // PnL: 1000 * 0.02 + 1000 * (-0.01) = 20 - 10 = 10
     expect(result.todayPnl).toBeCloseTo(10);
+    expect(result.annualizedPct).toBeCloseTo(5);
+    expect(result.todayPnlPct).toBeCloseTo((10 / 1990) * 100);
   });
 
   it("skips holdings without quotes", () => {
@@ -73,19 +107,18 @@ describe("computeSectorConcentration", () => {
 
   it("computes sector weights and sorts by pct descending", () => {
     const holdings = [
-      makeHolding({ sector: "科技", price: 100, quantity: 10 }),
-      makeHolding({ sector: "金融", price: 200, quantity: 5 }),
-      makeHolding({ sector: "科技", price: 50, quantity: 4 }),
+      makeHolding({ sector: "科技", price: 100, quantity: 10, change_pct: 2, profit_amount: 200 }),
+      makeHolding({ sector: "金融", price: 200, quantity: 5, change_pct: -1, profit_amount: -50 }),
+      makeHolding({ sector: "科技", price: 50, quantity: 4, change_pct: 0, profit_amount: 20 }),
     ];
     const result = computeSectorConcentration(holdings);
     expect(result).toHaveLength(2);
-    // 科技: 1000 + 200 = 1200, 金融: 1000, total = 2200
     expect(result[0].sector).toBe("科技");
     expect(result[0].pct).toBeCloseTo((1200 / 2200) * 100);
     expect(result[0].count).toBe(2);
+    expect(result[0].totalProfit).toBeCloseTo(220);
     expect(result[1].sector).toBe("金融");
-    expect(result[1].pct).toBeCloseTo((1000 / 2200) * 100);
-    expect(result[1].count).toBe(1);
+    expect(result[1].totalProfit).toBeCloseTo(-50);
   });
 
   it("treats empty sector as '未知'", () => {

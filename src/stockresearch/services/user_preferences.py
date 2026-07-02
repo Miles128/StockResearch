@@ -20,8 +20,12 @@ def _coerce_mode_settings(raw: object) -> ModeSettingsOut:
 def get_mode_settings(db: Session, user_id: int) -> ModeSettingsOut:
     preference = db.query(UserPreference).filter(UserPreference.user_id == user_id).first()
     if preference is None:
-        return DEFAULT_MODE_SETTINGS.model_copy()
-    return _coerce_mode_settings(preference.mode_settings)
+        settings = DEFAULT_MODE_SETTINGS.model_copy()
+    else:
+        settings = _coerce_mode_settings(preference.mode_settings)
+    if settings.mode == "research":
+        settings = settings.model_copy(update={"enable_glossary": False})
+    return settings
 
 
 def save_mode_settings(
@@ -30,6 +34,8 @@ def save_mode_settings(
     payload: ModeSettingsUpdate,
 ) -> ModeSettingsOut:
     data = payload.model_dump()
+    if data.get("mode") == "research":
+        data["enable_glossary"] = False
     preference = db.query(UserPreference).filter(UserPreference.user_id == user_id).first()
     if preference is None:
         preference = UserPreference(user_id=user_id, mode_settings=data)
@@ -38,4 +44,7 @@ def save_mode_settings(
         preference.mode_settings = data
     db.commit()
     db.refresh(preference)
-    return _coerce_mode_settings(preference.mode_settings)
+    saved = _coerce_mode_settings(preference.mode_settings)
+    if saved.mode == "research":
+        saved = saved.model_copy(update={"enable_glossary": False})
+    return saved

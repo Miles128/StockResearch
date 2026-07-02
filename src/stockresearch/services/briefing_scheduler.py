@@ -15,6 +15,7 @@ from stockresearch.services.briefing import (
     normalize_briefing_kind,
 )
 from stockresearch.services.trading_calendar import is_a_share_trading_day
+from stockresearch.services.user_preferences import get_mode_settings
 from stockresearch.utils.llm import LLMClient
 
 logger = logging.getLogger(__name__)
@@ -121,6 +122,10 @@ class BriefingScheduler:
             db.close()
 
     async def _generate_for_user(self, db: Session, user_id: int, kind: str) -> None:
+        user_settings = get_mode_settings(db, user_id)
+        if not user_settings.briefing_auto_enabled:
+            logger.debug("Briefing auto disabled for user %s; skipping %s", user_id, kind)
+            return
         normalized = normalize_briefing_kind(kind)
         today = date.today()
         start = datetime.combine(today, time.min)

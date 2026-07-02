@@ -2,6 +2,12 @@
 
 import re
 
+from stockresearch.utils.symbols import (
+    STOCK_CODE_RE,
+    STOCK_NAME_ALTERNATION,
+    has_stock_reference,
+)
+
 # Deep research / debate intent (stock or market)
 _DEEP_INTENT_KEYWORDS: tuple[str, ...] = (
     "辩论",
@@ -64,13 +70,7 @@ _COMPLEX_PATTERNS = [
     r"(多个|几只|哪些).{0,6}(股票|标的).{0,6}(分析|比较|推荐)",
 ]
 
-_STOCK_NAMES = (
-    r"(茅台|宁德时代|宁德|比亚迪|招商银行|招行|平安|中芯国际|中芯"
-    r"|腾讯|阿里|阿里巴巴|五粮液|泸州老窖|恒瑞医药|美的|格力"
-    r"|中国平安|工商银行|建行|农行|中行|交行|兴业|浦发|民生"
-    r"|海康威视|药明康德|隆基绿能|隆基|通威|紫金矿业|长江电力"
-    r"|中国移动|中国石油|中国石化|神华|中远海控|中信证券|中信)"
-)
+_STOCK_NAMES = f"({STOCK_NAME_ALTERNATION})"
 
 _DEBATE_PATTERNS = [
     r"\d{6}.*?(分析|研究|看法|观点|辩论|持有|还能|继续|值得|买卖)",
@@ -140,6 +140,22 @@ _RISK_KEYWORDS: tuple[str, ...] = (
     "回撤",
     "持仓安全",
     "危险",
+)
+
+_HOLDINGS_INTENT_RE = re.compile(
+    r"(我的|我).{0,8}(持仓|仓位|组合)"
+    r"|持仓.{0,12}(分析|看看|怎么样|如何|风险|影响|安全|情况|表现)"
+    r"|(组合|portfolio).{0,12}(分析|看看|怎么样|如何|优化|调整|配置)"
+    r"|(对|跟|和).{0,8}(我).{0,8}(持仓|仓位|组合)"
+    r"|(哪些|哪几).{0,8}持仓"
+    r"|持仓里|我持有|我买了|我的自选"
+    r"|(帮我|给我).{0,6}(看看|分析).{0,6}(持仓|仓位|组合)"
+)
+
+_VAGUE_QUERY_RE = re.compile(
+    r"^(分析|看看|怎么样|如何|说说|讲讲|解读|研判|介绍)(一下|下)?$"
+    r"|^(你好|嗨|hi|hello|在吗|帮忙)$"
+    r"|^请?(分析|解读|说明)(一下|下)?$"
 )
 
 
@@ -218,18 +234,9 @@ def is_market_scope(message: str) -> bool:
     return bool(_MARKET_ENTITY_RE.search(compact) and _MARKET_TREND_RE.search(compact))
 
 
-_STOCK_CODE_RE = re.compile(r"(?<!\d)(\d{6})(?!\d)")
-
-
-def has_stock_reference(message: str) -> bool:
-    if _STOCK_CODE_RE.search(message):
-        return True
-    return bool(re.search(_STOCK_NAMES, message))
-
-
 def count_stock_mentions(message: str) -> int:
     """Distinct stock codes + known names mentioned in the message."""
-    codes = set(_STOCK_CODE_RE.findall(message))
+    codes = set(STOCK_CODE_RE.findall(message))
     names = set(re.findall(_STOCK_NAMES, message))
     return len(codes) + len(names)
 
@@ -359,6 +366,32 @@ def is_risk_intent(message: str) -> bool:
     return any(kw in message for kw in _RISK_KEYWORDS)
 
 
+def is_holdings_intent(message: str) -> bool:
+    """User explicitly asks about their portfolio / holdings."""
+    msg = message.strip()
+    if not msg:
+        return False
+    compact = _compact_message(msg)
+    if _HOLDINGS_INTENT_RE.search(compact):
+        return True
+    if "我的持仓" in msg or "我的仓位" in msg or "我的组合" in msg:
+        return True
+    return False
+
+
+def is_vague_query(message: str) -> bool:
+    """Short/generic prompts without a clear subject — defer to UI context."""
+    msg = message.strip()
+    if not msg:
+        return True
+    compact = _compact_message(msg)
+    if _VAGUE_QUERY_RE.search(compact):
+        return True
+    if len(compact) <= 8 and not has_stock_reference(msg) and not is_market_scope(msg):
+        return True
+    return False
+
+
 def is_news_intent(message: str) -> bool:
     """True when the user wants news/headlines, not multi-dimensional research."""
     compact = _compact_message(message)
@@ -430,6 +463,26 @@ def is_stock_analysis_intent(message: str) -> bool:
     return False
 
 
+_STOCK_TREND_EXPLAIN_RE = re.compile(
+    r"(走势|涨跌|为什么涨|为什么跌|什么原因|涨了吗|跌了吗|涨了|跌了|"
+    r"回调|反弹|拉升|下挫|波动|表现怎么样|今日表现|今天表现|近期表现|"
+    r"怎么回事|什么原因|驱动)"
+)
+
+
+def is_trend_explanation_intent(message: str) -> bool:
+    """Trend / move questions that need news context without full 4D research."""
+    msg = message.strip()
+    if not msg or wants_deep_research(msg):
+        return False
+    compact = _compact_message(msg)
+    if has_stock_reference(msg) and _STOCK_TREND_EXPLAIN_RE.search(compact):
+        return True
+    if is_market_scope(msg) and _MARKET_TREND_RE.search(compact):
+        return True
+    return False
+
+
 def classify_research_scope(message: str) -> str | None:
     """Return 'stock' or 'market' only for explicit analysis intents."""
     msg = message.strip()
@@ -452,11 +505,11 @@ def resolve_execution_mode(
     """Route chat to direct / multi-dim research / debate / plan-execute."""
     msg = message.strip()
 
-    if should_skip_multi_agent(msg):
-        return ComplexityResult.DIRECT
-
     if should_auto_plan_execute(msg):
         return ComplexityResult.PLAN_EXECUTE
+
+    if should_skip_multi_agent(msg):
+        return ComplexityResult.DIRECT
 
     scope = classify_research_scope(msg)
     use_debate = enable_debate and not should_skip_debate(msg)

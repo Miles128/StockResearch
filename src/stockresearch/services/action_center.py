@@ -38,12 +38,11 @@ async def generate_daily_actions(
         )
 
     quote_provider = QuoteProvider()
-    quotes = {}
-    for h in holdings:
-        try:
-            quotes[h.symbol] = await quote_provider.get_quote(h.symbol)
-        except Exception:
-            pass
+    try:
+        quote_map = await quote_provider.get_quotes([h.symbol for h in holdings])
+    except Exception:
+        quote_map = {}
+    quotes = {sym: q for sym, q in quote_map.items()}
 
     news = await get_news_for_user(db, user_id, related_only=True, limit=10)
     interests = load_user_news_interests(db, user_id)

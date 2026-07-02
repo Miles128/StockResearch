@@ -15,6 +15,11 @@ export type FocusContext =
       price?: number | null;
       change_pct?: number | null;
     }
+  | {
+      kind: "index";
+      symbol: string;
+      name: string;
+    }
   | { kind: "sector"; name: string };
 
 export interface SelectedStock {

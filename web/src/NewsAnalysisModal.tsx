@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, type AgentStreamEvent, type NewsAnalysis, type NewsAnalysisStockImpact } from "./api";
 import { useI18n } from "./i18n";
 import { localizeSentiment, localizeImpactLevel } from "./uiLabels";
+import { translateStatusEvent } from "./streamI18n";
 
 interface Props {
   newsId: number;
@@ -16,6 +17,15 @@ interface Props {
 
 const STOCK_RE = /^\d{6}$/;
 
+type NewsAnalysisPhase = "pick" | "connecting" | "fetching" | "analyzing" | "done";
+
+const NEWS_STEP_ORDER = ["connecting", "fetching", "analyzing"] as const;
+
+function phaseRank(phase: NewsAnalysisPhase): number {
+  if (phase === "pick" || phase === "done") return phase === "done" ? 99 : -1;
+  return NEWS_STEP_ORDER.indexOf(phase as (typeof NEWS_STEP_ORDER)[number]);
+}
+
 export function NewsAnalysisModal({
   newsId,
   title,
@@ -29,7 +39,8 @@ export function NewsAnalysisModal({
   const { t } = useI18n();
   const stockEntities = entities.filter((e) => STOCK_RE.test(e));
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
-  const [phase, setPhase] = useState<"pick" | "connecting" | "fetching" | "analyzing" | "done">("pick");
+  const [manualSymbol, setManualSymbol] = useState("");
+  const [phase, setPhase] = useState<NewsAnalysisPhase>("pick");
   const [statusMsg, setStatusMsg] = useState("");
   const [stockImpact, setStockImpact] = useState<NewsAnalysisStockImpact | null>(null);
   const [analysis, setAnalysis] = useState<NewsAnalysis | null>(null);
@@ -58,7 +69,8 @@ export function NewsAnalysisModal({
         symbol,
         (event: AgentStreamEvent) => {
           if (event.type === "status") {
-            setStatusMsg(event.message || "");
+            const msg = translateStatusEvent(event, t);
+            setStatusMsg(msg);
             const key = (event.message_key as string) || "";
             if (key.includes("fetching")) setPhase("fetching");
             else if (key.includes("cross") || key.includes("analyze")) setPhase("analyzing");
@@ -85,6 +97,9 @@ export function NewsAnalysisModal({
               setStockImpact(result.related_stocks[0]);
             }
             setPhase("done");
+          } else if (event.type === "error") {
+            setError(String(event.message || "新闻分析失败"));
+            setPhase("pick");
           }
         },
         controller.signal,
@@ -94,6 +109,9 @@ export function NewsAnalysisModal({
           setError(String(err));
           setPhase("pick");
         }
+      })
+      .finally(() => {
+        abortRef.current = null;
       });
 
     return () => {
@@ -129,7 +147,8 @@ export function NewsAnalysisModal({
       <div className="modal news-analysis-modal">
         <div className="modal-header">
           <div>
-            <span className="modal-badge">News Deep Analysis</span>
+            <span className="modal-badge">{t("news.deepAnalysisBadge")}</span>
+            <span className="modal-badge modal-badge-muted">{t("news.deepAnalysisMode")}</span>
             <span className={`stat-pill ${sentiment === "bullish" ? "up" : sentiment === "bearish" ? "down" : ""}`}>
               {localizeSentiment(sentiment, t)} · {localizeImpactLevel(impactLevel, t)}
             </span>
@@ -161,7 +180,28 @@ export function NewsAnalysisModal({
                   </div>
                 </>
               ) : (
-                <p className="muted">{t("news.noStockEntities")}</p>
+                <div className="news-pick-stock">
+                  <p className="muted">{t("news.noStockEntities")}</p>
+                  <p className="news-pick-prompt">{t("news.enterSymbol")}</p>
+                  <div className="news-stock-picker">
+                    <input
+                      className="news-symbol-input"
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="600519"
+                      value={manualSymbol}
+                      onChange={(e) => setManualSymbol(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={manualSymbol.length !== 6}
+                      onClick={() => startAnalysis(manualSymbol)}
+                    >
+                      {t("news.startAnalysis")}
+                    </button>
+                  </div>
+                </div>
               )}
               {error && <p className="error" style={{ marginTop: 10 }}>{error}</p>}
             </div>
@@ -170,11 +210,23 @@ export function NewsAnalysisModal({
           {phase !== "pick" && phase !== "done" && (
             <div className="news-analysis-loading">
               <div className="spinner" />
-              <div>
+              <div className="news-analysis-progress">
                 <p style={{ margin: 0, fontWeight: 600 }}>{selectedSymbol}</p>
-                <p style={{ margin: 0, fontSize: 12, color: "var(--bbg-dim)" }}>
-                  {statusMsg || t("news.analyzing")}
-                </p>
+                <ol className="news-analysis-steps">
+                  {NEWS_STEP_ORDER.map((step) => {
+                    const active = phase === step;
+                    const done = phaseRank(phase) > phaseRank(step as NewsAnalysisPhase);
+                    return (
+                      <li
+                        key={step}
+                        className={`news-analysis-step${active ? " active" : ""}${done ? " done" : ""}`}
+                      >
+                        {t(`news.step.${step}`)}
+                      </li>
+                    );
+                  })}
+                </ol>
+                {statusMsg && <p className="news-analysis-status muted">{statusMsg}</p>}
               </div>
             </div>
           )}

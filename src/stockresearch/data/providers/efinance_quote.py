@@ -74,3 +74,46 @@ def fetch_efinance_quotes(symbols: list[str]) -> dict[str, dict[str, float | str
         raise DataProviderError("efinance 行情返回空")
     logger.info("Fetched %d/%d quotes from efinance", len(results), len(unique))
     return results
+
+
+def fetch_efinance_kline(symbol: str, days: int) -> list[dict[str, float | str]]:
+    """Daily OHLCV history via efinance."""
+    if not _HAS_EFINANCE:
+        raise DataProviderError("efinance 未安装")
+    if days < 1:
+        return []
+
+    try:
+        df: Any = ef.stock.get_quote_history(symbol, klt=101)
+    except TypeError:
+        df = ef.stock.get_quote_history(symbol)
+    except Exception as exc:
+        raise DataProviderError(f"efinance kline failed for {symbol}: {exc}") from exc
+
+    if df is None or len(df) == 0:
+        raise DataProviderError(f"efinance kline empty for {symbol}")
+
+    bars: list[dict[str, float | str]] = []
+    for _, row in df.iterrows():
+        try:
+            day_raw = row.get("日期") or row.get("date")
+            bars.append(
+                {
+                    "date": str(day_raw)[:10],
+                    "open": float(row["开盘"]),
+                    "high": float(row["最高"]),
+                    "low": float(row["最低"]),
+                    "close": float(row["收盘"]),
+                    "volume": float(row["成交量"]),
+                }
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            logger.warning("efinance kline parse skip for %s: %s", symbol, exc)
+            continue
+
+    if not bars:
+        raise DataProviderError(f"efinance kline parse failed for {symbol}")
+
+    trimmed = bars[-days:]
+    logger.info("Fetched %d kline bars from efinance for %s", len(trimmed), symbol)
+    return trimmed

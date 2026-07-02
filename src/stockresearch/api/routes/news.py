@@ -96,16 +96,24 @@ async def analyze_news_stream(
         raise HTTPException(status_code=404, detail="News item not found")
 
     async def event_generator():
-        async for event in run_news_deep_analysis_stream(
-            title=item.title,
-            summary=item.summary,
-            content=item.content or "",
-            source=item.source,
-            symbol=symbol,
-            entities=item.entities or [],
-            news_id=item.id,
-            llm=llm,
-        ):
-            yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
+        try:
+            async for event in run_news_deep_analysis_stream(
+                title=item.title,
+                summary=item.summary,
+                content=item.content or "",
+                source=item.source,
+                symbol=symbol,
+                entities=item.entities or [],
+                news_id=item.id,
+                llm=llm,
+            ):
+                yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
+        except Exception as exc:
+            payload = {
+                "type": "error",
+                "code": "news_stream_failed",
+                "message": str(exc) or "新闻分析流中断",
+            }
+            yield f"data: {json.dumps(payload, ensure_ascii=False, default=str)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

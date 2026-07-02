@@ -52,4 +52,8 @@ def validate_buy_date(buy_date: date | None) -> None:
             raise ValidationError(
                 f"{buy_date.isoformat()} 为周末，不是交易日，请重新选择"
             ) from exc
+        from stockresearch.core.config import get_settings
+
+        if get_settings().use_mock_market_data:
+            return
         raise ValidationError("无法校验交易日历，请稍后重试") from exc
