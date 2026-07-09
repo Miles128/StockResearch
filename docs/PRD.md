@@ -112,10 +112,11 @@ Phase 2：`stockresearch worker` 独立 Cron + 可选 launchd 示例。
 
 ## 八、Phase 2 优先级
 
-1. Settings 接 §七 开关；ingest 后台化；`stockresearch worker`
-2. `prompts/` 外置
+1. ~~Settings 接 §七 开关；ingest 后台化；`stockresearch worker`~~（已完成）
+2. ~~`prompts/` 外置~~（已完成）
 3. Tushare Registry 完善（可选）
 4. CLI + MCP + Skills 外化（后期）
+5. 可选 launchd 示例（worker 常驻）
 
 ## 九、工程
 
@@ -129,7 +130,7 @@ uv run pytest && cd web && npm run build
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
-| **V10.3** | 2026-07-07 | 新增独立「市场」Tab；prompts 外置；定时任务独立 worker CLI |
+| **V10.3** | 2026-07-07 | 新增独立「市场」Tab；prompts 外置；定时任务独立 worker CLI；新闻 ingest 后台 job |
 | V10.2 | 2026-07-01 | 精简 PRD；数据源按代码现状重写（新浪/AkShare/efinance 三层行情；K 线 AkShare 优先） |
 | V10.1 | 2026-06-30 | 双模式契约；合规语言；Focus 多 Tab；§7 开关语义 |
 | V10.0 | 2026-06-29 | 唯一 PRD；三 Tab tri-shell；统一 chat 路由 |

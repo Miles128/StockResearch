@@ -164,7 +164,27 @@ class SectorPreferencesUpdate(BaseModel):
     sectors: list[str] = Field(default_factory=list, max_length=20)
 
 
+class NewsIngestAcceptedOut(BaseModel):
+    """Immediate response when ingest is queued as a background job."""
+
+    job_id: str
+    status: Literal["queued"] = "queued"
+
+
+class NewsIngestJobOut(BaseModel):
+    job_id: str
+    status: Literal["queued", "running", "completed", "failed"]
+    inserted: int = 0
+    scanned: int = 0
+    skipped: int = 0
+    purged: int = 0
+    message: str = ""
+    error: str | None = None
+
+
 class NewsIngestOut(BaseModel):
+    """Legacy sync ingest payload (kept for compatibility / completed job shape)."""
+
     inserted: int
     scanned: int
     skipped: int

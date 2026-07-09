@@ -58,6 +58,15 @@ def _isolated_provider_cache() -> None:
     _clear_provider_cache()
 
 
+@pytest.fixture(autouse=True)
+def _clear_news_ingest_jobs() -> None:
+    from stockresearch.services.news_ingest_jobs import clear_jobs
+
+    clear_jobs()
+    yield
+    clear_jobs()
+
+
 @pytest.fixture()
 def db_session() -> object:
     _reset_test_database()

@@ -2,7 +2,7 @@
 
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -12,18 +12,18 @@ from stockresearch.api.deps import get_current_user
 from stockresearch.api.llm_deps import llm_from_headers
 from stockresearch.core.constants import AVAILABLE_SECTORS
 from stockresearch.core.schemas import (
-    NewsIngestOut,
+    NewsIngestAcceptedOut,
+    NewsIngestJobOut,
     NewsItemOut,
     SectorPreferencesOut,
     SectorPreferencesUpdate,
 )
-from stockresearch.data.pipeline.news import NewsPipeline
 from stockresearch.db.models import NewsItem, User
 from stockresearch.db.session import get_db
+from stockresearch.services.news_ingest_jobs import create_job, get_job, run_ingest_job
 from stockresearch.services.news_interests import (
     list_user_sectors,
     load_user_news_interests,
-    purge_irrelevant_news,
     save_user_sectors,
 )
 from stockresearch.utils.llm import LLMClient
@@ -52,22 +52,40 @@ def update_sector_preferences(
     return SectorPreferencesOut(available=list(AVAILABLE_SECTORS), selected=selected)
 
 
-@router.post("/ingest", response_model=NewsIngestOut)
+@router.post(
+    "/ingest",
+    response_model=NewsIngestAcceptedOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 async def ingest_news(
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     limit: int = Query(default=20, le=50),
-) -> NewsIngestOut:
+) -> NewsIngestAcceptedOut:
     interests = load_user_news_interests(db, user.id)
-    pipeline = NewsPipeline()
-    result = await pipeline.ingest(db, interests, limit=limit)
-    purged = purge_irrelevant_news(db, interests)
-    return NewsIngestOut(
-        inserted=result.inserted,
-        scanned=result.scanned,
-        skipped=result.skipped,
-        purged=purged,
-        message=f"{result.message}；清理旧快讯 {purged} 条",
+    job = create_job(user.id)
+    background_tasks.add_task(run_ingest_job, job.job_id, user.id, interests, limit)
+    return NewsIngestAcceptedOut(job_id=job.job_id, status="queued")
+
+
+@router.get("/ingest/{job_id}", response_model=NewsIngestJobOut)
+def ingest_job_status(
+    job_id: str,
+    user: User = Depends(get_current_user),
+) -> NewsIngestJobOut:
+    job = get_job(job_id)
+    if job is None or job.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Ingest job not found")
+    return NewsIngestJobOut(
+        job_id=job.job_id,
+        status=job.status,
+        inserted=job.inserted,
+        scanned=job.scanned,
+        skipped=job.skipped,
+        purged=job.purged,
+        message=job.message,
+        error=job.error,
     )
 
 
@@ -78,6 +96,8 @@ async def news_feed(
     related_only: bool = False,
     limit: int = Query(default=20, le=50),
 ) -> list[NewsItemOut]:
+    from stockresearch.services.news_interests import purge_irrelevant_news
+
     interests = load_user_news_interests(db, user.id)
     purge_irrelevant_news(db, interests)
     return await get_news_for_user(db, user.id, related_only=related_only, limit=limit)
