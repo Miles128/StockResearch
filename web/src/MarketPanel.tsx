@@ -74,7 +74,10 @@ export function MarketPanel({
   }, [indexSymbols.join(",")]);
 
   const marketNews = useMemo(
-    () => news.filter((item) => item.category === "market").slice(0, 12),
+    () =>
+      news
+        .filter((item) => item.category === "market" || item.category === "sector")
+        .slice(0, 16),
     [news],
   );
 

@@ -11,7 +11,13 @@ cd web && npm install
 ```
 
 ```bash
+# 终端 1 — API
 uv run uvicorn stockresearch.api.app:app --reload --host 127.0.0.1 --port 8000 --app-dir src
+
+# 终端 2 — 后台调度 worker（简报/价格告警）
+uv run python -m stockresearch worker
+
+# 终端 3 — Web
 cd web && npm run dev   # :5174
 ```
 
@@ -41,9 +47,9 @@ pytest && cd web && npm run build
 
 ## Architecture
 
-Center tabs: **focus | risk | news** (no fourth market tab). Copilot is global right rail.
+Center tabs: **focus | market | risk | news**. Copilot is global right rail.
 
-Cron (briefings, price alerts) runs inside uvicorn lifespan.
+Cron (briefings, price alerts) runs in a separate `stockresearch worker` process; API lifespan only starts schedulers when `RUN_SCHEDULERS_IN_API=true`.
 
 ## Active branch note
 

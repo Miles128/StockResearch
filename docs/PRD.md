@@ -1,6 +1,6 @@
 # StockResearch 产品需求文档
 
-**V10.2 · 开源 A 股市场研究 Agent**
+**V10.3 · 开源 A 股市场研究 Agent**
 
 > 唯一 PRD：`docs/PRD.md`（Git 中 `docs/` 仅推送本文件）。本地可选 `docs/meta.yaml` 供 prd-first 工具读取。
 
@@ -29,12 +29,13 @@
 
 ```text
 ┌─ 顶栏：指数 · 搜索 · 模式 · 告警铃 · 数据源 · 设置 ─────────────────────┐
-├ lists-column ──┬─ center: [焦点][风控][新闻] ────┬─ copilot-column ──────┤
-│ 持仓 · 自选    │ 多 Tab · K线 · ActionCenter     │ 多线程 · SSE · 免责    │
+├ lists-column ──┬─ center: [焦点][市场][风控][新闻] ┬─ copilot-column ──────┤
+│ 持仓 · 自选    │ 多 Tab · K线 · ActionCenter      │ 多线程 · SSE · 免责    │
 └────────────────┴─────────────────────────────────┴───────────────────────┘
 ```
 
-- **三 Tab**：焦点 / 风控 / 新闻（无第四「市场」Tab，行情并入焦点）
+- **四 Tab**：焦点 / 市场 / 风控 / 新闻
+  - **市场 Tab**：A 股主要指数行情、指数分时、涨跌家数、北向资金；行业板块涨跌分布；指数与行业相关的主要新闻快讯
 - **焦点多 Tab**：Sidebar 选中、Copilot 指令、顶栏指数各可占一 Tab
 - **Copilot = 焦点 source of truth**：「分析茅台」→ 茅台 Tab；「茅台 vs 当前选中」→ 交叉对比
 - **Demo 持仓**：空组合时 `/portfolio/demo` 快速体验
@@ -111,10 +112,11 @@ Phase 2：`stockresearch worker` 独立 Cron + 可选 launchd 示例。
 
 ## 八、Phase 2 优先级
 
-1. Settings 接 §七 开关；ingest 后台化；`stockresearch worker`
-2. `prompts/` 外置
+1. ~~Settings 接 §七 开关；ingest 后台化；`stockresearch worker`~~（已完成）
+2. ~~`prompts/` 外置~~（已完成）
 3. Tushare Registry 完善（可选）
 4. CLI + MCP + Skills 外化（后期）
+5. 可选 launchd 示例（worker 常驻）
 
 ## 九、工程
 
@@ -128,6 +130,7 @@ uv run pytest && cd web && npm run build
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
-| **V10.2** | 2026-07-01 | 精简 PRD；数据源按代码现状重写（新浪/AkShare/efinance 三层行情；K 线 AkShare 优先） |
+| **V10.3** | 2026-07-07 | 新增独立「市场」Tab；prompts 外置；定时任务独立 worker CLI；新闻 ingest 后台 job |
+| V10.2 | 2026-07-01 | 精简 PRD；数据源按代码现状重写（新浪/AkShare/efinance 三层行情；K 线 AkShare 优先） |
 | V10.1 | 2026-06-30 | 双模式契约；合规语言；Focus 多 Tab；§7 开关语义 |
 | V10.0 | 2026-06-29 | 唯一 PRD；三 Tab tri-shell；统一 chat 路由 |

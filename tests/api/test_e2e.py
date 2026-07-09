@@ -109,6 +109,12 @@ async def test_path_chat_research(client: TestClient) -> None:
 @pytest.mark.asyncio
 async def test_path_news_ingest_and_feed(client: TestClient) -> None:
     ingest = client.post("/api/v1/news/ingest?limit=5")
-    assert ingest.status_code == 200
+    assert ingest.status_code == 202
+    body = ingest.json()
+    assert body["status"] == "queued"
+    assert "job_id" in body
+    job = client.get(f"/api/v1/news/ingest/{body['job_id']}")
+    assert job.status_code == 200
+    assert job.json()["status"] in {"queued", "running", "completed", "failed"}
     feed = client.get("/api/v1/news/feed")
     assert feed.status_code == 200

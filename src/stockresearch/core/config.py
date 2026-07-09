@@ -1,6 +1,7 @@
 """Application configuration."""
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -22,6 +23,17 @@ class Settings(BaseSettings):
     # LLM 单次请求超时。必须 < agent_timeout_seconds，否则 agent 已超时但 LLM 仍在跑。
     llm_timeout_seconds: int = 30
     cors_allowed_origins: str = ""  # comma-separated, empty = allow all
+    # 提示词目录。留空使用项目根目录 prompts/；不存在时回退到内置 prompts。
+    prompts_dir: str = ""
+    # 是否在 API 进程内启动定时调度（简报/价格告警）。P1 默认 false，应独立运行 worker。
+    run_schedulers_in_api: bool = False
+
+    @property
+    def prompts_path(self) -> Path | None:
+        if self.prompts_dir:
+            path = Path(self.prompts_dir).expanduser().resolve()
+            return path if path.is_dir() else None
+        return None
 
 
 @lru_cache

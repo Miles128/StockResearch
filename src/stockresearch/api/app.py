@@ -69,13 +69,16 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         get_or_create_mvp_user(db)
     finally:
         db.close()
-    get_scheduler().start()
-    get_price_alert_scheduler().start()
+    settings = get_settings()
+    if settings.run_schedulers_in_api:
+        get_scheduler().start()
+        get_price_alert_scheduler().start()
     try:
         yield
     finally:
-        get_price_alert_scheduler().shutdown()
-        get_scheduler().shutdown()
+        if settings.run_schedulers_in_api:
+            get_price_alert_scheduler().shutdown()
+            get_scheduler().shutdown()
 
 
 def create_app() -> FastAPI:

@@ -271,7 +271,11 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ sectors }),
     }),
-  ingestNews: () => request<NewsIngestOut>("/news/ingest?limit=10", { method: "POST" }),
+  ingestNews: async () => {
+    const accepted = await request<NewsIngestAccepted>("/news/ingest?limit=10", { method: "POST" });
+    return waitForNewsIngestJob(accepted.job_id);
+  },
+  newsIngestJob: (jobId: string) => request<NewsIngestJob>(`/news/ingest/${encodeURIComponent(jobId)}`),
   research: (symbol: string) => request<ResearchReport>(`/research/analyze?symbol=${symbol}`),
   researchStream: (symbol: string, onEvent?: (event: AgentStreamEvent) => void) =>
     createJsonSseStream<ResearchReport, AgentStreamEvent>({
@@ -544,11 +548,36 @@ export interface SectorPreferences {
   selected: string[];
 }
 
-export interface NewsIngestOut {
+export interface NewsIngestAccepted {
+  job_id: string;
+  status: "queued";
+}
+
+export interface NewsIngestJob {
+  job_id: string;
+  status: "queued" | "running" | "completed" | "failed";
   inserted: number;
   scanned: number;
   skipped: number;
+  purged: number;
   message: string;
+  error?: string | null;
+}
+
+/** @deprecated Use NewsIngestJob — kept for call sites expecting the old sync shape. */
+export type NewsIngestOut = NewsIngestJob;
+
+async function waitForNewsIngestJob(jobId: string, timeoutMs = 60_000): Promise<NewsIngestJob> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const job = await requestPlain<NewsIngestJob>(`/news/ingest/${encodeURIComponent(jobId)}`);
+    if (job.status === "completed") return job;
+    if (job.status === "failed") {
+      throw new Error(job.error || job.message || "News ingest failed");
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  throw new Error("News ingest timed out");
 }
 
 export interface DimensionResult {
