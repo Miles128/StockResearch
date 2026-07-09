@@ -7,7 +7,7 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
-from stockresearch.agents.master_commentary.registry import get_master_config, to_commentary_payload
+from stockresearch.agents.master_commentary.registry import to_commentary_payload
 from stockresearch.agents.master_commentary.schemas import MasterCommentaryOut
 from stockresearch.core.schemas import ModeSettingsOut
 from stockresearch.utils.llm import LLMClient

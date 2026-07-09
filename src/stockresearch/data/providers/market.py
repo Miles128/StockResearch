@@ -11,7 +11,7 @@ import akshare as ak  # type: ignore[import-untyped]
 from stockresearch.core.config import get_settings
 from stockresearch.core.exceptions import DataProviderError
 from stockresearch.data.providers.akshare_quote import fetch_akshare_hist_quotes
-from stockresearch.data.providers.base import run_async_fetch, run_sync_fetch
+from stockresearch.data.providers.base import run_sync_fetch
 from stockresearch.data.providers.efinance_quote import fetch_efinance_kline, fetch_efinance_quotes
 from stockresearch.data.providers.news import _fetch_em_symbol_news_sync
 from stockresearch.data.providers.sina_kline import fetch_sina_kline

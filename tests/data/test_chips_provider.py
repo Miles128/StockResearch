@@ -9,7 +9,6 @@ from stockresearch.data.providers.market import ChipsDataProvider
 async def test_chips_provider_returns_defaults_when_offline(monkeypatch: pytest.MonkeyPatch) -> None:
     """AkShare 网络不可用时，ChipsDataProvider 应返回安全默认值，不抛异常。"""
     from stockresearch.data.providers import market as market_mod
-    from stockresearch.data.providers.base import run_sync_fetch
 
     async def fake_run_sync_fetch(*args, **kwargs):  # type: ignore[no-untyped-def]
         return kwargs.get("fallback")
