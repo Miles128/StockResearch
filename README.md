@@ -18,8 +18,8 @@
 
 ```text
 ┌─ 顶栏：指数 · 搜索 · 模式 · 告警 · 数据源 · 设置 ─────────────────────┐
-├ lists ─────────┬─ center: [焦点][风控][新闻] ────┬─ Copilot ────────────┤
-│ 持仓 · 自选    │ K线 · 多 Tab · ActionCenter     │ 多线程 · SSE · 免责   │
+├ lists ─────────┬─ center: [焦点][市场][风控][新闻] ┬─ Copilot ───────────┤
+│ 持仓 · 自选    │ K线 · 多 Tab · ActionCenter      │ 多线程 · SSE · 免责  │
 └────────────────┴─────────────────────────────────┴───────────────────────┘
 ```
 
@@ -77,7 +77,10 @@ uv sync && cp .env.example .env
 # 终端 1 — API
 uv run uvicorn stockresearch.api.app:app --reload --host 127.0.0.1 --port 8000 --app-dir src
 
-# 终端 2 — Web
+# 终端 2 — 后台调度 worker（简报/价格告警）
+uv run python -m stockresearch worker
+
+# 终端 3 — Web
 cd web && npm install && npm run dev
 ```
 
@@ -123,7 +126,14 @@ Open-source **A-share market research agent** running locally. LangGraph multi-a
 ```bash
 git clone https://github.com/Miles128/StockResearch.git && cd StockResearch
 uv sync && cp .env.example .env
+
+# Terminal 1 — API
 uv run uvicorn stockresearch.api.app:app --reload --host 127.0.0.1 --port 8000 --app-dir src
+
+# Terminal 2 — Background worker (briefings & price alerts)
+uv run python -m stockresearch worker
+
+# Terminal 3 — Web
 cd web && npm install && npm run dev   # http://localhost:5174
 ```
 

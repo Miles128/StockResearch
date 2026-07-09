@@ -331,7 +331,7 @@ export const en: Dict = {
     indicesTitle: "Major indices",
     indexBarsTitle: "Index moves",
     sectorsTitle: "Sector moves",
-    newsTitle: "Today's market news",
+    newsTitle: "Today's market & sector news",
     newsEmpty: "No market headlines — tap refresh",
     breadth: "Advancers / decliners",
   },

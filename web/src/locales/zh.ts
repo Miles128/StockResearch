@@ -329,7 +329,7 @@ export const zh: Dict = {
     indicesTitle: "主要指数",
     indexBarsTitle: "指数涨跌",
     sectorsTitle: "行业板块涨跌",
-    newsTitle: "今日市场快讯",
+    newsTitle: "今日市场 & 板块快讯",
     newsEmpty: "暂无市场快讯，点击刷新",
     breadth: "涨跌家数",
   },
