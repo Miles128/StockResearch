@@ -84,7 +84,6 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
 
   const [data, setData] = useState<KlineChart | null>(() => getCachedKline(symbol));
   const dataRef = useRef<KlineChart | null>(data);
-  dataRef.current = data;
   const [loading, setLoading] = useState(() => getCachedKline(symbol) == null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
@@ -92,6 +91,10 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
   const [showRsi, setShowRsi] = useState(false);
   const [selectedMa, setSelectedMa] = useState<number[]>([20]);
   const [maMenuOpen, setMaMenuOpen] = useState(false);
+
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
 
   const allCharts = useCallback((): IChartApi[] => {
     const rt = runtimeRef.current;

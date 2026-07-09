@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { HoldingEnriched, WatchlistItem, StockQuoteOut } from "./api";
 import { HoldingTradeInlineRow } from "./HoldingTradeInlineRow";
 import { ListsStockTable } from "./ListsStockTable";
@@ -32,29 +32,35 @@ function sectorColor(sector: string): string {
 
 function SectorDonut({ sectors }: { sectors: SectorWeight[] }) {
   const total = sectors.reduce((a, b) => a + b.pct, 0) || 1;
-  let acc = 0;
   const r = 36;
   const cx = 50;
   const cy = 50;
-  const paths = sectors.map((s) => {
-    const start = (acc / total) * Math.PI * 2 - Math.PI / 2;
-    acc += s.pct;
-    const end = (acc / total) * Math.PI * 2 - Math.PI / 2;
-    const large = end - start > Math.PI ? 1 : 0;
-    const x1 = cx + r * Math.cos(start);
-    const y1 = cy + r * Math.sin(start);
-    const x2 = cx + r * Math.cos(end);
-    const y2 = cy + r * Math.sin(end);
-    return (
-      <path
-        key={s.sector}
-        d={`M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`}
-        fill="none"
-        stroke={sectorColor(s.sector)}
-        strokeWidth="10"
-      />
-    );
-  });
+  const paths = sectors.reduce<{ nodes: ReactNode[]; acc: number }>(
+    (state, s) => {
+      const start = (state.acc / total) * Math.PI * 2 - Math.PI / 2;
+      const nextAcc = state.acc + s.pct;
+      const end = (nextAcc / total) * Math.PI * 2 - Math.PI / 2;
+      const large = end - start > Math.PI ? 1 : 0;
+      const x1 = cx + r * Math.cos(start);
+      const y1 = cy + r * Math.sin(start);
+      const x2 = cx + r * Math.cos(end);
+      const y2 = cy + r * Math.sin(end);
+      return {
+        acc: nextAcc,
+        nodes: [
+          ...state.nodes,
+          <path
+            key={s.sector}
+            d={`M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`}
+            fill="none"
+            stroke={sectorColor(s.sector)}
+            strokeWidth="10"
+          />,
+        ],
+      };
+    },
+    { nodes: [], acc: 0 },
+  ).nodes;
   return (
     <svg className="lists-donut" viewBox="0 0 100 100" aria-hidden="true">
       {paths}

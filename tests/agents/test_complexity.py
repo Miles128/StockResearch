@@ -10,7 +10,6 @@ from stockresearch.agents.orchestrator.complexity import (
     is_trend_explanation_intent,
     resolve_execution_mode,
     should_skip_debate,
-    should_skip_multi_agent,
     wants_deep_research,
 )
 

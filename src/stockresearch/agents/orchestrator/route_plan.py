@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from typing import Literal
 
-from stockresearch.agents.orchestrator.tools_registry import FINANCE_TOOLS
 from stockresearch.agents.orchestrator.complexity import (
     ComplexityResult,
     classify_query,

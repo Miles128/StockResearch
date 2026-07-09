@@ -30,8 +30,14 @@ export function useCopilotThreads({ defaultTitle }: UseCopilotThreadsOptions) {
   const [input, setInput] = useState("");
   const threadsRef = useRef(threads);
   const activeIdRef = useRef(activeId);
-  threadsRef.current = threads;
-  activeIdRef.current = activeId;
+
+  useEffect(() => {
+    threadsRef.current = threads;
+  }, [threads]);
+
+  useEffect(() => {
+    activeIdRef.current = activeId;
+  }, [activeId]);
 
   const activeThread = threads.find((t) => t.id === activeId) ?? threads[0];
   const messages = activeThread?.messages ?? [];

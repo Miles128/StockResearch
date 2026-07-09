@@ -1,6 +1,5 @@
 """Resolve stock references inside natural-language chat messages."""
 
-import re
 from dataclasses import dataclass
 
 from stockresearch.core.constants import NAME_TO_SYMBOL

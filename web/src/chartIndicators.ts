@@ -53,7 +53,7 @@ export function rsiSeries(closes: number[], period = 14): (number | null)[] {
 
   let avgGain = gains.slice(0, period).reduce((a, b) => a + b, 0) / period;
   let avgLoss = losses.slice(0, period).reduce((a, b) => a + b, 0) / period;
-  let idx = period;
+  const idx = period;
   let rs = avgLoss ? avgGain / avgLoss : 100;
   out[idx] = Math.round((100 - 100 / (1 + rs)) * 100) / 100;
 

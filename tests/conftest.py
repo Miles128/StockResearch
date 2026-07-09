@@ -5,7 +5,6 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
-from sqlalchemy.orm import sessionmaker
 
 # Force test settings before imports
 os.environ["DATABASE_URL"] = "sqlite://"

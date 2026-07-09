@@ -8,7 +8,6 @@ import json
 import logging
 from typing import Any
 
-from stockresearch.agents.orchestrator.card_merge import merge_plan_cards
 from stockresearch.agents.orchestrator.tools_registry import FINANCE_TOOLS, format_tools_for_prompt
 from stockresearch.i18n.status_events import status_event
 from stockresearch.utils.llm import LLMClient
