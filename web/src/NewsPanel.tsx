@@ -30,7 +30,11 @@ export function NewsPanel({
   const [analyzingNews, setAnalyzingNews] = useState<NewsItem | null>(null);
   const briefingKind = useMemo(() => getBriefingKind(), []);
   const briefingLabel =
-    briefingKind === "intraday" ? t("news.briefingIntraday") : t("news.briefingPostMarket");
+    briefingKind === "premarket"
+      ? t("news.briefingPremarket")
+      : briefingKind === "intraday"
+        ? t("news.briefingIntraday")
+        : t("news.briefingPostMarket");
 
   async function loadBriefing() {
     setBriefingLoading(true);

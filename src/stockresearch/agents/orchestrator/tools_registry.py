@@ -7,7 +7,7 @@ from typing import Literal
 
 from stockresearch.agents.orchestrator.skills import PACKAGED_SKILLS, SKILL_IDS, format_skills_for_prompt
 
-ToolCategory = Literal["market", "quote", "news", "portfolio", "output", "skill"]
+ToolCategory = Literal["market", "quote", "news", "portfolio", "risk", "output", "skill"]
 
 
 @dataclass(frozen=True)
@@ -49,6 +49,21 @@ ORCHESTRATOR_TOOLS: tuple[OrchestratorTool, ...] = (
         "获取与某板块相关的快讯（参数: sector）",
         "news",
     ),
+    OrchestratorTool(
+        "get_portfolio_summary",
+        "轻量读取持仓摘要：持仓数量、总成本、行业分布、个股列表（不拉实时行情，仅读 DB）",
+        "portfolio",
+    ),
+    OrchestratorTool(
+        "get_risk_summary",
+        "读取最近的风控告警记录（不重新计算）；如需完整风控体检请用 skill_risk_checkup",
+        "risk",
+    ),
+    OrchestratorTool(
+        "get_sentiment",
+        "获取情绪数据（参数: scope=market|sector|stock；sector 需传 sector 名，stock 需传 symbol）",
+        "market",
+    ),
     *(
         OrchestratorTool(
             s.skill_id,
@@ -83,15 +98,16 @@ def format_tools_for_prompt(
     include_portfolio_tools: bool = False,
 ) -> str:
     """Build the tool list section for orchestrator system prompts."""
+    _PORTFOLIO_GATED = frozenset(
+        {"get_sector_holdings", "get_portfolio_summary", "get_risk_summary", "skill_risk_checkup"}
+    )
     lines: list[str] = []
     for tool in ORCHESTRATOR_TOOLS:
         if tool.name == "reply":
             continue
         if tool.category == "skill" and not include_research_skills:
             continue
-        if tool.category == "portfolio" and not include_portfolio_tools:
-            continue
-        if tool.name == "skill_risk_checkup" and not include_portfolio_tools:
+        if tool.name in _PORTFOLIO_GATED and not include_portfolio_tools:
             continue
         lines.append(f"- {tool.name}: {tool.description}")
     lines.append("- reply: 生成最终回复给用户（当你认为数据足够时调用）")

@@ -347,14 +347,14 @@ export const api = {
   signalBacktest: () => request<SignalBacktest>("/research/signal-backtest"),
   searchMemory: (q: string) =>
     request<MemorySearchResult>(`/research/memory/search?q=${encodeURIComponent(q)}`),
-  generateBriefing: (kind: "intraday" | "postmarket") =>
+  generateBriefing: (kind: "premarket" | "intraday" | "postmarket") =>
     requestWithLlm<Briefing>(`/briefing/generate?kind=${kind}`, {
       method: "POST",
       body: JSON.stringify(chatBodyField()),
     }),
-  latestBriefing: (kind: "intraday" | "postmarket") =>
+  latestBriefing: (kind: "premarket" | "intraday" | "postmarket") =>
     request<Briefing | null>(`/briefing/latest?kind=${kind}`),
-  briefingHistory: (kind: "intraday" | "postmarket" | "all" = "all", limit = 10) =>
+  briefingHistory: (kind: "premarket" | "intraday" | "postmarket" | "all" = "all", limit = 10) =>
     request<Briefing[]>(`/briefing/history?kind=${kind}&limit=${limit}`),
   briefingSchedule: () => request<BriefingSchedule>("/briefing/schedule"),
   setBriefingSchedule: (enabled: boolean) =>
@@ -395,6 +395,11 @@ export const api = {
         event.type === "done" && event.result ? (event.result as unknown as NewsAnalysis) : undefined,
     }),
   glossary: () => requestPlain<GlossaryTerm[]>("/glossary"),
+  marketSentiment: () => request<SentimentData>("/market/sentiment"),
+  sectorSentiment: (name: string) =>
+    request<SentimentData>(`/market/sector-sentiment?name=${encodeURIComponent(name)}`),
+  stockSentiment: (symbol: string, name?: string) =>
+    request<SentimentData>(`/market/stock-sentiment?symbol=${symbol}&name=${encodeURIComponent(name ?? "")}`),
 };
 
 /** 词库条目，供投顾模式 TermPopover 渲染可点击弹窗。 */
@@ -715,6 +720,19 @@ export interface MarketOverview {
   data_status: string;
 }
 
+export interface SentimentDriver {
+  label: string;
+  value: string;
+  impact: string;
+}
+
+export interface SentimentData {
+  score: number;
+  label: string;
+  drivers: SentimentDriver[];
+  source: string;
+}
+
 export interface ProviderStatus {
   domain: string;
   primary: string;
@@ -884,7 +902,7 @@ export interface BriefingSection {
 }
 
 export interface Briefing {
-  kind: "intraday" | "postmarket";
+  kind: "premarket" | "intraday" | "postmarket";
   title: string;
   sections: BriefingSection[];
   summary: string;
@@ -894,6 +912,9 @@ export interface Briefing {
 
 export interface BriefingSchedule {
   enabled: boolean;
+  premarket_time: string;
+  intraday_time: string;
+  postmarket_time: string;
   morning_time: string;
   closing_time: string;
   timezone: string;

@@ -642,7 +642,7 @@ class BriefingGenerateRequest(BaseModel):
 
 
 class BriefingOut(BaseModel):
-    kind: Literal["intraday", "postmarket"]
+    kind: Literal["premarket", "intraday", "postmarket"]
     title: str
     sections: list[BriefingSection]
     summary: str
@@ -652,7 +652,7 @@ class BriefingOut(BaseModel):
 
 class BriefingRecordOut(BaseModel):
     id: int
-    kind: Literal["intraday", "postmarket"]
+    kind: Literal["premarket", "intraday", "postmarket"]
     title: str
     summary: str
     sections: list[BriefingSection]
@@ -663,9 +663,10 @@ class BriefingRecordOut(BaseModel):
 
 class BriefingScheduleStatus(BaseModel):
     enabled: bool
+    premarket_time: str = "09:05"
     intraday_time: str = "11:35"
     postmarket_time: str = "15:35"
-    morning_time: str = "11:35"
+    morning_time: str = "09:05"
     closing_time: str = "15:35"
     timezone: str = "Asia/Shanghai"
 
@@ -848,3 +849,16 @@ class PriceAlertNotificationOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class SentimentDriverOut(BaseModel):
+    label: str
+    value: str
+    impact: str
+
+
+class SentimentOut(BaseModel):
+    score: int
+    label: str
+    drivers: list[SentimentDriverOut]
+    source: str

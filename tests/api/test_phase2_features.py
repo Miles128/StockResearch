@@ -117,6 +117,17 @@ def test_briefing_generate(client: TestClient) -> None:
     assert "综合结论" in titles or "持仓表现" in titles
 
 
+def test_briefing_generate_premarket(client: TestClient) -> None:
+    resp = client.post("/api/v1/briefing/generate?kind=premarket", json={})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["kind"] == "premarket"
+    assert body["title"] == "盘前简报"
+    assert body["sections"]
+    titles = {s["title"] for s in body["sections"]}
+    assert "综合结论" in titles or "持仓表现" in titles
+
+
 def test_industry_research_endpoint(client: TestClient, db_session: Session, monkeypatch) -> None:
     from stockresearch.data.providers.sector import SectorDataProvider, SectorLeader
 

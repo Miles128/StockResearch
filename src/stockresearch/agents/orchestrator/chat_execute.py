@@ -64,6 +64,7 @@ async def execute_chat_turn(
         confirmed_symbol=confirmed_symbol,
         confirmed_name=confirmed_name,
     )
+    page_kind = user_context.kind if user_context else None
 
     if turn_scope.run_portfolio_risk_shortcut and turn_scope.holdings:
         return await _run_risk_sync(
@@ -91,6 +92,7 @@ async def execute_chat_turn(
             confirmed_name=confirmed_name,
             on_progress=on_progress,
             portfolio_context=turn_scope.portfolio_tools,
+            page_context_kind=page_kind,
         )
 
     return await _run_react_sync(
@@ -111,6 +113,7 @@ async def execute_chat_turn(
         on_progress=on_progress,
         portfolio_context=turn_scope.portfolio_tools,
         scope=turn_scope,
+        page_context_kind=page_kind,
     )
 
 
@@ -169,6 +172,7 @@ async def _run_plan_execute_sync(
     confirmed_name: str | None = None,
     on_progress: ProgressCallback | None,
     portfolio_context: bool = False,
+    page_context_kind: str | None = None,
 ) -> ChatExecuteResult:
     if on_progress:
         from stockresearch.i18n.status_events import status_event
@@ -187,6 +191,7 @@ async def _run_plan_execute_sync(
         portfolio_context=portfolio_context,
         confirmed_symbol=confirmed_symbol,
         confirmed_name=confirmed_name,
+        page_context_kind=page_context_kind,
     )
     if on_progress:
         react_agent.set_progress_callback(on_progress)
@@ -238,6 +243,7 @@ async def _run_react_sync(
     on_progress: ProgressCallback | None,
     portfolio_context: bool = False,
     scope: ChatContextScope | None = None,
+    page_context_kind: str | None = None,
 ) -> ChatExecuteResult:
     if on_progress:
         from stockresearch.i18n.status_events import status_event
@@ -258,6 +264,7 @@ async def _run_react_sync(
         news_explain_only=news_explain,
         confirmed_symbol=confirmed_symbol,
         confirmed_name=confirmed_name,
+        page_context_kind=page_context_kind,
     )
     if on_progress:
         agent.set_progress_callback(on_progress)

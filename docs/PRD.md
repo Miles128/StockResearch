@@ -50,7 +50,7 @@
 | 风控体检 | 规则引擎 + 可选 LLM 解读 |
 | 新闻过滤 | 三层规则，3s SLA，零 LLM；统一 interest（持仓/自选/板块） |
 | 价格告警 | APScheduler 5min；铃铛 + 可选浏览器 Notification |
-| 定时简报 | 盘前 / 收盘；Cron 绑 uvicorn lifespan（Phase 1） |
+| 定时简报 | 盘前 09:05 / 盘中 11:35 / 盘后 15:35；Cron 在独立 worker 运行 |
 | Action Center | 规则信号，零 LLM |
 | 合规输出 | §六 语言政策 |
 
@@ -130,7 +130,7 @@ uv run pytest && cd web && npm run build
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
-| **V10.3** | 2026-07-07 | 新增独立「市场」Tab；prompts 外置；定时任务独立 worker CLI；新闻 ingest 后台 job |
+| **V10.3** | 2026-07-07 | 新增独立「市场」Tab；prompts 外置；定时任务独立 worker CLI；新闻 ingest 后台 job；盘前/盘中/盘后三段简报 |
 | V10.2 | 2026-07-01 | 精简 PRD；数据源按代码现状重写（新浪/AkShare/efinance 三层行情；K 线 AkShare 优先） |
 | V10.1 | 2026-06-30 | 双模式契约；合规语言；Focus 多 Tab；§7 开关语义 |
 | V10.0 | 2026-06-29 | 唯一 PRD；三 Tab tri-shell；统一 chat 路由 |
