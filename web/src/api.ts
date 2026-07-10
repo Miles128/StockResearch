@@ -921,7 +921,7 @@ export interface BriefingSchedule {
 }
 
 export interface ActionSignal {
-  type: "price" | "news" | "risk" | "fundamental" | "info";
+  type: "price" | "news" | "risk" | "fundamental" | "market" | "info";
   severity: "critical" | "warning" | "info";
   title: string;
   detail: string;

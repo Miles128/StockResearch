@@ -763,7 +763,7 @@ class NewsAnalysisOut(BaseModel):
 
 
 class ActionSignal(BaseModel):
-    type: Literal["price", "news", "risk", "fundamental"] = "fundamental"
+    type: Literal["price", "news", "risk", "fundamental", "market"] = "fundamental"
     severity: Literal["critical", "warning", "info"] = "info"
     title: str
     detail: str = ""
