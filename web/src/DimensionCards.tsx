@@ -1,4 +1,4 @@
-import type { DimensionResult } from "./api";
+import type { DimensionEvidence, DimensionResult } from "./api";
 import { MarkdownContent } from "./MarkdownContent";
 
 export interface DimensionCardItem {
@@ -11,6 +11,9 @@ export interface DimensionCardItem {
   body?: string;
   highlights?: string[];
   risks?: string[];
+  evidence?: DimensionEvidence[];
+  gaps?: string[];
+  partial?: boolean;
   streaming?: boolean;
 }
 
@@ -20,6 +23,8 @@ interface DimensionCardsProps {
     confidence: string;
     highlights: string;
     risks: string;
+    evidence?: string;
+    gaps?: string;
     analyzing?: string;
   };
   defaultOpen?: boolean;
@@ -37,6 +42,9 @@ export function dimensionItemsFromResults(
     status: "done" as const,
     highlights: dim.highlights ?? [],
     risks: dim.risks ?? [],
+    evidence: dim.evidence ?? [],
+    gaps: dim.gaps ?? [],
+    partial: dim.partial,
   }));
 }
 
@@ -58,6 +66,7 @@ export function DimensionCards({ items, labels, defaultOpen = false }: Dimension
                   <span className="stat-pill">
                     {item.score}/10
                     {item.confidence ? ` · ${labels.confidence} ${item.confidence}` : ""}
+                    {item.partial ? " · partial" : ""}
                   </span>
                 ) : null}
               </span>
@@ -87,6 +96,35 @@ export function DimensionCards({ items, labels, defaultOpen = false }: Dimension
                   <MarkdownContent className="markdown-inline" text={item.risks!.join("；")} />
                 </div>
               )}
+              {(item.evidence?.length ?? 0) > 0 && labels.evidence ? (
+                <div className="dimension-evidence">
+                  <strong>{labels.evidence}：</strong>
+                  <ul className="dimension-evidence-list">
+                    {item.evidence!.map((ev, idx) => (
+                      <li key={`${ev.source}-${idx}`}>
+                        {ev.url ? (
+                          <a href={ev.url} target="_blank" rel="noreferrer">
+                            {ev.snippet}
+                          </a>
+                        ) : (
+                          <span>{ev.snippet}</span>
+                        )}
+                        <span className="muted">
+                          {" "}
+                          · {ev.source}
+                          {ev.date ? ` · ${ev.date}` : ""}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {(item.gaps?.length ?? 0) > 0 && labels.gaps ? (
+                <p className="muted dimension-gaps">
+                  <strong>{labels.gaps}：</strong>
+                  {item.gaps!.join("；")}
+                </p>
+              ) : null}
             </div>
           </details>
         );

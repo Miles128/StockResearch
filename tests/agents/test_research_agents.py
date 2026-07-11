@@ -14,6 +14,7 @@ def test_toolsets_are_isolated() -> None:
     fund_tools = {t.name for t in FUNDAMENTAL_AGENT.tools}
     chips_tools = {t.name for t in CHIPS_AGENT.tools}
     assert "akshare_financials" in fund_tools
+    assert "cninfo_announcements" in fund_tools
     assert "akshare_lhb" in chips_tools
     assert fund_tools.isdisjoint(chips_tools)
 

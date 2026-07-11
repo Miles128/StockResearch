@@ -585,6 +585,14 @@ async function waitForNewsIngestJob(jobId: string, timeoutMs = 60_000): Promise<
   throw new Error("News ingest timed out");
 }
 
+export interface DimensionEvidence {
+  source: string;
+  date?: string | null;
+  snippet: string;
+  url?: string | null;
+  kind?: string;
+}
+
 export interface DimensionResult {
   agent: string;
   score: number;
@@ -592,7 +600,11 @@ export interface DimensionResult {
   highlights: string[];
   risks: string[];
   data_sources: string[];
+  evidence?: DimensionEvidence[];
+  gaps?: string[];
+  partial?: boolean;
 }
+
 
 export interface DebateRoundResult {
   round: number;
@@ -638,6 +650,17 @@ export interface MasterCommentaryItem {
   key_metric: string;
 }
 
+export interface NumericFactor {
+  key: string;
+  label: string;
+  value?: number | null;
+  percentile?: number | null;
+  as_of?: string | null;
+  unit?: string;
+  partial?: boolean;
+  note?: string | null;
+}
+
 export interface ResearchReport {
   symbol: string;
   name: string;
@@ -651,11 +674,13 @@ export interface ResearchReport {
   news_text_factor?: string | null;
   text_factor_summary?: string | null;
   ashare_factors?: AshareFactor[];
+  factors?: NumericFactor[];
   dimension_weights?: Record<string, number>;
   dimensions: Record<string, DimensionResult>;
   debate?: DebateResult | null;
   master_commentary?: MasterCommentaryItem[];
 }
+
 
 export interface PortfolioMetrics {
   sharpe_ratio: number;
@@ -879,6 +904,9 @@ export interface SignalBacktestHorizon {
 export interface SignalBacktest {
   horizons: SignalBacktestHorizon[];
   disclaimer: string;
+  label?: string;
+  notes?: string[];
+  sample_bias_note?: string;
 }
 
 export interface MemorySearchHit {

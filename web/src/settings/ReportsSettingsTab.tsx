@@ -65,6 +65,14 @@ export function ReportsSettingsTab({
 
       <h4 className="settings-section-title">{t("settings.signalBacktest")}</h4>
       <p className="settings-hint">{t("settings.signalBacktestHint")}</p>
+      {backtest?.sample_bias_note ? (
+        <p className="settings-muted">{backtest.sample_bias_note}</p>
+      ) : null}
+      {backtest?.notes?.map((note) => (
+        <p className="settings-muted" key={note}>
+          {note}
+        </p>
+      ))}
       {backtest && backtest.horizons.some((h) => h.sample_count > 0) ? (
         <ul className="report-history-list">
           {backtest.horizons.map((h) => (

@@ -38,6 +38,23 @@ def _dimension_expand_parts(dimensions: dict[str, DimensionResult]) -> list[str]
     return parts
 
 
+def _collect_report_gaps(dimensions: dict[str, DimensionResult], ashare_factors: list) -> list[str]:
+    data_gaps: list[str] = []
+    for dim in dimensions.values():
+        for gap in dim.gaps:
+            if gap not in data_gaps:
+                data_gaps.append(gap)
+            if len(data_gaps) >= 5:
+                return data_gaps
+    for factor in ashare_factors:
+        for gap in factor.missing:
+            if gap not in data_gaps:
+                data_gaps.append(gap)
+            if len(data_gaps) >= 5:
+                return data_gaps
+    return data_gaps
+
+
 def build_research_report(
     symbol: str,
     name: str,
@@ -49,6 +66,7 @@ def build_research_report(
     sector: str | None = None,
     leaders: list[SectorLeaderBrief] | None = None,
     summary_prefix: str | None = None,
+    factors: list | None = None,
 ) -> ResearchReportOut:
     composite, weights = weighted_composite_score(dimensions)
     composite_confidence = resolve_composite_confidence(dimensions)
@@ -90,15 +108,7 @@ def build_research_report(
     from stockresearch.agents.research.viewpoints import build_viewpoints
 
     viewpoints = build_viewpoints(dimensions, debate, news_text_factor=news_text_factor)
-    data_gaps: list[str] = []
-    for factor in ashare_factors:
-        for gap in factor.missing:
-            if gap not in data_gaps:
-                data_gaps.append(gap)
-            if len(data_gaps) >= 5:
-                break
-        if len(data_gaps) >= 5:
-            break
+    data_gaps = _collect_report_gaps(dimensions, ashare_factors)
 
     report = ResearchReportOut(
         symbol=symbol,
@@ -116,6 +126,7 @@ def build_research_report(
         news_text_factor=news_text_factor,
         text_factor_summary=text_factor_summary,
         ashare_factors=ashare_factors,
+        factors=list(factors or []),
         dimension_weights=weights,
     )
     from stockresearch.services.follow_up import attach_report_follow_ups

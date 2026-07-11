@@ -217,6 +217,16 @@ class ResearchReportItemOut(BaseModel):
     source: str = "eastmoney"
 
 
+class DimensionEvidence(BaseModel):
+    """Verifiable citation attached to a research dimension."""
+
+    source: str
+    date: str | None = None
+    snippet: str
+    url: str | None = None
+    kind: Literal["announcement", "research_report", "financial", "other"] = "other"
+
+
 class DimensionResult(BaseModel):
     agent: str
     score: float = Field(ge=1, le=10)
@@ -224,6 +234,9 @@ class DimensionResult(BaseModel):
     highlights: list[str]
     risks: list[str]
     data_sources: list[str]
+    evidence: list[DimensionEvidence] = Field(default_factory=list)
+    gaps: list[str] = Field(default_factory=list, max_length=8)
+    partial: bool = False
 
 
 class DebateRound(BaseModel):
@@ -253,6 +266,8 @@ class FactorSourceOut(BaseModel):
 
 
 class AshareFactorOut(BaseModel):
+    """Evidence-coverage checklist item (not a numeric investable factor)."""
+
     category: str
     name: str
     status: Literal["verified", "partial", "missing"]
@@ -260,6 +275,19 @@ class AshareFactorOut(BaseModel):
     evidence: list[str] = Field(default_factory=list)
     missing: list[str] = Field(default_factory=list)
     source_details: list[FactorSourceOut] = Field(default_factory=list)
+
+
+class NumericFactorOut(BaseModel):
+    """Computable research factor with optional percentile."""
+
+    key: str
+    label: str
+    value: float | None = None
+    percentile: float | None = None
+    as_of: str | None = None
+    unit: str = ""
+    partial: bool = False
+    note: str | None = None
 
 
 class SectorLeaderBrief(BaseModel):
@@ -297,6 +325,7 @@ class ResearchReportOut(BaseModel):
     news_text_factor: str | None = None
     text_factor_summary: str | None = None
     ashare_factors: list[AshareFactorOut] = Field(default_factory=list)
+    factors: list[NumericFactorOut] = Field(default_factory=list)
     dimension_weights: dict[str, float] = Field(default_factory=dict)
     master_commentary: list[MasterCommentaryItem] = Field(default_factory=list)
     disclaimer: str = DISCLAIMER
@@ -683,8 +712,15 @@ class SignalBacktestHorizon(BaseModel):
 
 
 class SignalBacktestOut(BaseModel):
+    """Research-signal verification stats (not a strategy backtester)."""
+
     horizons: list[SignalBacktestHorizon]
     disclaimer: str
+    label: str = "研究信号验证"
+    notes: list[str] = Field(default_factory=list)
+    sample_bias_note: str = (
+        "样本来自本机历史研报，存在选择偏差；未计入交易成本与冲击成本。"
+    )
 
 
 class MemorySearchHit(BaseModel):

@@ -76,6 +76,21 @@ class FinancialRatioAgent:
             "raw_data": raw_data,
         }
 
+    async def fetch_structured(self, symbol: str, name: str = "") -> dict[str, Any]:
+        """Structured ratios without LLM — for four-dimension research prefetch."""
+        raw_data = await self._fetch_financial_data(symbol)
+        ratios = self._compute_ratios(raw_data, symbol, name)
+        has_core = any(
+            raw_data.get(k) is not None for k in ("roe", "net_margin", "revenue_growth", "pe", "pb")
+        )
+        return {
+            "symbol": symbol,
+            "name": name,
+            "ratios": ratios,
+            "raw_data": raw_data,
+            "partial": not has_core,
+        }
+
     async def _fetch_financial_data(self, symbol: str) -> dict[str, Any]:
         """Fetch financial data from AkShare (stock_financial_abstract_ths)."""
         cache_key = f"financial:abstract_ths:{symbol}"

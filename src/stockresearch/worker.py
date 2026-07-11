@@ -19,6 +19,7 @@ from typing import NoReturn
 
 from stockresearch.db.session import init_db
 from stockresearch.services.briefing_scheduler import get_scheduler
+from stockresearch.services.daily_bar_scheduler import get_daily_bar_scheduler
 from stockresearch.services.price_alert_scheduler import get_price_alert_scheduler
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ async def run_worker() -> NoReturn:
     init_db()
     get_scheduler().start()
     get_price_alert_scheduler().start()
+    get_daily_bar_scheduler().start()
 
     stop_event = asyncio.Event()
 
@@ -49,6 +51,7 @@ async def run_worker() -> NoReturn:
     try:
         await stop_event.wait()
     finally:
+        get_daily_bar_scheduler().shutdown()
         get_price_alert_scheduler().shutdown()
         get_scheduler().shutdown()
         logger.info("StockResearch worker stopped.")

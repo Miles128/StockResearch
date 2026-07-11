@@ -89,6 +89,7 @@ def _build_report(
     *,
     news_text_factor: str | None = None,
     dimension_labels: dict[str, str] | None = None,
+    factors: list | None = None,
 ) -> ResearchReportOut:
     return build_research_report(
         symbol,
@@ -97,6 +98,7 @@ def _build_report(
         debate,
         dimension_labels=dimension_labels or _AGENT_LABELS,
         news_text_factor=news_text_factor,
+        factors=factors,
     )
 
 
@@ -139,9 +141,24 @@ async def run_research_stream(
     news_snippets = await fetch_symbol_news_snippets(symbol, name)
     news_text_factor = build_news_text_factor(news_snippets, subject=f"{name}({symbol})")
 
+    factors: list = []
+    try:
+        from stockresearch.services.factors import compute_numeric_factors
+
+        factors = await compute_numeric_factors(symbol)
+    except Exception as exc:
+        logger.warning("numeric factors failed for %s: %s", symbol, exc)
+
     yield status_event("status.research.summarize")
     if not with_debate:
-        report = _build_report(symbol, name, dimensions, None, news_text_factor=news_text_factor)
+        report = _build_report(
+            symbol,
+            name,
+            dimensions,
+            None,
+            news_text_factor=news_text_factor,
+            factors=factors,
+        )
         yield status_event("status.research.report_done")
         yield {"type": "done", "result": report.model_dump(mode="json")}
         return
@@ -240,7 +257,14 @@ async def run_research_stream(
         "divergence": parsed.divergence,
     }
 
-    report = _build_report(symbol, name, dimensions, debate, news_text_factor=news_text_factor)
+    report = _build_report(
+        symbol,
+        name,
+        dimensions,
+        debate,
+        news_text_factor=news_text_factor,
+        factors=factors,
+    )
 
     if enable_master_commentary and mode_settings is not None:
         masters = master_ids or resolve_master_ids(mode_settings)
