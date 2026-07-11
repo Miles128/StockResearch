@@ -2978,6 +2978,7 @@
   border: 1px solid var(--bbg-border);
   border-radius: 6px;
   background: var(--bbg-panel-alt, rgba(255, 255, 255, 0.02));
+  color: var(--bbg-text);
   overflow: hidden;
   cursor: pointer;
   transition: border-color 0.15s;
