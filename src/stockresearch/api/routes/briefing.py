@@ -28,7 +28,7 @@ from stockresearch.utils.llm import LLMClient
 
 router = APIRouter(prefix="/briefing", tags=["briefing"])
 
-BriefingKindParam = Literal["intraday", "postmarket", "morning", "closing"]
+BriefingKindParam = Literal["premarket", "intraday", "postmarket", "morning", "closing", "pre_market"]
 
 
 def _record_to_out(record: BriefingRecord) -> BriefingRecordOut:
@@ -84,7 +84,7 @@ def get_latest_briefing(
 
 @router.get("/history", response_model=list[BriefingRecordOut])
 def get_briefing_history(
-    kind: Literal["intraday", "postmarket", "morning", "closing", "all"] = Query(default="all"),
+    kind: Literal["premarket", "intraday", "postmarket", "morning", "closing", "pre_market", "all"] = Query(default="all"),
     limit: int = Query(default=10, ge=1, le=100),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

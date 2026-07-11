@@ -235,15 +235,28 @@ export default function App() {
     openCopilotQuery,
   } = chat;
 
-  const chatExamples = useMemo(
-    () => [
-      { label: t("chat.exampleMarketLabel"), query: t("chat.exampleMarketQuery") },
-      { label: t("chat.exampleStockLabel"), query: t("chat.exampleStockQuery") },
-      { label: t("chat.exampleNewsLabel"), query: t("chat.exampleNewsQuery") },
-      { label: t("chat.exampleRiskLabel"), query: t("chat.exampleRiskQuery") },
-    ],
-    [t, locale],
-  );
+  const chatExamples = useMemo(() => {
+    const all = {
+      market: { label: t("chat.exampleMarketLabel"), query: t("chat.exampleMarketQuery") },
+      stock: { label: t("chat.exampleStockLabel"), query: t("chat.exampleStockQuery") },
+      news: { label: t("chat.exampleNewsLabel"), query: t("chat.exampleNewsQuery") },
+      risk: { label: t("chat.exampleRiskLabel"), query: t("chat.exampleRiskQuery") },
+      sentiment: { label: t("chat.exampleSentimentLabel"), query: t("chat.exampleSentimentQuery") },
+      sector: { label: t("chat.exampleSectorLabel"), query: t("chat.exampleSectorQuery") },
+      pnl: { label: t("chat.examplePnlLabel"), query: t("chat.examplePnlQuery") },
+      topMover: { label: t("chat.exampleTopMoverLabel"), query: t("chat.exampleTopMoverQuery") },
+      newsImpact: { label: t("chat.exampleNewsImpactLabel"), query: t("chat.exampleNewsImpactQuery") },
+      topRisk: { label: t("chat.exampleTopRiskLabel"), query: t("chat.exampleTopRiskQuery") },
+      stress: { label: t("chat.exampleStressLabel"), query: t("chat.exampleStressQuery") },
+    };
+    const byTab: Record<CenterTab, typeof all[keyof typeof all][]> = {
+      focus: [all.stock, all.pnl, all.topMover, all.risk],
+      market: [all.market, all.sentiment, all.sector, all.news],
+      risk: [all.risk, all.topRisk, all.stress, all.pnl],
+      news: [all.news, all.newsImpact, all.sentiment, all.market],
+    };
+    return byTab[centerTab];
+  }, [t, locale, centerTab]);
   const portfolioSummary = useMemo(() => computePortfolioSummary(holdings), [holdings]);
   const sectorMix = useMemo(() => computeSectorConcentration(holdings), [holdings]);
   const marketSessionLabel =
@@ -349,7 +362,7 @@ export default function App() {
   function askCopilot(
     query: string,
     context: CopilotContext,
-    options?: { briefingKind?: "intraday" | "postmarket" },
+    options?: { briefingKind?: "premarket" | "intraday" | "postmarket" },
   ) {
     setPageContext(context);
     setCopilotOpen(true);

@@ -96,11 +96,56 @@ _RESEARCH_SKILL_BLOCK = frozenset(
 )
 
 _MAX_ITERATIONS = 8
+_MAX_TOOL_RESULT_CHARS = 2000
 
 _LEGACY_SKILL_ALIASES: dict[str, str] = {
     "get_stock_research": "skill_stock_research",
     "debate_stock": "skill_bull_bear_debate",
 }
+
+
+def _truncate_tool_result(result: str) -> str:
+    """Truncate tool results to limit context pollution in ReAct messages."""
+    if len(result) <= _MAX_TOOL_RESULT_CHARS:
+        return result
+    return (
+        result[:_MAX_TOOL_RESULT_CHARS]
+        + "\n…（工具返回已截断，仅保留前半部分；如需更多细节请直接 reply 引用关键结论）"
+    )
+
+
+_PAGE_CONTEXT_HINTS: dict[str, str] = {
+    "market": (
+        "当前界面为市场视图。优先使用 get_market_data 获取大盘数据，"
+        "用 get_news 获取市场快讯，用 get_sentiment 获取情绪数据；"
+        "个股问题再用 get_stock_quote。避免不必要的持仓查询。"
+    ),
+    "risk": (
+        "当前界面为风控视图。若用户问风控相关问题，优先用 get_risk_summary 读取已有告警，"
+        "需要完整风控体检再调 skill_risk_checkup；"
+        "问个股风险可用 get_stock_quote。避免拉取无关市场新闻。"
+    ),
+    "news": (
+        "当前界面为资讯视图。优先使用 get_news 获取新闻；"
+        "个股相关新闻可传 symbol。避免启动四维投研 Skill，除非用户明确要求深度分析。"
+    ),
+    "stock": (
+        "当前界面为个股详情。优先使用 get_stock_quote + get_financial_ratios 获取该个股数据，"
+        "用 get_news(symbol=...) 获取相关新闻，用 get_sentiment(scope=stock, symbol=...) 获取情绪。"
+        "避免拉取全市场数据。"
+    ),
+    "focus": (
+        "当前界面为焦点视图。根据用户问题选择对应工具，"
+        "可用 get_portfolio_summary 读取持仓摘要，避免拉取与问题无关的数据。"
+    ),
+}
+
+
+def _page_context_tool_hint(kind: str | None) -> str:
+    """Return a tool-selection hint based on the current page context."""
+    if not kind:
+        return ""
+    return _PAGE_CONTEXT_HINTS.get(kind, "")
 
 
 class OrchestratorAgent:
@@ -120,6 +165,7 @@ class OrchestratorAgent:
         news_explain_only: bool = False,
         confirmed_symbol: str | None = None,
         confirmed_name: str | None = None,
+        page_context_kind: str | None = None,
     ) -> None:
         self._db = db
         self._llm = llm
@@ -134,6 +180,7 @@ class OrchestratorAgent:
         self._master_default = master_default
         self._confirmed_symbol = confirmed_symbol
         self._confirmed_name = confirmed_name
+        self._page_context_kind = page_context_kind
         self._quote_cache_ttl = quote_cache_ttl_seconds(mode_settings)
         self._cards: list[dict[str, Any]] = []
         self._on_progress: Any = None
@@ -191,6 +238,9 @@ class OrchestratorAgent:
             system = ORCHESTRATOR_GENERAL_SYSTEM
         if long_term_context.strip():
             system = f"{system.rstrip()}\n\n{long_term_context.strip()}"
+        hint = _page_context_tool_hint(self._page_context_kind)
+        if hint:
+            system = f"{system.rstrip()}\n\n{hint}"
         user_content = message.strip()
         if user_context_text.strip():
             user_content = f"{user_content}\n\n{user_context_text.strip()}"
@@ -238,6 +288,7 @@ class OrchestratorAgent:
                 await self._progress(status_event(key, **params))
 
                 result = await self._execute_tool(tool_name, tool_args)
+                result = _truncate_tool_result(result)
                 messages.append({"role": "user", "content": f"[工具 {tool_name} 返回]\n{result}"})
 
                 if tool_name == "reply":
@@ -283,6 +334,12 @@ class OrchestratorAgent:
                 return await self._tool_sector_holdings(args)
             if name == "get_sector_news":
                 return await self._tool_sector_news(args)
+            if name == "get_portfolio_summary":
+                return await self._tool_portfolio_summary()
+            if name == "get_risk_summary":
+                return await self._tool_risk_summary()
+            if name == "get_sentiment":
+                return await self._tool_sentiment(args)
             if name == "reply":
                 return args.get("message", "")
             return f"未知工具: {name}"
@@ -427,6 +484,89 @@ class OrchestratorAgent:
             return f"暂无与「{sector}」相关的快讯"
         lines = [f"- {n.title} [{n.sentiment}]" for n in matched]
         return f"「{sector}」板块快讯：\n" + "\n".join(lines)
+
+    async def _tool_portfolio_summary(self) -> str:
+        """轻量读取持仓摘要，仅从 DB 读取，不拉实时行情。"""
+        if not self._holdings:
+            return "暂无持仓"
+        from stockresearch.services.portfolio_summary import build_portfolio_brief
+
+        brief = build_portfolio_brief(self._holdings)
+        self._cards.append({"type": "portfolio", "data": brief})
+        lines = [f"持仓 {len(self._holdings)} 只，总成本 ¥{brief['total_cost']:.0f}"]
+        if brief.get("sectors"):
+            sector_line = "、".join(
+                f"{s['name']}({s['count']}只)" for s in brief["sectors"][:5]
+            )
+            lines.append(f"行业分布: {sector_line}")
+        for h in brief["holdings"][:6]:
+            lines.append(f"- {h['name']}({h['symbol']}) {h['quantity']}股 成本{h['cost_price']:.2f}")
+        if len(brief["holdings"]) > 6:
+            lines.append(f"…等共 {len(brief['holdings'])} 只")
+        return "\n".join(lines)
+
+    async def _tool_risk_summary(self) -> str:
+        """读取最近风控告警记录，或提示用户运行风控体检。"""
+        from stockresearch.db.models import RiskAlertRecord
+
+        recent = (
+            self._db.query(RiskAlertRecord)
+            .filter(RiskAlertRecord.user_id == self._user_id)
+            .order_by(RiskAlertRecord.created_at.desc())
+            .limit(10)
+            .all()
+        )
+        if not recent:
+            return (
+                "暂无风控告警记录。"
+                "如需风控体检，请调用 skill_risk_checkup 工具执行完整分析。"
+            )
+        lines = [f"最近 {len(recent)} 条风控告警："]
+        for r in recent:
+            sev = r.severity
+            sym = f"[{r.symbol}]" if r.symbol else ""
+            lines.append(f"- [{sev}] {r.rule_id}{sym}: {r.message[:80]}")
+        lines.append("如需深度风控体检，请调用 skill_risk_checkup。")
+        return "\n".join(lines)
+
+    async def _tool_sentiment(self, args: dict[str, Any]) -> str:
+        """读取市场/行业/个股情绪数据。"""
+        from stockresearch.services.sentiment import SentimentService
+
+        scope = str(args.get("scope", "market")).strip().lower()
+        service = SentimentService()
+        if scope == "stock":
+            symbol = str(args.get("symbol", "")).strip()
+            if not symbol:
+                return "请提供 symbol 参数（6位股票代码）"
+            name = str(args.get("name", "")).strip() or resolve_name(symbol)
+            result = await service.compute_stock_sentiment(symbol, name)
+        elif scope == "sector":
+            sector = str(args.get("sector", "")).strip()
+            if not sector:
+                return "请提供 sector 参数（板块名称）"
+            result = await service.compute_sector_sentiment(sector)
+        else:
+            result = await service.compute_market_sentiment()
+
+        self._cards.append({
+            "type": "sentiment",
+            "data": {
+                "scope": scope,
+                "score": result.score,
+                "label": result.label,
+                "drivers": [
+                    {"label": d.label, "value": d.value, "impact": d.impact}
+                    for d in result.drivers
+                ],
+            },
+        })
+        lines = [f"情绪指数: {result.score:.0f} ({result.label})"]
+        if result.drivers:
+            lines.append("驱动因素:")
+            for d in result.drivers[:5]:
+                lines.append(f"  - {d.label}: {d.value} ({d.impact})")
+        return "\n".join(lines)
 
 
 def _extract_tool_calls(text: str) -> list[dict[str, Any]]:

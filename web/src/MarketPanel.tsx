@@ -6,6 +6,7 @@ import { signedClass } from "./holdingDisplay";
 import { useI18n } from "./i18n";
 import { localizeIndexName } from "./indexLabels";
 import { localizeSentiment } from "./uiLabels";
+import { SentimentGauge } from "./SentimentGauge";
 
 interface MarketPanelProps {
   overview: MarketOverview | null;
@@ -172,6 +173,11 @@ export function MarketPanel({
             {t("ticker.northbound", { v: overview.northbound_net_yi.toFixed(1) })}
           </p>
         )}
+      </section>
+
+      <section className="market-section">
+        <h3 className="market-section-title">{t("sentiment.marketTitle")}</h3>
+        <SentimentGauge variant="market" />
       </section>
 
       <section className="market-section">

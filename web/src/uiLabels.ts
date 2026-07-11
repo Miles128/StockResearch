@@ -27,9 +27,9 @@ const AGENT_ZH_TO_KEY: Record<string, string> = {
 };
 
 const BRIEFING_TITLE_ZH: Record<string, string> = {
+  盘前简报: "briefing.title.premarket",
   盘中简报: "briefing.title.intraday",
   盘后简报: "briefing.title.postmarket",
-  盘前简报: "briefing.title.intraday",
   收盘简报: "briefing.title.postmarket",
 };
 

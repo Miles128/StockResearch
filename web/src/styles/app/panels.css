@@ -2978,6 +2978,7 @@
   border: 1px solid var(--bbg-border);
   border-radius: 6px;
   background: var(--bbg-panel-alt, rgba(255, 255, 255, 0.02));
+  color: var(--bbg-text);
   overflow: hidden;
   cursor: pointer;
   transition: border-color 0.15s;
@@ -3267,3 +3268,95 @@
   gap: 10px;
   flex-wrap: wrap;
 }
+
+/* ── Sentiment Gauge ── */
+.sentiment-gauge {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sentiment-gauge-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sentiment-gauge-track {
+  flex: 1;
+  height: 8px;
+  background: var(--color-border, #e0e0e0);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.sentiment-gauge-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+
+.sentiment-gauge-fill.sentiment-fear { background: #e74c3c; }
+.sentiment-gauge-fill.sentiment-caution { background: #f39c12; }
+.sentiment-gauge-fill.sentiment-neutral { background: #95a5a6; }
+.sentiment-gauge-fill.sentiment-optimism { background: #2ecc71; }
+.sentiment-gauge-fill.sentiment-greed { background: #27ae60; }
+
+.sentiment-gauge-score {
+  font-size: 1.4rem;
+  font-weight: 700;
+  min-width: 2.5em;
+  text-align: right;
+}
+
+.sentiment-gauge-score.sentiment-fear { color: #e74c3c; }
+.sentiment-gauge-score.sentiment-caution { color: #f39c12; }
+.sentiment-gauge-score.sentiment-neutral { color: #95a5a6; }
+.sentiment-gauge-score.sentiment-optimism { color: #2ecc71; }
+.sentiment-gauge-score.sentiment-greed { color: #27ae60; }
+
+.sentiment-gauge-label {
+  font-size: 0.85rem;
+  color: var(--color-text-muted, #888);
+}
+
+.sentiment-drivers {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sentiment-driver {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  padding: 2px 0;
+}
+
+.sentiment-driver-label {
+  color: var(--color-text-muted, #888);
+}
+
+.sentiment-driver-value {
+  font-weight: 500;
+}
+
+.sentiment-driver-positive .sentiment-driver-value { color: #e74c3c; }
+.sentiment-driver-negative .sentiment-driver-value { color: #2ecc71; }
+
+.sentiment-compact {
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.sentiment-compact.sentiment-fear { background: rgba(231,76,60,0.12); color: #c0392b; }
+.sentiment-compact.sentiment-caution { background: rgba(243,156,18,0.12); color: #d68910; }
+.sentiment-compact.sentiment-neutral { background: rgba(149,165,166,0.12); color: #7f8c8d; }
+.sentiment-compact.sentiment-optimism { background: rgba(46,204,113,0.12); color: #27ae60; }
+.sentiment-compact.sentiment-greed { background: rgba(39,174,96,0.12); color: #1e8449; }

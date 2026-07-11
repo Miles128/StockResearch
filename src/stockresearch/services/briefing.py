@@ -19,14 +19,17 @@ from stockresearch.utils.llm import LLMClient
 
 logger = logging.getLogger(__name__)
 
-BriefingKind = Literal["intraday", "postmarket"]
+BriefingKind = Literal["premarket", "intraday", "postmarket"]
 
+_LEGACY_PREMARKET = frozenset({"premarket", "morning", "pre_market"})
 _LEGACY_INTRADAY = frozenset({"intraday", "closing"})
-_LEGACY_POSTMARKET = frozenset({"postmarket", "morning"})
+_LEGACY_POSTMARKET = frozenset({"postmarket", "post_market"})
 
 
 def normalize_briefing_kind(kind: str) -> BriefingKind:
     key = kind.strip().lower()
+    if key in _LEGACY_PREMARKET:
+        return "premarket"
     if key in _LEGACY_INTRADAY:
         return "intraday"
     if key in _LEGACY_POSTMARKET:
@@ -37,13 +40,16 @@ def normalize_briefing_kind(kind: str) -> BriefingKind:
 def briefing_kind_aliases(kind: str) -> tuple[str, ...]:
     """DB rows may still use legacy kind labels."""
     normalized = normalize_briefing_kind(kind)
+    if normalized == "premarket":
+        return ("premarket", "morning", "pre_market")
     if normalized == "intraday":
         return ("intraday", "closing")
-    return ("postmarket", "morning")
+    return ("postmarket", "post_market")
 
 
 def briefing_title(kind: str) -> str:
-    return "盘中简报" if normalize_briefing_kind(kind) == "intraday" else "盘后简报"
+    normalized = normalize_briefing_kind(kind)
+    return {"premarket": "盘前简报", "intraday": "盘中简报", "postmarket": "盘后简报"}[normalized]
 
 
 def _sentiment_label(sentiment: str) -> str:
@@ -62,10 +68,11 @@ def _format_news_block(title: str, items: list[NewsItemOut], *, limit: int = 5) 
     return "\n".join(lines)
 
 
-async def _collect_holdings_block(holdings: list[Holding]) -> str:
+async def _collect_holdings_block(holdings: list[Holding], kind: BriefingKind) -> str:
     if not holdings:
         return "【持仓表现】\n暂无持仓，可在「持仓」页添加。"
 
+    is_premarket = kind == "premarket"
     provider = QuoteProvider()
     symbols = [h.symbol for h in holdings[:12]]
     quotes = await provider.get_quotes(symbols)
@@ -82,19 +89,29 @@ async def _collect_holdings_block(holdings: list[Holding]) -> str:
             continue
         quoted += 1
         float_pnl = (q.price - h.float_cost_price) * h.quantity
-        day_pnl = q.price * h.quantity * (q.change_pct / 100.0)
+        if is_premarket:
+            lines.append(
+                f"- {h.name}({h.symbol}) · {h.sector}："
+                f"盘前参考价 {q.price:.2f}（较昨收 {q.change_pct:+.2f}%），"
+                f"浮动盈亏 {float_pnl:+.0f} 元；今日 09:30 开盘后才有实时涨跌"
+            )
+        else:
+            day_pnl = q.price * h.quantity * (q.change_pct / 100.0)
+            total_day_pnl += day_pnl
+            lines.append(
+                f"- {h.name}({h.symbol}) · {h.sector}："
+                f"现价 {q.price:.2f}，今日 {q.change_pct:+.2f}%，"
+                f"当日盈亏约 {day_pnl:+.0f} 元，浮动盈亏 {float_pnl:+.0f} 元"
+            )
         total_float_pnl += float_pnl
-        total_day_pnl += day_pnl
-        lines.append(
-            f"- {h.name}({h.symbol}) · {h.sector}："
-            f"现价 {q.price:.2f}，今日 {q.change_pct:+.2f}%，"
-            f"当日盈亏约 {day_pnl:+.0f} 元，浮动盈亏 {float_pnl:+.0f} 元"
-        )
 
     if quoted:
-        lines.append(
-            f"合计：当日盈亏约 {total_day_pnl:+.0f} 元，浮动盈亏 {total_float_pnl:+.0f} 元"
-        )
+        if is_premarket:
+            lines.append(f"合计浮动盈亏约 {total_float_pnl:+.0f} 元（盘前未开盘，无当日盈亏）")
+        else:
+            lines.append(
+                f"合计：当日盈亏约 {total_day_pnl:+.0f} 元，浮动盈亏 {total_float_pnl:+.0f} 元"
+            )
     return "\n".join(lines)
 
 
@@ -127,17 +144,22 @@ def _split_news(news: list[NewsItemOut]) -> tuple[list[NewsItemOut], list[NewsIt
 
 
 def _briefing_system_prompt(kind: BriefingKind) -> str:
-    phase = "盘中" if kind == "intraday" else "盘后"
-    focus = (
-        "侧重实时涨跌、盘中已发生事件对持仓的影响，以及新闻与行情的联动。"
-        if kind == "intraday"
-        else "侧重全天表现回顾、新闻脉络梳理，以及收盘后值得跟踪的风险点。"
-    )
+    phase = {"premarket": "盘前", "intraday": "盘中", "postmarket": "盘后"}[kind]
+    if kind == "premarket":
+        focus = (
+            "侧重隔夜新闻、外围/政策/行业要闻对A股开盘的影响，以及持仓个股盘前可参考的舆情。"
+            "市场尚未开盘，不预测具体开盘点位，只给出值得关注的方向。"
+        )
+    elif kind == "intraday":
+        focus = "侧重实时涨跌、盘中已发生事件对持仓的影响，以及新闻与行情的联动。"
+    else:
+        focus = "侧重全天表现回顾、新闻脉络梳理，以及收盘后值得跟踪的风险点。"
+
     return (
         f"你是A股持仓{phase}简报编辑。请根据下方事实数据撰写简报。\n"
         f"{focus}\n"
         "写作要求：\n"
-        "1. 必须综合：持仓涨跌幅、持仓相关新闻、大盘新闻、行业新闻，形成有深度的结论\n"
+        "1. 必须综合：持仓表现、持仓相关新闻、大盘新闻、行业新闻，形成有深度的结论\n"
         "2. 先摆事实，再给判断；结论要说清「对谁有利/不利、接下来关注什么」\n"
         "3. 不荐股、不给具体买卖价位\n"
         "4. 仅输出 JSON，不要 markdown 代码块：\n"
@@ -201,8 +223,11 @@ def _fallback_sections(
             ),
         ),
     ]
-    phase = "盘中" if kind == "intraday" else "盘后"
-    summary = f"{phase}简报：已汇总持仓涨跌、相关新闻及大盘/行业动态，详见下方分段。"
+    phase = {"premarket": "盘前", "intraday": "盘中", "postmarket": "盘后"}[kind]
+    if kind == "premarket":
+        summary = f"{phase}简报：已汇总隔夜新闻、行业/市场要闻及持仓盘前参考信息，开盘前请关注下方方向。"
+    else:
+        summary = f"{phase}简报：已汇总持仓涨跌、相关新闻及大盘/行业动态，详见下方分段。"
     return summary, sections
 
 
@@ -228,7 +253,7 @@ async def generate_briefing(
     )
 
     holding_news, sector_news, market_news = _split_news(news)
-    holdings_block = await _collect_holdings_block(holdings)
+    holdings_block = await _collect_holdings_block(holdings, normalized)
     market_block = _collect_market_block(overview)
 
     context_parts = [

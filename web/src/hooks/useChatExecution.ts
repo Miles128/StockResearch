@@ -68,7 +68,7 @@ export interface ChatExecutionState {
   ) => void;
   sendChat: () => void;
   analyzeHolding: (h: HoldingEnriched) => void;
-  runBriefingInCopilot: (userLabel: string, kind: "intraday" | "postmarket") => Promise<void>;
+  runBriefingInCopilot: (userLabel: string, kind: "premarket" | "intraday" | "postmarket") => Promise<void>;
   confirmChatStock: (originalMessage: string, symbol: string, name: string) => void;
   confirmChatRoute: (originalMessage: string, preference: ExecutionPreference) => void;
   openCopilotQuery: (query: string) => void;
@@ -259,7 +259,7 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
   );
 
   const runBriefingInCopilot = useCallback(
-    async (userLabel: string, kind: "intraday" | "postmarket") => {
+    async (userLabel: string, kind: "premarket" | "intraday" | "postmarket") => {
       if (chatLoading) return;
       setInput("");
       setChatStream(() => emptyStreamState());

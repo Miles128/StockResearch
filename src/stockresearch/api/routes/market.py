@@ -21,9 +21,12 @@ from stockresearch.core.schemas import (
     QuotePriceConflictOut,
     SectorBoardOut,
     SectorMoversOut,
+    SentimentDriverOut,
+    SentimentOut,
     StockQuoteOut,
 )
 from stockresearch.data.providers.sina_kline import fetch_sina_intraday
+from stockresearch.services.sentiment import SentimentService
 from stockresearch.data.provider_meta import list_provider_catalog
 from stockresearch.data.providers.market import TechnicalDataProvider
 from stockresearch.data.providers.market_overview import BatchQuoteProvider, MarketOverviewProvider
@@ -351,3 +354,45 @@ def _tushare_runtime_available() -> bool:
     except ImportError:
         return False
     return True
+
+
+@router.get("/sentiment", response_model=SentimentOut)
+async def market_sentiment(
+    _user: User = Depends(get_current_user),
+) -> SentimentOut:
+    result = await SentimentService().compute_market_sentiment()
+    return SentimentOut(
+        score=result.score,
+        label=result.label,
+        drivers=[SentimentDriverOut(label=d.label, value=d.value, impact=d.impact) for d in result.drivers],
+        source=result.source,
+    )
+
+
+@router.get("/sector-sentiment", response_model=SentimentOut)
+async def sector_sentiment(
+    name: str = Query(..., min_length=1),
+    _user: User = Depends(get_current_user),
+) -> SentimentOut:
+    result = await SentimentService().compute_sector_sentiment(name)
+    return SentimentOut(
+        score=result.score,
+        label=result.label,
+        drivers=[SentimentDriverOut(label=d.label, value=d.value, impact=d.impact) for d in result.drivers],
+        source=result.source,
+    )
+
+
+@router.get("/stock-sentiment", response_model=SentimentOut)
+async def stock_sentiment(
+    symbol: str = Query(..., min_length=6, max_length=6, pattern=r"^\d{6}$"),
+    name: str = Query(default=""),
+    _user: User = Depends(get_current_user),
+) -> SentimentOut:
+    result = await SentimentService().compute_stock_sentiment(symbol, name)
+    return SentimentOut(
+        score=result.score,
+        label=result.label,
+        drivers=[SentimentDriverOut(label=d.label, value=d.value, impact=d.impact) for d in result.drivers],
+        source=result.source,
+    )

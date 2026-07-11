@@ -18,7 +18,7 @@ from stockresearch.services.chat_context import (
 from stockresearch.utils.symbols import extract_symbols, has_stock_reference, resolve_name
 
 PORTFOLIO_TOOL_NAMES: frozenset[str] = frozenset(
-    {"get_sector_holdings", "skill_risk_checkup"},
+    {"get_sector_holdings", "get_portfolio_summary", "get_risk_summary", "skill_risk_checkup"},
 )
 
 

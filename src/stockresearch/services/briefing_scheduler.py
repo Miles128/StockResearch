@@ -1,4 +1,4 @@
-"""Scheduled intraday/postmarket briefing generation."""
+"""Scheduled premarket/intraday/postmarket briefing generation."""
 
 import logging
 from datetime import date, datetime, time
@@ -20,6 +20,8 @@ from stockresearch.utils.llm import LLMClient
 
 logger = logging.getLogger(__name__)
 
+_PREMARKET_HOUR = 9
+_PREMARKET_MINUTE = 5
 _INTRADAY_HOUR = 11
 _INTRADAY_MINUTE = 35
 _POSTMARKET_HOUR = 15
@@ -27,7 +29,7 @@ _POSTMARKET_MINUTE = 35
 
 
 class BriefingScheduler:
-    """Cron scheduler that auto-generates intraday and postmarket briefings."""
+    """Cron scheduler that auto-generates premarket, intraday and postmarket briefings."""
 
     def __init__(self) -> None:
         self._scheduler: AsyncIOScheduler | None = None
@@ -38,6 +40,16 @@ class BriefingScheduler:
         if self._scheduler is not None:
             return
         self._scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
+        self._scheduler.add_job(
+            self._generate_premarket,
+            trigger=CronTrigger(
+                hour=_PREMARKET_HOUR,
+                minute=_PREMARKET_MINUTE,
+                day_of_week="mon-fri",
+            ),
+            id="briefing-premarket",
+            replace_existing=True,
+        )
         self._scheduler.add_job(
             self._generate_intraday,
             trigger=CronTrigger(
@@ -58,7 +70,7 @@ class BriefingScheduler:
             id="briefing-postmarket",
             replace_existing=True,
         )
-        self._job_ids = {"briefing-intraday", "briefing-postmarket"}
+        self._job_ids = {"briefing-premarket", "briefing-intraday", "briefing-postmarket"}
         self._scheduler.start()
         logger.info("Briefing scheduler started (enabled=%s)", self.enabled)
 
@@ -83,6 +95,9 @@ class BriefingScheduler:
                 else:
                     self._scheduler.pause_job(job_id)
         logger.info("Briefing scheduler enabled set to %s", enabled)
+
+    async def _generate_premarket(self) -> None:
+        await self._generate_if_trading_day("premarket")
 
     async def _generate_intraday(self) -> None:
         await self._generate_if_trading_day("intraday")

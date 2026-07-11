@@ -56,6 +56,8 @@ export function ActionCenter({ onNavigate, onChatQuery }: ActionCenterProps) {
       onNavigate("risk");
     } else if (signal.action_target === "news") {
       onNavigate("news");
+    } else if (signal.action_target === "market") {
+      onNavigate("market");
     } else if (signal.action_target === "chat" && signal.symbol) {
       onChatQuery(`分析${signal.symbol}`);
     }
