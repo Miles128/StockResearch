@@ -1,8 +1,8 @@
 # StockResearch 产品需求文档
 
-**V10.4 · 开源 A 股市场研究 Agent**
+**V10.5 · 开源 A 股市场研究 Agent**
 
-> 唯一 PRD：`docs/PRD.md`（Git 中 `docs/` 仅推送本文件）。本地可选 `docs/meta.yaml` 供 prd-first 工具读取。
+> 唯一 PRD：`docs/PRD.md`。Git 中 `docs/` 还推送 `screenshots/` 界面预览图。本地可选 `docs/meta.yaml` 供 prd-first 工具读取。
 
 ---
 
@@ -157,7 +157,8 @@ uv run pytest && cd web && npm run build
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
-| **V10.4** | 2026-07-11 | 方向：深度证据 + 轻量可验证；Phase 3/4 路线图；公告研报进主链路；数值因子与研究验证语义 |
+| **V10.5** | 2026-07-13 | README 纳入最新 UI 截图（`docs/screenshots/`） |
+| V10.4 | 2026-07-11 | 方向：深度证据 + 轻量可验证；Phase 3/4 路线图；公告研报进主链路；数值因子与研究验证语义 |
 | V10.3 | 2026-07-07 | 新增独立「市场」Tab；prompts 外置；定时任务独立 worker CLI；新闻 ingest 后台 job；盘前/盘中/盘后三段简报 |
 | V10.2 | 2026-07-01 | 精简 PRD；数据源按代码现状重写（新浪/AkShare/efinance 三层行情；K 线 AkShare 优先） |
 | V10.1 | 2026-06-30 | 双模式契约；合规语言；Focus 多 Tab；§7 开关语义 |

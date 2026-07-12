@@ -40,6 +40,8 @@ blob-report/
 .cursor/
 .idea/
 
-# docs — only PRD.md is tracked; meta.yaml & screenshots stay local
+# docs — track PRD + UI screenshots; meta.yaml stays local
 docs/*
 !docs/PRD.md
+!docs/screenshots/
+!docs/screenshots/**/*.png

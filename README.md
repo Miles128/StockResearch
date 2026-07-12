@@ -52,13 +52,21 @@
 
 ## 界面预览
 
-本地生成截图（不纳入 Git）：启动前后端后运行
+| 今日关注 | 市场 | 风控 |
+|:---:|:---:|:---:|
+| ![今日关注](docs/screenshots/focus.png) | ![市场](docs/screenshots/market.png) | ![风控](docs/screenshots/risk.png) |
+
+| 新闻 | Copilot | 设置 |
+|:---:|:---:|:---:|
+| ![新闻](docs/screenshots/news.png) | ![Copilot](docs/screenshots/copilot.png) | ![设置](docs/screenshots/settings.png) |
+
+本地重拍（需 API `:8000` + Web `:5174`）：
 
 ```bash
 NODE_PATH=web/node_modules node scripts/capture_screenshots.mjs
 ```
 
-输出至 `docs/screenshots/`（focus · risk · news · copilot · settings）。
+输出至 `docs/screenshots/`（focus · market · risk · news · copilot · settings）。
 
 ---
 
