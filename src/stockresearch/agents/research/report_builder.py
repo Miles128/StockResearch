@@ -17,10 +17,22 @@ from stockresearch.core.schemas import (
 )
 from stockresearch.services.ashare_factors import build_ashare_factor_checklist
 from stockresearch.services.text_factor import build_text_factor_summary
+from stockresearch.agents.research.dimension_text import build_brief_summary
 from stockresearch.agents.research.summary_length import normalize_summary
 
 
-_DIM_ORDER = ("fundamental", "technical", "sentiment", "chips")
+_DIM_ORDER = (
+    "fundamental",
+    "technical",
+    "sentiment",
+    "chips",
+    "macro",
+    "industry",
+    "policy",
+    "capital",
+    "valuation",
+    "structure",
+)
 
 
 def _dimension_expand_parts(dimensions: dict[str, DimensionResult]) -> list[str]:
@@ -38,6 +50,23 @@ def _dimension_expand_parts(dimensions: dict[str, DimensionResult]) -> list[str]
     return parts
 
 
+def _collect_report_gaps(dimensions: dict[str, DimensionResult], ashare_factors: list) -> list[str]:
+    data_gaps: list[str] = []
+    for dim in dimensions.values():
+        for gap in dim.gaps:
+            if gap not in data_gaps:
+                data_gaps.append(gap)
+            if len(data_gaps) >= 5:
+                return data_gaps
+    for factor in ashare_factors:
+        for gap in factor.missing:
+            if gap not in data_gaps:
+                data_gaps.append(gap)
+            if len(data_gaps) >= 5:
+                return data_gaps
+    return data_gaps
+
+
 def build_research_report(
     symbol: str,
     name: str,
@@ -49,6 +78,7 @@ def build_research_report(
     sector: str | None = None,
     leaders: list[SectorLeaderBrief] | None = None,
     summary_prefix: str | None = None,
+    factors: list | None = None,
 ) -> ResearchReportOut:
     composite, weights = weighted_composite_score(dimensions)
     composite_confidence = resolve_composite_confidence(dimensions)
@@ -70,7 +100,7 @@ def build_research_report(
     expand_parts = _dimension_expand_parts(dimensions)
     if debate and debate.core_divergence.strip():
         expand_parts.append(debate.core_divergence.strip())
-    summary = normalize_summary(summary, expand_parts=expand_parts)
+    summary = normalize_summary(summary, expand_parts=expand_parts, min_len=200, max_len=320)
 
     text_factor_summary = build_text_factor_summary(
         subject=name if not sector else f"「{sector}」板块",
@@ -90,15 +120,15 @@ def build_research_report(
     from stockresearch.agents.research.viewpoints import build_viewpoints
 
     viewpoints = build_viewpoints(dimensions, debate, news_text_factor=news_text_factor)
-    data_gaps: list[str] = []
-    for factor in ashare_factors:
-        for gap in factor.missing:
-            if gap not in data_gaps:
-                data_gaps.append(gap)
-            if len(data_gaps) >= 5:
-                break
-        if len(data_gaps) >= 5:
-            break
+    data_gaps = _collect_report_gaps(dimensions, ashare_factors)
+    brief_summary = build_brief_summary(
+        name=name,
+        symbol=symbol,
+        bias=bias,
+        composite_score=composite,
+        dimensions=dimensions,
+        dimension_labels=dimension_labels,
+    )
 
     report = ResearchReportOut(
         symbol=symbol,
@@ -109,6 +139,7 @@ def build_research_report(
         composite_confidence=composite_confidence,
         bias=bias,
         summary=summary,
+        brief_summary=brief_summary,
         viewpoints=viewpoints,
         data_gaps=data_gaps,
         debate=debate,
@@ -116,6 +147,7 @@ def build_research_report(
         news_text_factor=news_text_factor,
         text_factor_summary=text_factor_summary,
         ashare_factors=ashare_factors,
+        factors=list(factors or []),
         dimension_weights=weights,
     )
     from stockresearch.services.follow_up import attach_report_follow_ups

@@ -1,4 +1,8 @@
-"""A-share factor checklist derived from verified research evidence."""
+"""A-share evidence-coverage checklist (not numeric investable factors).
+
+Numeric factors live in ``stockresearch.services.factors``. This module only
+marks which research data sources were present in the current report.
+"""
 
 from typing import Literal
 
@@ -15,6 +19,11 @@ _SOURCE_META: dict[str, tuple[str, str, str]] = {
     "akshare_gdhs": ("股东户数", "L2", "akshare"),
     "akshare_lockup": ("限售解禁", "L2", "akshare"),
     "akshare_financials": ("财务与估值", "L2", "akshare"),
+    "akshare_valuation": ("估值分位", "L2", "akshare"),
+    "akshare_peers": ("可比公司", "L2", "akshare"),
+    "ths_ratio_snapshot": ("同花顺比率摘要", "L2", "ths"),
+    "cninfo_announcements": ("巨潮公告", "L1", "cninfo"),
+    "em_research_reports": ("机构研报", "L2", "eastmoney"),
     "news_text_factor": ("新闻文本因子", "L1", "news"),
 }
 

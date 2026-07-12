@@ -344,6 +344,14 @@ export const api = {
   downloadReportPdf: (id: number) => {
     window.open(apiUrl(`/research/reports/${id}/pdf`), "_blank", "noopener,noreferrer");
   },
+  /** Download formal report from in-memory card payload (Markdown). */
+  exportReportMarkdown: async (report: ResearchReport) => {
+    await downloadReportBlob("/research/export/markdown", report, `${report.symbol}-report.md`);
+  },
+  /** Download formal report from in-memory card payload (PDF). */
+  exportReportPdf: async (report: ResearchReport) => {
+    await downloadReportBlob("/research/export/pdf", report, `${report.symbol}-report.pdf`);
+  },
   signalBacktest: () => request<SignalBacktest>("/research/signal-backtest"),
   searchMemory: (q: string) =>
     request<MemorySearchResult>(`/research/memory/search?q=${encodeURIComponent(q)}`),
@@ -585,6 +593,14 @@ async function waitForNewsIngestJob(jobId: string, timeoutMs = 60_000): Promise<
   throw new Error("News ingest timed out");
 }
 
+export interface DimensionEvidence {
+  source: string;
+  date?: string | null;
+  snippet: string;
+  url?: string | null;
+  kind?: string;
+}
+
 export interface DimensionResult {
   agent: string;
   score: number;
@@ -592,7 +608,12 @@ export interface DimensionResult {
   highlights: string[];
   risks: string[];
   data_sources: string[];
+  analysis?: string;
+  evidence?: DimensionEvidence[];
+  gaps?: string[];
+  partial?: boolean;
 }
+
 
 export interface DebateRoundResult {
   round: number;
@@ -638,24 +659,64 @@ export interface MasterCommentaryItem {
   key_metric: string;
 }
 
+export interface NumericFactor {
+  key: string;
+  label: string;
+  value?: number | null;
+  percentile?: number | null;
+  as_of?: string | null;
+  unit?: string;
+  partial?: boolean;
+  note?: string | null;
+}
+
 export interface ResearchReport {
+  id?: number | null;
   symbol: string;
   name: string;
   composite_score: number;
   composite_confidence?: string;
   bias: string;
   summary: string;
+  brief_summary?: string;
   viewpoints?: Record<string, string>;
   data_gaps?: string[];
   follow_up_questions?: string[];
   news_text_factor?: string | null;
   text_factor_summary?: string | null;
   ashare_factors?: AshareFactor[];
+  factors?: NumericFactor[];
   dimension_weights?: Record<string, number>;
   dimensions: Record<string, DimensionResult>;
   debate?: DebateResult | null;
   master_commentary?: MasterCommentaryItem[];
 }
+
+async function downloadReportBlob(path: string, report: ResearchReport, filename: string): Promise<void> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...dataSourceRequestHeaders(),
+  };
+  const resp = await fetchWithRetry(apiUrl(path), {
+    method: "POST",
+    headers,
+    body: JSON.stringify(report),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+    throw new Error(formatApiDetail(err.detail) || "下载失败");
+  }
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
 
 export interface PortfolioMetrics {
   sharpe_ratio: number;
@@ -879,6 +940,9 @@ export interface SignalBacktestHorizon {
 export interface SignalBacktest {
   horizons: SignalBacktestHorizon[];
   disclaimer: string;
+  label?: string;
+  notes?: string[];
+  sample_bias_note?: string;
 }
 
 export interface MemorySearchHit {

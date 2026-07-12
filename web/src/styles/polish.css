@@ -318,15 +318,18 @@ select {
 }
 
 .dimension-cards-grid {
-  display: grid;
-  gap: 8px;
-  margin: 8px 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 4px 0 8px;
+  border-top: 1px solid var(--bbg-border);
 }
 
 .dimension-card-fold {
-  border: 1px solid var(--bbg-border);
-  border-radius: var(--radius-sm);
-  background: var(--bbg-panel);
+  border: none;
+  border-bottom: 1px solid var(--bbg-border);
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
 }
 
@@ -337,7 +340,7 @@ select {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 10px 0;
 }
 
 .dimension-card-fold > summary::-webkit-details-marker {
@@ -353,9 +356,23 @@ select {
 }
 
 .dimension-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 600;
   color: var(--accent-ai);
   letter-spacing: 0.04em;
+}
+
+.dimension-card-chevron::before {
+  content: "▸";
+  display: inline-block;
+  color: var(--bbg-muted);
+  transition: transform 0.15s ease;
+}
+
+.dimension-card-fold[open] > summary .dimension-card-chevron::before {
+  transform: rotate(90deg);
 }
 
 .dimension-card-meta {
@@ -364,6 +381,13 @@ select {
   gap: 6px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.dimension-card-fold .dimension-card-body {
+  padding: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .holdings-table th.num,
@@ -402,7 +426,7 @@ select {
 }
 
 .light-research-summary .markdown-body {
-  font-size: 15px;
+  font-size: var(--chat-font-size, 14px);
   line-height: 1.55;
 }
 

@@ -107,6 +107,14 @@ async def run_research(
     news_snippets = await fetch_symbol_news_snippets(symbol, name)
     news_text_factor = build_news_text_factor(news_snippets, subject=f"{name}({symbol})")
 
+    factors: list = []
+    try:
+        from stockresearch.services.factors import compute_numeric_factors
+
+        factors = await compute_numeric_factors(symbol)
+    except Exception:
+        factors = []
+
     debate: DebateResult | None = None
     if with_debate:
         debate = await run_debate(symbol, name, dimensions, client)
@@ -124,6 +132,7 @@ async def run_research(
         debate,
         dimension_labels=_LABELS,
         news_text_factor=news_text_factor,
+        factors=factors,
     )
 
     if enable_master_commentary and mode_settings is not None:

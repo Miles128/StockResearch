@@ -14,12 +14,21 @@ def _dim_section(key: str, dim: DimensionResult) -> list[str]:
         f"### {dim.agent}（{key}）",
         f"- 评分：**{dim.score}/10** · 置信度：{_CONF_LABEL.get(dim.confidence, dim.confidence)}",
     ]
+    if dim.analysis:
+        lines.append("")
+        lines.append(dim.analysis.strip())
+        lines.append("")
     if dim.highlights:
         lines.append("- 亮点：" + "；".join(dim.highlights))
     if dim.risks:
         lines.append("- 风险：" + "；".join(dim.risks))
     if dim.data_sources:
         lines.append("- 数据来源：" + "、".join(dim.data_sources))
+    if dim.evidence:
+        lines.append("- 证据：")
+        for ev in dim.evidence[:6]:
+            date = f"（{ev.date}）" if ev.date else ""
+            lines.append(f"  - {ev.snippet} · {ev.source}{date}")
     return lines
 
 
@@ -73,7 +82,8 @@ def report_to_markdown(report: ResearchReportOut) -> str:
                 )
                 lines.append(f"  - 来源：{source_text}")
         lines.append("")
-    lines.append("## 四维分析")
+    dim_count = len(report.dimensions)
+    lines.append(f"## 维度分析（{dim_count}）")
     for key, dim in report.dimensions.items():
         lines.extend(_dim_section(key, dim))
         lines.append("")
@@ -132,7 +142,9 @@ def report_to_pdf(report: ResearchReportOut) -> bytes:
             pdf.set_font("Helvetica", style=style, size=size)
             safe = text.encode("ascii", "replace").decode("ascii")
         width = pdf.epw if pdf.epw > 0 else 180
-        pdf.multi_cell(width, 7, safe)
+        # Keep very long chapters from blowing a single cell.
+        chunk = safe if len(safe) <= 1200 else safe[:1199] + "…"
+        pdf.multi_cell(width, 7, chunk)
 
     bias = _BIAS_LABEL.get(report.bias, report.bias)
     conf = _CONF_LABEL.get(report.composite_confidence, report.composite_confidence)
@@ -145,9 +157,11 @@ def report_to_pdf(report: ResearchReportOut) -> bytes:
             write_line(
                 f"{factor.category}｜{factor.name}：{_FACTOR_STATUS_LABEL.get(factor.status, factor.status)}"
             )
-    write_line("四维分析", size=13, bold=True)
+    write_line(f"维度分析（{len(report.dimensions)}）", size=13, bold=True)
     for key, dim in report.dimensions.items():
         write_line(f"{dim.agent}（{key}）— {dim.score}/10", bold=True)
+        if dim.analysis:
+            write_line(dim.analysis)
         if dim.highlights:
             write_line("亮点：" + "；".join(dim.highlights))
         if dim.risks:

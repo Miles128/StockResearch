@@ -92,6 +92,7 @@ class MockLLMClient(LLMClient):
 
     def _mock_reply(self, system: str, user: str) -> str:
         if "编排 Agent" in system or "调用工具" in system:
+            # News explain must win over stock-skill heuristics (茅台/600519 in headlines).
             if any(kw in user for kw in ("新闻", "快讯", "消息", "资讯", "公告", "报道")):
                 sym_match = re.search(r"\d{6}", user)
                 if sym_match:
@@ -104,21 +105,33 @@ class MockLLMClient(LLMClient):
                     '```tool\n{"tool": "get_news", "args": {}}\n```\n'
                     '```tool\n{"tool": "reply", "args": {"message": "已为您获取最新快讯并完成解读。\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
                 )
-            if any(kw in user for kw in ("大盘", "市场", "股市", "走势", "行情", "板块")):
-                return (
-                    '```tool\n{"tool": "get_market_data", "args": {}}\n```\n'
-                    '```tool\n{"tool": "reply", "args": {"message": "当前大盘震荡，建议您关注政策面变化。\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
-                )
+            # Stock research before market keywords so "茅台…走势/行情" still triggers 四维投研.
             skill_args = self._mock_stock_skill_args(user)
             if skill_args and any(
                 kw in user
-                for kw in ("分析", "研究", "看看", "怎么样", "值不值得", "茅台", "600519", "宁德")
+                for kw in (
+                    "分析",
+                    "研究",
+                    "投研",
+                    "四维",
+                    "看看",
+                    "怎么样",
+                    "值不值得",
+                    "茅台",
+                    "600519",
+                    "宁德",
+                )
             ):
                 return (
                     "```tool\n"
                     f'{{"tool": "skill_stock_research", "args": {json.dumps(skill_args, ensure_ascii=False)}}}\n'
                     "```\n"
                     '```tool\n{"tool": "reply", "args": {"message": "投研分析已完成，请见下方卡片与过程详情。\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
+                )
+            if any(kw in user for kw in ("大盘", "市场", "股市", "走势", "行情", "板块")):
+                return (
+                    '```tool\n{"tool": "get_market_data", "args": {}}\n```\n'
+                    '```tool\n{"tool": "reply", "args": {"message": "当前大盘震荡，建议您关注政策面变化。\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
                 )
             return (
                 '```tool\n{"tool": "reply", "args": {"message": "您好，我是 StockResearch，专注A股投研分析。请问有什么金融投资方面的问题可以帮您？\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
@@ -136,7 +149,7 @@ class MockLLMClient(LLMClient):
                 return '{"intent": "risk", "symbols": [], "confidence": "high"}'
             if any(kw in user for kw in ("新闻", "快讯", "怎么了", "发生", "消息")):
                 return '{"intent": "news", "symbols": [], "confidence": "high"}'
-            if any(kw in user for kw in ("分析", "研究", "值不值得", "怎么样", "看看")):
+            if any(kw in user for kw in ("分析", "研究", "投研", "四维", "值不值得", "怎么样", "看看")):
                 return '{"intent": "research", "symbols": [], "confidence": "high"}'
             return '{"intent": "chat", "symbols": [], "confidence": "high"}'
         if "翻译成人话" in system or "风控助手" in system:

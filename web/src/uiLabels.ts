@@ -177,3 +177,21 @@ export function localizeRating(value: string, t: TFn): string {
   const mapped = zhMap[value];
   return mapped ? t(`rating.${mapped}`) : value;
 }
+
+/** Map research confidence high/medium/low (or 高/中/低) to locale label. */
+export function localizeConfidence(value: string, t: TFn): string {
+  const raw = value.trim();
+  const normalized = raw.toLowerCase();
+  const keyByValue: Record<string, string> = {
+    high: "card.confidenceHigh",
+    medium: "card.confidenceMedium",
+    low: "card.confidenceLow",
+    高: "card.confidenceHigh",
+    中: "card.confidenceMedium",
+    低: "card.confidenceLow",
+  };
+  const key = keyByValue[normalized] ?? keyByValue[raw];
+  if (!key) return value;
+  const translated = t(key);
+  return translated !== key ? translated : value;
+}

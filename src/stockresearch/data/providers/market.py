@@ -481,7 +481,149 @@ class MarketRuleProvider:
 
 
 class FinancialDataProvider:
-    async def get_financials(self, symbol: str) -> dict[str, float | str]:
+    """Financial / valuation / peers — never fabricate zeros as real metrics."""
+
+    _EMPTY_FINANCIALS: dict[str, object] = {
+        "revenue_yoy": None,
+        "net_margin": None,
+        "roe": None,
+        "debt_ratio": None,
+        "goodwill_ratio": None,
+        "series": [],
+        "partial": True,
+        "gaps": ["财务指标不可用"],
+        "source": "none",
+    }
+
+    @staticmethod
+    def _optional_pct(value: object) -> float | None:
+        """Parse a percent-like value into a decimal ratio; missing → None."""
+        if value is None or value == "":
+            return None
+        try:
+            text = str(value).strip().replace(",", "")
+            if text in ("False", "True", "-", "nan", "None"):
+                return None
+            if text.endswith("%"):
+                text = text[:-1]
+            return float(text) / 100.0
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _optional_float(value: object) -> float | None:
+        if value is None or value == "":
+            return None
+        try:
+            fval = float(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
+        if fval != fval:  # NaN
+            return None
+        return fval
+
+    @staticmethod
+    def _percentile_rank(series: list[float], current: float) -> float | None:
+        cleaned = [v for v in series if v is not None and v > 0]
+        if not cleaned or current <= 0:
+            return None
+        below = sum(1 for v in cleaned if v <= current)
+        return round(below / len(cleaned), 4)
+
+    @staticmethod
+    def _empty_financials(*, gaps: list[str], source: str = "none") -> dict[str, object]:
+        return {
+            **FinancialDataProvider._EMPTY_FINANCIALS,
+            "gaps": gaps,
+            "source": source,
+        }
+
+    def _from_indicator_df(self, df: Any) -> dict[str, object] | None:
+        if df is None or getattr(df, "empty", True):
+            return None
+        series: list[dict[str, object]] = []
+        for _, row in df.head(8).iterrows():
+            period = str(row.get("日期", row.get("报告期", row.get("年份", ""))))[:10]
+            series.append(
+                {
+                    "period": period,
+                    "revenue_yoy": self._optional_pct(row.get("营业收入同比增长率")),
+                    "net_margin": self._optional_pct(row.get("销售净利率")),
+                    "roe": self._optional_pct(row.get("净资产收益率")),
+                    "debt_ratio": self._optional_pct(row.get("资产负债率")),
+                }
+            )
+        row = df.iloc[0]
+        gaps: list[str] = []
+        if len(series) < 2:
+            gaps.append("财务序列不足 2 期")
+        core = {
+            "revenue_yoy": self._optional_pct(row.get("营业收入同比增长率")),
+            "net_margin": self._optional_pct(row.get("销售净利率")),
+            "roe": self._optional_pct(row.get("净资产收益率")),
+            "debt_ratio": self._optional_pct(row.get("资产负债率")),
+        }
+        if all(v is None for v in core.values()):
+            return None
+        missing = [k for k, v in core.items() if v is None]
+        if missing:
+            gaps.append(f"缺失字段: {','.join(missing)}")
+        return {
+            **core,
+            "goodwill_ratio": None,
+            "series": series,
+            "partial": bool(gaps) or len(series) < 2,
+            "gaps": gaps + ["商誉占比不可用"],
+            "source": "akshare_indicator",
+        }
+
+    def _from_ths_df(self, df: Any) -> dict[str, object] | None:
+        if df is None or getattr(df, "empty", True):
+            return None
+        # THS abstract is chronological; latest year is last row.
+        series: list[dict[str, object]] = []
+        for _, row in df.tail(8).iterrows():
+            period = str(row.get("报告期", row.get("日期", "")))[:10]
+            series.append(
+                {
+                    "period": period,
+                    "revenue_yoy": self._optional_pct(
+                        row.get("营业总收入同比增长率", row.get("营业收入同比增长率"))
+                    ),
+                    "net_margin": self._optional_pct(row.get("销售净利率")),
+                    "roe": self._optional_pct(row.get("净资产收益率")),
+                    "debt_ratio": self._optional_pct(row.get("资产负债率")),
+                }
+            )
+        latest = df.iloc[-1]
+        core = {
+            "revenue_yoy": self._optional_pct(
+                latest.get("营业总收入同比增长率", latest.get("营业收入同比增长率"))
+            ),
+            "net_margin": self._optional_pct(latest.get("销售净利率")),
+            "roe": self._optional_pct(latest.get("净资产收益率")),
+            "debt_ratio": self._optional_pct(latest.get("资产负债率")),
+        }
+        if all(v is None for v in core.values()):
+            return None
+        gaps: list[str] = []
+        if len(series) < 2:
+            gaps.append("财务序列不足 2 期")
+        missing = [k for k, v in core.items() if v is None]
+        if missing:
+            gaps.append(f"缺失字段: {','.join(missing)}")
+        # Goodwill is never available from THS abstract — note but don't force partial alone.
+        info_gaps = ["商誉占比不可用"]
+        return {
+            **core,
+            "goodwill_ratio": None,
+            "series": list(reversed(series)),  # newest-first to match indicator
+            "partial": bool(gaps),
+            "gaps": gaps + info_gaps,
+            "source": "ths_abstract",
+        }
+
+    async def get_financials(self, symbol: str) -> dict[str, float | str | object]:
         if _use_mock_market_data():
             return {
                 "revenue_yoy": 0.12,
@@ -490,43 +632,56 @@ class FinancialDataProvider:
                 "pe_percentile": 0.50,
                 "debt_ratio": 0.35,
                 "goodwill_ratio": 0.03,
+                "series": [
+                    {"period": "2023", "roe": 0.16, "revenue_yoy": 0.10, "net_margin": 0.24, "debt_ratio": 0.36},
+                    {"period": "2024", "roe": 0.18, "revenue_yoy": 0.12, "net_margin": 0.25, "debt_ratio": 0.35},
+                ],
+                "partial": False,
+                "gaps": [],
+                "source": "mock",
             }
-        cache_key = f"financials:indicator:{symbol}"
+        cache_key = f"financials:unified:v3:{symbol}"
         ttl = provider_ttl("akshare_financials")
 
         async def _fetch() -> dict[str, object]:
-            df = await run_sync_fetch(
-                f"akshare financials {symbol}",
+            # Primary: THS annual abstract (same source FinancialRatioAgent uses).
+            ths_df = await run_sync_fetch(
+                f"akshare ths financials {symbol}",
+                lambda: ak.stock_financial_abstract_ths(symbol=symbol, indicator="按年度"),
+                timeout=10.0,
+                fallback=None,
+            )
+            parsed = self._from_ths_df(ths_df)
+            if parsed is not None:
+                return parsed
+
+            # Fallback: Sina financial analysis indicator.
+            ind_df = await run_sync_fetch(
+                f"akshare indicator financials {symbol}",
                 lambda: ak.stock_financial_analysis_indicator(symbol=symbol),
                 timeout=8.0,
                 fallback=None,
             )
-            if df is None or df.empty:
-                return {
-                    "revenue_yoy": 0.0,
-                    "net_margin": 0.0,
-                    "roe": 0.0,
-                    "pe_percentile": 0.50,
-                    "debt_ratio": 0.35,
-                    "goodwill_ratio": 0.03,
-                }
-            row = df.iloc[0]
-            return {
-                "revenue_yoy": float(row.get("营业收入同比增长率", 0.0)) / 100 if row.get("营业收入同比增长率") else 0.0,
-                "net_margin": float(row.get("销售净利率", 0.0)) / 100 if row.get("销售净利率") else 0.0,
-                "roe": float(row.get("净资产收益率", 0.0)) / 100 if row.get("净资产收益率") else 0.0,
-                "pe_percentile": 0.50,
-                "debt_ratio": float(row.get("资产负债率", 0.35)) / 100 if row.get("资产负债率") else 0.35,
-                "goodwill_ratio": 0.03,
-            }
+            parsed = self._from_indicator_df(ind_df)
+            if parsed is not None:
+                return parsed
+
+            return self._empty_financials(gaps=["财务指标序列不可用（THS/指标均失败）"])
 
         cached = await get_or_set_cached_dict(cache_key, ttl, _fetch)
         return {k: v for k, v in cached.items()}  # type: ignore[misc]
 
-    async def get_valuation(self, symbol: str) -> dict[str, float | str]:
+    async def get_valuation(self, symbol: str) -> dict[str, float | str | object]:
         if _use_mock_market_data():
-            return {"pe_ttm": 28.0, "pe_percentile": 0.5, "source": "mock"}
-        cache_key = f"financials:valuation:{symbol}"
+            return {
+                "pe_ttm": 28.0,
+                "pe_percentile": 0.42,
+                "pb": 8.0,
+                "source": "mock",
+                "partial": False,
+                "gaps": [],
+            }
+        cache_key = f"financials:valuation:v3:{symbol}"
         ttl = provider_ttl("akshare_financials")
 
         async def _fetch() -> dict[str, object]:
@@ -537,9 +692,36 @@ class FinancialDataProvider:
                 fallback=None,
             )
             if df is not None and not df.empty:
+                pe_col = "pe" if "pe" in df.columns else ("市盈率" if "市盈率" in df.columns else None)
+                pb_col = "pb" if "pb" in df.columns else ("市净率" if "市净率" in df.columns else None)
                 row = df.iloc[-1]
-                pe_ttm = float(row.get("pe", 20.0))
-                return {"pe_ttm": pe_ttm, "pe_percentile": 0.5}
+                pe_ttm = self._optional_float(row.get(pe_col)) if pe_col else None
+                pb = self._optional_float(row.get(pb_col)) if pb_col else None
+                pe_series: list[float] = []
+                if pe_col:
+                    for val in df[pe_col].tolist():
+                        fval = self._optional_float(val)
+                        if fval is not None and fval > 0:
+                            pe_series.append(fval)
+                pe_pct = (
+                    self._percentile_rank(pe_series, pe_ttm)
+                    if pe_ttm is not None
+                    else None
+                )
+                gaps: list[str] = []
+                if pe_ttm is None:
+                    gaps.append("PE 不可用")
+                if pe_pct is None:
+                    gaps.append("估值历史分位不可算")
+                return {
+                    "pe_ttm": pe_ttm,
+                    "pb": pb,
+                    "pe_percentile": pe_pct,
+                    "pe_history_count": len(pe_series),
+                    "source": "akshare",
+                    "partial": bool(gaps),
+                    "gaps": gaps,
+                }
 
             tushare = await run_sync_fetch(
                 f"tushare valuation {symbol}",
@@ -548,24 +730,128 @@ class FinancialDataProvider:
                 fallback=None,
             )
             if tushare:
-                pe = float(tushare.get("pe_ttm", 20.0))
+                pe = self._optional_float(tushare.get("pe_ttm"))
+                pb = self._optional_float(tushare.get("pb"))
                 return {
                     "pe_ttm": pe,
-                    "pe_percentile": 0.5,
-                    "pb": float(tushare.get("pb", 0)),
+                    "pb": pb,
+                    "pe_percentile": None,
                     "source": str(tushare.get("source", "tushare")),
+                    "partial": True,
+                    "gaps": ["Tushare 仅提供当日估值，无历史分位"],
                 }
-            return {"pe_ttm": 20.0, "pe_percentile": 0.5}
+            return {
+                "pe_ttm": None,
+                "pb": None,
+                "pe_percentile": None,
+                "partial": True,
+                "gaps": ["估值数据不可用"],
+            }
 
         cached = await get_or_set_cached_dict(cache_key, ttl, _fetch)
         return {k: v for k, v in cached.items()}  # type: ignore[misc]
 
-    async def get_industry_peers(self, symbol: str) -> list[str]:
-        sector_peers: dict[str, list[str]] = {
+    async def get_industry_peers(self, symbol: str) -> list[dict[str, object]]:
+        """Dynamic peers with relative metrics; seed fallback is marked source=seed."""
+        if _use_mock_market_data():
+            seeded = {"600519": ["000858", "000568"], "300750": ["002594", "300014"]}
+            return [{"symbol": p, "name": "", "source": "mock"} for p in seeded.get(symbol, [])]
+
+        cache_key = f"financials:peers:v3:{symbol}"
+        ttl = provider_ttl("akshare_financials")
+
+        async def _fetch() -> dict[str, object]:
+            peers = await self._resolve_dynamic_peers(symbol)
+            return {"peers": peers}
+
+        cached = await get_or_set_cached_dict(cache_key, ttl, _fetch)
+        raw = cached.get("peers", [])
+        if isinstance(raw, list):
+            return [p for p in raw if isinstance(p, dict)]
+        return []
+
+    async def _resolve_dynamic_peers(self, symbol: str) -> list[dict[str, object]]:
+        seeded: dict[str, list[str]] = {
             "600519": ["000858", "000568"],
             "300750": ["002594", "300014"],
         }
-        return sector_peers.get(symbol, [])
+        industry = await run_sync_fetch(
+            f"akshare individual info {symbol}",
+            lambda: self._industry_name_sync(symbol),
+            timeout=8.0,
+            fallback="",
+        )
+        peer_symbols: list[str] = []
+        source = "seed"
+        if industry:
+            cons = await run_sync_fetch(
+                f"akshare industry cons {industry}",
+                lambda: self._industry_cons_sync(str(industry)),
+                timeout=10.0,
+                fallback=[],
+            )
+            if isinstance(cons, list) and cons:
+                peer_symbols = [s for s in cons if s != symbol][:6]
+                source = "akshare_industry"
+        if not peer_symbols:
+            peer_symbols = seeded.get(symbol, [])
+            source = "seed" if peer_symbols else "none"
+            if source == "seed":
+                logger.info("industry peers falling back to seed for %s", symbol)
+
+        peers: list[dict[str, object]] = []
+        for peer in peer_symbols[:6]:
+            peers.append(
+                {
+                    "symbol": peer,
+                    "name": resolve_name(peer),
+                    "source": source,
+                    "industry": industry or "",
+                }
+            )
+        # Attach relative valuation for up to 3 peers (best-effort).
+        for entry in peers[:3]:
+            peer = str(entry["symbol"])
+            try:
+                val = await self.get_valuation(peer)
+                entry["pe_ttm"] = val.get("pe_ttm")
+                entry["pb"] = val.get("pb")
+                entry["pe_percentile"] = val.get("pe_percentile")
+            except Exception:
+                continue
+        return peers
+
+    @staticmethod
+    def _industry_name_sync(symbol: str) -> str:
+        try:
+            df = ak.stock_individual_info_em(symbol=symbol)
+        except Exception as exc:
+            logger.warning("individual info failed for %s: %s", symbol, exc)
+            return ""
+        if df is None or df.empty:
+            return ""
+        for _, row in df.iterrows():
+            key = str(row.iloc[0]) if len(row) else ""
+            if "行业" in key:
+                return str(row.iloc[1]).strip()
+        return ""
+
+    @staticmethod
+    def _industry_cons_sync(industry: str) -> list[str]:
+        try:
+            df = ak.stock_board_industry_cons_em(symbol=industry)
+        except Exception as exc:
+            logger.warning("industry cons failed for %s: %s", industry, exc)
+            return []
+        if df is None or df.empty:
+            return []
+        col = "代码" if "代码" in df.columns else df.columns[0]
+        symbols: list[str] = []
+        for raw in df[col].tolist():
+            digits = "".join(ch for ch in str(raw) if ch.isdigit())
+            if len(digits) >= 6:
+                symbols.append(digits[-6:])
+        return symbols
 
 
 _INDEX_KLINE_SYMBOLS = frozenset({"000001", "399001", "399006", "000300"})

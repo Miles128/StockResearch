@@ -2,13 +2,11 @@
 
 from stockresearch.agents.market.context import MarketResearchContext
 from stockresearch.agents.research.agents._scoring import as_confidence
-from stockresearch.agents.voice import AGENT_VOICE
+from stockresearch.agents.research.dimension_text import REPORT_DIM_VOICE, finalize_dimension
 from stockresearch.core.constants import CONFIDENCE_LOW, CONFIDENCE_MEDIUM
 from stockresearch.core.schemas import DimensionResult, MarketOverviewOut
 
-_SYSTEM_SUFFIX = (
-    f"{AGENT_VOICE} 分析 A 股整体，不要给出买卖建议。"
-)
+_SYSTEM_SUFFIX = f"{REPORT_DIM_VOICE} 分析 A 股整体。"
 
 
 def format_overview_snapshot(overview: MarketOverviewOut) -> str:
@@ -54,13 +52,14 @@ def build_macro(data: dict[str, object], analysis: str) -> DimensionResult:
     if isinstance(north, (int, float)) and north < 0:
         score -= 0.5
     score = max(1.0, min(10.0, score))
-    return DimensionResult(
+    return finalize_dimension(
         agent="macro",
-        score=round(score, 1),
+        score=score,
         confidence=as_confidence(CONFIDENCE_MEDIUM),
-        highlights=[analysis.strip()] if analysis.strip() else [f"主要指数均涨跌幅约 {avg:+.2f}%"],
-        risks=["宏观数据滞后，需结合政策与海外市场"],
+        raw_analysis=analysis,
         data_sources=["market_overview"],
+        fallback_highlights=[f"主要指数均涨跌幅约 {avg:+.2f}%"],
+        fallback_risks=["宏观数据滞后，需结合政策与海外市场"],
     )
 
 
@@ -87,13 +86,14 @@ def build_industry(data: dict[str, object], analysis: str) -> DimensionResult:
         elif ratio < 0.4:
             score -= 1.0
     score = max(1.0, min(10.0, score))
-    return DimensionResult(
+    return finalize_dimension(
         agent="industry",
-        score=round(score, 1),
+        score=score,
         confidence=as_confidence(CONFIDENCE_MEDIUM if adv is not None else CONFIDENCE_LOW),
-        highlights=[analysis.strip()] if analysis.strip() else [str(data.get("breadth_note", "结构分化") or "结构分化")],
-        risks=["行业轮动快，单日广度不代表中期主线"],
+        raw_analysis=analysis,
         data_sources=["market_breadth"],
+        fallback_highlights=[str(data.get("breadth_note", "结构分化") or "结构分化")],
+        fallback_risks=["行业轮动快，单日广度不代表中期主线"],
     )
 
 
@@ -113,13 +113,14 @@ def build_technical(data: dict[str, object], analysis: str) -> DimensionResult:
     if avg < -0.3:
         score -= 1.5
     score = max(1.0, min(10.0, score))
-    return DimensionResult(
+    return finalize_dimension(
         agent="technical",
-        score=round(score, 1),
+        score=score,
         confidence=as_confidence(CONFIDENCE_MEDIUM),
-        highlights=[analysis.strip()] if analysis.strip() else [f"指数综合方向 {'偏多' if avg > 0 else '偏空' if avg < 0 else '震荡'}"],
-        risks=["指数技术面易受权重蓝筹扰动"],
+        raw_analysis=analysis,
         data_sources=["index_quotes"],
+        fallback_highlights=[f"指数综合方向 {'偏多' if avg > 0 else '偏空' if avg < 0 else '震荡'}"],
+        fallback_risks=["指数技术面易受权重蓝筹扰动"],
     )
 
 
@@ -146,11 +147,12 @@ def build_sentiment(data: dict[str, object], analysis: str) -> DimensionResult:
     if isinstance(north, (int, float)) and north > 0:
         score += 0.5
     score = max(1.0, min(10.0, score))
-    return DimensionResult(
+    return finalize_dimension(
         agent="sentiment",
-        score=round(score, 1),
+        score=score,
         confidence=as_confidence(CONFIDENCE_MEDIUM if total > 0 else CONFIDENCE_LOW),
-        highlights=[analysis.strip()] if analysis.strip() else [f"涨跌比 {adv}:{dec}"],
-        risks=["情绪指标短期波动大"],
+        raw_analysis=analysis,
         data_sources=["market_sentiment"],
+        fallback_highlights=[f"涨跌比 {adv}:{dec}"],
+        fallback_risks=["情绪指标短期波动大"],
     )

@@ -1,11 +1,12 @@
-import type { ResearchReport } from "./api";
+import { useState } from "react";
+import { api, type ResearchReport } from "./api";
 import { DimensionCards, dimensionItemsFromResults } from "./DimensionCards";
 import { useI18n } from "./i18n";
 import type { AppMode } from "./modeSettings";
 import { MarkdownContent } from "./MarkdownContent";
 import { normalizeResearchConclusion, researchExpandHintsFromReport } from "./researchText";
 import { ResearchReportDetails } from "./researchReportView";
-import { localizeAgentDisplay } from "./uiLabels";
+import { localizeAgentDisplay, localizeConfidence } from "./uiLabels";
 
 interface LightResearchCardProps {
   report: ResearchReport;
@@ -13,14 +14,53 @@ interface LightResearchCardProps {
   onFollowUp?: (query: string) => void;
 }
 
+type ReportView = "brief" | "formal";
+
 export function LightResearchCard({ report, appMode, onFollowUp }: LightResearchCardProps) {
   const { t } = useI18n();
   const followUps = report.follow_up_questions ?? [];
+  const isAdvisor = appMode === "advisor";
   const isExpert = appMode === "research";
+  const [view, setView] = useState<ReportView>(isAdvisor ? "brief" : "formal");
+  const [downloading, setDownloading] = useState<"md" | "pdf" | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const dimensions = Object.entries(report.dimensions ?? {});
+  const brief = isAdvisor && view === "brief";
+
+  const summaryText = brief
+    ? report.brief_summary?.trim() ||
+      normalizeResearchConclusion(report.summary, {
+        minLen: 60,
+        maxLen: 160,
+        expandHints: researchExpandHintsFromReport(report),
+      })
+    : normalizeResearchConclusion(report.summary, {
+        minLen: 200,
+        maxLen: 320,
+        expandHints: researchExpandHintsFromReport(report),
+      });
+
+  async function handleDownload(kind: "md" | "pdf") {
+    setDownloadError(null);
+    setDownloading(kind);
+    try {
+      if (report.id != null) {
+        if (kind === "md") api.downloadReportMarkdown(report.id);
+        else api.downloadReportPdf(report.id);
+      } else if (kind === "md") {
+        await api.exportReportMarkdown(report);
+      } else {
+        await api.exportReportPdf(report);
+      }
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : t("card.downloadFailed"));
+    } finally {
+      setDownloading(null);
+    }
+  }
 
   return (
-    <div className="card light-research-card">
+    <div className={`card light-research-card ${brief ? "light-research-brief" : "light-research-formal"}`}>
       <div className="light-research-head">
         <h4>
           {t("card.research")} · {report.name} ({report.symbol})
@@ -28,33 +68,83 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
         <div className="stat-row">
           <span className="stat-pill">
             {t("card.score")} {report.composite_score}/10
+            {report.composite_confidence
+              ? ` · ${t("card.confidence")} ${localizeConfidence(report.composite_confidence, t)}`
+              : ""}
           </span>
           <span className="stat-pill">
             {t("card.bias")} {report.bias}
           </span>
         </div>
       </div>
+
+      <div className="light-research-toolbar">
+        {isAdvisor ? (
+          <div className="light-research-view-toggle" role="group" aria-label={t("card.reportView")}>
+            <button
+              type="button"
+              className={`example-chip ${view === "brief" ? "active" : ""}`}
+              onClick={() => setView("brief")}
+            >
+              {t("card.briefView")}
+            </button>
+            <button
+              type="button"
+              className={`example-chip ${view === "formal" ? "active" : ""}`}
+              onClick={() => setView("formal")}
+            >
+              {t("card.formalView")}
+            </button>
+          </div>
+        ) : (
+          <span className="muted">{t("card.formalView")}</span>
+        )}
+        <div className="light-research-download">
+          <button
+            type="button"
+            className="example-chip"
+            disabled={downloading != null}
+            onClick={() => void handleDownload("md")}
+          >
+            {downloading === "md" ? t("card.downloading") : t("card.downloadMd")}
+          </button>
+          <button
+            type="button"
+            className="example-chip"
+            disabled={downloading != null}
+            onClick={() => void handleDownload("pdf")}
+          >
+            {downloading === "pdf" ? t("card.downloading") : t("card.downloadPdf")}
+          </button>
+        </div>
+      </div>
+      {downloadError ? <p className="muted light-research-gaps">{downloadError}</p> : null}
+      {brief ? <p className="muted light-research-brief-hint">{t("card.briefHint")}</p> : null}
+
       <div className="light-research-summary">
-        <MarkdownContent
-          text={normalizeResearchConclusion(report.summary, {
-            expandHints: researchExpandHintsFromReport(report),
-          })}
-        />
+        <MarkdownContent text={summaryText} />
       </div>
       {dimensions.length > 0 && (
         <DimensionCards
-          defaultOpen={false}
+          defaultOpen={isExpert || view === "formal"}
           labels={{
             confidence: t("card.confidence"),
+            confidenceHigh: t("card.confidenceHigh"),
+            confidenceMedium: t("card.confidenceMedium"),
+            confidenceLow: t("card.confidenceLow"),
             highlights: t("card.highlights"),
             risks: t("card.risks"),
+            evidence: t("card.evidence"),
+            gaps: t("card.missing"),
           }}
-          items={dimensionItemsFromResults(report.dimensions ?? {}, (key, agent) =>
-            localizeAgentDisplay(key, agent, t),
+          items={dimensionItemsFromResults(
+            report.dimensions ?? {},
+            (key, agent) => localizeAgentDisplay(key, agent, t),
+            { brief },
           )}
         />
       )}
-      {report.data_gaps && report.data_gaps.length > 0 && (
+      {report.data_gaps && report.data_gaps.length > 0 && !brief && (
         <p className="muted light-research-gaps">
           <strong>{t("card.dataGaps")}：</strong>
           {report.data_gaps.join("；")}
@@ -74,7 +164,7 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
           ))}
         </div>
       )}
-      {report.master_commentary && report.master_commentary.length > 0 && (
+      {report.master_commentary && report.master_commentary.length > 0 && !brief && (
         <div className="master-commentary-list light-research-masters">
           <p className="stream-section-title">{t("stream.masterCommentary")}</p>
           {report.master_commentary.map((item) => {
@@ -107,10 +197,12 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
           })}
         </div>
       )}
-      <details className="light-research-details">
-        <summary>{isExpert ? t("card.expandSources") : t("card.expandProfessional")}</summary>
-        <ResearchReportDetails report={report} showDimensions={false} showDebate={isExpert} />
-      </details>
+      {!brief && (
+        <details className="light-research-details">
+          <summary>{isExpert ? t("card.expandSources") : t("card.expandProfessional")}</summary>
+          <ResearchReportDetails report={report} showDimensions={false} showDebate={isExpert} />
+        </details>
+      )}
     </div>
   );
 }

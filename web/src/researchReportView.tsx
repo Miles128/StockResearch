@@ -1,7 +1,8 @@
-import type { AshareFactor, DebateResult, ResearchReport } from "./api";
+import type { AshareFactor, DebateResult, NumericFactor, ResearchReport } from "./api";
 import { DimensionCards, dimensionItemsFromResults } from "./DimensionCards";
 import { MarkdownContent } from "./MarkdownContent";
 import { useI18n } from "./i18n";
+import { loadModeSettings } from "./modeSettings";
 import { localizeAgentDisplay } from "./uiLabels";
 
 function biasLabel(bias: string, t: (key: string) => string): string {
@@ -176,6 +177,43 @@ function ResearchAshareFactorsBlock({
   );
 }
 
+function ResearchNumericFactorsBlock({
+  factors,
+  t,
+}: {
+  factors?: NumericFactor[];
+  t: (key: string) => string;
+}) {
+  if (!factors?.length) return null;
+  return (
+    <details className="ashare-factor-block" open>
+      <summary>{t("card.numericFactors")}</summary>
+      <div className="ashare-factor-grid">
+        {factors.map((factor) => (
+          <article
+            className={`ashare-factor-card ${factor.partial ? "partial" : "verified"}`}
+            key={factor.key}
+          >
+            <div className="ashare-factor-head">
+              <div>
+                <span>{factor.key}</span>
+                <strong>{factor.label}</strong>
+              </div>
+              <em>{factor.partial ? t("card.factorPartial") : t("card.factorVerified")}</em>
+            </div>
+            <p>
+              {factor.value != null ? `${factor.value}${factor.unit || ""}` : "—"}
+              {factor.percentile != null ? ` · P${Math.round(factor.percentile * 100)}` : ""}
+              {factor.as_of ? ` · ${factor.as_of}` : ""}
+            </p>
+            {factor.note ? <p className="muted">{factor.note}</p> : null}
+          </article>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 export function ResearchReportDetails({
   report,
   showDimensions = true,
@@ -186,10 +224,12 @@ export function ResearchReportDetails({
   showDebate?: boolean;
 }) {
   const { t } = useI18n();
+  const settings = loadModeSettings();
   const dimEntries = Object.entries(report.dimensions ?? {});
   const allSources = Array.from(
     new Set(dimEntries.flatMap(([, d]) => d.data_sources ?? [])),
   ).filter(Boolean);
+  const evidenceOpen = settings.mode === "research";
 
   const debateLabels = {
     section: t("card.debateSection"),
@@ -215,13 +255,24 @@ export function ResearchReportDetails({
           {allSources.join(" · ")}
         </p>
       )}
+      {(report.data_gaps?.length ?? 0) > 0 && (
+        <p className="research-source-hint muted">
+          <span>{t("card.dataGaps")}：</span>
+          {report.data_gaps!.join("；")}
+        </p>
+      )}
       {showDimensions && dimEntries.length > 0 && (
         <DimensionCards
-          defaultOpen={false}
+          defaultOpen={evidenceOpen}
           labels={{
             confidence: t("card.confidence"),
+            confidenceHigh: t("card.confidenceHigh"),
+            confidenceMedium: t("card.confidenceMedium"),
+            confidenceLow: t("card.confidenceLow"),
             highlights: t("card.highlights"),
             risks: t("card.risks"),
+            evidence: t("card.evidence"),
+            gaps: t("card.missing"),
           }}
           items={dimensionItemsFromResults(report.dimensions ?? {}, (key, agent) =>
             localizeAgentDisplay(key, agent, t),
@@ -234,6 +285,7 @@ export function ResearchReportDetails({
           <ResearchDebateBlock debate={report.debate} labels={debateLabels} />
         </details>
       )}
+      <ResearchNumericFactorsBlock factors={report.factors} t={t} />
       <ResearchAshareFactorsBlock factors={report.ashare_factors} t={t} />
     </div>
   );

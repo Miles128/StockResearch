@@ -83,6 +83,7 @@ export function StockFocusView({
                 <IconExternalLink />
               </button>
             </div>
+            <p className="muted stock-focus-financial-hint">{t("stockFocus.financialHint")}</p>
           </CollapsibleSection>
 
           <CollapsibleSection title={t("chart.price")}>
