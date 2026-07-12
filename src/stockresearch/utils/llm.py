@@ -92,6 +92,20 @@ class MockLLMClient(LLMClient):
 
     def _mock_reply(self, system: str, user: str) -> str:
         if "编排 Agent" in system or "调用工具" in system:
+            # News explain must win over stock-skill heuristics (茅台/600519 in headlines).
+            if any(kw in user for kw in ("新闻", "快讯", "消息", "资讯", "公告", "报道")):
+                sym_match = re.search(r"\d{6}", user)
+                if sym_match:
+                    sym = sym_match.group()
+                    return (
+                        f'```tool\n{{"tool": "get_news", "args": {{"symbol": "{sym}"}}}}\n```\n'
+                        '```tool\n{"tool": "reply", "args": {"message": "已结合相关快讯完成新闻解读。\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
+                    )
+                return (
+                    '```tool\n{"tool": "get_news", "args": {}}\n```\n'
+                    '```tool\n{"tool": "reply", "args": {"message": "已为您获取最新快讯并完成解读。\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
+                )
+            # Stock research before market keywords so "茅台…走势/行情" still triggers 四维投研.
             skill_args = self._mock_stock_skill_args(user)
             if skill_args and any(
                 kw in user
@@ -113,18 +127,6 @@ class MockLLMClient(LLMClient):
                     f'{{"tool": "skill_stock_research", "args": {json.dumps(skill_args, ensure_ascii=False)}}}\n'
                     "```\n"
                     '```tool\n{"tool": "reply", "args": {"message": "投研分析已完成，请见下方卡片与过程详情。\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
-                )
-            if any(kw in user for kw in ("新闻", "快讯", "消息", "资讯", "公告", "报道")):
-                sym_match = re.search(r"\d{6}", user)
-                if sym_match:
-                    sym = sym_match.group()
-                    return (
-                        f'```tool\n{{"tool": "get_news", "args": {{"symbol": "{sym}"}}}}\n```\n'
-                        '```tool\n{"tool": "reply", "args": {"message": "已结合相关快讯完成新闻解读。\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
-                    )
-                return (
-                    '```tool\n{"tool": "get_news", "args": {}}\n```\n'
-                    '```tool\n{"tool": "reply", "args": {"message": "已为您获取最新快讯并完成解读。\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
                 )
             if any(kw in user for kw in ("大盘", "市场", "股市", "走势", "行情", "板块")):
                 return (

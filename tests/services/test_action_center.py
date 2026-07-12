@@ -9,8 +9,6 @@ import pytest
 from stockresearch.core.schemas import IndexQuoteOut, MarketOverviewOut
 from stockresearch.db.models import Holding, User
 from stockresearch.services.action_center import (
-    _BREADTH_EXTREME_BEAR,
-    _BREADTH_EXTREME_BULL,
     _INDEX_PLUNGE_PCT,
     _INDEX_SURGE_PCT,
     _NORTHBOUND_LARGE_INFLOW,
@@ -18,7 +16,7 @@ from stockresearch.services.action_center import (
     _collect_market_signals,
     generate_daily_actions,
 )
-from stockresearch.services.sentiment import SentimentDriver, SentimentResult
+from stockresearch.services.sentiment import SentimentResult
 
 
 @pytest.fixture
