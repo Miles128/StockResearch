@@ -60,13 +60,16 @@
 |:---:|:---:|:---:|
 | ![新闻](docs/screenshots/news.png) | ![Copilot](docs/screenshots/copilot.png) | ![设置](docs/screenshots/settings.png) |
 
+![贵州茅台投研分析](docs/screenshots/moutai-analysis.png)
+
 本地重拍（需 API `:8000` + Web `:5174`）：
 
 ```bash
 NODE_PATH=web/node_modules node scripts/capture_screenshots.mjs
+NODE_PATH=web/node_modules node scripts/capture_moutai_analysis.mjs   # 茅台深度分析
 ```
 
-输出至 `docs/screenshots/`（focus · market · risk · news · copilot · settings）。
+输出至 `docs/screenshots/`（focus · market · risk · news · copilot · settings · moutai-analysis）。
 
 ---
 
