@@ -234,6 +234,7 @@ class DimensionResult(BaseModel):
     highlights: list[str]
     risks: list[str]
     data_sources: list[str]
+    analysis: str = ""
     evidence: list[DimensionEvidence] = Field(default_factory=list)
     gaps: list[str] = Field(default_factory=list, max_length=8)
     partial: bool = False
@@ -316,6 +317,7 @@ class ResearchReportOut(BaseModel):
     composite_confidence: Literal["high", "medium", "low"]
     bias: Literal["bullish", "bearish", "neutral"]
     summary: str
+    brief_summary: str = ""
     viewpoints: dict[str, str] = Field(default_factory=dict)
     data_gaps: list[str] = Field(default_factory=list, max_length=5)
     follow_up_questions: list[str] = Field(default_factory=list, max_length=4)
@@ -330,6 +332,7 @@ class ResearchReportOut(BaseModel):
     master_commentary: list[MasterCommentaryItem] = Field(default_factory=list)
     disclaimer: str = DISCLAIMER
     cached: bool = False
+    id: int | None = None
 
 
 class RiskAlertOut(BaseModel):

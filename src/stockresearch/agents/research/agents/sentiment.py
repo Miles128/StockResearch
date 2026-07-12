@@ -3,13 +3,13 @@
 from stockresearch.agents.research.agents._scoring import as_confidence
 from stockresearch.agents.research.context import ResearchContext
 from stockresearch.agents.research.react import DimensionAgent, ResearchTool
-from stockresearch.agents.voice import AGENT_VOICE
+from stockresearch.agents.research.dimension_text import REPORT_DIM_VOICE, finalize_dimension
 from stockresearch.core.constants import CONFIDENCE_LOW, CONFIDENCE_MEDIUM
 from stockresearch.core.schemas import DimensionResult
 from stockresearch.data.providers.market import SentimentDataProvider
 from stockresearch.utils.symbols import resolve_name
 
-_SYSTEM = f"你是 A 股市场情绪分析师。{AGENT_VOICE} 不要给出买入卖出建议。"
+_SYSTEM = f"你是 A 股市场情绪分析师。{REPORT_DIM_VOICE}"
 
 
 async def _tool_hot(ctx: ResearchContext) -> dict[str, object]:
@@ -57,22 +57,19 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
     if not items:
         risks.append("个股新闻为空，需核对数据源")
 
-    highlight = (
-        analysis.strip()
-        if analysis.strip()
-        else (
-            f"热度 {heat_score}、讨论 {post_count}、多空比 {bull_ratio:.0%}、新闻 {len(items)} 条"
-            f"（来源 {source}）"
-        )
+    fallback_highlight = (
+        f"热度 {heat_score}、讨论 {post_count}、多空比 {bull_ratio:.0%}、新闻 {len(items)} 条"
+        f"（来源 {source}）"
     )
     has_data = available or bool(items)
-    return DimensionResult(
+    return finalize_dimension(
         agent="sentiment",
-        score=round(score, 1),
+        score=score,
         confidence=as_confidence(CONFIDENCE_MEDIUM if has_data else CONFIDENCE_LOW),
-        highlights=[highlight],
-        risks=risks,
+        raw_analysis=analysis,
         data_sources=["xueqiu_hot", "akshare_news"],
+        fallback_highlights=[fallback_highlight],
+        fallback_risks=risks,
     )
 
 

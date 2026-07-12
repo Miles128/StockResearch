@@ -13,7 +13,11 @@ from stockresearch.agents.output_style import output_style_scope
 from stockresearch.api.deps import get_current_user
 from stockresearch.api.llm_deps import resolve_llm_client
 from stockresearch.api.rate_limit import limiter
-from stockresearch.api.routes.research import extract_reports_from_cards, persist_report
+from stockresearch.api.routes.research import (
+    attach_report_ids_to_cards,
+    extract_reports_from_cards,
+    persist_report,
+)
 from stockresearch.core.exceptions import NotFoundError
 from stockresearch.core.schemas import ChatRequest, ChatResponse, StreamCheckpointOut
 from stockresearch.db.models import User
@@ -135,8 +139,14 @@ async def chat_stream(
                 if isinstance(response, dict):
                     cards = response.get("cards", [])
                     if isinstance(cards, list):
+                        id_by_symbol: dict[str, int] = {}
                         for report in extract_reports_from_cards(cards):
-                            persist_report(db, user.id, report)
+                            row = persist_report(db, user.id, report)
+                            id_by_symbol[report.symbol] = row.id
+                        if id_by_symbol:
+                            stamped = attach_report_ids_to_cards(cards, id_by_symbol)
+                            response = {**response, "cards": stamped}
+                            event = {**event, "response": response}
             yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
             now = asyncio.get_running_loop().time()
             if now >= next_deadline:

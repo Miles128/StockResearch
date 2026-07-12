@@ -33,6 +33,7 @@ interface DimensionCardsProps {
 export function dimensionItemsFromResults(
   dimensions: Record<string, DimensionResult>,
   titleForKey?: (key: string, agent: string) => string,
+  opts?: { brief?: boolean },
 ): DimensionCardItem[] {
   return Object.entries(dimensions).map(([key, dim]) => ({
     id: key,
@@ -40,10 +41,11 @@ export function dimensionItemsFromResults(
     score: dim.score,
     confidence: dim.confidence,
     status: "done" as const,
-    highlights: dim.highlights ?? [],
-    risks: dim.risks ?? [],
-    evidence: dim.evidence ?? [],
-    gaps: dim.gaps ?? [],
+    body: opts?.brief ? undefined : dim.analysis || undefined,
+    highlights: opts?.brief ? (dim.highlights ?? []).slice(0, 2) : (dim.highlights ?? []),
+    risks: opts?.brief ? [] : (dim.risks ?? []),
+    evidence: opts?.brief ? [] : (dim.evidence ?? []),
+    gaps: opts?.brief ? [] : (dim.gaps ?? []),
     partial: dim.partial,
   }));
 }

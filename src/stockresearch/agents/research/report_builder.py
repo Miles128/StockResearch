@@ -17,10 +17,22 @@ from stockresearch.core.schemas import (
 )
 from stockresearch.services.ashare_factors import build_ashare_factor_checklist
 from stockresearch.services.text_factor import build_text_factor_summary
+from stockresearch.agents.research.dimension_text import build_brief_summary
 from stockresearch.agents.research.summary_length import normalize_summary
 
 
-_DIM_ORDER = ("fundamental", "technical", "sentiment", "chips")
+_DIM_ORDER = (
+    "fundamental",
+    "technical",
+    "sentiment",
+    "chips",
+    "macro",
+    "industry",
+    "policy",
+    "capital",
+    "valuation",
+    "structure",
+)
 
 
 def _dimension_expand_parts(dimensions: dict[str, DimensionResult]) -> list[str]:
@@ -88,7 +100,7 @@ def build_research_report(
     expand_parts = _dimension_expand_parts(dimensions)
     if debate and debate.core_divergence.strip():
         expand_parts.append(debate.core_divergence.strip())
-    summary = normalize_summary(summary, expand_parts=expand_parts)
+    summary = normalize_summary(summary, expand_parts=expand_parts, min_len=200, max_len=320)
 
     text_factor_summary = build_text_factor_summary(
         subject=name if not sector else f"「{sector}」板块",
@@ -109,6 +121,14 @@ def build_research_report(
 
     viewpoints = build_viewpoints(dimensions, debate, news_text_factor=news_text_factor)
     data_gaps = _collect_report_gaps(dimensions, ashare_factors)
+    brief_summary = build_brief_summary(
+        name=name,
+        symbol=symbol,
+        bias=bias,
+        composite_score=composite,
+        dimensions=dimensions,
+        dimension_labels=dimension_labels,
+    )
 
     report = ResearchReportOut(
         symbol=symbol,
@@ -119,6 +139,7 @@ def build_research_report(
         composite_confidence=composite_confidence,
         bias=bias,
         summary=summary,
+        brief_summary=brief_summary,
         viewpoints=viewpoints,
         data_gaps=data_gaps,
         debate=debate,

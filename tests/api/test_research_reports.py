@@ -59,5 +59,5 @@ def test_list_and_export_reports(client, db_session) -> None:
 
 def test_report_to_markdown_includes_dimensions() -> None:
     md = report_to_markdown(_sample_report())
-    assert "四维分析" in md
+    assert "维度分析" in md
     assert "盈利稳健" in md

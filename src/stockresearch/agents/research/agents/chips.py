@@ -3,12 +3,12 @@
 from stockresearch.agents.research.agents._scoring import as_confidence
 from stockresearch.agents.research.context import ResearchContext
 from stockresearch.agents.research.react import DimensionAgent, ResearchTool
-from stockresearch.agents.voice import AGENT_VOICE
+from stockresearch.agents.research.dimension_text import REPORT_DIM_VOICE, finalize_dimension
 from stockresearch.core.constants import CONFIDENCE_MEDIUM
 from stockresearch.core.schemas import DimensionResult
 from stockresearch.data.providers.market import ChipsDataProvider
 
-_SYSTEM = f"你是 A 股筹码分析专家。{AGENT_VOICE} 不要给出买入卖出建议。"
+_SYSTEM = f"你是 A 股筹码分析专家。{REPORT_DIM_VOICE}"
 
 
 async def _tool_dragon(ctx: ResearchContext) -> dict[str, object]:
@@ -70,12 +70,11 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
     if float(lockup.get("ratio_pct", 0)) > 3:
         risks.insert(0, f"近期待解禁占比约 {float(lockup['ratio_pct']):.1f}%")
 
-    return DimensionResult(
+    return finalize_dimension(
         agent="chips",
-        score=round(score, 1),
+        score=score,
         confidence=as_confidence(CONFIDENCE_MEDIUM),
-        highlights=[analysis.strip()] if analysis.strip() else [f"主力净流入 {main_net:.0f}"],
-        risks=risks,
+        raw_analysis=analysis,
         data_sources=[
             "akshare_lhb",
             "akshare_fund_flow",
@@ -84,6 +83,8 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
             "akshare_gdhs",
             "akshare_lockup",
         ],
+        fallback_highlights=[f"主力净流入 {main_net:.0f}"],
+        fallback_risks=risks,
     )
 
 

@@ -63,6 +63,34 @@ def test_dimension_evidence_schema() -> None:
     assert ev.snippet == "年报"
 
 
+def test_fundamental_build_treats_missing_roe_as_gap() -> None:
+    data = {
+        "akshare_financials": {
+            "revenue_yoy": None,
+            "roe": None,
+            "debt_ratio": None,
+            "partial": True,
+            "gaps": ["财务指标序列不可用（THS/指标均失败）"],
+        },
+        "akshare_valuation": {"pe_percentile": None, "partial": True},
+        "akshare_peers": {
+            "peers": [{"symbol": "000858", "source": "seed"}],
+            "partial": True,
+            "gaps": ["可比公司仅种子兜底，非行业成份动态匹配"],
+        },
+        "ths_ratio_snapshot": {"ratios": [], "partial": True},
+        "cninfo_announcements": {"count": 0, "partial": True, "items": []},
+        "em_research_reports": {"count": 0, "partial": True, "items": []},
+    }
+    result = _build(data, "")
+    assert result.partial is True
+    assert any("缺失" in g or "不可用" in g for g in result.gaps)
+    assert any("种子" in g for g in result.gaps)
+    # Must not claim "ROE 0%" as a highlight from fabricated zero
+    assert not any(h.startswith("ROE 0%") for h in result.highlights)
+
+
 def test_numeric_factor_schema() -> None:
     factor = NumericFactorOut(key="momentum_20d", label="20日动量", value=3.2, unit="%", partial=False)
     assert factor.key == "momentum_20d"
+

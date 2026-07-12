@@ -32,16 +32,50 @@ router = APIRouter(prefix="/research", tags=["research"])
 
 
 def persist_report(db: Session, user_id: int, report: ResearchReportOut) -> ResearchReport:
+    payload = report.model_dump(mode="json")
     row = ResearchReport(
         user_id=user_id,
         symbol=report.symbol,
         name=report.name,
-        report_json=report.model_dump(mode="json"),
+        report_json=payload,
     )
     db.add(row)
     db.commit()
     db.refresh(row)
+    payload["id"] = row.id
+    row.report_json = payload
+    db.add(row)
+    db.commit()
+    db.refresh(row)
     return row
+
+
+def stamp_report_id(report: ResearchReportOut, report_id: int) -> ResearchReportOut:
+    return report.model_copy(update={"id": report_id})
+
+
+def attach_report_ids_to_cards(
+    cards: list[dict[str, object]],
+    id_by_symbol: dict[str, int],
+) -> list[dict[str, object]]:
+    updated: list[dict[str, object]] = []
+    for card in cards:
+        if card.get("type") != "research":
+            updated.append(card)
+            continue
+        data = card.get("data")
+        if not isinstance(data, dict):
+            updated.append(card)
+            continue
+        symbol = str(data.get("symbol", ""))
+        report_id = id_by_symbol.get(symbol)
+        if report_id is None:
+            updated.append(card)
+            continue
+        marked = dict(data)
+        marked["id"] = report_id
+        updated.append({**card, "data": marked})
+    return updated
 
 
 def extract_reports_from_cards(cards: list[dict[str, object]]) -> list[ResearchReportOut]:
@@ -71,8 +105,8 @@ async def analyze_stock(
         report = await run_research(symbol, llm=llm)
         cache.set_json(cache_key, report.model_dump(mode="json"), ttl_seconds=86400)
 
-    persist_report(db, user.id, report)
-    return report
+    row = persist_report(db, user.id, report)
+    return stamp_report_id(report, row.id)
 
 
 @router.get("/analyze/stream")
@@ -101,9 +135,11 @@ async def analyze_stock_stream(
                 if isinstance(raw, dict):
                     final = ResearchReportOut.model_validate(raw)
                     cache.set_json(cache_key, final.model_dump(mode="json"), ttl_seconds=86400)
+                    row = persist_report(db, user.id, final)
+                    stamped = stamp_report_id(final, row.id)
+                    event = {**event, "result": stamped.model_dump(mode="json")}
+                    final = stamped
             yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
-        if final is not None:
-            persist_report(db, user.id, final)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -137,6 +173,34 @@ def list_reports(
             )
         )
     return items
+
+
+@router.post("/export/markdown", response_class=PlainTextResponse)
+def export_report_markdown_body(
+    report: ResearchReportOut,
+    user: User = Depends(get_current_user),
+) -> PlainTextResponse:
+    _ = user
+    filename = f"stockresearch-{report.symbol}-export.md"
+    return PlainTextResponse(
+        content=report_to_markdown(report),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/export/pdf")
+def export_report_pdf_body(
+    report: ResearchReportOut,
+    user: User = Depends(get_current_user),
+) -> Response:
+    _ = user
+    filename = f"stockresearch-{report.symbol}-export.pdf"
+    return Response(
+        content=report_to_pdf(report),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/reports/{report_id}", response_model=ResearchReportOut)
@@ -217,7 +281,9 @@ async def industry_research(
         if card.get("type") == "research":
             data = card.get("data")
             if isinstance(data, dict):
-                persist_report(db, user.id, ResearchReportOut.model_validate(data))
+                report = ResearchReportOut.model_validate(data)
+                row = persist_report(db, user.id, report)
+                data["id"] = row.id
     return {"reply": reply, "cards": cards}
 
 
@@ -244,9 +310,10 @@ async def industry_research_stream(
                 raw = event.get("result")
                 if isinstance(raw, dict):
                     final = ResearchReportOut.model_validate(raw)
+                    row = persist_report(db, user.id, final)
+                    stamped = stamp_report_id(final, row.id)
+                    event = {**event, "result": stamped.model_dump(mode="json")}
             yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
-        if final is not None:
-            persist_report(db, user.id, final)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

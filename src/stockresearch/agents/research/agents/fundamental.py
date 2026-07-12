@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from stockresearch.agents.research.agents._scoring import as_confidence
 from stockresearch.agents.research.context import ResearchContext
 from stockresearch.agents.research.react import DimensionAgent, ResearchTool
-from stockresearch.agents.voice import AGENT_VOICE
+from stockresearch.agents.research.dimension_text import REPORT_DIM_VOICE, finalize_dimension
 from stockresearch.core.config import get_settings
 from stockresearch.core.constants import CONFIDENCE_HIGH, CONFIDENCE_LOW, CONFIDENCE_MEDIUM
 from stockresearch.core.schemas import DimensionEvidence, DimensionResult
@@ -17,7 +17,7 @@ from stockresearch.data.providers.research_reports import ResearchReportProvider
 from stockresearch.utils.symbols import resolve_name
 
 _SYSTEM = (
-    f"你是 A 股基本面分析师。{AGENT_VOICE} 不要给出买入卖出建议。"
+    f"你是 A 股基本面分析师。{REPORT_DIM_VOICE} "
     "引用公告标题/日期与研报机构评级时须与工具返回一致，禁止编造。"
 )
 
@@ -52,7 +52,18 @@ async def _tool_valuation(ctx: ResearchContext) -> dict[str, object]:
 async def _tool_peers(ctx: ResearchContext) -> dict[str, object]:
     provider = FinancialDataProvider()
     peers = await provider.get_industry_peers(ctx.symbol)
-    return {"peers": peers, "partial": len(peers) == 0}
+    seed_only = bool(peers) and all(str(p.get("source", "")) == "seed" for p in peers)
+    gaps: list[str] = []
+    if not peers:
+        gaps.append("可比公司不足")
+    elif seed_only:
+        gaps.append("可比公司仅种子兜底，非行业成份动态匹配")
+    return {
+        "peers": peers,
+        "partial": len(peers) == 0 or seed_only,
+        "gaps": gaps,
+        "source": "seed" if seed_only else ("akshare_industry" if peers else "none"),
+    }
 
 
 async def _tool_ratio_snapshot(ctx: ResearchContext) -> dict[str, object]:
@@ -217,6 +228,21 @@ def _has_major_announcement(data: dict[str, object]) -> bool:
     return False
 
 
+def _optional_metric(raw: object) -> float | None:
+    if raw is None or raw == "":
+        return None
+    try:
+        return float(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+
+
+def _fmt_ratio(value: float | None, *, missing: str) -> str:
+    if value is None:
+        return missing
+    return f"{value:.0%}"
+
+
 def _build(data: dict[str, object], analysis: str) -> DimensionResult:
     fin = _as_dict(data, "akshare_financials")
     val = _as_dict(data, "akshare_valuation")
@@ -225,48 +251,51 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
     reports = _as_dict(data, "em_research_reports")
     ratios = _as_dict(data, "ths_ratio_snapshot")
 
-    revenue_yoy = float(fin.get("revenue_yoy", 0) or 0)
-    roe = float(fin.get("roe", 0) or 0)
-    debt_ratio = float(fin.get("debt_ratio", 0.5) or 0.5)
+    revenue_yoy = _optional_metric(fin.get("revenue_yoy"))
+    roe = _optional_metric(fin.get("roe"))
+    debt_ratio = _optional_metric(fin.get("debt_ratio"))
 
-    pe_raw = val.get("pe_percentile", fin.get("pe_percentile"))
-    pe_pct: float | None
-    try:
-        pe_pct = float(pe_raw) if pe_raw is not None else None
-    except (TypeError, ValueError):
-        pe_pct = None
-    pe_partial = bool(val.get("partial") or fin.get("partial") or pe_pct is None)
+    pe_pct = _optional_metric(val.get("pe_percentile", fin.get("pe_percentile")))
+    pe_partial = bool(val.get("partial") or pe_pct is None)
+    fin_missing_core = roe is None and revenue_yoy is None
 
     score = 5.0
-    if revenue_yoy > 0.15:
+    if revenue_yoy is not None and revenue_yoy > 0.15:
         score += 1.5
-    if roe > 0.15:
+    if roe is not None and roe > 0.15:
         score += 1.0
     if pe_pct is not None and pe_pct < 0.4:
         score += 0.5
-    if debt_ratio > 0.6:
+    if debt_ratio is not None and debt_ratio > 0.6:
         score -= 1.0
+    if fin_missing_core:
+        score -= 0.5
     score = max(1.0, min(10.0, score))
 
-    highlights = [line for line in analysis.split("。") if "亮点" in line or "增长" in line][:3]
-    risks = [line for line in analysis.split("。") if "风险" in line or "竞争" in line][:3]
-    if not highlights:
-        highlights = [f"营收增速 {revenue_yoy:.0%}", f"ROE {roe:.0%}"]
-        if ratios.get("ratios"):
-            highlights.append("已加载同花顺年度比率摘要")
-    if not risks:
-        if pe_partial:
-            risks = ["估值历史分位不可用（partial）"]
-        else:
-            risks = [f"PE 历史分位 {pe_pct:.0%}"]
+    fallback_highlights = [
+        f"营收增速 {_fmt_ratio(revenue_yoy, missing='缺失')}",
+        f"ROE {_fmt_ratio(roe, missing='缺失')}",
+    ]
+    if ratios.get("ratios"):
+        fallback_highlights.append("已加载同花顺年度比率摘要")
+    fallback_risks = (
+        ["估值历史分位不可用（partial）"]
+        if pe_partial
+        else [f"PE 历史分位 {_fmt_ratio(pe_pct, missing='缺失')}"]
+    )
 
     gaps: list[str] = []
     if pe_partial:
         gaps.append("估值历史分位缺失")
-    if bool(fin.get("partial")):
-        gaps.append("财务序列不完整")
+    if bool(fin.get("partial")) or fin_missing_core:
+        gaps.append("财务序列不完整" if not fin_missing_core else "核心财务指标缺失")
+    for gap in _as_list(fin, "gaps"):
+        text = str(gap).strip()
+        if text and text not in gaps:
+            gaps.append(text)
     if bool(peers_payload.get("partial")) or not _as_list(peers_payload, "peers"):
-        gaps.append("可比公司不足")
+        peer_gaps = [str(g) for g in _as_list(peers_payload, "gaps") if str(g).strip()]
+        gaps.extend(peer_gaps or ["可比公司不足"])
     if bool(ann.get("partial")) or int(ann.get("count", 0) or 0) == 0:
         gaps.append("近期公告未取到")
     if bool(reports.get("partial")) or int(reports.get("count", 0) or 0) == 0:
@@ -286,22 +315,31 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
         sources = [s for s in sources if s != "em_research_reports"]
 
     evidence = _collect_evidence(data)
-    confidence = CONFIDENCE_HIGH if fin and not pe_partial else CONFIDENCE_MEDIUM
-    if not fin or (pe_partial and not evidence):
+    has_fin = bool(fin) and not fin_missing_core
+    confidence = CONFIDENCE_HIGH if has_fin and not pe_partial else CONFIDENCE_MEDIUM
+    if not has_fin or (pe_partial and not evidence):
         confidence = CONFIDENCE_LOW
     if _has_major_announcement(data) and confidence == CONFIDENCE_HIGH:
         confidence = CONFIDENCE_MEDIUM
 
-    return DimensionResult(
+    seen: set[str] = set()
+    unique_gaps: list[str] = []
+    for g in gaps:
+        if g not in seen:
+            seen.add(g)
+            unique_gaps.append(g)
+
+    return finalize_dimension(
         agent="fundamental",
-        score=round(score, 1),
+        score=score,
         confidence=as_confidence(confidence),
-        highlights=highlights,
-        risks=risks,
+        raw_analysis=analysis,
         data_sources=sources,
+        fallback_highlights=fallback_highlights,
+        fallback_risks=fallback_risks,
         evidence=evidence,
-        gaps=gaps[:5],
-        partial=bool(gaps),
+        gaps=unique_gaps[:5],
+        partial=bool(unique_gaps),
     )
 
 

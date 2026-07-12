@@ -3,12 +3,12 @@
 from stockresearch.agents.research.agents._scoring import as_confidence
 from stockresearch.agents.research.context import ResearchContext
 from stockresearch.agents.research.react import DimensionAgent, ResearchTool
-from stockresearch.agents.voice import AGENT_VOICE
+from stockresearch.agents.research.dimension_text import REPORT_DIM_VOICE, finalize_dimension
 from stockresearch.core.constants import CONFIDENCE_MEDIUM
 from stockresearch.core.schemas import DimensionResult
 from stockresearch.data.providers.market import MarketRuleProvider, QuoteProvider, TechnicalDataProvider
 
-_SYSTEM = f"你是 A 股技术分析师。{AGENT_VOICE} 不要给出买入卖出建议。"
+_SYSTEM = f"你是 A 股技术分析师。{REPORT_DIM_VOICE}"
 
 
 async def _tool_kline(ctx: ResearchContext) -> dict[str, object]:
@@ -54,13 +54,14 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
         score += 0.5
     score = max(1.0, min(10.0, score))
 
-    return DimensionResult(
+    return finalize_dimension(
         agent="technical",
-        score=round(score, 1),
+        score=score,
         confidence=as_confidence(CONFIDENCE_MEDIUM),
-        highlights=[analysis.strip()] if analysis.strip() else [f"RSI {indicators['rsi']}"],
-        risks=[f"支撑位参考 MA20={ma20:.2f}"],
+        raw_analysis=analysis,
         data_sources=["akshare_kline", "sina_quote", "sina_trading_rules"],
+        fallback_highlights=[f"RSI {indicators['rsi']}"],
+        fallback_risks=[f"支撑位参考 MA20={ma20:.2f}"],
     )
 
 

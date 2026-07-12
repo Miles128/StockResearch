@@ -1772,6 +1772,32 @@
   margin-top: 8px;
 }
 
+.light-research-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+
+.light-research-view-toggle,
+.light-research-download {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.light-research-view-toggle .example-chip.active {
+  border-color: var(--bbg-amber);
+  color: var(--bbg-amber);
+}
+
+.light-research-brief-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+
 .light-research-summary {
   margin: 8px 0 12px;
 }
