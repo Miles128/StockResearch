@@ -369,19 +369,21 @@
 .workflow-agent-details {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0;
+  border-top: 1px solid var(--bbg-border);
 }
 
 .workflow-agent-detail {
-  border: 1px solid var(--bbg-border);
-  border-radius: var(--radius-sm);
-  background: var(--bbg-panel);
+  border: none;
+  border-bottom: 1px solid var(--bbg-border);
+  border-radius: 0;
+  background: transparent;
 }
 
 .workflow-agent-detail > summary {
   list-style: none;
   cursor: pointer;
-  padding: 6px 10px;
+  padding: 8px 0;
 }
 
 .workflow-agent-detail > summary::-webkit-details-marker {
@@ -396,7 +398,7 @@
 }
 
 .workflow-agent-detail-body {
-  padding: 0 10px 8px;
+  padding: 0 0 8px;
   font-size: 13px;
 }
 
@@ -1045,14 +1047,20 @@
 .dimension-grid {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
   margin: 8px 0 12px;
 }
 
 .dimension-card {
-  border: 1px solid var(--bbg-border);
-  background: var(--input-bg);
-  padding: 8px 10px;
+  border: none;
+  border-bottom: 1px solid var(--bbg-border);
+  background: transparent;
+  padding: 10px 0;
+  border-radius: 0;
+}
+
+.dimension-card:first-child {
+  border-top: 1px solid var(--bbg-border);
 }
 
 .dimension-card-head {
@@ -1090,7 +1098,6 @@
 
 .dimension-pending {
   opacity: 0.72;
-  border-style: dashed;
 }
 
 .debate-round-msg .stream-msg-body {

@@ -1,5 +1,11 @@
 import type { DimensionEvidence, DimensionResult } from "./api";
 import { MarkdownContent } from "./MarkdownContent";
+import {
+  circledIndex,
+  LineNumberedDoc,
+  textToLineRows,
+  type LineDocRow,
+} from "./lineNumberedDoc";
 
 export interface DimensionCardItem {
   id: string;
@@ -50,87 +56,84 @@ export function dimensionItemsFromResults(
   }));
 }
 
-export function DimensionCards({ items, labels, defaultOpen = false }: DimensionCardsProps) {
+function itemToRows(item: DimensionCardItem, index: number, labels: DimensionCardsProps["labels"]): LineDocRow[] {
+  const rows: LineDocRow[] = [];
+  const title = `${circledIndex(index)} ${item.title}`;
+  const metaBits: string[] = [];
+  if (item.statusLabel) metaBits.push(item.statusLabel);
+  if (item.score != null) {
+    metaBits.push(
+      `${item.score}/10${item.confidence ? ` · ${labels.confidence} ${item.confidence}` : ""}${
+        item.partial ? " · partial" : ""
+      }`,
+    );
+  }
+  rows.push({
+    kind: "section",
+    text: title,
+    meta: metaBits.length ? metaBits.join(" · ") : undefined,
+  });
+
+  const analyzing =
+    item.status === "running" && !item.body && !(item.highlights?.length ?? 0) && labels.analyzing;
+  if (analyzing) {
+    rows.push({ kind: "text", text: labels.analyzing! });
+  }
+
+  if (item.body) {
+    const bodyRows = textToLineRows(item.body);
+    if (bodyRows.length) {
+      const last = bodyRows[bodyRows.length - 1];
+      rows.push(...bodyRows.slice(0, -1));
+      rows.push({
+        kind: "node",
+        node: (
+          <span className="ln-body-line">
+            {last.text}
+            {item.streaming ? <span className="stream-cursor">▍</span> : null}
+          </span>
+        ),
+      });
+    } else {
+      rows.push({
+        kind: "node",
+        node: (
+          <div className="stream-msg-body ln-md">
+            <MarkdownContent text={item.body} />
+            {item.streaming ? <span className="stream-cursor">▍</span> : null}
+          </div>
+        ),
+      });
+    }
+  }
+
+  for (const h of item.highlights ?? []) {
+    rows.push({ kind: "text", text: h });
+  }
+  for (const r of item.risks ?? []) {
+    rows.push({ kind: "text", text: `${labels.risks}：${r}` });
+  }
+  if ((item.evidence?.length ?? 0) > 0 && labels.evidence) {
+    for (const ev of item.evidence!) {
+      const suffix = `${ev.source}${ev.date ? ` · ${ev.date}` : ""}`;
+      rows.push({ kind: "text", text: `${ev.snippet} · ${suffix}` });
+    }
+  }
+  if ((item.gaps?.length ?? 0) > 0 && labels.gaps) {
+    rows.push({ kind: "text", text: `${labels.gaps}：${item.gaps!.join("；")}` });
+  }
+
+  return rows;
+}
+
+export function DimensionCards({ items, labels }: DimensionCardsProps) {
   if (!items.length) return null;
-  return (
-    <div className="dimension-cards-grid">
-      {items.map((item) => {
-        const open = defaultOpen || (item.status === "running" && item.streaming);
-        return (
-          <details key={item.id} className={`dimension-card-fold dimension-${item.status ?? "done"}`} open={open}>
-            <summary className="dimension-card-summary">
-              <span className="dimension-card-title">{item.title}</span>
-              <span className="dimension-card-meta">
-                {item.statusLabel ? (
-                  <span className={`dimension-status dimension-status-${item.status}`}>{item.statusLabel}</span>
-                ) : null}
-                {item.score != null ? (
-                  <span className="stat-pill">
-                    {item.score}/10
-                    {item.confidence ? ` · ${labels.confidence} ${item.confidence}` : ""}
-                    {item.partial ? " · partial" : ""}
-                  </span>
-                ) : null}
-              </span>
-            </summary>
-            <div className="dimension-card-body">
-              {item.status === "running" && !item.body && !item.highlights?.length && labels.analyzing ? (
-                <p className="muted dimension-card-hint">{labels.analyzing}</p>
-              ) : null}
-              {item.body ? (
-                <div className="stream-msg-body">
-                  <MarkdownContent text={item.body} />
-                  {item.streaming ? <span className="stream-cursor">▍</span> : null}
-                </div>
-              ) : null}
-              {(item.highlights?.length ?? 0) > 0 && (
-                <div className="dimension-highlights">
-                  <strong>{labels.highlights}：</strong>
-                  <MarkdownContent
-                    className="markdown-inline"
-                    text={item.highlights!.join("；")}
-                  />
-                </div>
-              )}
-              {(item.risks?.length ?? 0) > 0 && (
-                <div className="dimension-risks muted">
-                  <strong>{labels.risks}：</strong>
-                  <MarkdownContent className="markdown-inline" text={item.risks!.join("；")} />
-                </div>
-              )}
-              {(item.evidence?.length ?? 0) > 0 && labels.evidence ? (
-                <div className="dimension-evidence">
-                  <strong>{labels.evidence}：</strong>
-                  <ul className="dimension-evidence-list">
-                    {item.evidence!.map((ev, idx) => (
-                      <li key={`${ev.source}-${idx}`}>
-                        {ev.url ? (
-                          <a href={ev.url} target="_blank" rel="noreferrer">
-                            {ev.snippet}
-                          </a>
-                        ) : (
-                          <span>{ev.snippet}</span>
-                        )}
-                        <span className="muted">
-                          {" "}
-                          · {ev.source}
-                          {ev.date ? ` · ${ev.date}` : ""}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              {(item.gaps?.length ?? 0) > 0 && labels.gaps ? (
-                <p className="muted dimension-gaps">
-                  <strong>{labels.gaps}：</strong>
-                  {item.gaps!.join("；")}
-                </p>
-              ) : null}
-            </div>
-          </details>
-        );
-      })}
-    </div>
-  );
+
+  const rows: LineDocRow[] = [];
+  items.forEach((item, index) => {
+    if (index > 0) rows.push({ kind: "spacer" });
+    rows.push(...itemToRows(item, index, labels));
+  });
+
+  return <LineNumberedDoc className="dimension-line-doc" rows={rows} />;
 }

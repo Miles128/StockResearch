@@ -3,6 +3,7 @@ import type { Message } from "./appTypes";
 import type { AppMode } from "./modeSettings";
 import { CardView, PlanCardsFold, StockChoiceCardView } from "./chatCards";
 import { FollowUpChips } from "./FollowUpChips";
+import { FourDimLineOutline } from "./FourDimLineOutline";
 import { LightResearchCard } from "./LightResearchCard";
 import {
   findResearchReport,
@@ -168,6 +169,7 @@ export function ChatPanel({
                 </button>
               ))}
             </div>
+            <FourDimLineOutline onSelectLine={(line) => onInputChange(line)} />
             {holdings.length > 0 && (
               <div className="research-quick-picks" style={{ marginTop: 8 }}>
                 <span className="muted">{t("chat.holdingsQuick")}</span>

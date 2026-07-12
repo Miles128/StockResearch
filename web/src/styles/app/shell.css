@@ -20,7 +20,8 @@
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  overflow: hidden;
+  /* visible so alert/search dropdowns are not clipped */
+  overflow: visible;
 }
 
 .chrome-left {
@@ -755,7 +756,7 @@ input:focus {
   line-height: 1.5;
   max-width: 92%;
   border: 1px solid var(--bbg-border);
-  font-size: 15px;
+  font-size: var(--chat-font-size, 14px);
 }
 
 .message.user {
@@ -877,12 +878,12 @@ input:focus {
 .stream-msg-body .markdown-body,
 .light-research-summary .markdown-body,
 .conclusion-panel .markdown-body {
-  font-size: 15px;
+  font-size: var(--chat-font-size, 14px);
   line-height: 1.55;
 }
 
 .markdown-body {
-  font-size: 15px;
+  font-size: var(--chat-font-size, 14px);
   line-height: 1.55;
 }
 
@@ -900,7 +901,7 @@ input:focus {
   color: var(--bbg-orange);
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  font-size: 15px;
+  font-size: var(--chat-font-size, 14px);
 }
 
 .markdown-body code {
@@ -1263,7 +1264,10 @@ input:focus {
   writing-mode: horizontal-tb;
   text-orientation: mixed;
   border-radius: 0;
-  background: var(--input-bg);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--bbg-border);
+  padding: 8px 0;
 }
 
 .stream-msg-head {
@@ -1280,7 +1284,7 @@ input:focus {
 
 .stream-msg-body {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--chat-font-size, 14px);
   line-height: 1.5;
   white-space: normal;
   word-break: break-word;
@@ -1303,7 +1307,7 @@ input:focus {
 
 .stream-section-title {
   margin: 8px 0 4px;
-  font-size: 15px;
+  font-size: var(--chat-font-size, 14px);
   font-weight: 700;
   color: var(--bbg-orange);
   letter-spacing: 0.04em;
@@ -1384,7 +1388,7 @@ input:focus {
 
 .verdict-head { font-weight: 700; margin-bottom: 6px; color: var(--bbg-orange); font-size: 13.75px; text-transform: uppercase; letter-spacing: 0.06em; }
 .verdict-metrics { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 6px; }
-.verdict-summary { margin: 0; font-size: 15px; }
+.verdict-summary { margin: 0; font-size: var(--chat-font-size, 14px); }
 .verdict-reason { margin: 4px 0 0; font-size: 13.75px; }
 
 .verdict-card.action-add { border-left: 2px solid var(--bbg-up); }

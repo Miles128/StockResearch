@@ -318,15 +318,17 @@ select {
 }
 
 .dimension-cards-grid {
-  display: grid;
-  gap: 8px;
-  margin: 8px 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 4px 0 8px;
 }
 
 .dimension-card-fold {
-  border: 1px solid var(--bbg-border);
-  border-radius: var(--radius-sm);
-  background: var(--bbg-panel);
+  border: none;
+  border-bottom: 1px solid var(--bbg-border);
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
 }
 
@@ -337,7 +339,7 @@ select {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 10px 0;
 }
 
 .dimension-card-fold > summary::-webkit-details-marker {
@@ -364,6 +366,96 @@ select {
   gap: 6px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+/* Line Numbers variant — Lazyweb mockup */
+.line-numbered-doc {
+  display: flex;
+  flex-direction: column;
+  margin: 10px 0 4px;
+  font-size: var(--chat-font-size, 14px);
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.ln-row {
+  display: grid;
+  grid-template-columns: 2.25rem 1fr;
+  column-gap: 10px;
+  min-height: 1.55em;
+  align-items: start;
+}
+
+.ln-n {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  text-align: right;
+  color: var(--bbg-muted);
+  opacity: 0.72;
+  user-select: none;
+  padding-right: 8px;
+  border-right: 1px solid var(--bbg-border);
+}
+
+.ln-c {
+  min-width: 0;
+  padding-left: 2px;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.ln-section .ln-c {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ln-section-title {
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+
+.ln-section-meta {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--bbg-muted);
+}
+
+.ln-spacer .ln-c {
+  min-height: 1.55em;
+}
+
+.ln-clickable {
+  cursor: pointer;
+}
+
+.ln-clickable:hover .ln-c {
+  color: var(--bbg-amber);
+}
+
+.ln-body-line {
+  white-space: pre-wrap;
+}
+
+.four-dim-line-outline {
+  margin-top: 14px;
+}
+
+.dimension-line-doc {
+  margin-top: 6px;
+}
+
+.chat-panel .stream-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bbg-muted);
+  margin: 4px 0 2px;
 }
 
 .holdings-table th.num,
@@ -402,8 +494,12 @@ select {
 }
 
 .light-research-summary .markdown-body {
-  font-size: 15px;
+  font-size: var(--chat-font-size, 14px);
   line-height: 1.55;
+}
+
+.dimension-card-fold .dimension-card-body {
+  padding: 0 0 10px;
 }
 
 /* Unified card + quote data surfaces */
