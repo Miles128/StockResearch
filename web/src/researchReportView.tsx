@@ -266,6 +266,9 @@ export function ResearchReportDetails({
           defaultOpen={evidenceOpen}
           labels={{
             confidence: t("card.confidence"),
+            confidenceHigh: t("card.confidenceHigh"),
+            confidenceMedium: t("card.confidenceMedium"),
+            confidenceLow: t("card.confidenceLow"),
             highlights: t("card.highlights"),
             risks: t("card.risks"),
             evidence: t("card.evidence"),

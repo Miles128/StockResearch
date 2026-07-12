@@ -339,10 +339,14 @@ export function StreamFeed({
 
       {showDimensionGrid && (
         <div className="dimension-grid">
+          <p className="stream-section-title">{t("stream.fourDim")}</p>
           <DimensionCards
             defaultOpen={false}
             labels={{
               confidence: t("card.confidence"),
+              confidenceHigh: t("card.confidenceHigh"),
+              confidenceMedium: t("card.confidenceMedium"),
+              confidenceLow: t("card.confidenceLow"),
               highlights: t("card.highlights"),
               risks: t("card.risks"),
               analyzing: t("stream.analyzing"),

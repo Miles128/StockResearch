@@ -6,7 +6,7 @@ import type { AppMode } from "./modeSettings";
 import { MarkdownContent } from "./MarkdownContent";
 import { normalizeResearchConclusion, researchExpandHintsFromReport } from "./researchText";
 import { ResearchReportDetails } from "./researchReportView";
-import { localizeAgentDisplay } from "./uiLabels";
+import { localizeAgentDisplay, localizeConfidence } from "./uiLabels";
 
 interface LightResearchCardProps {
   report: ResearchReport;
@@ -68,6 +68,9 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
         <div className="stat-row">
           <span className="stat-pill">
             {t("card.score")} {report.composite_score}/10
+            {report.composite_confidence
+              ? ` · ${t("card.confidence")} ${localizeConfidence(report.composite_confidence, t)}`
+              : ""}
           </span>
           <span className="stat-pill">
             {t("card.bias")} {report.bias}
@@ -126,6 +129,9 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
           defaultOpen={isExpert || view === "formal"}
           labels={{
             confidence: t("card.confidence"),
+            confidenceHigh: t("card.confidenceHigh"),
+            confidenceMedium: t("card.confidenceMedium"),
+            confidenceLow: t("card.confidenceLow"),
             highlights: t("card.highlights"),
             risks: t("card.risks"),
             evidence: t("card.evidence"),
