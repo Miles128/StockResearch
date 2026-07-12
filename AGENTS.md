@@ -40,10 +40,11 @@ pytest && cd web && npm run build
 
 ## Documentation
 
-- **PRD:** `docs/PRD.md` — **only file under `docs/` pushed to GitHub**
-- **Local only:** `docs/meta.yaml` (prd-first), `docs/screenshots/` (capture script output)
+- **PRD:** `docs/PRD.md`
+- **UI screenshots:** `docs/screenshots/` (regenerate with `scripts/capture_screenshots.mjs`)
+- **Local only:** `docs/meta.yaml` (prd-first)
 
-**Rules:** Do not add PRD copies under `documents/`, `.prd/`, or repo root. Do not track other files under `docs/` — update `docs/PRD.md` §十 instead.
+**Rules:** Do not add PRD copies under `documents/`, `.prd/`, or repo root. Do not track other files under `docs/` except `PRD.md` and `screenshots/` — update `docs/PRD.md` §十 instead.
 
 ## Architecture
 
