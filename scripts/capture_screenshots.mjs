@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = path.join(ROOT, "docs", "screenshots");
 const BASE = process.env.SCREENSHOT_BASE_URL ?? "http://127.0.0.1:5174";
-const API = process.env.SCREENSHOT_API_URL ?? "http://127.0.0.1:8000";
+const API = process.env.SCREENSHOT_API_URL ?? "http://127.0.0.1:8000/api/v1";
 
 const LLM_SETTINGS = {
   apiKey: "screenshot-demo",
@@ -36,6 +36,7 @@ const MODE_SETTINGS = {
 
 const CENTER_TABS = [
   ["focus", "今日关注"],
+  ["market", "市场"],
   ["risk", "风控"],
   ["news", "新闻"],
 ];
@@ -90,11 +91,11 @@ async function loadDemoPortfolio() {
   }
 }
 
-await page.goto(BASE, { waitUntil: "networkidle" });
+await page.goto(BASE, { waitUntil: "load" });
 await page.waitForTimeout(2000);
 await dismissOverlays();
 await loadDemoPortfolio();
-await page.reload({ waitUntil: "networkidle" });
+await page.reload({ waitUntil: "load" });
 await page.waitForTimeout(2500);
 await dismissOverlays();
 
@@ -107,7 +108,14 @@ if (await firstHolding.isVisible().catch(() => false)) {
 
 for (const [id, label] of CENTER_TABS) {
   await page.getByRole("button", { name: label, exact: true }).first().click();
-  await page.waitForTimeout(1800);
+  await page.waitForTimeout(id === "news" || id === "market" ? 3500 : 1800);
+  if (id === "news") {
+    await page
+      .locator(".news-card, .news-group-title")
+      .first()
+      .waitFor({ state: "visible", timeout: 10000 })
+      .catch(() => {});
+  }
   await page.screenshot({ path: path.join(OUT, `${id}.png`), fullPage: false });
   console.log(`saved ${id}.png`);
 }

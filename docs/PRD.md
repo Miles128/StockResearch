@@ -1,18 +1,22 @@
 # StockResearch 产品需求文档
 
-**V10.3 · 开源 A 股市场研究 Agent**
+**V10.5 · 开源 A 股市场研究 Agent**
 
-> 唯一 PRD：`docs/PRD.md`（Git 中 `docs/` 仅推送本文件）。本地可选 `docs/meta.yaml` 供 prd-first 工具读取。
+> 唯一 PRD：`docs/PRD.md`。Git 中 `docs/` 还推送 `screenshots/` 界面预览图。本地可选 `docs/meta.yaml` 供 prd-first 工具读取。
 
 ---
 
 ## 一、定位
 
-本机联网运行的 **A 股 AI 研究 Agent**。不连券商、不代交易。
+本机联网运行的 **A 股 AI 研究 Agent**。不连券商、不代交易。非机构终端（不做 Wind / iFinD / Choice）。
 
 **北极星（Phase 1）**：单机体验完整 — 本地 Web UI + FastAPI + SQLite + BYOK。
 
+**北极星演进（Phase 3+）**：在完整单机体验之上，强调 **证据是否充分 · 结论能否被事后验证**。
+
 帮助用户回答：**今天发生了什么 · 为什么与我有关 · 还需要验证什么**。
+
+深度投研交付「可核对证据」；轻量化交付「可验证假设/信号」——因子与回测服务于验证研究结论，不是第二套量化产品。
 
 ## 二、用户与双模式
 
@@ -22,6 +26,7 @@
 | 术语弹窗 | 默认开 | 无 |
 | 辩论 | 默认关 | 默认开 |
 | 资产配置 | 按风险/现金流给参考 | 用户手动设目标，展示偏差 |
+| 证据链 | 默认折叠 | 默认展开 |
 
 **契约**：同一推理管线产出同一 JSON/cards；仅渲染策略不同。禁止因模式改变事实层数值。
 
@@ -40,19 +45,25 @@
 - **Copilot = 焦点 source of truth**：「分析茅台」→ 茅台 Tab；「茅台 vs 当前选中」→ 交叉对比
 - **Demo 持仓**：空组合时 `/portfolio/demo` 快速体验
 - 对话结束展示 **disclaimer**（与 API 字段同文）
+- 深度研究落在 Copilot 报告卡（证据链）；焦点区可附财务摘要条，不新开整页工作簿
 
 ## 四、核心能力
 
 | 能力 | 说明 |
 |------|------|
-| 四维投研 | 基本面 / 技术面 / 情绪 / 筹码 → SSE 流式 |
+| 四维投研 | 基本面 / 技术面 / 情绪 / 筹码 → SSE 流式；基本面含公告/研报证据 |
+| 证据链 | highlights/risks 可挂 source、date、snippet；显式信息缺口（`partial`） |
 | 多空辩论 | 可选；个人默认关、专家默认开 |
 | 风控体检 | 规则引擎 + 可选 LLM 解读 |
 | 新闻过滤 | 三层规则，3s SLA，零 LLM；统一 interest（持仓/自选/板块） |
 | 价格告警 | APScheduler 5min；铃铛 + 可选浏览器 Notification |
 | 定时简报 | 盘前 09:05 / 盘中 11:35 / 盘后 15:35；Cron 在独立 worker 运行 |
 | Action Center | 规则信号，零 LLM |
+| 研究信号验证 | 历史研报 bias / 因子阈值 → 前向收益统计（研究验证，非策略回测器） |
+| 数值因子 | 估值分位、动量、波动等可计算因子；证据覆盖清单与因子分离 |
 | 合规输出 | §六 语言政策 |
+
+**明确非范围**：三表完整会计引擎 / DCF 产品化；vectorbt 级策略回测、滑点撮合、组合优化；实盘信号下单；为量化单独做第三套 UI Shell。
 
 ## 五、数据源
 
@@ -63,7 +74,7 @@
 | 数据 | 主源 | 备源（按序） | 接口/说明 |
 |------|------|--------------|-----------|
 | 实时报价 | **新浪财经** `hq.sinajs.cn` | AkShare hist → **efinance** | 三源兜底 |
-| 日 K 线 | **AkShare**（前复权 `stock_zh_a_hist`） | 新浪 K 线 → efinance | 指数用 `index_zh_a_hist` |
+| 日 K 线 | **AkShare**（前复权 `stock_zh_a_hist`） | 新浪 K 线 → efinance | 指数用 `index_zh_a_hist`；本地日线仓增量缓存持仓/自选 |
 | 指数概览 | **新浪指数** | AkShare | 北向：AkShare `stock_hsgt_north_net_flow_in_em` |
 
 ### 5.2 新闻、公告、研报
@@ -72,23 +83,25 @@
 |------|------|------|
 | 快讯 | **AkShare**（东方财富新闻） | 主路径 |
 | 新闻兜底 | **博查 AI 搜索** | 需用户 `BOCHA_API_KEY`；AkShare 无结果时启用 |
-| 上市公司公告 | **巨潮资讯** via AkShare | `stock_zh_a_disclosure_report_cninfo` |
-| 机构研报 | **东方财富** via AkShare | `stock_research_report_em` |
+| 上市公司公告 | **巨潮资讯** via AkShare | 接入四维基本面主链路 |
+| 机构研报 | **东方财富** via AkShare | 接入四维基本面主链路 |
 
 ### 5.3 财务与因子
 
 | 数据 | 来源 | 说明 |
 |------|------|------|
-| 财务/估值 | AkShare | 默认 |
+| 财务/估值 | AkShare | 多期序列 + 真实估值分位；缺则 `partial` |
 | 财务增强 | **Tushare Pro**（可选，用户 Token） | 有 Key 时优先；与 AkShare 冲突 → Tushare 为准 + UI 并列预警 |
 | 筹码面 | AkShare | 龙虎榜、资金流、北向持股、两融、股东户数、解禁 |
 | 情绪面 | AkShare + 东方财富个股新闻 + 雪球热度 | — |
+| 数值因子 | 本地日线仓 + 财务/筹码快照 | 写入研究报告 `factors` 字段 |
 
 ### 5.4 冲突与降级
 
 - **多源价差 >1%**：顶栏黄色预警；输出标注延迟/口径差异
 - **`partial=true`**：可给方向性结论，须列出信息缺口
 - **Tushare 未配置**：核心路径仍可用免费源
+- **估值分位不可算**：禁止静默填 `0.5`；须 `partial` + 缺口说明
 
 ## 六、合规
 
@@ -110,13 +123,27 @@
 
 Phase 2：`stockresearch worker` 独立 Cron + 可选 launchd 示例。
 
-## 八、Phase 2 优先级
+## 八、路线图优先级
+
+### Phase 2（基础设施）
 
 1. ~~Settings 接 §七 开关；ingest 后台化；`stockresearch worker`~~（已完成）
 2. ~~`prompts/` 外置~~（已完成）
 3. Tushare Registry 完善（可选）
 4. CLI + MCP + Skills 外化（后期）
 5. 可选 launchd 示例（worker 常驻）
+
+### Phase 3（证据加深）
+
+1. 公告/研报接入四维基本面主链路
+2. 财务多期序列、真实估值分位、动态可比
+3. 报告 evidence schema + Copilot 证据/缺口展示
+
+### Phase 4（轻量化）
+
+1. SQLite 日线仓 + worker 增量拉取持仓/自选宇宙
+2. 可计算数值因子（与证据覆盖清单分离）
+3. 研究信号验证升级（文案称「验证」，非策略回测）
 
 ## 九、工程
 
@@ -130,7 +157,9 @@ uv run pytest && cd web && npm run build
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
-| **V10.3** | 2026-07-07 | 新增独立「市场」Tab；prompts 外置；定时任务独立 worker CLI；新闻 ingest 后台 job；盘前/盘中/盘后三段简报 |
+| **V10.5** | 2026-07-13 | README 纳入最新 UI 截图（`docs/screenshots/`） |
+| V10.4 | 2026-07-11 | 方向：深度证据 + 轻量可验证；Phase 3/4 路线图；公告研报进主链路；数值因子与研究验证语义 |
+| V10.3 | 2026-07-07 | 新增独立「市场」Tab；prompts 外置；定时任务独立 worker CLI；新闻 ingest 后台 job；盘前/盘中/盘后三段简报 |
 | V10.2 | 2026-07-01 | 精简 PRD；数据源按代码现状重写（新浪/AkShare/efinance 三层行情；K 线 AkShare 优先） |
 | V10.1 | 2026-06-30 | 双模式契约；合规语言；Focus 多 Tab；§7 开关语义 |
 | V10.0 | 2026-06-29 | 唯一 PRD；三 Tab tri-shell；统一 chat 路由 |
