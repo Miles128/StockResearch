@@ -22,9 +22,40 @@ SECTOR_DEFAULT_VOLATILITY: dict[str, float] = {
     "finance": 0.20,
     "financial": 0.20,
     "金融": 0.20,
+    "银行": 0.18,
+    "保险": 0.22,
+    "证券": 0.28,
+    "新能源": 0.35,
+    "光伏": 0.38,
+    "电池": 0.36,
+    "医药": 0.28,
+    "生物医药": 0.32,
+    "消费": 0.22,
+    "白酒": 0.24,
+    "食品饮料": 0.22,
+    "地产": 0.30,
+    "房地产": 0.30,
+    "周期": 0.32,
+    "有色": 0.35,
+    "钢铁": 0.30,
+    "煤炭": 0.32,
+    "军工": 0.34,
+    "电子": 0.30,
+    "半导体": 0.38,
+    "传媒": 0.32,
+    "互联网": 0.30,
 }
 
 DEFAULT_ANNUAL_VOLATILITY: float = 0.30  # 未知行业的默认年化波动率
+SINGLE_NAME_CONCENTRATION_LIMIT: float = 0.30
+SECTOR_CONCENTRATION_LIMIT: float = 0.40
+
+# 情景压力预设（相对现价冲击，小数）
+STRESS_PRESETS: list[dict[str, object]] = [
+    {"id": "sector_down_10", "name": "最大行业 -10%", "kind": "max_sector", "shock_pct": -0.10},
+    {"id": "book_down_15", "name": "全组合 -15%", "kind": "all", "shock_pct": -0.15},
+    {"id": "crash_2015_style", "name": "急跌情景 -20%", "kind": "all", "shock_pct": -0.20},
+]
 
 # VaR 正态分位数
 Z_SCORES: dict[float, float] = {
@@ -87,6 +118,10 @@ class PortfolioMetrics:
     max_loss_1d_pct: float = 0.0  # 单日最大可能损失占比
     expected_loss: float = 0.0  # 期望损失 EL（元）
     expected_loss_pct: float = 0.0  # 期望损失占比
+    sector_weights: list[dict[str, Any]] = field(default_factory=list)
+    top_holding_weight: float = 0.0
+    top_holding_symbol: str | None = None
+    top_holding_name: str | None = None
 
 
 @dataclass
@@ -308,18 +343,36 @@ def calculate_portfolio_metrics(
         sortino_ratio = 0.0 if portfolio_return <= RISK_FREE_RATE else float("inf")
 
     # ── 行业集中度 ──
-    sector_weights: dict[str, float] = {}
+    sector_weight_map: dict[str, float] = {}
     if total_value > 0:
         for h in holding_quotes:
-            sector_weights[h.sector] = (
-                sector_weights.get(h.sector, 0.0)
-                + _holding_weight(h, total_value)
+            sector_weight_map[h.sector] = (
+                sector_weight_map.get(h.sector, 0.0) + _holding_weight(h, total_value)
             )
 
-    concentration_ratio = max(sector_weights.values()) if sector_weights else 0.0
+    concentration_ratio = max(sector_weight_map.values()) if sector_weight_map else 0.0
     concentration_sector = (
-        max(sector_weights, key=sector_weights.get) if sector_weights else None
+        max(sector_weight_map, key=sector_weight_map.get) if sector_weight_map else None
     )
+    sector_weights = [
+        {
+            "sector": sector,
+            "weight": round(weight, 4),
+            "value": round(weight * total_value, 2),
+        }
+        for sector, weight in sorted(
+            sector_weight_map.items(), key=lambda item: item[1], reverse=True
+        )
+    ]
+
+    top_holding_weight = 0.0
+    top_holding_symbol: str | None = None
+    top_holding_name: str | None = None
+    if total_value > 0:
+        top = max(holding_quotes, key=lambda h: _holding_value(h))
+        top_holding_weight = _holding_weight(top, total_value)
+        top_holding_symbol = top.symbol
+        top_holding_name = top.name
 
     # ── Calmar 比率（年化收益 / |最大回撤|） ──
     abs_dd = abs(max_drawdown)
@@ -363,7 +416,88 @@ def calculate_portfolio_metrics(
         max_loss_1d_pct=max_loss_1d_pct,
         expected_loss=expected_loss,
         expected_loss_pct=expected_loss_pct,
+        sector_weights=sector_weights,
+        top_holding_weight=top_holding_weight,
+        top_holding_symbol=top_holding_symbol,
+        top_holding_name=top_holding_name,
     )
+
+
+def apply_price_shocks(
+    holding_quotes: list[HoldingQuote],
+    shocks: dict[str, float],
+    *,
+    by: str = "symbol",
+) -> dict[str, float]:
+    """Apply relative price shocks and return portfolio PnL.
+
+    Args:
+        holding_quotes: current holdings with prices
+        shocks: map of symbol or sector -> shock fraction (e.g. -0.1)
+        by: "symbol" or "sector"
+    """
+    total_value = _portfolio_value(holding_quotes)
+    if total_value <= 0:
+        return {"portfolio_value": 0.0, "shocked_value": 0.0, "pnl": 0.0, "pnl_pct": 0.0}
+
+    shocked_value = 0.0
+    for h in holding_quotes:
+        key = h.symbol if by == "symbol" else h.sector
+        shock = shocks.get(key, shocks.get("*", 0.0))
+        shocked_price = h.current_price * (1.0 + shock)
+        shocked_value += shocked_price * h.quantity
+    pnl = shocked_value - total_value
+    return {
+        "portfolio_value": total_value,
+        "shocked_value": shocked_value,
+        "pnl": pnl,
+        "pnl_pct": pnl / total_value,
+    }
+
+
+def run_stress_presets(holding_quotes: list[HoldingQuote]) -> list[dict[str, Any]]:
+    """Run built-in research stress presets (no broker / no Greeks)."""
+    if not holding_quotes:
+        return []
+    results: list[dict[str, Any]] = []
+    pm = calculate_portfolio_metrics(holding_quotes)
+    max_sector = pm.concentration_sector
+    for preset in STRESS_PRESETS:
+        kind = str(preset["kind"])
+        shock_pct = float(preset["shock_pct"])  # type: ignore[arg-type]
+        if kind == "max_sector" and max_sector:
+            shock_result = apply_price_shocks(
+                holding_quotes, {max_sector: shock_pct}, by="sector"
+            )
+            label = f"{preset['name']}（{max_sector}）"
+        elif kind == "all":
+            shock_result = apply_price_shocks(holding_quotes, {"*": shock_pct}, by="symbol")
+            label = str(preset["name"])
+        else:
+            continue
+        results.append(
+            {
+                "id": preset["id"],
+                "name": label,
+                "pnl": round(shock_result["pnl"], 2),
+                "pnl_pct": round(shock_result["pnl_pct"], 4),
+                "shocked_value": round(shock_result["shocked_value"], 2),
+            }
+        )
+    return results
+
+
+def closes_to_daily_returns(closes: list[float]) -> list[float]:
+    """Convert close series to simple daily returns (decimal)."""
+    if len(closes) < 2:
+        return []
+    out: list[float] = []
+    for i in range(1, len(closes)):
+        prev = closes[i - 1]
+        if prev <= 0:
+            continue
+        out.append((closes[i] - prev) / prev)
+    return out
 
 
 def calculate_var(

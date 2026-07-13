@@ -1,6 +1,9 @@
 """Read-only research-signal verification: forward returns after historical report bias."""
 
+from __future__ import annotations
+
 from datetime import datetime
+from statistics import median
 
 from sqlalchemy.orm import Session
 
@@ -9,6 +12,8 @@ from stockresearch.core.schemas import SignalBacktestHorizon, SignalBacktestOut
 from stockresearch.data.providers.market import TechnicalDataProvider
 from stockresearch.db.models import ResearchReport
 from stockresearch.services.daily_bars import get_bars_for_symbol
+
+_MIN_SAMPLE_FOR_CONFIDENCE = 8
 
 
 def _parse_date(value: str) -> datetime | None:
@@ -59,6 +64,31 @@ def _factor_tilt(payload: dict[str, object]) -> str | None:
     return None
 
 
+def _avg(values: list[float]) -> float | None:
+    return sum(values) / len(values) if values else None
+
+
+def _med(values: list[float]) -> float | None:
+    return float(median(values)) if values else None
+
+
+def _build_sample_bias_note(
+    *,
+    unique_symbols: int,
+    total_samples: int,
+    bias_count: int,
+    tilt_count: int,
+) -> str:
+    parts = [
+        "样本来自本机历史研报，存在选择偏差；未计入交易成本与冲击成本。",
+        f"覆盖 {unique_symbols} 只标的、{total_samples} 条可验证信号"
+        f"（研报偏向 {bias_count} · 因子倾斜 {tilt_count}）。",
+    ]
+    if total_samples > 0 and total_samples < _MIN_SAMPLE_FOR_CONFIDENCE:
+        parts.append(f"样本量 < {_MIN_SAMPLE_FOR_CONFIDENCE}，统计仅供粗看，勿过度解读。")
+    return "".join(parts)
+
+
 async def compute_signal_backtest(
     db: Session,
     user_id: int,
@@ -77,16 +107,26 @@ async def compute_signal_backtest(
     bucket: dict[int, dict[str, list[float]]] = {
         h: {"bullish": [], "bearish": []} for h in horizons
     }
-    factor_notes: list[str] = []
+    used_symbols: set[str] = set()
+    bias_signals = 0
+    tilt_signals = 0
     factor_hits = 0
     factor_samples = 0
+    notes: list[str] = []
 
     for row in rows:
         payload = row.report_json if isinstance(row.report_json, dict) else {}
         bias = str(payload.get("bias", "neutral"))
         tilt = _factor_tilt(payload)
-        signal = bias if bias in ("bullish", "bearish") else tilt
-        if signal not in ("bullish", "bearish"):
+        source: str | None = None
+        signal: str | None = None
+        if bias in ("bullish", "bearish"):
+            signal = bias
+            source = "bias"
+        elif tilt in ("bullish", "bearish"):
+            signal = tilt
+            source = "tilt"
+        if signal not in ("bullish", "bearish") or source is None:
             continue
         if row.symbol not in cache:
             try:
@@ -105,43 +145,92 @@ async def compute_signal_backtest(
                 break
         if start_idx < 0:
             continue
+
+        counted = False
         for h in horizons:
             ret = _forward_return_pct(bars, start_idx, h)
-            if ret is not None:
-                bucket[h][signal].append(ret)
-                if tilt is not None:
-                    factor_samples += 1
-                    if (tilt == "bullish" and ret > 0) or (tilt == "bearish" and ret < 0):
-                        factor_hits += 1
+            if ret is None:
+                continue
+            bucket[h][signal].append(ret)
+            if not counted:
+                used_symbols.add(row.symbol)
+                if source == "bias":
+                    bias_signals += 1
+                else:
+                    tilt_signals += 1
+                counted = True
+            if source == "tilt":
+                factor_samples += 1
+                if (tilt == "bullish" and ret > 0) or (tilt == "bearish" and ret < 0):
+                    factor_hits += 1
 
     if factor_samples > 0:
         rate = round(factor_hits / factor_samples * 100.0, 1)
-        factor_notes.append(f"因子倾斜样本 {factor_samples}，方向命中率 {rate}%（启发式，非策略回测）")
+        notes.append(
+            f"因子倾斜样本 {factor_samples}，方向命中率 {rate}%（启发式，非策略回测）"
+        )
+    if bias_signals and tilt_signals:
+        notes.append(
+            f"信号来源分层：研报偏向 {bias_signals} 条优先于因子倾斜 {tilt_signals} 条"
+        )
 
     out_horizons: list[SignalBacktestHorizon] = []
     for h in horizons:
         bull = bucket[h]["bullish"]
         bear = bucket[h]["bearish"]
-        bull_avg = sum(bull) / len(bull) if bull else None
-        bear_avg = sum(bear) / len(bear) if bear else None
+        bull_avg = _avg(bull)
+        bear_avg = _avg(bear)
+        bull_med = _med(bull)
+        bear_med = _med(bear)
         bull_hit = (sum(1 for x in bull if x > 0) / len(bull) * 100) if bull else None
         bear_hit = (sum(1 for x in bear if x < 0) / len(bear) * 100) if bear else None
+        spread = None
+        if bull_avg is not None and bear_avg is not None:
+            spread = round(bull_avg - bear_avg, 2)
+        elif bull_avg is not None or bear_avg is not None:
+            # 单边样本：不报 spread，避免误读
+            spread = None
+        sample_n = len(bull) + len(bear)
+        if sample_n > 0 and sample_n < _MIN_SAMPLE_FOR_CONFIDENCE:
+            notes.append(f"{h} 日窗口样本仅 {sample_n}，命中率波动大")
         out_horizons.append(
             SignalBacktestHorizon(
                 days=h,
-                sample_count=len(bull) + len(bear),
+                sample_count=sample_n,
                 bullish_count=len(bull),
                 bearish_count=len(bear),
                 bullish_avg_return_pct=round(bull_avg, 2) if bull_avg is not None else None,
                 bearish_avg_return_pct=round(bear_avg, 2) if bear_avg is not None else None,
+                bullish_median_return_pct=round(bull_med, 2) if bull_med is not None else None,
+                bearish_median_return_pct=round(bear_med, 2) if bear_med is not None else None,
                 bullish_positive_rate_pct=round(bull_hit, 1) if bull_hit is not None else None,
                 bearish_negative_rate_pct=round(bear_hit, 1) if bear_hit is not None else None,
+                spread_avg_return_pct=spread,
             )
         )
 
+    # Deduplicate horizon low-sample notes while preserving order
+    seen: set[str] = set()
+    deduped_notes: list[str] = []
+    for note in notes:
+        if note in seen:
+            continue
+        seen.add(note)
+        deduped_notes.append(note)
+
+    total_samples = bias_signals + tilt_signals
     return SignalBacktestOut(
         horizons=out_horizons,
         disclaimer=f"研究信号验证仅供参考，不构成投资建议。{DISCLAIMER}",
         label="研究信号验证",
-        notes=factor_notes,
+        notes=deduped_notes,
+        sample_bias_note=_build_sample_bias_note(
+            unique_symbols=len(used_symbols),
+            total_samples=total_samples,
+            bias_count=bias_signals,
+            tilt_count=tilt_signals,
+        ),
+        unique_symbols=len(used_symbols),
+        bias_sample_count=bias_signals,
+        factor_tilt_sample_count=tilt_signals,
     )

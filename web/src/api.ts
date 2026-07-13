@@ -737,6 +737,18 @@ export interface PortfolioMetrics {
   max_loss_1d_pct: number;
   expected_loss: number;
   expected_loss_pct: number;
+  sector_weights?: { sector?: string; weight?: number; value?: number }[];
+  top_holding_weight?: number;
+  top_holding_symbol?: string | null;
+  top_holding_name?: string | null;
+}
+
+export interface StressResult {
+  id: string;
+  name: string;
+  pnl: number;
+  pnl_pct: number;
+  shocked_value?: number;
 }
 
 export interface RiskCheckup {
@@ -759,6 +771,7 @@ export interface RiskCheckup {
     cvar_pct: number;
     holdings_var: { name: string; symbol?: string; weight: number; var_value: number }[];
   };
+  stress_results?: StressResult[];
   master_commentary?: MasterCommentaryItem[];
 }
 
@@ -933,8 +946,11 @@ export interface SignalBacktestHorizon {
   bearish_count: number;
   bullish_avg_return_pct: number | null;
   bearish_avg_return_pct: number | null;
+  bullish_median_return_pct?: number | null;
+  bearish_median_return_pct?: number | null;
   bullish_positive_rate_pct: number | null;
   bearish_negative_rate_pct: number | null;
+  spread_avg_return_pct?: number | null;
 }
 
 export interface SignalBacktest {
@@ -943,6 +959,9 @@ export interface SignalBacktest {
   label?: string;
   notes?: string[];
   sample_bias_note?: string;
+  unique_symbols?: number;
+  bias_sample_count?: number;
+  factor_tilt_sample_count?: number;
 }
 
 export interface MemorySearchHit {
@@ -1011,12 +1030,21 @@ export interface KlineChart {
     close: number;
     volume: number;
   }[];
+  source?: string;
+  adjust?: string;
   indicators: {
     ma20: (number | null)[];
     rsi: (number | null)[];
     macd: (number | null)[];
     macd_signal: (number | null)[];
     macd_histogram: (number | null)[];
+    boll_mid?: (number | null)[];
+    boll_upper?: (number | null)[];
+    boll_lower?: (number | null)[];
+    atr?: (number | null)[];
+    kdj_k?: (number | null)[];
+    kdj_d?: (number | null)[];
+    kdj_j?: (number | null)[];
   };
 }
 

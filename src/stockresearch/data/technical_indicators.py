@@ -83,3 +83,87 @@ def macd_series(closes: list[float]) -> dict[str, list[float | None]]:
             continue
         histogram[i] = round(macd_value - signal_value, 4)
     return {"macd": macd_line, "signal": signal_line, "histogram": histogram}
+
+
+def boll_series(
+    closes: list[float],
+    window: int = 20,
+    num_std: float = 2.0,
+) -> dict[str, list[float | None]]:
+    """Bollinger bands: mid = MA, upper/lower = mid ± num_std * stdev."""
+    n = len(closes)
+    mid: list[float | None] = [None] * n
+    upper: list[float | None] = [None] * n
+    lower: list[float | None] = [None] * n
+    if window < 2 or n < window:
+        return {"mid": mid, "upper": upper, "lower": lower}
+    for i in range(window - 1, n):
+        segment = closes[i + 1 - window : i + 1]
+        mean = sum(segment) / window
+        var = sum((x - mean) ** 2 for x in segment) / window
+        std = var**0.5
+        mid[i] = round(mean, 4)
+        upper[i] = round(mean + num_std * std, 4)
+        lower[i] = round(mean - num_std * std, 4)
+    return {"mid": mid, "upper": upper, "lower": lower}
+
+
+def atr_series(
+    highs: list[float],
+    lows: list[float],
+    closes: list[float],
+    period: int = 14,
+) -> list[float | None]:
+    """Average True Range (Wilder smoothing)."""
+    n = len(closes)
+    out: list[float | None] = [None] * n
+    if n < 2 or len(highs) != n or len(lows) != n or period < 1:
+        return out
+    trs: list[float] = [0.0] * n
+    trs[0] = highs[0] - lows[0]
+    for i in range(1, n):
+        trs[i] = max(
+            highs[i] - lows[i],
+            abs(highs[i] - closes[i - 1]),
+            abs(lows[i] - closes[i - 1]),
+        )
+    if n <= period:
+        return out
+    atr = sum(trs[1 : period + 1]) / period
+    out[period] = round(atr, 4)
+    for i in range(period + 1, n):
+        atr = (atr * (period - 1) + trs[i]) / period
+        out[i] = round(atr, 4)
+    return out
+
+
+def kdj_series(
+    highs: list[float],
+    lows: list[float],
+    closes: list[float],
+    n: int = 9,
+    m1: int = 3,
+    m2: int = 3,
+) -> dict[str, list[float | None]]:
+    """KDJ (RSV → K → D → J) with classic A-share defaults 9/3/3."""
+    length = len(closes)
+    empty: list[float | None] = [None] * length
+    if length < n or len(highs) != length or len(lows) != length:
+        return {"k": empty[:], "d": empty[:], "j": empty[:]}
+    k_line: list[float | None] = [None] * length
+    d_line: list[float | None] = [None] * length
+    j_line: list[float | None] = [None] * length
+    k_prev = 50.0
+    d_prev = 50.0
+    for i in range(n - 1, length):
+        window_high = max(highs[i + 1 - n : i + 1])
+        window_low = min(lows[i + 1 - n : i + 1])
+        denom = window_high - window_low
+        rsv = 50.0 if denom <= 0 else (closes[i] - window_low) / denom * 100.0
+        k_prev = (rsv + (m1 - 1) * k_prev) / m1
+        d_prev = (k_prev + (m2 - 1) * d_prev) / m2
+        j_val = 3 * k_prev - 2 * d_prev
+        k_line[i] = round(k_prev, 2)
+        d_line[i] = round(d_prev, 2)
+        j_line[i] = round(j_val, 2)
+    return {"k": k_line, "d": d_line, "j": j_line}

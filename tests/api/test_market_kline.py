@@ -14,3 +14,8 @@ def test_kline_chart(client: TestClient) -> None:
     ind = data["indicators"]
     assert len(ind["rsi"]) == len(data["bars"])
     assert len(ind["macd"]) == len(data["bars"])
+    assert len(ind["boll_mid"]) == len(data["bars"])
+    assert len(ind["atr"]) == len(data["bars"])
+    assert len(ind["kdj_k"]) == len(data["bars"])
+    assert "source" in data
+    assert data["adjust"] in ("qfq", "none")

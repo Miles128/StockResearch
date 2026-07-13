@@ -377,6 +377,10 @@ class PortfolioMetricsOut(BaseModel):
     max_loss_1d_pct: float = Field(default=0.0, description="单日最大可能损失(%)")
     expected_loss: float = Field(default=0.0, description="期望损失EL(元)")
     expected_loss_pct: float = Field(default=0.0, description="期望损失EL(%)")
+    sector_weights: list[dict[str, object]] = Field(default_factory=list)
+    top_holding_weight: float = Field(default=0.0, description="最大个股权重")
+    top_holding_symbol: str | None = None
+    top_holding_name: str | None = None
 
 
 class VaRResultOut(BaseModel):
@@ -391,12 +395,21 @@ class VaRResultOut(BaseModel):
     cvar_pct: float = Field(default=0.0, description="CVaR占组合比例(%)")
 
 
+class StressResultOut(BaseModel):
+    id: str
+    name: str
+    pnl: float
+    pnl_pct: float
+    shocked_value: float = 0.0
+
+
 class RiskCheckupOut(BaseModel):
     alerts: list[RiskAlertOut]
     portfolio_summary: str
     llm_analysis: LLMRiskAnalysis | None = None
     metrics: PortfolioMetricsOut | None = None
     var_result: VaRResultOut | None = None
+    stress_results: list[StressResultOut] = Field(default_factory=list)
     master_commentary: list[MasterCommentaryItem] = Field(default_factory=list)
     disclaimer: str = DISCLAIMER
 
@@ -561,6 +574,13 @@ class KlineIndicatorsOut(BaseModel):
     macd: list[float | None]
     macd_signal: list[float | None]
     macd_histogram: list[float | None]
+    boll_mid: list[float | None] = Field(default_factory=list)
+    boll_upper: list[float | None] = Field(default_factory=list)
+    boll_lower: list[float | None] = Field(default_factory=list)
+    atr: list[float | None] = Field(default_factory=list)
+    kdj_k: list[float | None] = Field(default_factory=list)
+    kdj_d: list[float | None] = Field(default_factory=list)
+    kdj_j: list[float | None] = Field(default_factory=list)
 
 
 class KlineChartOut(BaseModel):
@@ -568,6 +588,8 @@ class KlineChartOut(BaseModel):
     days: int
     bars: list[KlineBarOut]
     indicators: KlineIndicatorsOut
+    source: str = "unknown"
+    adjust: str = "none"  # qfq | none
 
 
 class MarketOverviewOut(BaseModel):
@@ -710,8 +732,12 @@ class SignalBacktestHorizon(BaseModel):
     bearish_count: int
     bullish_avg_return_pct: float | None = None
     bearish_avg_return_pct: float | None = None
+    bullish_median_return_pct: float | None = None
+    bearish_median_return_pct: float | None = None
     bullish_positive_rate_pct: float | None = None
     bearish_negative_rate_pct: float | None = None
+    # 偏多均涨 − 偏空均涨：方向可分性（正值表示偏多事后更强）
+    spread_avg_return_pct: float | None = None
 
 
 class SignalBacktestOut(BaseModel):
@@ -724,6 +750,9 @@ class SignalBacktestOut(BaseModel):
     sample_bias_note: str = (
         "样本来自本机历史研报，存在选择偏差；未计入交易成本与冲击成本。"
     )
+    unique_symbols: int = 0
+    bias_sample_count: int = 0
+    factor_tilt_sample_count: int = 0
 
 
 class MemorySearchHit(BaseModel):

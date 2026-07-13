@@ -68,6 +68,15 @@ export function ReportsSettingsTab({
       {backtest?.sample_bias_note ? (
         <p className="settings-muted">{backtest.sample_bias_note}</p>
       ) : null}
+      {backtest && (backtest.unique_symbols != null || backtest.bias_sample_count != null) ? (
+        <p className="settings-muted">
+          {t("settings.signalBacktestMeta", {
+            symbols: String(backtest.unique_symbols ?? 0),
+            bias: String(backtest.bias_sample_count ?? 0),
+            tilt: String(backtest.factor_tilt_sample_count ?? 0),
+          })}
+        </p>
+      ) : null}
       {backtest?.notes?.map((note) => (
         <p className="settings-muted" key={note}>
           {note}
@@ -81,7 +90,12 @@ export function ReportsSettingsTab({
                 days: String(h.days),
                 n: String(h.sample_count),
                 bull: h.bullish_avg_return_pct != null ? String(h.bullish_avg_return_pct) : "—",
+                bullMed: h.bullish_median_return_pct != null ? String(h.bullish_median_return_pct) : "—",
                 bear: h.bearish_avg_return_pct != null ? String(h.bearish_avg_return_pct) : "—",
+                bearMed: h.bearish_median_return_pct != null ? String(h.bearish_median_return_pct) : "—",
+                spread: h.spread_avg_return_pct != null ? String(h.spread_avg_return_pct) : "—",
+                bullHit: h.bullish_positive_rate_pct != null ? String(h.bullish_positive_rate_pct) : "—",
+                bearHit: h.bearish_negative_rate_pct != null ? String(h.bearish_negative_rate_pct) : "—",
               })}
             </li>
           ))}

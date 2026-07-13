@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildIndicators, maSeries, mergeKlineBars, rsiSeries } from "../chartIndicators";
+import {
+  atrSeries,
+  bollSeries,
+  buildIndicators,
+  kdjSeries,
+  maSeries,
+  mergeKlineBars,
+  rsiSeries,
+} from "../chartIndicators";
 
 describe("chartIndicators", () => {
   it("computes MA20 after enough bars", () => {
@@ -24,12 +32,20 @@ describe("chartIndicators", () => {
     expect(merged[1].close).toBe(1);
   });
 
-  it("buildIndicators matches bar count", () => {
+  it("buildIndicators matches bar count including boll/atr/kdj", () => {
     const closes = Array.from({ length: 40 }, (_, i) => 100 + Math.sin(i / 3));
-    const ind = buildIndicators(closes);
+    const highs = closes.map((c) => c + 1);
+    const lows = closes.map((c) => c - 1);
+    const ind = buildIndicators(closes, highs, lows);
     expect(ind.ma20).toHaveLength(40);
     expect(ind.rsi).toHaveLength(40);
     expect(ind.macd).toHaveLength(40);
+    expect(ind.boll_mid).toHaveLength(40);
+    expect(ind.atr).toHaveLength(40);
+    expect(ind.kdj_k).toHaveLength(40);
     expect(rsiSeries(closes)[14]).toBeTypeOf("number");
+    expect(bollSeries(closes).upper[19]).toBeTypeOf("number");
+    expect(atrSeries(highs, lows, closes)[14]).toBeTypeOf("number");
+    expect(kdjSeries(highs, lows, closes).k[8]).toBeTypeOf("number");
   });
 });

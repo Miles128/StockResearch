@@ -302,6 +302,18 @@ export function RiskPanel({
                                     : ` · ${t("rating.diversified")}`}
                                 </td>
                               </tr>
+                              {risk!.metrics.top_holding_weight != null && risk!.metrics.top_holding_weight > 0 ? (
+                                <tr>
+                                  <td>{t("risk.topHolding")}</td>
+                                  <td className="mono">{(risk!.metrics.top_holding_weight * 100).toFixed(1)}%</td>
+                                  <td className="muted">
+                                    {risk!.metrics.top_holding_name || risk!.metrics.top_holding_symbol || "-"}
+                                    {risk!.metrics.top_holding_weight > 0.3
+                                      ? ` · ${t("rating.elevated")}`
+                                      : ""}
+                                  </td>
+                                </tr>
+                              ) : null}
                               <tr>
                                 <td>{t("risk.maxLoss1d")}</td>
                                 <td className="mono down">
@@ -430,7 +442,7 @@ export function RiskPanel({
                 )}
               </section>
 
-              {(risk.llm_analysis || riskStream.judgeVerdict) && (
+              {(risk.llm_analysis || riskStream.judgeVerdict || (risk.stress_results?.length ?? 0) > 0) && (
                 <section className="risk-ai-section">
                   <h3 className="risk-section-title">
                     <IconBolt size={16} />
@@ -473,6 +485,22 @@ export function RiskPanel({
                           </div>
                         )}
                       </>
+                    )}
+                    {risk.stress_results && risk.stress_results.length > 0 && (
+                      <div className="risk-ai-block">
+                        <strong>{t("risk.stressTests")}</strong>
+                        <ul>
+                          {risk.stress_results.map((s) => (
+                            <li key={s.id}>
+                              {s.name}：{t("risk.stressPnl")}{" "}
+                              <span className={s.pnl < 0 ? "down" : ""}>
+                                ¥{s.pnl.toLocaleString(numLocale, { maximumFractionDigits: 0 })} (
+                                {(s.pnl_pct * 100).toFixed(1)}%)
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
                   </div>
                 </section>
