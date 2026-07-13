@@ -1,4 +1,4 @@
-"""A-share sector / industry board data (Eastmoney + AkShare backup)."""
+"""A-share sector / industry board data (Eastmoney + AkShare / THS backups)."""
 
 from __future__ import annotations
 
@@ -6,11 +6,13 @@ import asyncio
 import json
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 import httpx
 
 from stockresearch.data.providers.base import run_sync_fetch
+from stockresearch.services.provider_cache_policy import provider_ttl
+from stockresearch.services.sqlite_cache import get_sqlite_cached, set_sqlite_cached
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,7 @@ _HEADERS = {
     ),
     "Referer": "https://quote.eastmoney.com/",
 }
+_BOARDS_CACHE_KEY = "sector:industry_boards:v2"
 
 
 @dataclass(frozen=True)
@@ -90,13 +93,65 @@ def _board_matches(needle: str, board_name: str) -> bool:
     return any(part in board_name for part in parts)
 
 
+def _boards_from_cache(payload: dict[str, object]) -> list[SectorBoard]:
+    raw = payload.get("boards")
+    if not isinstance(raw, list):
+        return []
+    out: list[SectorBoard] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "")).strip()
+        if not name:
+            continue
+        out.append(
+            SectorBoard(
+                code=str(item.get("code", "")),
+                name=name,
+                change_pct=_plain_pct(item.get("change_pct")),
+                leader_name=str(item.get("leader_name", "") or "—"),
+                leader_symbol=_normalize_symbol(item.get("leader_symbol")),
+                leader_change_pct=_plain_pct(item.get("leader_change_pct")),
+            )
+        )
+    return out
+
+
+def _boards_to_cache(boards: list[SectorBoard]) -> dict[str, object]:
+    return {"boards": [asdict(b) for b in boards], "source": "live"}
+
+
 class SectorDataProvider:
     async def fetch_industry_boards(self) -> list[SectorBoard]:
+        cached = get_sqlite_cached(_BOARDS_CACHE_KEY)
+        if cached is not None:
+            boards = _boards_from_cache(cached)
+            if boards:
+                return boards
+
         boards = await self._fetch_eastmoney_boards()
+        source = "eastmoney"
+        if not boards:
+            logger.info("East Money industry boards empty; trying AkShare EM backup")
+            boards = await self._fetch_akshare_boards()
+            source = "akshare_em"
+        if not boards:
+            logger.info("AkShare EM boards empty; trying THS summary backup")
+            boards = await self._fetch_ths_boards()
+            source = "ths"
+        if not boards:
+            logger.info("THS boards empty; trying sector_spot backup")
+            boards = await self._fetch_sector_spot_boards()
+            source = "sector_spot"
+
         if boards:
-            return boards
-        logger.info("East Money industry boards empty; trying AkShare backup")
-        return await self._fetch_akshare_boards()
+            ttl = provider_ttl("akshare_financials", fallback=3600)
+            # Prefer shorter board TTL so rankings refresh intraday.
+            ttl = min(ttl, 3600)
+            payload = _boards_to_cache(boards)
+            payload["source"] = source
+            set_sqlite_cached(_BOARDS_CACHE_KEY, payload, ttl)
+        return boards
 
     async def _fetch_eastmoney_boards(self) -> list[SectorBoard]:
         try:
@@ -161,6 +216,70 @@ class SectorDataProvider:
 
         result = await run_sync_fetch(
             "akshare industry boards",
+            _sync,
+            timeout=15.0,
+            fallback=[],
+        )
+        return result if isinstance(result, list) else []
+
+    async def _fetch_ths_boards(self) -> list[SectorBoard]:
+        def _sync() -> list[SectorBoard]:
+            import akshare as ak  # type: ignore[import-untyped]
+
+            df = ak.stock_board_industry_summary_ths()
+            if df is None or df.empty:
+                return []
+            out: list[SectorBoard] = []
+            for _, row in df.iterrows():
+                name = str(row.get("板块", "")).strip()
+                if not name:
+                    continue
+                out.append(
+                    SectorBoard(
+                        code="",
+                        name=name,
+                        change_pct=_plain_pct(row.get("涨跌幅")),
+                        leader_name=str(row.get("领涨股", "") or "—"),
+                        leader_symbol="",
+                        leader_change_pct=_plain_pct(row.get("领涨股-涨跌幅")),
+                    )
+                )
+            return out
+
+        result = await run_sync_fetch(
+            "akshare ths industry boards",
+            _sync,
+            timeout=20.0,
+            fallback=[],
+        )
+        return result if isinstance(result, list) else []
+
+    async def _fetch_sector_spot_boards(self) -> list[SectorBoard]:
+        def _sync() -> list[SectorBoard]:
+            import akshare as ak  # type: ignore[import-untyped]
+
+            df = ak.stock_sector_spot(indicator="行业")
+            if df is None or df.empty:
+                return []
+            out: list[SectorBoard] = []
+            for _, row in df.iterrows():
+                name = str(row.get("板块", "")).strip()
+                if not name:
+                    continue
+                out.append(
+                    SectorBoard(
+                        code=str(row.get("label", "")),
+                        name=name,
+                        change_pct=_plain_pct(row.get("涨跌幅")),
+                        leader_name=str(row.get("股票名称", "") or "—"),
+                        leader_symbol=_normalize_symbol(row.get("股票代码")),
+                        leader_change_pct=_plain_pct(row.get("个股-涨跌幅")),
+                    )
+                )
+            return out
+
+        result = await run_sync_fetch(
+            "akshare sector_spot boards",
             _sync,
             timeout=15.0,
             fallback=[],

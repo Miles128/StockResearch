@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import type { HoldingEnriched, RiskCheckup } from "./api";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { MarkdownContent } from "./MarkdownContent";
+import { computePaperShock, type PaperShockResult, type ShockTarget } from "./paperShock";
 import { RiskSourceCharts } from "./RiskSourceCharts";
 import { StreamFeed } from "./StreamFeed";
 import { useI18n } from "./i18n";
@@ -93,6 +94,9 @@ export function RiskPanel({
   const { t } = useI18n();
   const [metricsExpanded, setMetricsExpanded] = useState(false);
   const [agentFoldOpen, setAgentFoldOpen] = useState(false);
+  const [shockTarget, setShockTarget] = useState<ShockTarget>("max_sector");
+  const [shockPct, setShockPct] = useState(-0.1);
+  const [paperShock, setPaperShock] = useState<PaperShockResult | null>(null);
   const showProcess = loading || hasLiveProcessContent(riskStream);
 
   const alertCount = risk?.alerts.length ?? 0;
@@ -442,7 +446,10 @@ export function RiskPanel({
                 )}
               </section>
 
-              {(risk.llm_analysis || riskStream.judgeVerdict || (risk.stress_results?.length ?? 0) > 0) && (
+              {(risk.llm_analysis ||
+                riskStream.judgeVerdict ||
+                (risk.stress_results?.length ?? 0) > 0 ||
+                holdings.length > 0) && (
                 <section className="risk-ai-section">
                   <h3 className="risk-section-title">
                     <IconBolt size={16} />
@@ -489,6 +496,7 @@ export function RiskPanel({
                     {risk.stress_results && risk.stress_results.length > 0 && (
                       <div className="risk-ai-block">
                         <strong>{t("risk.stressTests")}</strong>
+                        <p className="muted">{t("risk.stressHint")}</p>
                         <ul>
                           {risk.stress_results.map((s) => (
                             <li key={s.id}>
@@ -500,6 +508,56 @@ export function RiskPanel({
                             </li>
                           ))}
                         </ul>
+                      </div>
+                    )}
+                    {holdings.length > 0 && (
+                      <div className="risk-ai-block">
+                        <strong>{t("risk.stressInteractive")}</strong>
+                        <p className="muted">{t("risk.stressHint")}</p>
+                        <div className="follow-up-row">
+                          <select
+                            value={shockTarget}
+                            onChange={(e) => setShockTarget(e.target.value as ShockTarget)}
+                            aria-label={t("risk.stressTarget")}
+                          >
+                            <option value="max_sector">{t("risk.stressMaxSector")}</option>
+                            <option value="top_holding">{t("risk.stressTopHolding")}</option>
+                          </select>
+                          <select
+                            value={String(shockPct)}
+                            onChange={(e) => setShockPct(Number(e.target.value))}
+                            aria-label={t("risk.stressPnl")}
+                          >
+                            <option value="-0.05">-5%</option>
+                            <option value="-0.1">-10%</option>
+                            <option value="-0.2">-20%</option>
+                          </select>
+                          <button
+                            type="button"
+                            className="example-chip active"
+                            onClick={() => {
+                              const result = computePaperShock(holdings, shockTarget, shockPct);
+                              setPaperShock(result);
+                              if (result && onAskCopilot) {
+                                onAskCopilot(
+                                  `纸上假设：若${result.targetLabel}相对现价冲击${(result.shockPct * 100).toFixed(0)}%，组合损益约 ¥${result.pnl.toFixed(0)}（${(result.pnlPct * 100).toFixed(1)}%）。请结合当前风控告警解读。`,
+                                );
+                              }
+                            }}
+                          >
+                            {t("risk.stressApply")}
+                          </button>
+                        </div>
+                        {paperShock ? (
+                          <p>
+                            {t("risk.stressResult")}：{paperShock.targetLabel}{" "}
+                            {(paperShock.shockPct * 100).toFixed(0)}% →{" "}
+                            <span className={paperShock.pnl < 0 ? "down" : ""}>
+                              ¥{paperShock.pnl.toLocaleString(numLocale, { maximumFractionDigits: 0 })} (
+                              {(paperShock.pnlPct * 100).toFixed(1)}%)
+                            </span>
+                          </p>
+                        ) : null}
                       </div>
                     )}
                   </div>

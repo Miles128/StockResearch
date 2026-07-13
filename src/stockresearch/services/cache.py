@@ -96,6 +96,16 @@ def get_cached(key: str, ttl_sec: float, factory: Callable[[], T]) -> T:
     return value
 
 
+def peek_cached(key: str, ttl_sec: float) -> T | None:
+    """Return a cached factory value without invoking the factory."""
+    now = time.monotonic()
+    entry = _factory_store.get(key)
+    if entry is not None and now - entry[0] < ttl_sec:
+        _factory_store.move_to_end(key)
+        return entry[1]  # type: ignore[return-value]
+    return None
+
+
 def clear_cache() -> None:
     _memory_store.clear()
     _factory_store.clear()

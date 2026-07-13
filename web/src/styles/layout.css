@@ -500,13 +500,19 @@
 }
 
 .copilot-column {
-  border-left: 1px solid var(--bbg-border);
+  border-left: 1px solid color-mix(in srgb, var(--bbg-border) 55%, transparent);
+  /* Flush to the viewport right edge — no outer gutter beyond this column. */
+  margin-right: 0;
+  padding-right: 0;
 }
 
 .copilot-column .copilot-panel {
   border-left: none;
   flex: 1;
   min-height: 0;
+  width: 100%;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .column-toolbar {
@@ -664,7 +670,7 @@
   display: flex;
   align-items: flex-end;
   gap: 4px;
-  padding: 8px 14px 0;
+  padding: 8px 0 0 14px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--bbg-border);
   overflow-x: auto;
@@ -723,7 +729,7 @@
 .center-scroll .card-header {
   background: transparent;
   border: none;
-  padding: 12px 14px 8px;
+  padding: 12px 0 8px 14px;
 }
 
 .center-scroll .card-header-title,
@@ -736,7 +742,7 @@
 
 .center-scroll .action-center-signals,
 .center-scroll .card-body {
-  padding: 0 14px 12px;
+  padding: 0 0 12px 14px;
 }
 
 .stock-detail-pane {
@@ -878,6 +884,7 @@
   border: none;
   box-shadow: none;
   padding: 8px 0;
+  max-width: 100%;
 }
 
 .copilot-header {
@@ -893,12 +900,6 @@
 @media (max-width: 1100px) {
   .tri-shell:not(.lists-collapsed) .lists-column {
     width: var(--lists-w, 44px);
-  }
-}
-
-@media (max-width: 900px) {
-  .tri-shell:not(.copilot-collapsed) .copilot-column .copilot-panel {
-    display: none;
   }
 }
 
@@ -1292,6 +1293,7 @@
 
 .alert-bell-wrap {
   position: relative;
+  z-index: 200;
 }
 
 .alert-bell-btn {
@@ -1330,10 +1332,11 @@
   width: 320px;
   max-height: 360px;
   overflow-y: auto;
-  z-index: 50;
+  z-index: 200;
   background: var(--bbg-panel);
   border: 1px solid var(--bbg-border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.2));
   padding: 8px;
 }
 
@@ -1618,8 +1621,48 @@
 }
 
 .chat-footer {
-  padding: 8px 10px;
+  padding: 8px 0 8px 10px;
   border-top: none;
+}
+
+.copilot-column .panel.chat-panel {
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+  max-width: none;
+}
+
+.copilot-content {
+  padding: 8px 0 8px 10px;
+}
+
+.copilot-content .chat-messages {
+  padding-right: 0;
+}
+
+/* Output surfaces: hairline / accent only — no boxed frame */
+.message.conclusion-panel,
+.message.process-panel,
+.message.stream-live-panel,
+.light-research-card,
+.process-trail-fold,
+.chat-panel .card {
+  border: none;
+  border-left: 2px solid color-mix(in srgb, var(--accent-ai) 40%, transparent);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.message.user {
+  max-width: 92%;
+}
+
+.research-trust-strip {
+  border: none;
+  background: transparent;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 [data-theme="institutional-light"] .app-shell,

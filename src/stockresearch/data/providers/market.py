@@ -20,7 +20,7 @@ from stockresearch.data.providers.tushare_financial import fetch_daily_basic_syn
 from stockresearch.data.registry import record_quote_fetch, record_quote_conflicts, record_symbol_sources
 from stockresearch.data.registry import QuotePriceConflict
 from stockresearch.data.provider_meta import get_provider_meta
-from stockresearch.services.cache import get_cached
+from stockresearch.services.cache import peek_cached
 from stockresearch.services.provider_cache_policy import (
     DEFAULT_QUOTE_CACHE_TTL_SECONDS,
     get_or_set_cached_dict,
@@ -1011,7 +1011,8 @@ class TechnicalDataProvider:
 
     @staticmethod
     def _kline_adjust(source: str) -> str:
-        return "qfq" if source == "akshare" else "none"
+        # AkShare hist uses adjust=qfq; efinance kline uses fqt=1 (前复权).
+        return "qfq" if source in ("akshare", "efinance") else "none"
 
     async def get_kline_bars(
         self,
@@ -1091,21 +1092,11 @@ class TechnicalDataProvider:
             if bars:
                 source = "akshare"
 
-        if not bars and before is None and prefer_qfq:
-            sina_bars = await run_sync_fetch(
-                f"sina kline {symbol}",
-                lambda: fetch_sina_kline(symbol, days),
-                timeout=8.0,
-                fallback=None,
-            )
-            if sina_bars:
-                bars = sina_bars
-                source = "sina"
-
-        if not bars:
+        if prefer_qfq and not bars:
+            # AkShare adjust=qfq often flakes; efinance fqt=1 is the qfq fallback.
             ef_bars = await run_sync_fetch(
-                f"efinance kline {symbol}",
-                lambda: fetch_efinance_kline(symbol, days),
+                f"efinance kline qfq {symbol}",
+                lambda: fetch_efinance_kline(symbol, days, fqt=1),
                 timeout=12.0,
                 fallback=None,
             )
@@ -1113,14 +1104,44 @@ class TechnicalDataProvider:
                 bars = ef_bars
                 source = "efinance"
 
+        if not prefer_qfq:
+            if not bars and before is None:
+                sina_bars = await run_sync_fetch(
+                    f"sina kline {symbol}",
+                    lambda: fetch_sina_kline(symbol, days),
+                    timeout=8.0,
+                    fallback=None,
+                )
+                if sina_bars:
+                    bars = sina_bars
+                    source = "sina"
+
+            if not bars:
+                ef_bars = await run_sync_fetch(
+                    f"efinance kline {symbol}",
+                    lambda: fetch_efinance_kline(symbol, days, fqt=1),
+                    timeout=12.0,
+                    fallback=None,
+                )
+                if ef_bars:
+                    bars = ef_bars
+                    source = "efinance"
+
         if bars:
             if before:
                 cutoff = before[:10]
                 bars = [b for b in bars if str(b["date"])[:10] < cutoff]
-            set_sqlite_cached(cache_key, {"bars": bars, "source": source}, ttl)
-            logger.info("Kline for %s: %d bars via %s", symbol, len(bars), source)
-        else:
-            logger.warning("Kline unavailable for %s after akshare/sina/efinance", symbol)
+            adjust = self._kline_adjust(source)
+            if not prefer_qfq or adjust == "qfq":
+                set_sqlite_cached(cache_key, {"bars": bars, "source": source}, ttl)
+            logger.info("Kline for %s: %d bars via %s (%s)", symbol, len(bars), source, adjust)
+            return bars, source, adjust
+
+        logger.warning(
+            "Kline unavailable for %s after %s",
+            symbol,
+            "akshare/efinance (prefer_qfq)" if prefer_qfq else "akshare/sina/efinance",
+        )
         return bars, source, self._kline_adjust(source)
 
     async def get_kline(self, symbol: str, days: int = 60) -> list[dict[str, float]]:
@@ -1146,6 +1167,11 @@ class TechnicalDataProvider:
         bars, source, adjust = await self.get_kline_bars_meta(
             symbol, days, before=before, prefer_qfq=True
         )
+        if not bars:
+            # Chart may still render unadjusted bars when AkShare qfq is down.
+            bars, source, adjust = await self.get_kline_bars_meta(
+                symbol, days, before=before, prefer_qfq=False
+            )
         closes = [float(b["close"]) for b in bars]
         highs = [float(b["high"]) for b in bars]
         lows = [float(b["low"]) for b in bars]
@@ -1213,7 +1239,11 @@ def _lookup_xueqiu_row(df: Any, code: str, name: str) -> Any | None:
 
 
 def _fetch_xueqiu_hot_sync(symbol: str, name: str) -> dict[str, float | int | str | bool]:
-    """Real Xueqiu + Eastmoney sentiment metrics (no fake minimum heat)."""
+    """Eastmoney stock-comment APIs first; Xueqiu hot lists only from warm cache.
+
+    Full-market scrapes (stock_comment_em / stock_hot_*_xq) take 20–60s and would
+    trip the async timeout, so they are never fetched on the hot path.
+    """
     result: dict[str, float | int | str | bool] = {
         "heat_score": 0,
         "post_count": 0,
@@ -1244,48 +1274,40 @@ def _fetch_xueqiu_hot_sync(symbol: str, name: str) -> dict[str, float | int | st
     except Exception as exc:
         logger.warning("EM participation desire failed for %s: %s", symbol, exc)
 
-    try:
-        comment_df = ak.stock_comment_em()
-        row = comment_df[comment_df["代码"].astype(str) == symbol]
-        if not row.empty:
-            attention = float(row.iloc[0]["关注指数"])
-            result["attention_index"] = attention
-            if int(result["heat_score"]) == 0:
-                result["heat_score"] = min(100, max(1, round(attention)))
-            sources.append("em_attention")
-    except Exception as exc:
-        logger.warning("EM stock comment list failed for %s: %s", symbol, exc)
+    # Warm-cache enrichments only — never block on full-market scrapes.
+    df_deal = peek_cached("xq_hot_deal", 900.0)
+    if df_deal is not None:
+        try:
+            deal_row = _lookup_xueqiu_row(df_deal, code, name)
+            if deal_row is not None:
+                result["post_count"] = int(float(deal_row["关注"]))
+                rank = int(deal_row.name) + 1
+                xq_heat = min(100, max(5, round(100 - (rank / max(len(df_deal), 1)) * 95)))
+                if int(result["heat_score"]) == 0:
+                    result["heat_score"] = xq_heat
+                sources.append("xueqiu_deal")
+        except Exception as exc:
+            logger.warning("Xueqiu deal hot (cache) failed for %s: %s", symbol, exc)
 
-    try:
-        df_deal = get_cached("xq_hot_deal", 900.0, ak.stock_hot_deal_xq)
-        deal_row = _lookup_xueqiu_row(df_deal, code, name)
-        if deal_row is not None:
-            result["post_count"] = int(float(deal_row["关注"]))
-            rank = int(deal_row.name) + 1
-            xq_heat = min(100, max(5, round(100 - (rank / max(len(df_deal), 1)) * 95)))
-            if int(result["heat_score"]) == 0:
-                result["heat_score"] = xq_heat
-            sources.append("xueqiu_deal")
-    except Exception as exc:
-        logger.warning("Xueqiu deal hot failed for %s: %s", symbol, exc)
+    df_tweet = peek_cached("xq_hot_tweet", 900.0)
+    if df_tweet is not None:
+        try:
+            tweet_row = _lookup_xueqiu_row(df_tweet, code, name)
+            if tweet_row is not None:
+                result["tweet_heat"] = int(float(tweet_row["关注"]))
+                sources.append("xueqiu_tweet")
+        except Exception as exc:
+            logger.warning("Xueqiu tweet hot (cache) failed for %s: %s", symbol, exc)
 
-    try:
-        df_tweet = get_cached("xq_hot_tweet", 900.0, ak.stock_hot_tweet_xq)
-        tweet_row = _lookup_xueqiu_row(df_tweet, code, name)
-        if tweet_row is not None:
-            result["tweet_heat"] = int(float(tweet_row["关注"]))
-            sources.append("xueqiu_tweet")
-    except Exception as exc:
-        logger.warning("Xueqiu tweet hot failed for %s: %s", symbol, exc)
-
-    try:
-        df_follow = get_cached("xq_hot_follow", 900.0, ak.stock_hot_follow_xq)
-        follow_row = _lookup_xueqiu_row(df_follow, code, name)
-        if follow_row is not None:
-            result["follow_count"] = int(float(follow_row["关注"]))
-            sources.append("xueqiu_follow")
-    except Exception as exc:
-        logger.warning("Xueqiu follow hot failed for %s: %s", symbol, exc)
+    df_follow = peek_cached("xq_hot_follow", 900.0)
+    if df_follow is not None:
+        try:
+            follow_row = _lookup_xueqiu_row(df_follow, code, name)
+            if follow_row is not None:
+                result["follow_count"] = int(float(follow_row["关注"]))
+                sources.append("xueqiu_follow")
+        except Exception as exc:
+            logger.warning("Xueqiu follow hot (cache) failed for %s: %s", symbol, exc)
 
     if sources:
         result["source"] = "+".join(sources)

@@ -64,6 +64,10 @@ def build_risk_context(result: RiskCheckupOut) -> str:
         lines.append(
             f"VaR：{v.confidence_level:.0%}置信度 {v.time_horizon_days}天 VaR={v.var_pct:.2%}"
         )
+    if result.stress_results:
+        lines.append("定量压力情景（相对现价冲击，非历史回放）：")
+        for item in result.stress_results[:3]:
+            lines.append(f"- {item.name}：损益 {item.pnl:.0f} 元（{item.pnl_pct:.1%}）")
     return "\n".join(lines)
 
 

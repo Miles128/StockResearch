@@ -1,6 +1,7 @@
 import type { AshareFactor, DebateResult, NumericFactor, ResearchReport } from "./api";
 import { DimensionCards, dimensionItemsFromResults } from "./DimensionCards";
 import { MarkdownContent } from "./MarkdownContent";
+import { ResearchTrustStrip } from "./ResearchTrustStrip";
 import { useI18n } from "./i18n";
 import { loadModeSettings } from "./modeSettings";
 import { localizeAgentDisplay } from "./uiLabels";
@@ -249,6 +250,7 @@ export function ResearchReportDetails({
 
   return (
     <div className="research-report-details">
+      <ResearchTrustStrip report={report} />
       {allSources.length > 0 && (
         <p className="research-source-hint">
           <span className="muted">{t("card.dataSources")}：</span>

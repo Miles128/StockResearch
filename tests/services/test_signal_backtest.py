@@ -30,7 +30,9 @@ def test_sample_bias_note_flags_small_sample() -> None:
         total_samples=3,
         bias_count=2,
         tilt_count=1,
+        skipped_non_qfq=1,
     )
     assert "选择偏差" in note
     assert "样本量 < 8" in note
     assert "研报偏向 2" in note
+    assert "前复权" in note

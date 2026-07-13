@@ -34,11 +34,36 @@ async def get_or_set_cached_dict(
     cache_key: str,
     ttl_seconds: int,
     fetch: Callable[[], Awaitable[dict[str, object]]],
+    *,
+    should_cache: Callable[[dict[str, object]], bool] | None = None,
 ) -> dict[str, object]:
+    """Fetch-through cache. Empty or failed payloads are not persisted by default.
+
+    Pass ``should_cache`` to skip storing unusable shells (e.g. valuation with
+    all nulls) so the next request can retry the live provider.
+    """
     cached = get_sqlite_cached(cache_key)
     if cached is not None:
         return cached
     result = await fetch()
-    if result:
-        set_sqlite_cached(cache_key, result, ttl_seconds)
+    if not result:
+        return result
+    if should_cache is not None and not should_cache(result):
+        return result
+    if should_cache is None and _looks_like_empty_failure(result):
+        return result
+    set_sqlite_cached(cache_key, result, ttl_seconds)
     return result
+
+
+def _looks_like_empty_failure(result: dict[str, object]) -> bool:
+    """Heuristic: partial + gaps + no useful source → do not cache."""
+    if result.get("partial") is not True:
+        return False
+    gaps = result.get("gaps")
+    if not isinstance(gaps, list) or not gaps:
+        return False
+    source = result.get("source")
+    if source not in (None, "", "none"):
+        return False
+    return True

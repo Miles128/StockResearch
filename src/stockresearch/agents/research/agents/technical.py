@@ -54,6 +54,11 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
         score += 0.5
     score = max(1.0, min(10.0, score))
 
+    gaps: list[str] = []
+    rules = data.get("sina_trading_rules")
+    if isinstance(rules, dict) and rules.get("is_suspended"):
+        gaps.append("疑似停牌，行情可能陈旧")
+
     return finalize_dimension(
         agent="technical",
         score=score,
@@ -62,6 +67,8 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
         data_sources=["akshare_kline", "sina_quote", "sina_trading_rules"],
         fallback_highlights=[f"RSI {indicators['rsi']}"],
         fallback_risks=[f"支撑位参考 MA20={ma20:.2f}"],
+        gaps=gaps,
+        partial=bool(gaps),
     )
 
 

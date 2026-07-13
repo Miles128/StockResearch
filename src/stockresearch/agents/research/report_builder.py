@@ -79,6 +79,7 @@ def build_research_report(
     leaders: list[SectorLeaderBrief] | None = None,
     summary_prefix: str | None = None,
     factors: list | None = None,
+    bars_provenance: object | None = None,
 ) -> ResearchReportOut:
     composite, weights = weighted_composite_score(dimensions)
     composite_confidence = resolve_composite_confidence(dimensions)
@@ -121,6 +122,10 @@ def build_research_report(
 
     viewpoints = build_viewpoints(dimensions, debate, news_text_factor=news_text_factor)
     data_gaps = _collect_report_gaps(dimensions, ashare_factors)
+    if bars_provenance is not None and getattr(bars_provenance, "partial", False):
+        note = getattr(bars_provenance, "note", None) or "日线前复权不完整"
+        if note not in data_gaps and len(data_gaps) < 5:
+            data_gaps.append(note)
     brief_summary = build_brief_summary(
         name=name,
         symbol=symbol,
@@ -148,6 +153,7 @@ def build_research_report(
         text_factor_summary=text_factor_summary,
         ashare_factors=ashare_factors,
         factors=list(factors or []),
+        bars_provenance=bars_provenance,  # type: ignore[arg-type]
         dimension_weights=weights,
     )
     from stockresearch.services.follow_up import attach_report_follow_ups

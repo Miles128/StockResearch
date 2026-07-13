@@ -108,10 +108,11 @@ async def run_research(
     news_text_factor = build_news_text_factor(news_snippets, subject=f"{name}({symbol})")
 
     factors: list = []
+    bars_provenance = None
     try:
         from stockresearch.services.factors import compute_numeric_factors
 
-        factors = await compute_numeric_factors(symbol)
+        factors, bars_provenance = await compute_numeric_factors(symbol)
     except Exception:
         factors = []
 
@@ -133,6 +134,7 @@ async def run_research(
         dimension_labels=_LABELS,
         news_text_factor=news_text_factor,
         factors=factors,
+        bars_provenance=bars_provenance,
     )
 
     if enable_master_commentary and mode_settings is not None:

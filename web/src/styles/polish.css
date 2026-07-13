@@ -193,24 +193,15 @@ select {
 
 .copilot-panel {
   background: var(--bbg-panel);
-  border-left: 2px solid var(--accent-ai);
+  border-left: none;
   box-shadow: none;
 }
 
-[data-theme="institutional-light"] .copilot-panel.layout-vertical {
-  box-shadow: 0 -2px 12px rgba(15, 23, 42, 0.06);
-}
-
-[data-theme="institutional-dark"] .copilot-panel.layout-vertical {
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
-}
-
-[data-theme="institutional-light"] .copilot-panel:not(.layout-vertical) {
-  box-shadow: -2px 0 12px rgba(15, 23, 42, 0.06);
-}
-
+[data-theme="institutional-light"] .copilot-panel.layout-vertical,
+[data-theme="institutional-dark"] .copilot-panel.layout-vertical,
+[data-theme="institutional-light"] .copilot-panel:not(.layout-vertical),
 [data-theme="institutional-dark"] .copilot-panel:not(.layout-vertical) {
-  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.25);
+  box-shadow: none;
 }
 
 .holdings-table tbody tr {
@@ -525,14 +516,15 @@ button.ui-card:hover {
   font-size: 20px;
 }
 
-/* AI research surfaces */
+/* AI research surfaces — accent rail only, no outer box */
 .message.conclusion-panel,
 .light-research-card {
-  border: 1px solid var(--bbg-border);
-  border-left: 3px solid var(--accent-ai);
-  border-radius: var(--radius);
-  background: var(--bbg-panel);
+  border: none;
+  border-left: 2px solid color-mix(in srgb, var(--accent-ai) 40%, transparent);
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
+  padding-left: 10px;
 }
 
 .process-panel {

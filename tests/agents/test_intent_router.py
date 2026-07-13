@@ -27,6 +27,27 @@ async def test_route_risk() -> None:
 
 
 @pytest.mark.asyncio
+async def test_route_stock_risk_is_research_not_portfolio() -> None:
+    class BrokenLLM(MockLLMClient):
+        async def complete(self, system: str, user: str) -> str:
+            return "not valid json"
+
+    intent, symbols, _ = await route_intent("宁德时代有什么风险", BrokenLLM())
+    assert intent == INTENT_RESEARCH
+    assert "300750" in symbols
+
+
+@pytest.mark.asyncio
+async def test_route_stock_analysis_not_composite_on_risk_word() -> None:
+    class BrokenLLM(MockLLMClient):
+        async def complete(self, system: str, user: str) -> str:
+            return "not valid json"
+
+    intent, _, _ = await route_intent("分析一下贵州茅台的风险点", BrokenLLM())
+    assert intent == INTENT_RESEARCH
+
+
+@pytest.mark.asyncio
 async def test_route_market() -> None:
     intent, _, sectors = await route_intent("中国股市未来走势如何", MockLLMClient())
     assert intent == INTENT_MARKET

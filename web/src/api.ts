@@ -353,6 +353,8 @@ export const api = {
     await downloadReportBlob("/research/export/pdf", report, `${report.symbol}-report.pdf`);
   },
   signalBacktest: () => request<SignalBacktest>("/research/signal-backtest"),
+  reportPostHoc: (id: number) =>
+    request<ReportPostHoc>(`/research/reports/${id}/post-hoc`),
   searchMemory: (q: string) =>
     request<MemorySearchResult>(`/research/memory/search?q=${encodeURIComponent(q)}`),
   generateBriefing: (kind: "premarket" | "intraday" | "postmarket") =>
@@ -668,6 +670,33 @@ export interface NumericFactor {
   unit?: string;
   partial?: boolean;
   note?: string | null;
+  bars_source?: string | null;
+  bars_adjust?: string | null;
+}
+
+export interface BarsProvenance {
+  source: string;
+  adjust: string;
+  as_of?: string | null;
+  partial?: boolean;
+  note?: string | null;
+}
+
+export interface ReportPostHocHorizon {
+  days: number;
+  return_pct: number | null;
+  partial?: boolean;
+  note?: string | null;
+  bars_adjust?: string | null;
+  bars_source?: string | null;
+}
+
+export interface ReportPostHoc {
+  report_id: number;
+  symbol: string;
+  horizons: ReportPostHocHorizon[];
+  disclaimer?: string;
+  label?: string;
 }
 
 export interface ResearchReport {
@@ -686,10 +715,14 @@ export interface ResearchReport {
   text_factor_summary?: string | null;
   ashare_factors?: AshareFactor[];
   factors?: NumericFactor[];
+  bars_provenance?: BarsProvenance | null;
   dimension_weights?: Record<string, number>;
-  dimensions: Record<string, DimensionResult>;
+  post_hoc?: ReportPostHocHorizon[];
+  dimensions?: Record<string, DimensionResult>;
   debate?: DebateResult | null;
   master_commentary?: MasterCommentaryItem[];
+  disclaimer?: string;
+  cached?: boolean;
 }
 
 async function downloadReportBlob(path: string, report: ResearchReport, filename: string): Promise<void> {
@@ -951,6 +984,10 @@ export interface SignalBacktestHorizon {
   bullish_positive_rate_pct: number | null;
   bearish_negative_rate_pct: number | null;
   spread_avg_return_pct?: number | null;
+  bias_bullish_avg_return_pct?: number | null;
+  bias_bearish_avg_return_pct?: number | null;
+  factor_tilt_bullish_avg_return_pct?: number | null;
+  factor_tilt_bearish_avg_return_pct?: number | null;
 }
 
 export interface SignalBacktest {

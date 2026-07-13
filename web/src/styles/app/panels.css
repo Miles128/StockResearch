@@ -1823,6 +1823,51 @@
   margin-bottom: 12px;
 }
 
+.research-trust-strip {
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--bbg-border);
+  border-radius: var(--radius);
+  background: var(--bbg-panel-2, var(--bbg-panel));
+}
+
+.research-trust-strip.compact {
+  padding: 8px 10px;
+}
+
+.research-trust-title {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.research-trust-block {
+  margin-top: 6px;
+}
+
+.research-trust-block strong {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.research-trust-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--bbg-muted);
+}
+
+.research-trust-line {
+  margin: 0 0 4px;
+  font-size: 12px;
+}
+
+.example-chip.static {
+  cursor: default;
+  opacity: 0.9;
+}
+
 .light-research-details {
   margin-top: 8px;
 }

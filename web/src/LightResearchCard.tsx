@@ -6,6 +6,7 @@ import type { AppMode } from "./modeSettings";
 import { MarkdownContent } from "./MarkdownContent";
 import { normalizeResearchConclusion, researchExpandHintsFromReport } from "./researchText";
 import { ResearchReportDetails } from "./researchReportView";
+import { ResearchTrustStrip } from "./ResearchTrustStrip";
 import { localizeAgentDisplay, localizeConfidence } from "./uiLabels";
 
 interface LightResearchCardProps {
@@ -124,6 +125,7 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
       <div className="light-research-summary">
         <MarkdownContent text={summaryText} />
       </div>
+      <ResearchTrustStrip report={report} compact={brief} onFollowUp={onFollowUp} />
       {dimensions.length > 0 && (
         <DimensionCards
           defaultOpen={isExpert || view === "formal"}

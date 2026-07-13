@@ -12,7 +12,7 @@ from stockresearch.data.providers.sector import SectorBoard, SectorDataProvider,
 async def test_fetch_industry_boards_returns_empty_on_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """东方财富板块接口失败且备份也空时应返回空列表，不抛异常。"""
+    """东方财富板块接口失败且所有备份也空时应返回空列表，不抛异常。"""
 
     class _DummyAsyncClient:
         def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
@@ -25,15 +25,72 @@ async def test_fetch_industry_boards_returns_empty_on_failure(
             return None
 
     monkeypatch.setattr(sector_mod.httpx, "AsyncClient", lambda *a, **k: _DummyAsyncClient())
+    monkeypatch.setattr(sector_mod, "get_sqlite_cached", lambda _key: None)
 
-    async def empty_akshare(self: SectorDataProvider) -> list[SectorBoard]:
+    async def empty(self: SectorDataProvider) -> list[SectorBoard]:
         return []
 
-    monkeypatch.setattr(SectorDataProvider, "_fetch_akshare_boards", empty_akshare)
+    monkeypatch.setattr(SectorDataProvider, "_fetch_akshare_boards", empty)
+    monkeypatch.setattr(SectorDataProvider, "_fetch_ths_boards", empty)
+    monkeypatch.setattr(SectorDataProvider, "_fetch_sector_spot_boards", empty)
 
     provider = SectorDataProvider()
     boards = await provider.fetch_industry_boards()
     assert boards == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_industry_boards_falls_back_to_ths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """EM + AkShare EM fail → THS summary succeeds and is cached."""
+
+    class _DummyAsyncClient:
+        def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+            raise RuntimeError("network down")
+
+        async def __aenter__(self) -> "_DummyAsyncClient":
+            return self
+
+        async def __aexit__(self, *args) -> None:  # type: ignore[no-untyped-def]
+            return None
+
+    monkeypatch.setattr(sector_mod.httpx, "AsyncClient", lambda *a, **k: _DummyAsyncClient())
+    monkeypatch.setattr(sector_mod, "get_sqlite_cached", lambda _key: None)
+    stored: dict[str, object] = {}
+
+    def fake_set(key: str, value: dict[str, object], ttl: int) -> None:
+        stored["key"] = key
+        stored["value"] = value
+        stored["ttl"] = ttl
+
+    monkeypatch.setattr(sector_mod, "set_sqlite_cached", fake_set)
+
+    async def empty(self: SectorDataProvider) -> list[SectorBoard]:
+        return []
+
+    async def ths(self: SectorDataProvider) -> list[SectorBoard]:
+        return [
+            SectorBoard(
+                code="",
+                name="白酒",
+                change_pct=3.77,
+                leader_name="皇台酒业",
+                leader_symbol="",
+                leader_change_pct=6.86,
+            )
+        ]
+
+    monkeypatch.setattr(SectorDataProvider, "_fetch_akshare_boards", empty)
+    monkeypatch.setattr(SectorDataProvider, "_fetch_ths_boards", ths)
+    monkeypatch.setattr(SectorDataProvider, "_fetch_sector_spot_boards", empty)
+
+    provider = SectorDataProvider()
+    boards = await provider.fetch_industry_boards()
+    assert len(boards) == 1
+    assert boards[0].name == "白酒"
+    assert stored.get("key") == "sector:industry_boards:v2"
+    assert stored.get("value", {}).get("source") == "ths"  # type: ignore[union-attr]
 
 
 @pytest.mark.asyncio

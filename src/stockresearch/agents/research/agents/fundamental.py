@@ -202,6 +202,35 @@ def _collect_evidence(data: dict[str, object]) -> list[DimensionEvidence]:
                 kind="research_report",
             )
         )
+    fin = _as_dict(data, "akshare_financials")
+    if fin and not bool(fin.get("partial")):
+        rev = fin.get("revenue_yoy")
+        roe = fin.get("roe")
+        parts = []
+        if isinstance(rev, (int, float)):
+            parts.append(f"营收YoY {float(rev):.0%}")
+        if isinstance(roe, (int, float)):
+            parts.append(f"ROE {float(roe):.0%}")
+        if parts:
+            evidence.append(
+                DimensionEvidence(
+                    source="akshare",
+                    date=str(fin.get("as_of") or fin.get("period") or "")[:10] or None,
+                    snippet="财务：" + " · ".join(parts),
+                    kind="financial",
+                )
+            )
+    val = _as_dict(data, "akshare_valuation")
+    pe_pct = val.get("pe_percentile", fin.get("pe_percentile"))
+    if isinstance(pe_pct, (int, float)) and not bool(val.get("partial")):
+        evidence.append(
+            DimensionEvidence(
+                source="akshare",
+                date=str(val.get("as_of") or "")[:10] or None,
+                snippet=f"PE 历史分位 {float(pe_pct):.0%}",
+                kind="financial",
+            )
+        )
     return evidence
 
 

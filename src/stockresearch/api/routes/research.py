@@ -16,6 +16,7 @@ from stockresearch.core.exceptions import NotFoundError
 from stockresearch.core.schemas import (
     IndustryResearchRequest,
     MemorySearchOut,
+    ReportPostHocOut,
     ResearchReportListItem,
     ResearchReportOut,
     SignalBacktestOut,
@@ -25,7 +26,7 @@ from stockresearch.db.session import get_db
 from stockresearch.services.cache import CacheService
 from stockresearch.services.report_export import report_to_markdown, report_to_pdf
 from stockresearch.services.research_memory import search_research_memory
-from stockresearch.services.signal_backtest import compute_signal_backtest
+from stockresearch.services.signal_backtest import compute_report_post_hoc, compute_signal_backtest
 from stockresearch.utils.llm import LLMClient
 
 router = APIRouter(prefix="/research", tags=["research"])
@@ -324,6 +325,27 @@ async def signal_backtest(
     db: Session = Depends(get_db),
 ) -> SignalBacktestOut:
     return await compute_signal_backtest(db, user.id)
+
+
+@router.get("/reports/{report_id}/post-hoc", response_model=ReportPostHocOut)
+async def report_post_hoc(
+    report_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ReportPostHocOut:
+    row = (
+        db.query(ResearchReport)
+        .filter(ResearchReport.id == report_id, ResearchReport.user_id == user.id)
+        .one_or_none()
+    )
+    if row is None:
+        raise NotFoundError("研报不存在")
+    horizons = await compute_report_post_hoc(db, user.id, report_id)
+    return ReportPostHocOut(
+        report_id=report_id,
+        symbol=row.symbol,
+        horizons=horizons,
+    )
 
 
 @router.get("/memory/search", response_model=MemorySearchOut)

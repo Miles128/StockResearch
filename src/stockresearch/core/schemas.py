@@ -289,6 +289,18 @@ class NumericFactorOut(BaseModel):
     unit: str = ""
     partial: bool = False
     note: str | None = None
+    bars_source: str | None = None
+    bars_adjust: str | None = None
+
+
+class BarsProvenanceOut(BaseModel):
+    """OHLCV provenance stamp attached to a research report."""
+
+    source: str = "unknown"
+    adjust: str = "none"
+    as_of: str | None = None
+    partial: bool = False
+    note: str | None = None
 
 
 class SectorLeaderBrief(BaseModel):
@@ -328,12 +340,14 @@ class ResearchReportOut(BaseModel):
     text_factor_summary: str | None = None
     ashare_factors: list[AshareFactorOut] = Field(default_factory=list)
     factors: list[NumericFactorOut] = Field(default_factory=list)
+    bars_provenance: BarsProvenanceOut | None = None
     dimension_weights: dict[str, float] = Field(default_factory=dict)
     master_commentary: list[MasterCommentaryItem] = Field(default_factory=list)
     disclaimer: str = DISCLAIMER
     cached: bool = False
     id: int | None = None
-
+    # Optional post-hoc verification for this report (filled by API when requested)
+    post_hoc: list[dict[str, object]] = Field(default_factory=list)
 
 class RiskAlertOut(BaseModel):
     rule_id: str
@@ -738,6 +752,10 @@ class SignalBacktestHorizon(BaseModel):
     bearish_negative_rate_pct: float | None = None
     # 偏多均涨 − 偏空均涨：方向可分性（正值表示偏多事后更强）
     spread_avg_return_pct: float | None = None
+    bias_bullish_avg_return_pct: float | None = None
+    bias_bearish_avg_return_pct: float | None = None
+    factor_tilt_bullish_avg_return_pct: float | None = None
+    factor_tilt_bearish_avg_return_pct: float | None = None
 
 
 class SignalBacktestOut(BaseModel):
@@ -753,6 +771,23 @@ class SignalBacktestOut(BaseModel):
     unique_symbols: int = 0
     bias_sample_count: int = 0
     factor_tilt_sample_count: int = 0
+
+
+class ReportPostHocHorizon(BaseModel):
+    days: int
+    return_pct: float | None = None
+    partial: bool = False
+    note: str | None = None
+    bars_adjust: str | None = None
+    bars_source: str | None = None
+
+
+class ReportPostHocOut(BaseModel):
+    report_id: int
+    symbol: str
+    horizons: list[ReportPostHocHorizon]
+    disclaimer: str = DISCLAIMER
+    label: str = "单报告事后核对"
 
 
 class MemorySearchHit(BaseModel):

@@ -62,14 +62,26 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
         f"（来源 {source}）"
     )
     has_data = available or bool(items)
+    sources: list[str] = []
+    if available:
+        sources.append("xueqiu_hot")
+    if items:
+        sources.append("akshare_news")
+    gaps: list[str] = []
+    if not available:
+        gaps.append("雪球/东财情绪未取到")
+    if not items:
+        gaps.append("个股新闻为空")
     return finalize_dimension(
         agent="sentiment",
         score=score,
         confidence=as_confidence(CONFIDENCE_MEDIUM if has_data else CONFIDENCE_LOW),
         raw_analysis=analysis,
-        data_sources=["xueqiu_hot", "akshare_news"],
+        data_sources=sources,
         fallback_highlights=[fallback_highlight],
         fallback_risks=risks,
+        gaps=gaps,
+        partial=not available or not items,
     )
 
 

@@ -90,6 +90,7 @@ def _build_report(
     news_text_factor: str | None = None,
     dimension_labels: dict[str, str] | None = None,
     factors: list | None = None,
+    bars_provenance: object | None = None,
 ) -> ResearchReportOut:
     return build_research_report(
         symbol,
@@ -99,6 +100,7 @@ def _build_report(
         dimension_labels=dimension_labels or _AGENT_LABELS,
         news_text_factor=news_text_factor,
         factors=factors,
+        bars_provenance=bars_provenance,
     )
 
 
@@ -142,10 +144,11 @@ async def run_research_stream(
     news_text_factor = build_news_text_factor(news_snippets, subject=f"{name}({symbol})")
 
     factors: list = []
+    bars_provenance = None
     try:
         from stockresearch.services.factors import compute_numeric_factors
 
-        factors = await compute_numeric_factors(symbol)
+        factors, bars_provenance = await compute_numeric_factors(symbol)
     except Exception as exc:
         logger.warning("numeric factors failed for %s: %s", symbol, exc)
 
@@ -158,6 +161,7 @@ async def run_research_stream(
             None,
             news_text_factor=news_text_factor,
             factors=factors,
+            bars_provenance=bars_provenance,
         )
         yield status_event("status.research.report_done")
         yield {"type": "done", "result": report.model_dump(mode="json")}
@@ -264,6 +268,7 @@ async def run_research_stream(
         debate,
         news_text_factor=news_text_factor,
         factors=factors,
+        bars_provenance=bars_provenance,
     )
 
     if enable_master_commentary and mode_settings is not None:

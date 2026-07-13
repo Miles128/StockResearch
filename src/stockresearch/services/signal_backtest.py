@@ -8,10 +8,9 @@ from statistics import median
 from sqlalchemy.orm import Session
 
 from stockresearch.core.constants import DISCLAIMER
-from stockresearch.core.schemas import SignalBacktestHorizon, SignalBacktestOut
-from stockresearch.data.providers.market import TechnicalDataProvider
+from stockresearch.core.schemas import ReportPostHocHorizon, ReportPostHocOut, SignalBacktestHorizon, SignalBacktestOut
 from stockresearch.db.models import ResearchReport
-from stockresearch.services.daily_bars import get_bars_for_symbol
+from stockresearch.services.daily_bars import get_bars_meta_for_symbol
 
 _MIN_SAMPLE_FOR_CONFIDENCE = 8
 
@@ -78,15 +77,98 @@ def _build_sample_bias_note(
     total_samples: int,
     bias_count: int,
     tilt_count: int,
+    skipped_non_qfq: int,
 ) -> str:
     parts = [
-        "样本来自本机历史研报，存在选择偏差；未计入交易成本与冲击成本。",
+        "样本来自本机历史研报，存在选择偏差；未计入交易成本与冲击成本；仅使用前复权(qfq)日线。",
         f"覆盖 {unique_symbols} 只标的、{total_samples} 条可验证信号"
         f"（研报偏向 {bias_count} · 因子倾斜 {tilt_count}）。",
     ]
+    if skipped_non_qfq:
+        parts.append(f"另有 {skipped_non_qfq} 条因无 qfq 日线被跳过。")
     if total_samples > 0 and total_samples < _MIN_SAMPLE_FOR_CONFIDENCE:
         parts.append(f"样本量 < {_MIN_SAMPLE_FOR_CONFIDENCE}，统计仅供粗看，勿过度解读。")
     return "".join(parts)
+
+
+def _empty_side_bucket() -> dict[str, list[float]]:
+    return {"bullish": [], "bearish": []}
+
+
+async def _load_qfq_bars(
+    symbol: str,
+    cache: dict[str, list[dict[str, float | str]] | None],
+) -> list[dict[str, float | str]] | None:
+    if symbol in cache:
+        return cache[symbol]
+    try:
+        meta = await get_bars_meta_for_symbol(symbol, days=180)
+        if meta.adjust != "qfq" or not meta.bars:
+            cache[symbol] = None
+            return None
+        cache[symbol] = meta.bars
+        return meta.bars
+    except Exception:
+        cache[symbol] = None
+        return None
+
+
+def _start_idx_for_day(bars: list[dict[str, float | str]], report_day) -> int:
+    start_idx = -1
+    for i, bar in enumerate(bars):
+        bar_dt = _parse_date(str(bar.get("date", "")))
+        if bar_dt and bar_dt.date() >= report_day:
+            start_idx = i
+            break
+    return start_idx
+
+
+async def compute_report_post_hoc(
+    db: Session,
+    user_id: int,
+    report_id: int,
+    *,
+    horizons: tuple[int, ...] = (5, 10, 20),
+) -> list[ReportPostHocHorizon]:
+    """Per-report forward returns after creation (research verification, not a strategy)."""
+    row = (
+        db.query(ResearchReport)
+        .filter(ResearchReport.user_id == user_id, ResearchReport.id == report_id)
+        .one_or_none()
+    )
+    if row is None:
+        return []
+    meta = await get_bars_meta_for_symbol(row.symbol, days=180)
+    if meta.adjust != "qfq" or not meta.bars:
+        return [
+            ReportPostHocHorizon(
+                days=h,
+                return_pct=None,
+                partial=True,
+                note=meta.note or "前复权日线不可用",
+            )
+            for h in horizons
+        ]
+    start_idx = _start_idx_for_day(meta.bars, row.created_at.date())
+    if start_idx < 0:
+        return [
+            ReportPostHocHorizon(days=h, return_pct=None, partial=True, note="尚无后续交易日")
+            for h in horizons
+        ]
+    out: list[ReportPostHocHorizon] = []
+    for h in horizons:
+        ret = _forward_return_pct(meta.bars, start_idx, h)
+        out.append(
+            ReportPostHocHorizon(
+                days=h,
+                return_pct=round(ret, 2) if ret is not None else None,
+                partial=ret is None,
+                note=None if ret is not None else "窗口未满",
+                bars_adjust="qfq",
+                bars_source=meta.source,
+            )
+        )
+    return out
 
 
 async def compute_signal_backtest(
@@ -101,48 +183,41 @@ async def compute_signal_backtest(
         .order_by(ResearchReport.created_at.asc())
         .all()
     )
-    provider = TechnicalDataProvider()
-    cache: dict[str, list[dict[str, float | str]]] = {}
+    cache: dict[str, list[dict[str, float | str]] | None] = {}
 
-    bucket: dict[int, dict[str, list[float]]] = {
-        h: {"bullish": [], "bearish": []} for h in horizons
-    }
+    # Combined (bias preferred, else tilt) — primary display
+    bucket: dict[int, dict[str, list[float]]] = {h: _empty_side_bucket() for h in horizons}
+    bias_bucket: dict[int, dict[str, list[float]]] = {h: _empty_side_bucket() for h in horizons}
+    tilt_bucket: dict[int, dict[str, list[float]]] = {h: _empty_side_bucket() for h in horizons}
+
     used_symbols: set[str] = set()
     bias_signals = 0
     tilt_signals = 0
     factor_hits = 0
     factor_samples = 0
+    skipped_non_qfq = 0
     notes: list[str] = []
 
     for row in rows:
         payload = row.report_json if isinstance(row.report_json, dict) else {}
         bias = str(payload.get("bias", "neutral"))
         tilt = _factor_tilt(payload)
-        source: str | None = None
-        signal: str | None = None
+        primary_source: str | None = None
+        primary_signal: str | None = None
         if bias in ("bullish", "bearish"):
-            signal = bias
-            source = "bias"
+            primary_signal = bias
+            primary_source = "bias"
         elif tilt in ("bullish", "bearish"):
-            signal = tilt
-            source = "tilt"
-        if signal not in ("bullish", "bearish") or source is None:
+            primary_signal = tilt
+            primary_source = "tilt"
+        if primary_signal not in ("bullish", "bearish") or primary_source is None:
             continue
-        if row.symbol not in cache:
-            try:
-                cache[row.symbol] = await get_bars_for_symbol(row.symbol, days=180)
-            except Exception:
-                cache[row.symbol] = await provider.get_kline_bars(row.symbol, days=180)
-        bars = cache[row.symbol]
-        if not bars:
+
+        bars = await _load_qfq_bars(row.symbol, cache)
+        if bars is None:
+            skipped_non_qfq += 1
             continue
-        report_day = row.created_at.date()
-        start_idx = -1
-        for i, bar in enumerate(bars):
-            bar_dt = _parse_date(str(bar.get("date", "")))
-            if bar_dt and bar_dt.date() >= report_day:
-                start_idx = i
-                break
+        start_idx = _start_idx_for_day(bars, row.created_at.date())
         if start_idx < 0:
             continue
 
@@ -151,19 +226,25 @@ async def compute_signal_backtest(
             ret = _forward_return_pct(bars, start_idx, h)
             if ret is None:
                 continue
-            bucket[h][signal].append(ret)
+            bucket[h][primary_signal].append(ret)
+            if bias in ("bullish", "bearish"):
+                bias_bucket[h][bias].append(ret)
+            if tilt in ("bullish", "bearish"):
+                tilt_bucket[h][tilt].append(ret)
             if not counted:
                 used_symbols.add(row.symbol)
-                if source == "bias":
+                if primary_source == "bias":
                     bias_signals += 1
                 else:
                     tilt_signals += 1
                 counted = True
-            if source == "tilt":
+            if primary_source == "tilt":
                 factor_samples += 1
                 if (tilt == "bullish" and ret > 0) or (tilt == "bearish" and ret < 0):
                     factor_hits += 1
 
+    if skipped_non_qfq:
+        notes.append(f"跳过 {skipped_non_qfq} 条无前复权日线的样本")
     if factor_samples > 0:
         rate = round(factor_hits / factor_samples * 100.0, 1)
         notes.append(
@@ -171,7 +252,7 @@ async def compute_signal_backtest(
         )
     if bias_signals and tilt_signals:
         notes.append(
-            f"信号来源分层：研报偏向 {bias_signals} 条优先于因子倾斜 {tilt_signals} 条"
+            f"信号来源分层：研报偏向 {bias_signals} 条优先计入合计；因子倾斜另列 {tilt_signals} 条"
         )
 
     out_horizons: list[SignalBacktestHorizon] = []
@@ -184,15 +265,19 @@ async def compute_signal_backtest(
         bear_med = _med(bear)
         bull_hit = (sum(1 for x in bull if x > 0) / len(bull) * 100) if bull else None
         bear_hit = (sum(1 for x in bear if x < 0) / len(bear) * 100) if bear else None
-        spread = None
-        if bull_avg is not None and bear_avg is not None:
-            spread = round(bull_avg - bear_avg, 2)
-        elif bull_avg is not None or bear_avg is not None:
-            # 单边样本：不报 spread，避免误读
-            spread = None
+        spread = (
+            round(bull_avg - bear_avg, 2)
+            if bull_avg is not None and bear_avg is not None
+            else None
+        )
         sample_n = len(bull) + len(bear)
         if sample_n > 0 and sample_n < _MIN_SAMPLE_FOR_CONFIDENCE:
             notes.append(f"{h} 日窗口样本仅 {sample_n}，命中率波动大")
+
+        bias_bull = bias_bucket[h]["bullish"]
+        bias_bear = bias_bucket[h]["bearish"]
+        tilt_bull = tilt_bucket[h]["bullish"]
+        tilt_bear = tilt_bucket[h]["bearish"]
         out_horizons.append(
             SignalBacktestHorizon(
                 days=h,
@@ -206,10 +291,13 @@ async def compute_signal_backtest(
                 bullish_positive_rate_pct=round(bull_hit, 1) if bull_hit is not None else None,
                 bearish_negative_rate_pct=round(bear_hit, 1) if bear_hit is not None else None,
                 spread_avg_return_pct=spread,
+                bias_bullish_avg_return_pct=round(_avg(bias_bull), 2) if bias_bull else None,
+                bias_bearish_avg_return_pct=round(_avg(bias_bear), 2) if bias_bear else None,
+                factor_tilt_bullish_avg_return_pct=round(_avg(tilt_bull), 2) if tilt_bull else None,
+                factor_tilt_bearish_avg_return_pct=round(_avg(tilt_bear), 2) if tilt_bear else None,
             )
         )
 
-    # Deduplicate horizon low-sample notes while preserving order
     seen: set[str] = set()
     deduped_notes: list[str] = []
     for note in notes:
@@ -229,6 +317,7 @@ async def compute_signal_backtest(
             total_samples=total_samples,
             bias_count=bias_signals,
             tilt_count=tilt_signals,
+            skipped_non_qfq=skipped_non_qfq,
         ),
         unique_symbols=len(used_symbols),
         bias_sample_count=bias_signals,
