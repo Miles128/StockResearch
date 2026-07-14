@@ -70,6 +70,10 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
     gaps: list[str] = []
     if not available:
         gaps.append("雪球/东财情绪未取到")
+    else:
+        note = str(hot.get("coverage_note") or "").strip()
+        if note:
+            gaps.append(note)
     if not items:
         gaps.append("个股新闻为空")
     return finalize_dimension(

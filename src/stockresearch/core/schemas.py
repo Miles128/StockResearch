@@ -679,6 +679,7 @@ class DataSourceStatusOut(BaseModel):
     use_mock: bool = False
     tushare_configured: bool = False
     tushare_available: bool = False
+    tushare_status: Literal["no_token", "unavailable", "invalid", "ok", "quota"] = "no_token"
     price_conflicts: list[QuotePriceConflictOut] = Field(default_factory=list)
 
 

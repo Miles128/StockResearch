@@ -4,6 +4,8 @@
 AkShare 接口：stock_research_report_em(symbol)
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from dataclasses import dataclass
@@ -13,12 +15,13 @@ import akshare as ak  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
-_REPORT_TIMEOUT_SEC = 10.0
+_REPORT_TIMEOUT_SEC = 12.0
 
 
 @dataclass(frozen=True)
 class ResearchReportItem:
     """东方财富机构研报条目。"""
+
     title: str
     institution: str  # 研究机构
     analyst: str  # 分析师
@@ -28,6 +31,12 @@ class ResearchReportItem:
     symbol: str
     name: str
     summary: str = ""
+
+
+@dataclass(frozen=True)
+class ResearchReportFetchResult:
+    items: list[ResearchReportItem]
+    source_failed: bool = False
 
 
 def _parse_date(value: object) -> datetime:
@@ -62,16 +71,16 @@ def fetch_research_reports_sync(
     name: str = "",
     *,
     limit: int = 20,
-) -> list[ResearchReportItem]:
+) -> ResearchReportFetchResult:
     """同步拉取指定股票最近的东方财富机构研报。"""
     try:
         df = ak.stock_research_report_em(symbol=symbol)
     except Exception as exc:
         logger.warning("AkShare research reports failed for %s: %s", symbol, exc)
-        return []
+        return ResearchReportFetchResult(items=[], source_failed=True)
 
     if df is None or df.empty:
-        return []
+        return ResearchReportFetchResult(items=[], source_failed=False)
 
     items: list[ResearchReportItem] = []
     for _, row in df.head(limit).iterrows():
@@ -97,11 +106,51 @@ def fetch_research_reports_sync(
                 summary=summary[:500],
             )
         )
-    return items
+    return ResearchReportFetchResult(items=items, source_failed=False)
 
 
 class ResearchReportProvider:
     """异步研报 provider，封装东方财富研报拉取逻辑。"""
+
+    async def fetch_reports_result(
+        self,
+        symbol: str,
+        name: str = "",
+        *,
+        limit: int = 20,
+    ) -> ResearchReportFetchResult:
+        last_exc: Exception | None = None
+        for attempt in range(2):
+            try:
+                return await asyncio.wait_for(
+                    asyncio.to_thread(
+                        fetch_research_reports_sync,
+                        symbol,
+                        name,
+                        limit=limit,
+                    ),
+                    timeout=_REPORT_TIMEOUT_SEC,
+                )
+            except TimeoutError as exc:
+                last_exc = exc
+                logger.warning(
+                    "Eastmoney research reports timed out for %s (attempt %d)",
+                    symbol,
+                    attempt + 1,
+                )
+            except Exception as exc:
+                last_exc = exc
+                logger.warning(
+                    "Eastmoney research reports failed for %s (attempt %d): %s",
+                    symbol,
+                    attempt + 1,
+                    exc,
+                )
+            if attempt == 0:
+                await asyncio.sleep(0.4)
+        if last_exc:
+            return ResearchReportFetchResult(items=[], source_failed=True)
+        return ResearchReportFetchResult(items=[], source_failed=True)
 
     async def fetch_reports(
         self,
@@ -110,22 +159,8 @@ class ResearchReportProvider:
         *,
         limit: int = 20,
     ) -> list[ResearchReportItem]:
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(
-                    fetch_research_reports_sync,
-                    symbol,
-                    name,
-                    limit=limit,
-                ),
-                timeout=_REPORT_TIMEOUT_SEC,
-            )
-        except TimeoutError:
-            logger.warning("Eastmoney research reports timed out for %s", symbol)
-            return []
-        except Exception as exc:
-            logger.warning("Eastmoney research reports failed for %s: %s", symbol, exc)
-            return []
+        result = await self.fetch_reports_result(symbol, name, limit=limit)
+        return list(result.items)
 
     async def fetch_latest_for_symbols(
         self,
@@ -135,9 +170,7 @@ class ResearchReportProvider:
     ) -> list[ResearchReportItem]:
         """批量并行拉取多只股票的研报，按发布时间倒序合并。"""
         tasks = [
-            asyncio.create_task(
-                self.fetch_reports(symbol, name, limit=per_symbol_limit)
-            )
+            asyncio.create_task(self.fetch_reports(symbol, name, limit=per_symbol_limit))
             for symbol, name in symbol_pairs[:10]
         ]
         items: list[ResearchReportItem] = []

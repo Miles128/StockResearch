@@ -70,21 +70,36 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
     if float(lockup.get("ratio_pct", 0)) > 3:
         risks.insert(0, f"近期待解禁占比约 {float(lockup['ratio_pct']):.1f}%")
 
+    gaps: list[str] = []
+    sources: list[str] = []
+    for key, payload, label in (
+        ("akshare_lhb", dragon, "龙虎榜"),
+        ("akshare_fund_flow", fund, "主力资金流向"),
+        ("akshare_northbound", northbound, "北向资金"),
+        ("akshare_margin", margin, "融资融券"),
+        ("akshare_gdhs", holders, "股东户数"),
+        ("akshare_lockup", lockup, "限售解禁"),
+    ):
+        empty = (
+            payload.get("available") is False
+            or payload.get("signal") == "暂无数据"
+            or payload.get("partial") is True
+        )
+        if empty:
+            gaps.append(f"{label}不可用")
+        else:
+            sources.append(key)
+
     return finalize_dimension(
         agent="chips",
         score=score,
         confidence=as_confidence(CONFIDENCE_MEDIUM),
         raw_analysis=analysis,
-        data_sources=[
-            "akshare_lhb",
-            "akshare_fund_flow",
-            "akshare_northbound",
-            "akshare_margin",
-            "akshare_gdhs",
-            "akshare_lockup",
-        ],
+        data_sources=sources or ["akshare_fund_flow"],
         fallback_highlights=[f"主力净流入 {main_net:.0f}"],
         fallback_risks=risks,
+        gaps=gaps[:6],
+        partial=bool(gaps),
     )
 
 

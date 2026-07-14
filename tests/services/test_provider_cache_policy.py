@@ -46,6 +46,57 @@ async def test_get_or_set_skips_empty_failure_cache() -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_or_set_skips_empty_peers() -> None:
+    init_db()
+    key = "test:peers:empty"
+
+    async def fetch_empty() -> dict[str, object]:
+        return {"peers": [], "source": "none"}
+
+    result = await get_or_set_cached_dict(key, 3600, fetch_empty)
+    assert result["peers"] == []
+    assert get_sqlite_cached(key) is None
+
+
+@pytest.mark.asyncio
+async def test_get_or_set_skips_tushare_no_percentile() -> None:
+    init_db()
+    key = "test:valuation:tushare_partial"
+
+    async def fetch_partial() -> dict[str, object]:
+        return {
+            "pe_ttm": 20.0,
+            "pb": 3.0,
+            "pe_percentile": None,
+            "source": "tushare_daily_basic",
+            "partial": True,
+            "gaps": ["Tushare 仅提供当日估值，无历史分位"],
+        }
+
+    result = await get_or_set_cached_dict(key, 3600, fetch_partial)
+    assert result["pe_ttm"] == 20.0
+    assert get_sqlite_cached(key) is None
+
+
+@pytest.mark.asyncio
+async def test_get_or_set_skips_chips_empty_signal() -> None:
+    init_db()
+    key = "test:chips:empty"
+
+    async def fetch_empty() -> dict[str, object]:
+        return {
+            "appearances": 0,
+            "net_buy": 0.0,
+            "signal": "暂无数据",
+            "source": "akshare_lhb",
+        }
+
+    result = await get_or_set_cached_dict(key, 3600, fetch_empty)
+    assert result["signal"] == "暂无数据"
+    assert get_sqlite_cached(key) is None
+
+
+@pytest.mark.asyncio
 async def test_get_or_set_respects_should_cache() -> None:
     init_db()
     key = "test:valuation:should_cache"

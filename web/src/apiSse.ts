@@ -1,5 +1,7 @@
 /** Factory for JSON SSE streams consumed by the API client. */
 
+import { dataSourceRequestHeaders } from "./dataSourceSettings";
+
 export interface SseEvent {
   type: string;
   [key: string]: unknown;
@@ -118,7 +120,11 @@ export async function createJsonSseStream<T, E extends SseEvent = SseEvent>(
 
   const init: RequestInit = {
     method,
-    headers: { "Content-Type": "application/json", ...headers },
+    headers: {
+      "Content-Type": "application/json",
+      ...dataSourceRequestHeaders(),
+      ...headers,
+    },
     signal,
   };
   if (body && method !== "GET") {

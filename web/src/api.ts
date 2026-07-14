@@ -894,6 +894,7 @@ export interface DataSourceStatus {
   use_mock: boolean;
   tushare_configured?: boolean;
   tushare_available?: boolean;
+  tushare_status?: "no_token" | "unavailable" | "invalid" | "ok" | "quota";
   price_conflicts?: QuotePriceConflict[];
 }
 

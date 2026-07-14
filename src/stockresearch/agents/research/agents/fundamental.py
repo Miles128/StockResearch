@@ -96,11 +96,17 @@ async def _tool_announcements(ctx: ResearchContext) -> dict[str, object]:
             "count": 1,
             "partial": False,
         }
-    items = await AnnouncementProvider().fetch_announcements(
+    result = await AnnouncementProvider().fetch_announcements_result(
         ctx.symbol,
         resolve_name(ctx.symbol),
         days=60,
         limit=8,
+    )
+    items = result.items
+    gap = (
+        "公告源暂时失败"
+        if result.source_failed
+        else ("近60天无公告" if not items else None)
     )
     return {
         "items": [
@@ -115,6 +121,8 @@ async def _tool_announcements(ctx: ResearchContext) -> dict[str, object]:
         ],
         "count": len(items),
         "partial": len(items) == 0,
+        "source_failed": result.source_failed,
+        "gaps": [gap] if gap else [],
     }
 
 
@@ -134,10 +142,16 @@ async def _tool_research_reports(ctx: ResearchContext) -> dict[str, object]:
             "count": 1,
             "partial": False,
         }
-    items = await ResearchReportProvider().fetch_reports(
+    result = await ResearchReportProvider().fetch_reports_result(
         ctx.symbol,
         resolve_name(ctx.symbol),
         limit=6,
+    )
+    items = result.items
+    gap = (
+        "研报源暂时失败"
+        if result.source_failed
+        else ("近期无机构研报" if not items else None)
     )
     return {
         "items": [
@@ -153,6 +167,8 @@ async def _tool_research_reports(ctx: ResearchContext) -> dict[str, object]:
         ],
         "count": len(items),
         "partial": len(items) == 0,
+        "source_failed": result.source_failed,
+        "gaps": [gap] if gap else [],
     }
 
 
@@ -326,9 +342,11 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
         peer_gaps = [str(g) for g in _as_list(peers_payload, "gaps") if str(g).strip()]
         gaps.extend(peer_gaps or ["可比公司不足"])
     if bool(ann.get("partial")) or int(ann.get("count", 0) or 0) == 0:
-        gaps.append("近期公告未取到")
+        ann_gaps = [str(g) for g in _as_list(ann, "gaps") if str(g).strip()]
+        gaps.extend(ann_gaps or ["近期公告未取到"])
     if bool(reports.get("partial")) or int(reports.get("count", 0) or 0) == 0:
-        gaps.append("机构研报未取到")
+        report_gaps = [str(g) for g in _as_list(reports, "gaps") if str(g).strip()]
+        gaps.extend(report_gaps or ["机构研报未取到"])
 
     sources = [
         "akshare_financials",

@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from stockresearch.api.deps import get_current_user
-from stockresearch.core.data_source_config import get_tushare_token
 from stockresearch.core.schemas import (
     DataSourceDetailOut,
     DataSourceStatusOut,
@@ -138,8 +137,11 @@ async def data_source_status(
     snapshots = get_snapshots()
     quotes = snapshots.get("quotes")
     overview = snapshots.get("overview")
-    tushare_configured = bool(get_tushare_token())
-    tushare_available = _tushare_runtime_available()
+    from stockresearch.data.providers.tushare_financial import probe_tushare_token
+
+    tushare_status = await asyncio.to_thread(probe_tushare_token)
+    tushare_configured = tushare_status != "no_token"
+    tushare_available = tushare_status == "ok"
     quote_status = _provider_status(quotes) if quotes else None
     overview_status = _provider_status(overview) if overview else None
     return DataSourceStatusOut(
@@ -150,6 +152,7 @@ async def data_source_status(
             overview_status,
             tushare_configured=tushare_configured,
             tushare_available=tushare_available,
+            tushare_status=tushare_status,
         ),
         provider_catalog=[
             ProviderMetaOut(
@@ -165,6 +168,7 @@ async def data_source_status(
         use_mock=False,
         tushare_configured=tushare_configured,
         tushare_available=tushare_available,
+        tushare_status=tushare_status,
         price_conflicts=[
             QuotePriceConflictOut(
                 symbol=item.symbol,
@@ -209,6 +213,7 @@ def _data_source_details(
     *,
     tushare_configured: bool,
     tushare_available: bool,
+    tushare_status: str = "no_token",
 ) -> list[DataSourceDetailOut]:
     """返回所有已配置数据源的清单（不只是本次会话实际触发的）。
 
@@ -332,28 +337,34 @@ def _data_source_details(
         )
     )
 
-    # ── L3 Tushare Pro 增强：估值/换手率 ──
+    # ── L3 Tushare Pro：估值兜底 / 日线 qfq 兜底 ──
+    tushare_reason = {
+        "no_token": None,
+        "unavailable": "Python 运行环境未安装 tushare",
+        "invalid": "Token 无效或鉴权失败",
+        "quota": "积分不足或接口权限不够，已跳过 Tushare 兜底",
+        "ok": None,
+    }.get(tushare_status)
+    tushare_detail_status = {
+        "ok": "ok",
+        "no_token": "not_configured",
+        "unavailable": "degraded",
+        "invalid": "degraded",
+        "quota": "degraded",
+    }.get(tushare_status, "not_configured")
     details.append(
         DataSourceDetailOut(
             domain="tushare",
-            label="Tushare Pro 增强数据（PE/PB/换手率）",
+            label="Tushare Pro（估值 / 日线 qfq 兜底）",
             layer="L3",
             source="tushare",
             degraded=tushare_configured and not tushare_available,
-            degraded_reason="Python 运行环境未安装 tushare" if tushare_configured and not tushare_available else None,
-            confidence="single_source" if tushare_configured else "missing",
-            status="configured" if tushare_configured and tushare_available else "not_configured",
+            degraded_reason=tushare_reason,
+            confidence="single_source" if tushare_available else "missing",
+            status=tushare_detail_status,
         )
     )
     return details
-
-
-def _tushare_runtime_available() -> bool:
-    try:
-        import tushare  # type: ignore[import-untyped]  # noqa: F401
-    except ImportError:
-        return False
-    return True
 
 
 @router.get("/sentiment", response_model=SentimentOut)

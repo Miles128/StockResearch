@@ -75,7 +75,7 @@
 | 数据 | 主源 | 备源（按序） | 接口/说明 |
 |------|------|--------------|-----------|
 | 实时报价 | **新浪财经** `hq.sinajs.cn` | AkShare hist → **efinance** | 三源兜底 |
-| 日 K 线 | **AkShare**（前复权 `stock_zh_a_hist`） | 新浪 K 线 → efinance | 指数用 `index_zh_a_hist`；本地日线仓增量缓存持仓/自选 |
+| 日 K 线 | **AkShare**（前复权 `stock_zh_a_hist`） | efinance → **Tushare**（有 Token）→ 新浪（非 qfq） | 指数用 `index_zh_a_hist`；本地日线仓增量缓存持仓/自选/近期研报标的 |
 | 指数概览 | **新浪指数** | AkShare | 北向：AkShare `stock_hsgt_north_net_flow_in_em` |
 
 ### 5.2 新闻、公告、研报
@@ -92,7 +92,7 @@
 | 数据 | 来源 | 说明 |
 |------|------|------|
 | 财务/估值 | AkShare | 多期序列 + 真实估值分位；缺则 `partial` |
-| 财务增强 | **Tushare Pro**（可选，用户 Token） | 有 Key 时优先；与 AkShare 冲突 → Tushare 为准 + UI 并列预警 |
+| 财务增强 | **Tushare Pro**（可选 L3，用户 Token） | 有 Token 时进估值（东财后）与 qfq 日线兜底；Registry=元数据+状态探针+降级链，非行情 conflict ledger |
 | 筹码面 | AkShare | 龙虎榜、资金流、北向持股、两融、股东户数、解禁 |
 | 情绪面 | AkShare + 东方财富个股新闻 + 雪球热度 | — |
 | 数值因子 | 本地日线仓 + 财务/筹码快照 | 写入研究报告 `factors` 字段 |
@@ -130,7 +130,7 @@ Phase 2：`stockresearch worker` 独立 Cron + 可选 launchd 示例。
 
 1. ~~Settings 接 §七 开关；ingest 后台化；`stockresearch worker`~~（已完成）
 2. ~~`prompts/` 外置~~（已完成）
-3. Tushare Registry 完善（可选）
+3. ~~Tushare Registry（元数据+状态探针+估值/qfq 降级）~~（MVP 已完成）
 4. CLI + MCP + Skills 外化（后期）
 5. 可选 launchd 示例（worker 常驻）
 

@@ -28,7 +28,30 @@ PROVIDER_CATALOG: dict[str, ProviderMeta] = {
     "akshare_lockup": ProviderMeta("akshare_lockup", "限售解禁", "L2", "akshare", "chips", 86400),
     "akshare_financials": ProviderMeta("akshare_financials", "财务与估值", "L2", "akshare", "fundamental", 86400),
     "news_text_factor": ProviderMeta("news_text_factor", "新闻文本因子", "L1", "news", "sentiment", 1800),
-    "tushare_pro": ProviderMeta("tushare_pro", "Tushare Pro 增强", "L3", "tushare", "fundamental", 86400),
+    "tushare_pro": ProviderMeta(
+        "tushare_pro",
+        "Tushare Pro（估值 / 日线 qfq 兜底）",
+        "L3",
+        "tushare",
+        "fundamental",
+        86400,
+    ),
+    "tushare_daily_basic": ProviderMeta(
+        "tushare_daily_basic",
+        "Tushare 当日估值",
+        "L3",
+        "tushare",
+        "valuation",
+        3600,
+    ),
+    "tushare_kline": ProviderMeta(
+        "tushare_kline",
+        "Tushare 前复权日线",
+        "L3",
+        "tushare",
+        "technical",
+        3600,
+    ),
 }
 
 

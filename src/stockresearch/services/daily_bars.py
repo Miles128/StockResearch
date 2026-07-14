@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from stockresearch.data.providers.market import TechnicalDataProvider
-from stockresearch.db.models import DailyBar, Holding, WatchlistItem
+from stockresearch.db.models import DailyBar, Holding, ResearchReport, WatchlistItem
 from stockresearch.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
@@ -202,14 +203,55 @@ async def get_bars_for_symbol(symbol: str, days: int = 90) -> list[dict[str, flo
     return meta.bars
 
 
+def recent_research_symbols(db: Session, *, days: int = 14, limit: int = 30) -> set[str]:
+    """Symbols from recent research reports (warm-universe expansion)."""
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    rows = (
+        db.query(ResearchReport.symbol)
+        .filter(ResearchReport.created_at >= cutoff)
+        .order_by(ResearchReport.created_at.desc())
+        .limit(limit * 3)
+        .all()
+    )
+    out: set[str] = set()
+    for (sym,) in rows:
+        code = str(sym or "").strip()
+        if code and code not in out:
+            out.add(code)
+        if len(out) >= limit:
+            break
+    return out
+
+
 def universe_symbols(db: Session) -> list[str]:
     holding_syms = {row[0] for row in db.query(Holding.symbol).distinct()}
     watch_syms = {row[0] for row in db.query(WatchlistItem.symbol).distinct()}
-    return sorted(holding_syms | watch_syms)
+    recent_syms = recent_research_symbols(db)
+    return sorted(holding_syms | watch_syms | recent_syms)
+
+
+async def _refresh_one_symbol(
+    provider: TechnicalDataProvider,
+    db: Session,
+    symbol: str,
+    days: int,
+) -> int:
+    bars, source, adjust = await provider.get_kline_bars_meta(
+        symbol, days=days, prefer_qfq=True
+    )
+    if bars and adjust == "qfq":
+        return upsert_bars(db, symbol, bars, adj="qfq", source=source)
+    logger.warning(
+        "skip non-qfq refresh for %s (source=%s adjust=%s)",
+        symbol,
+        source,
+        adjust,
+    )
+    return 0
 
 
 async def refresh_universe_bars(*, days: int = 120) -> dict[str, int]:
-    """Incremental refresh for all holdings + watchlist symbols (qfq only)."""
+    """Incremental refresh for holdings ∪ watchlist ∪ recent research (qfq only)."""
     db = SessionLocal()
     provider = TechnicalDataProvider()
     updated: dict[str, int] = {}
@@ -217,22 +259,15 @@ async def refresh_universe_bars(*, days: int = 120) -> dict[str, int]:
         symbols = universe_symbols(db)
         for symbol in symbols:
             try:
-                bars, source, adjust = await provider.get_kline_bars_meta(
-                    symbol, days=days, prefer_qfq=True
-                )
-                if bars and adjust == "qfq":
-                    updated[symbol] = upsert_bars(db, symbol, bars, adj="qfq", source=source)
-                else:
-                    logger.warning(
-                        "skip non-qfq refresh for %s (source=%s adjust=%s)",
-                        symbol,
-                        source,
-                        adjust,
-                    )
-                    updated[symbol] = 0
+                updated[symbol] = await _refresh_one_symbol(provider, db, symbol, days)
             except Exception as exc:
-                logger.warning("daily bar refresh failed for %s: %s", symbol, exc)
-                updated[symbol] = 0
+                logger.warning("daily bar refresh failed for %s: %s — retrying once", symbol, exc)
+                try:
+                    await asyncio.sleep(0.4)
+                    updated[symbol] = await _refresh_one_symbol(provider, db, symbol, days)
+                except Exception as retry_exc:
+                    logger.warning("daily bar refresh retry failed for %s: %s", symbol, retry_exc)
+                    updated[symbol] = 0
         return updated
     finally:
         db.close()

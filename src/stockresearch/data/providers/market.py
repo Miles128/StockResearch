@@ -791,6 +791,29 @@ class FinancialDataProvider:
             if parsed is not None:
                 return parsed
 
+            # Optional L3: Tushare daily_basic when token is configured (before Baidu).
+            from stockresearch.core.data_source_config import get_tushare_token
+
+            if get_tushare_token():
+                tushare = await run_sync_fetch(
+                    f"tushare valuation {symbol}",
+                    lambda: fetch_daily_basic_sync(symbol),
+                    timeout=_DATA_TIMEOUT_SEC,
+                    fallback=None,
+                )
+                if tushare:
+                    pe = self._optional_float(tushare.get("pe_ttm"))
+                    pb = self._optional_float(tushare.get("pb"))
+                    if pe is not None or pb is not None:
+                        return {
+                            "pe_ttm": pe,
+                            "pb": pb,
+                            "pe_percentile": None,
+                            "source": str(tushare.get("source", "tushare_daily_basic")),
+                            "partial": True,
+                            "gaps": ["Tushare 仅提供当日估值，无历史分位"],
+                        }
+
             # Fallback: Baidu PE/PB series.
             pe_df = await run_sync_fetch(
                 f"akshare baidu pe {symbol}",
@@ -812,24 +835,6 @@ class FinancialDataProvider:
             if parsed is not None:
                 return parsed
 
-            tushare = await run_sync_fetch(
-                f"tushare valuation {symbol}",
-                lambda: fetch_daily_basic_sync(symbol),
-                timeout=_DATA_TIMEOUT_SEC,
-                fallback=None,
-            )
-            if tushare:
-                pe = self._optional_float(tushare.get("pe_ttm"))
-                pb = self._optional_float(tushare.get("pb"))
-                if pe is not None or pb is not None:
-                    return {
-                        "pe_ttm": pe,
-                        "pb": pb,
-                        "pe_percentile": None,
-                        "source": str(tushare.get("source", "tushare")),
-                        "partial": True,
-                        "gaps": ["Tushare 仅提供当日估值，无历史分位"],
-                    }
             return {
                 "pe_ttm": None,
                 "pb": None,
@@ -840,7 +845,15 @@ class FinancialDataProvider:
             }
 
         def _cacheable(payload: dict[str, object]) -> bool:
-            return payload.get("pe_ttm") is not None or payload.get("pb") is not None
+            if payload.get("pe_ttm") is None and payload.get("pb") is None:
+                return False
+            src = str(payload.get("source") or "")
+            # Tushare/none shells without percentile poison the day-long cache.
+            if payload.get("pe_percentile") is None and (
+                "tushare" in src or src in ("", "none")
+            ):
+                return False
+            return True
 
         cached = await get_or_set_cached_dict(
             cache_key, ttl, _fetch, should_cache=_cacheable
@@ -858,9 +871,19 @@ class FinancialDataProvider:
 
         async def _fetch() -> dict[str, object]:
             peers = await self._resolve_dynamic_peers(symbol)
-            return {"peers": peers}
+            return {"peers": peers, "source": peers[0].get("source", "none") if peers else "none"}
 
-        cached = await get_or_set_cached_dict(cache_key, ttl, _fetch)
+        def _cacheable(payload: dict[str, object]) -> bool:
+            peers = payload.get("peers")
+            if not isinstance(peers, list) or not peers:
+                return False
+            # Seed-only / none: allow retry next request instead of locking a thin set for a day.
+            sources = {str(p.get("source", "")) for p in peers if isinstance(p, dict)}
+            if sources <= {"seed", "none", ""}:
+                return False
+            return True
+
+        cached = await get_or_set_cached_dict(cache_key, ttl, _fetch, should_cache=_cacheable)
         raw = cached.get("peers", [])
         if isinstance(raw, list):
             return [p for p in raw if isinstance(p, dict)]
@@ -1011,8 +1034,8 @@ class TechnicalDataProvider:
 
     @staticmethod
     def _kline_adjust(source: str) -> str:
-        # AkShare hist uses adjust=qfq; efinance kline uses fqt=1 (前复权).
-        return "qfq" if source in ("akshare", "efinance") else "none"
+        # AkShare hist / efinance fqt=1 / Tushare pro_bar adj="qfq".
+        return "qfq" if source in ("akshare", "efinance", "tushare") else "none"
 
     async def get_kline_bars(
         self,
@@ -1091,6 +1114,15 @@ class TechnicalDataProvider:
             bars = self._bars_from_akshare_df(ak_df, days)
             if bars:
                 source = "akshare"
+            elif prefer_qfq:
+                # One short retry — AkShare qfq flakes frequently under load.
+                await asyncio.sleep(0.35)
+                ak_df = await self._fetch_akshare_kline_df(
+                    symbol, start_date=start_date, end_date=end_date
+                )
+                bars = self._bars_from_akshare_df(ak_df, days)
+                if bars:
+                    source = "akshare"
 
         if prefer_qfq and not bars:
             # AkShare adjust=qfq often flakes; efinance fqt=1 is the qfq fallback.
@@ -1103,6 +1135,19 @@ class TechnicalDataProvider:
             if ef_bars:
                 bars = ef_bars
                 source = "efinance"
+
+        if prefer_qfq and not bars:
+            from stockresearch.data.providers.tushare_financial import fetch_qfq_bars_sync
+
+            ts_bars = await run_sync_fetch(
+                f"tushare kline qfq {symbol}",
+                lambda: fetch_qfq_bars_sync(symbol, days=days, end_date=end_date),
+                timeout=12.0,
+                fallback=None,
+            )
+            if ts_bars:
+                bars = ts_bars
+                source = "tushare"
 
         if not prefer_qfq:
             if not bars and before is None:
@@ -1312,6 +1357,11 @@ def _fetch_xueqiu_hot_sync(symbol: str, name: str) -> dict[str, float | int | st
     if sources:
         result["source"] = "+".join(sources)
         result["available"] = True
+        # Honest labeling when Xueqiu warm cache is cold — EM stock-comment only.
+        has_xq = any(s.startswith("xueqiu_") for s in sources)
+        if not has_xq and any(s.startswith("em_") for s in sources):
+            result["coverage_note"] = "仅东财个股情绪（雪球热榜暖缓存未命中）"
+            result["partial"] = True
     return result
 
 
@@ -1383,6 +1433,17 @@ class SentimentDataProvider:
 
 
 class ChipsDataProvider:
+    @staticmethod
+    def _cache_chips_result(cache_key: str, ttl: int | None, result: dict[str, object]) -> None:
+        """Persist only usable chips payloads — never poison TTL with empty shells."""
+        if not ttl:
+            return
+        if result.get("signal") == "暂无数据":
+            return
+        if result.get("available") is False or result.get("partial") is True:
+            return
+        set_sqlite_cached(cache_key, dict(result), ttl)
+
     async def get_dragon_tiger(self, symbol: str) -> dict[str, str | float | int]:
         if _use_mock_market_data():
             return {
@@ -1401,10 +1462,18 @@ class ChipsDataProvider:
             f"akshare lhb {symbol}",
             lambda: self._fetch_dragon_tiger_sync(symbol),
             timeout=_DATA_TIMEOUT_SEC,
-            fallback={"appearances": 0, "net_buy": 0.0, "institution_ratio": 0.0, "signal": "暂无数据", "source": "akshare_lhb"},
+            fallback={
+                "appearances": 0,
+                "net_buy": 0.0,
+                "institution_ratio": 0.0,
+                "signal": "暂无数据",
+                "source": "akshare_lhb",
+                "available": False,
+                "partial": True,
+                "gaps": ["龙虎榜不可用"],
+            },
         )
-        if ttl and result.get("source") == "akshare_lhb":
-            set_sqlite_cached(cache_key, dict(result), ttl)
+        self._cache_chips_result(cache_key, ttl, dict(result))
         return result
 
     async def get_fund_flow(self, symbol: str) -> dict[str, float | str]:
@@ -1424,10 +1493,17 @@ class ChipsDataProvider:
             f"akshare fund flow {symbol}",
             lambda: self._fetch_fund_flow_sync(symbol),
             timeout=_DATA_TIMEOUT_SEC,
-            fallback={"main_net_inflow": 0.0, "main_net_pct": 0.0, "days_positive": 0, "source": "akshare_fund_flow"},
+            fallback={
+                "main_net_inflow": 0.0,
+                "main_net_pct": 0.0,
+                "days_positive": 0,
+                "source": "akshare_fund_flow",
+                "available": False,
+                "partial": True,
+                "gaps": ["主力资金流向不可用"],
+            },
         )
-        if ttl and result.get("source") == "akshare_fund_flow":
-            set_sqlite_cached(cache_key, dict(result), ttl)
+        self._cache_chips_result(cache_key, ttl, dict(result))
         return result
 
     async def get_northbound_flow(self, symbol: str) -> dict[str, float | str]:
@@ -1455,10 +1531,12 @@ class ChipsDataProvider:
                 "net_change_value": 0.0,
                 "signal": "暂无数据",
                 "source": "akshare_northbound",
+                "available": False,
+                "partial": True,
+                "gaps": ["北向资金不可用"],
             },
         )
-        if ttl and result.get("source") == "akshare_northbound":
-            set_sqlite_cached(cache_key, dict(result), ttl)
+        self._cache_chips_result(cache_key, ttl, dict(result))
         return result
 
     async def get_margin_trading(self, symbol: str) -> dict[str, float | str]:
@@ -1484,10 +1562,12 @@ class ChipsDataProvider:
                 "securities_balance": 0.0,
                 "total_balance": 0.0,
                 "source": "akshare_margin",
+                "available": False,
+                "partial": True,
+                "gaps": ["融资融券不可用"],
             },
         )
-        if ttl and result.get("source") == "akshare_margin":
-            set_sqlite_cached(cache_key, dict(result), ttl)
+        self._cache_chips_result(cache_key, ttl, dict(result))
         return result
 
     async def get_holder_count(self, symbol: str) -> dict[str, float | str]:
@@ -1502,10 +1582,16 @@ class ChipsDataProvider:
             f"akshare holder count {symbol}",
             lambda: self._fetch_holder_count_sync(symbol),
             timeout=_DATA_TIMEOUT_SEC,
-            fallback={"holder_count": 0.0, "qoq_change": 0.0, "source": "akshare_gdhs"},
+            fallback={
+                "holder_count": 0.0,
+                "qoq_change": 0.0,
+                "source": "akshare_gdhs",
+                "available": False,
+                "partial": True,
+                "gaps": ["股东户数不可用"],
+            },
         )
-        if ttl and result.get("source") == "akshare_gdhs":
-            set_sqlite_cached(cache_key, dict(result), ttl)
+        self._cache_chips_result(cache_key, ttl, dict(result))
         return result
 
     async def get_lockup(self, symbol: str) -> dict[str, str | float | int]:
@@ -1520,10 +1606,17 @@ class ChipsDataProvider:
             f"akshare lockup {symbol}",
             lambda: self._fetch_lockup_sync(symbol),
             timeout=_DATA_TIMEOUT_SEC,
-            fallback={"upcoming_count": 0, "next_date": "", "ratio_pct": 0.0, "source": "akshare_lockup"},
+            fallback={
+                "upcoming_count": 0,
+                "next_date": "",
+                "ratio_pct": 0.0,
+                "source": "akshare_lockup",
+                "available": False,
+                "partial": True,
+                "gaps": ["限售解禁不可用"],
+            },
         )
-        if ttl and result.get("source") == "akshare_lockup":
-            set_sqlite_cached(cache_key, dict(result), ttl)
+        self._cache_chips_result(cache_key, ttl, dict(result))
         return result
 
     def _fetch_dragon_tiger_sync(self, symbol: str) -> dict[str, str | float | int]:
