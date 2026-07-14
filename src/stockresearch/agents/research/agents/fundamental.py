@@ -89,12 +89,14 @@ async def _tool_announcements(ctx: ResearchContext) -> dict[str, object]:
                     "title": "2024年年度报告",
                     "announcement_type": "年报",
                     "announcement_time": "2025-03-01T00:00:00+00:00",
-                    "url": "",
+                    "url": "https://example.com/ann",
+                    "excerpt": "公司报告期内营收与净利润保持增长。",
                     "source": "cninfo",
                 }
             ],
             "count": 1,
             "partial": False,
+            "gaps": [],
         }
     result = await AnnouncementProvider().fetch_announcements_result(
         ctx.symbol,
@@ -108,21 +110,37 @@ async def _tool_announcements(ctx: ResearchContext) -> dict[str, object]:
         if result.source_failed
         else ("近60天无公告" if not items else None)
     )
-    return {
-        "items": [
+    rows: list[dict[str, object]] = []
+    title_only = True
+    from stockresearch.data.providers.web_fetch import fetch_url_excerpt
+
+    for it in items:
+        excerpt = ""
+        blob = f"{it.title}{it.announcement_type}"
+        is_major = any(k in blob for k in _MAJOR_ANN_KEYWORDS)
+        if is_major and it.url:
+            excerpt = await fetch_url_excerpt(it.url, max_chars=200)
+        if excerpt:
+            title_only = False
+        rows.append(
             {
                 "title": it.title,
                 "announcement_type": it.announcement_type,
                 "announcement_time": it.announcement_time.isoformat(),
                 "url": it.url,
+                "excerpt": excerpt,
                 "source": "cninfo",
             }
-            for it in items
-        ],
-        "count": len(items),
-        "partial": len(items) == 0,
+        )
+    gaps: list[str] = [gap] if gap else []
+    if rows and title_only:
+        gaps.append("公告仅标题")
+    return {
+        "items": rows,
+        "count": len(rows),
+        "partial": len(rows) == 0 or title_only,
         "source_failed": result.source_failed,
-        "gaps": [gap] if gap else [],
+        "gaps": gaps,
     }
 
 
@@ -133,7 +151,9 @@ async def _tool_research_reports(ctx: ResearchContext) -> dict[str, object]:
                 {
                     "title": "深度报告",
                     "institution": "模拟券商",
+                    "analyst": "张三",
                     "rating": "增持",
+                    "target_price": 1800.0,
                     "publish_date": "2025-02-01T00:00:00+00:00",
                     "summary": "模拟研报摘要",
                     "source": "eastmoney",
@@ -141,6 +161,7 @@ async def _tool_research_reports(ctx: ResearchContext) -> dict[str, object]:
             ],
             "count": 1,
             "partial": False,
+            "gaps": [],
         }
     result = await ResearchReportProvider().fetch_reports_result(
         ctx.symbol,
@@ -158,9 +179,11 @@ async def _tool_research_reports(ctx: ResearchContext) -> dict[str, object]:
             {
                 "title": it.title,
                 "institution": it.institution,
+                "analyst": it.analyst,
                 "rating": it.rating,
+                "target_price": it.target_price,
                 "publish_date": it.publish_date.isoformat(),
-                "summary": (it.summary or "")[:200],
+                "summary": (it.summary or "")[:400],
                 "source": "eastmoney",
             }
             for it in items
@@ -191,11 +214,13 @@ def _collect_evidence(data: dict[str, object]) -> list[DimensionEvidence]:
         title = str(item.get("title", "")).strip()
         if not title:
             continue
+        excerpt = str(item.get("excerpt", "")).strip()
+        snippet = f"{title} — {excerpt}" if excerpt else title
         evidence.append(
             DimensionEvidence(
                 source="cninfo",
                 date=str(item.get("announcement_time", ""))[:10] or None,
-                snippet=title[:120],
+                snippet=snippet[:160],
                 url=str(item.get("url", "")) or None,
                 kind="announcement",
             )
@@ -207,14 +232,18 @@ def _collect_evidence(data: dict[str, object]) -> list[DimensionEvidence]:
         title = str(item.get("title", "")).strip()
         inst = str(item.get("institution", "")).strip()
         rating = str(item.get("rating", "")).strip()
-        snippet = f"{inst} {rating} · {title}".strip(" ·")
+        target = item.get("target_price")
+        target_bit = ""
+        if isinstance(target, (int, float)) and float(target) > 0:
+            target_bit = f" 目标价{float(target):.0f}"
+        snippet = f"{inst} {rating}{target_bit} · {title}".strip(" ·")
         if not snippet:
             continue
         evidence.append(
             DimensionEvidence(
                 source="eastmoney",
                 date=str(item.get("publish_date", ""))[:10] or None,
-                snippet=snippet[:120],
+                snippet=snippet[:140],
                 kind="research_report",
             )
         )
@@ -236,6 +265,16 @@ def _collect_evidence(data: dict[str, object]) -> list[DimensionEvidence]:
                     kind="financial",
                 )
             )
+    trend = _series_trend_note(fin)
+    if trend:
+        evidence.append(
+            DimensionEvidence(
+                source="akshare",
+                date=None,
+                snippet=trend,
+                kind="financial",
+            )
+        )
     val = _as_dict(data, "akshare_valuation")
     pe_pct = val.get("pe_percentile", fin.get("pe_percentile"))
     if isinstance(pe_pct, (int, float)) and not bool(val.get("partial")):
@@ -247,7 +286,60 @@ def _collect_evidence(data: dict[str, object]) -> list[DimensionEvidence]:
                 kind="financial",
             )
         )
+    peer_note = _peer_relative_note(data)
+    if peer_note:
+        evidence.append(
+            DimensionEvidence(
+                source="akshare",
+                date=None,
+                snippet=peer_note,
+                kind="financial",
+            )
+        )
     return evidence
+
+
+def _series_trend_note(fin: dict[str, object]) -> str | None:
+    series = fin.get("series")
+    if not isinstance(series, list) or len(series) < 2:
+        return None
+    rows = [r for r in series if isinstance(r, dict)]
+    if len(rows) < 2:
+        return None
+    # series is newest-first in provider.
+    newer, older = rows[0], rows[1]
+    bits: list[str] = []
+    for key, label in (("revenue_yoy", "营收增速"), ("roe", "ROE")):
+        a = _optional_metric(newer.get(key))
+        b = _optional_metric(older.get(key))
+        if a is None or b is None:
+            continue
+        if a > b + 0.01:
+            bits.append(f"{label}改善")
+        elif a < b - 0.01:
+            bits.append(f"{label}走弱")
+    if not bits:
+        return None
+    return "财务序列：" + "、".join(bits)
+
+
+def _peer_relative_note(data: dict[str, object]) -> str | None:
+    val = _as_dict(data, "akshare_valuation")
+    peers_payload = _as_dict(data, "akshare_peers")
+    own_pe = _optional_metric(val.get("pe_ttm"))
+    peers = [p for p in _as_list(peers_payload, "peers") if isinstance(p, dict)]
+    peer_pes = [
+        float(p["pe_ttm"])
+        for p in peers
+        if isinstance(p.get("pe_ttm"), (int, float)) and float(p["pe_ttm"]) > 0
+    ]
+    if own_pe is None or own_pe <= 0 or len(peer_pes) < 2:
+        return None
+    median_pe = sorted(peer_pes)[len(peer_pes) // 2]
+    if median_pe <= 0:
+        return None
+    rel = (own_pe / median_pe - 1.0) * 100.0
+    return f"相对可比 PE：自身 {own_pe:.1f} vs 同行中位 {median_pe:.1f}（{rel:+.0f}%）"
 
 
 def _has_major_announcement(data: dict[str, object]) -> bool:
@@ -321,6 +413,12 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
         f"营收增速 {_fmt_ratio(revenue_yoy, missing='缺失')}",
         f"ROE {_fmt_ratio(roe, missing='缺失')}",
     ]
+    trend = _series_trend_note(fin)
+    if trend:
+        fallback_highlights.append(trend)
+    peer_note = _peer_relative_note(data)
+    if peer_note:
+        fallback_highlights.append(peer_note)
     if ratios.get("ratios"):
         fallback_highlights.append("已加载同花顺年度比率摘要")
     fallback_risks = (

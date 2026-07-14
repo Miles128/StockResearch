@@ -13,7 +13,6 @@ from stockresearch.core.exceptions import DataProviderError
 from stockresearch.data.providers.akshare_quote import fetch_akshare_hist_quotes
 from stockresearch.data.providers.base import run_sync_fetch
 from stockresearch.data.providers.efinance_quote import fetch_efinance_kline, fetch_efinance_quotes
-from stockresearch.data.providers.news import _fetch_em_symbol_news_sync
 from stockresearch.data.providers.sina_kline import fetch_sina_kline
 from stockresearch.data.providers.sina_quote import QuoteRow, fetch_sina_quotes
 from stockresearch.data.providers.tushare_financial import fetch_daily_basic_sync
@@ -1378,19 +1377,21 @@ class SentimentDataProvider:
                 queries.append(query)
         items = []
         for query in queries:
-            batch = await provider._fetch_akshare_symbol(query, limit)
+            batch = await provider.fetch_symbol_news(
+                query, symbol=symbol, limit=limit, enrich=True
+            )
             if batch:
                 items = batch
                 break
-        if not items:
-            raw = await run_sync_fetch(
-                f"em symbol news {symbol}",
-                lambda: _fetch_em_symbol_news_sync(name or symbol, limit),
-                timeout=_DATA_TIMEOUT_SEC,
-                fallback=[],
-            )
-            items = raw or []
-        return [{"title": item.title, "source": item.source} for item in items[:limit]]
+        return [
+            {
+                "title": item.title,
+                "source": item.source,
+                "url": item.url,
+                "content": item.content[:200],
+            }
+            for item in items[:limit]
+        ]
 
     def score_titles(self, titles: list[str]) -> float:
         if not titles:
@@ -1480,6 +1481,7 @@ class ChipsDataProvider:
         if _use_mock_market_data():
             return {
                 "main_net_inflow": 0.0,
+                "main_net_inflow_5d": 0.0,
                 "main_net_pct": 0.0,
                 "days_positive": 0,
                 "source": "mock",
@@ -1495,6 +1497,7 @@ class ChipsDataProvider:
             timeout=_DATA_TIMEOUT_SEC,
             fallback={
                 "main_net_inflow": 0.0,
+                "main_net_inflow_5d": 0.0,
                 "main_net_pct": 0.0,
                 "days_positive": 0,
                 "source": "akshare_fund_flow",
@@ -1734,13 +1737,21 @@ class ChipsDataProvider:
     def _fetch_fund_flow_sync(self, symbol: str) -> dict[str, float | str]:
         df = ak.stock_individual_fund_flow(stock=symbol, market=_market_code(symbol))
         if df.empty:
-            return {"main_net_inflow": 0.0, "main_net_pct": 0.0, "days_positive": 0, "source": "akshare_fund_flow"}
+            return {
+                "main_net_inflow": 0.0,
+                "main_net_inflow_5d": 0.0,
+                "main_net_pct": 0.0,
+                "days_positive": 0,
+                "source": "akshare_fund_flow",
+            }
         recent = df.tail(5)
         main_net = float(recent.iloc[-1]["主力净流入-净额"])
         main_pct = float(recent.iloc[-1]["主力净流入-净占比"])
         days_positive = int((recent["主力净流入-净额"] > 0).sum())
+        main_5d = float(recent["主力净流入-净额"].sum())
         return {
             "main_net_inflow": main_net,
+            "main_net_inflow_5d": main_5d,
             "main_net_pct": main_pct,
             "days_positive": days_positive,
             "source": "akshare_fund_flow",

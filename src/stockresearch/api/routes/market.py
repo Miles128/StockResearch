@@ -319,7 +319,7 @@ def _data_source_details(
             domain="news",
             label="新闻 / 快讯",
             layer="L2",
-            source="eastmoney + akshare + bocha",
+            source="eastmoney + akshare(cls/ths/sina) + bocha",
             confidence="single_source",
             status="ok",
         )
@@ -331,7 +331,7 @@ def _data_source_details(
             domain="sentiment",
             label="情绪热度 / 评分",
             layer="L2",
-            source="xueqiu + eastmoney",
+            source="xueqiu + eastmoney + news",
             confidence="single_source",
             status="ok",
         )

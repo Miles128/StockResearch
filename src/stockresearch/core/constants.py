@@ -172,6 +172,8 @@ NEWS_SOURCE_AUTHORITY: dict[str, float] = {
     "雪球": 0.7,
     "新浪": 0.68,
     "腾讯": 0.68,
+    "博查": 0.6,
+    "博查搜索": 0.6,
     "default": 0.55,
 }
 

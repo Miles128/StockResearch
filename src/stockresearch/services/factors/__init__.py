@@ -119,4 +119,54 @@ async def compute_numeric_factors(
         )
     )
 
+    # Chips snapshots — separate from ashare evidence checklist.
+    from stockresearch.data.providers.market import ChipsDataProvider
+
+    chips = ChipsDataProvider()
+    fund = await chips.get_fund_flow(symbol)
+    north = await chips.get_northbound_flow(symbol)
+
+    main_5d = fund.get("main_net_inflow_5d", fund.get("main_net_inflow"))
+    main_val = float(main_5d) if isinstance(main_5d, (int, float)) else None
+    fund_empty = (
+        fund.get("available") is False
+        or fund.get("partial") is True
+        or main_val is None
+    )
+    factors.append(
+        NumericFactorOut(
+            key="main_net_inflow_5d",
+            label="主力净流入(5日)",
+            value=None if fund_empty else round(main_val, 2),  # type: ignore[arg-type]
+            as_of=as_of,
+            unit="",
+            partial=fund_empty,
+            note=None if not fund_empty else "主力资金流向不可用",
+            bars_source=str(fund.get("source") or ""),
+            bars_adjust=None,
+        )
+    )
+
+    hold_pct = north.get("hold_pct")
+    north_val = float(hold_pct) if isinstance(hold_pct, (int, float)) else None
+    north_empty = (
+        north.get("available") is False
+        or north.get("signal") == "暂无数据"
+        or north.get("partial") is True
+        or north_val is None
+    )
+    factors.append(
+        NumericFactorOut(
+            key="northbound_hold_pct",
+            label="北向持股占比",
+            value=None if north_empty else round(north_val, 2),  # type: ignore[arg-type]
+            as_of=as_of,
+            unit="%",
+            partial=north_empty,
+            note=None if not north_empty else "北向资金不可用",
+            bars_source=str(north.get("source") or ""),
+            bars_adjust=None,
+        )
+    )
+
     return factors, provenance

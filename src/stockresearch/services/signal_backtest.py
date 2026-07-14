@@ -38,12 +38,17 @@ def _forward_return_pct(bars: list[dict[str, float | str]], start_idx: int, hori
 
 
 def _factor_tilt(payload: dict[str, object]) -> str | None:
-    """Optional tilt from saved numeric factors (momentum / pe percentile)."""
+    """Optional tilt from saved numeric factors (momentum / pe / volatility).
+
+    High realized vol suppresses momentum-only bullish tilts so verification
+    does not treat noisy spikes as directional signal.
+    """
     raw = payload.get("factors")
     if not isinstance(raw, list) or not raw:
         return None
     mom = None
     pe_pct = None
+    vol = None
     for item in raw:
         if not isinstance(item, dict):
             continue
@@ -52,10 +57,22 @@ def _factor_tilt(payload: dict[str, object]) -> str | None:
             mom = float(item["value"])
         if key == "pe_percentile" and isinstance(item.get("percentile"), (int, float)):
             pe_pct = float(item["percentile"])
+        if key == "volatility_20d" and isinstance(item.get("value"), (int, float)):
+            vol = float(item["value"])
+
+    high_vol = vol is not None and vol > 40.0
+
     if mom is not None and mom >= 5:
-        return "bullish"
+        # High-vol + strong momentum still counts; high-vol + mild mom does not.
+        if high_vol and mom < 8:
+            pass
+        else:
+            return "bullish"
     if mom is not None and mom <= -5:
-        return "bearish"
+        if high_vol and mom > -8:
+            pass
+        else:
+            return "bearish"
     if pe_pct is not None and pe_pct <= 0.3:
         return "bullish"
     if pe_pct is not None and pe_pct >= 0.7:

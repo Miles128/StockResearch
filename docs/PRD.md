@@ -82,8 +82,8 @@
 
 | 数据 | 来源 | 说明 |
 |------|------|------|
-| 快讯 | **AkShare**（东方财富新闻） | 主路径 |
-| 新闻兜底 | **博查 AI 搜索** | 需用户 `BOCHA_API_KEY`；AkShare 无结果时启用 |
+| 快讯 | **东财 + 财联社/同花顺/新浪**（AkShare 多源 flash） | 本地优先，标题去重时 CLS 优先 |
+| 新闻兜底 | **博查 AI web-search** + URL 短摘录 fetch | 需用户 Key；本地偏空时符号感知 query；失败不拖垮 |
 | 上市公司公告 | **巨潮资讯** via AkShare | 接入四维基本面主链路 |
 | 机构研报 | **东方财富** via AkShare | 接入四维基本面主链路 |
 
@@ -95,7 +95,7 @@
 | 财务增强 | **Tushare Pro**（可选 L3，用户 Token） | 有 Token 时进估值（东财后）与 qfq 日线兜底；Registry=元数据+状态探针+降级链，非行情 conflict ledger |
 | 筹码面 | AkShare | 龙虎榜、资金流、北向持股、两融、股东户数、解禁 |
 | 情绪面 | AkShare + 东方财富个股新闻 + 雪球热度 | — |
-| 数值因子 | 本地日线仓 + 财务/筹码快照 | 写入研究报告 `factors` 字段 |
+| 数值因子 | 本地日线仓 + 财务/筹码快照 | `momentum`/`volatility`/`pe_percentile` + 主力净流入/北向持股；写入 `factors` |
 
 ### 5.4 冲突与降级
 

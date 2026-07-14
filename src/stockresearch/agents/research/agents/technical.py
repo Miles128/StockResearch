@@ -5,7 +5,7 @@ from stockresearch.agents.research.context import ResearchContext
 from stockresearch.agents.research.react import DimensionAgent, ResearchTool
 from stockresearch.agents.research.dimension_text import REPORT_DIM_VOICE, finalize_dimension
 from stockresearch.core.constants import CONFIDENCE_MEDIUM
-from stockresearch.core.schemas import DimensionResult
+from stockresearch.core.schemas import DimensionEvidence, DimensionResult
 from stockresearch.data.providers.market import MarketRuleProvider, QuoteProvider, TechnicalDataProvider
 
 _SYSTEM = f"你是 A 股技术分析师。{REPORT_DIM_VOICE}"
@@ -59,6 +59,19 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
     if isinstance(rules, dict) and rules.get("is_suspended"):
         gaps.append("疑似停牌，行情可能陈旧")
 
+    price = float(quote.get("price", 0) or 0)
+    evidence = [
+        DimensionEvidence(
+            source="akshare",
+            date=None,
+            snippet=(
+                f"价 {price:.2f} · MA20 {ma20:.2f} · "
+                f"RSI {float(indicators['rsi']):.1f} · MACD {float(indicators['macd']):.3f}"
+            ),
+            kind="other",
+        )
+    ]
+
     return finalize_dimension(
         agent="technical",
         score=score,
@@ -67,6 +80,7 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
         data_sources=["akshare_kline", "sina_quote", "sina_trading_rules"],
         fallback_highlights=[f"RSI {indicators['rsi']}"],
         fallback_risks=[f"支撑位参考 MA20={ma20:.2f}"],
+        evidence=evidence,
         gaps=gaps,
         partial=bool(gaps),
     )

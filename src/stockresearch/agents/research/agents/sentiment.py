@@ -5,7 +5,7 @@ from stockresearch.agents.research.context import ResearchContext
 from stockresearch.agents.research.react import DimensionAgent, ResearchTool
 from stockresearch.agents.research.dimension_text import REPORT_DIM_VOICE, finalize_dimension
 from stockresearch.core.constants import CONFIDENCE_LOW, CONFIDENCE_MEDIUM
-from stockresearch.core.schemas import DimensionResult
+from stockresearch.core.schemas import DimensionEvidence, DimensionResult
 from stockresearch.data.providers.market import SentimentDataProvider
 from stockresearch.utils.symbols import resolve_name
 
@@ -76,6 +76,33 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
             gaps.append(note)
     if not items:
         gaps.append("个股新闻为空")
+
+    evidence: list[DimensionEvidence] = []
+    for item in items[:2]:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title", "")).strip()
+        if not title:
+            continue
+        evidence.append(
+            DimensionEvidence(
+                source=str(item.get("source") or "news"),
+                date=None,
+                snippet=title[:120],
+                url=str(item.get("url") or "") or None,
+                kind="other",
+            )
+        )
+    if available:
+        evidence.append(
+            DimensionEvidence(
+                source=source,
+                date=None,
+                snippet=f"热度 {heat_score} · 多空比 {bull_ratio:.0%}",
+                kind="other",
+            )
+        )
+
     return finalize_dimension(
         agent="sentiment",
         score=score,
@@ -84,6 +111,7 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
         data_sources=sources,
         fallback_highlights=[fallback_highlight],
         fallback_risks=risks,
+        evidence=evidence[:3],
         gaps=gaps,
         partial=not available or not items,
     )

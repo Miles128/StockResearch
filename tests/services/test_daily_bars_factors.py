@@ -65,14 +65,40 @@ async def test_compute_numeric_factors_mock(monkeypatch: pytest.MonkeyPatch) -> 
         "stockresearch.services.factors.get_bars_meta_for_symbol",
         _fake_meta,
     )
+
+    class _FakeChips:
+        async def get_fund_flow(self, symbol: str):
+            return {
+                "main_net_inflow": 1e7,
+                "main_net_inflow_5d": 3e7,
+                "source": "mock",
+            }
+
+        async def get_northbound_flow(self, symbol: str):
+            return {"hold_pct": 4.2, "signal": "增持", "source": "mock"}
+
+    monkeypatch.setattr(
+        "stockresearch.data.providers.market.ChipsDataProvider",
+        _FakeChips,
+    )
     factors, provenance = await compute_numeric_factors("600519")
     keys = {f.key for f in factors}
-    assert {"momentum_20d", "volatility_20d", "pe_percentile"} <= keys
-    assert len(factors) >= 3
+    assert {
+        "momentum_20d",
+        "volatility_20d",
+        "pe_percentile",
+        "main_net_inflow_5d",
+        "northbound_hold_pct",
+    } <= keys
+    assert len(factors) >= 5
     assert provenance.adjust == "qfq"
     pe = next(f for f in factors if f.key == "pe_percentile")
     assert pe.percentile is not None
     assert pe.partial is False
+    inflow = next(f for f in factors if f.key == "main_net_inflow_5d")
+    assert inflow.value == 3e7
+    north = next(f for f in factors if f.key == "northbound_hold_pct")
+    assert north.value == 4.2
 
 
 @pytest.mark.asyncio
@@ -102,6 +128,18 @@ async def test_compute_numeric_factors_on_unadjusted_bars(monkeypatch: pytest.Mo
     monkeypatch.setattr(
         "stockresearch.services.factors.get_bars_meta_for_symbol",
         _fake_meta,
+    )
+
+    class _FakeChips:
+        async def get_fund_flow(self, symbol: str):
+            return {"main_net_inflow_5d": None, "available": False, "partial": True}
+
+        async def get_northbound_flow(self, symbol: str):
+            return {"hold_pct": None, "signal": "暂无数据", "partial": True}
+
+    monkeypatch.setattr(
+        "stockresearch.data.providers.market.ChipsDataProvider",
+        _FakeChips,
     )
     factors, provenance = await compute_numeric_factors("600519")
     mom = next(f for f in factors if f.key == "momentum_20d")
@@ -137,3 +175,30 @@ def test_factor_tilt_from_payload() -> None:
     assert _factor_tilt({"factors": [{"key": "momentum_20d", "value": 8.0}]}) == "bullish"
     assert _factor_tilt({"factors": [{"key": "momentum_20d", "value": -8.0}]}) == "bearish"
     assert _factor_tilt({"factors": [{"key": "pe_percentile", "percentile": 0.2}]}) == "bullish"
+
+
+def test_factor_tilt_high_vol_suppresses_mild_momentum() -> None:
+    # Mild momentum + high vol → no tilt
+    assert (
+        _factor_tilt(
+            {
+                "factors": [
+                    {"key": "momentum_20d", "value": 6.0},
+                    {"key": "volatility_20d", "value": 55.0},
+                ]
+            }
+        )
+        is None
+    )
+    # Strong momentum + high vol → still bullish
+    assert (
+        _factor_tilt(
+            {
+                "factors": [
+                    {"key": "momentum_20d", "value": 10.0},
+                    {"key": "volatility_20d", "value": 55.0},
+                ]
+            }
+        )
+        == "bullish"
+    )

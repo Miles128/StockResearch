@@ -5,7 +5,7 @@ from stockresearch.agents.research.context import ResearchContext
 from stockresearch.agents.research.react import DimensionAgent, ResearchTool
 from stockresearch.agents.research.dimension_text import REPORT_DIM_VOICE, finalize_dimension
 from stockresearch.core.constants import CONFIDENCE_MEDIUM
-from stockresearch.core.schemas import DimensionResult
+from stockresearch.core.schemas import DimensionEvidence, DimensionResult
 from stockresearch.data.providers.market import ChipsDataProvider
 
 _SYSTEM = f"你是 A 股筹码分析专家。{REPORT_DIM_VOICE}"
@@ -50,6 +50,7 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
     assert isinstance(lockup, dict)
 
     main_net = float(fund.get("main_net_inflow", 0))
+    main_5d = fund.get("main_net_inflow_5d")
     north_change = float(northbound.get("net_change_value", 0))
     score = 5.0
     if main_net > 0:
@@ -90,14 +91,29 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
         else:
             sources.append(key)
 
+    inflow_label = (
+        f"主力净流入(5日) {float(main_5d):.0f}"
+        if isinstance(main_5d, (int, float))
+        else f"主力净流入 {main_net:.0f}"
+    )
+    evidence = [
+        DimensionEvidence(
+            source="akshare",
+            date=None,
+            snippet=f"{inflow_label} · 北向变动 {north_change:.0f}",
+            kind="other",
+        )
+    ]
+
     return finalize_dimension(
         agent="chips",
         score=score,
         confidence=as_confidence(CONFIDENCE_MEDIUM),
         raw_analysis=analysis,
         data_sources=sources or ["akshare_fund_flow"],
-        fallback_highlights=[f"主力净流入 {main_net:.0f}"],
+        fallback_highlights=[inflow_label],
         fallback_risks=risks,
+        evidence=evidence,
         gaps=gaps[:6],
         partial=bool(gaps),
     )
