@@ -170,8 +170,6 @@ export interface HoldingAction {
   priority?: string;
 }
 
-export type StreamEvent = AgentStreamEvent;
-
 export type ExecutionPreference = "react" | "plan_execute" | "preset" | "auto";
 
 export interface ChatUserContextPayload {
@@ -578,9 +576,6 @@ export interface NewsIngestJob {
   message: string;
   error?: string | null;
 }
-
-/** @deprecated Use NewsIngestJob — kept for call sites expecting the old sync shape. */
-export type NewsIngestOut = NewsIngestJob;
 
 async function waitForNewsIngestJob(jobId: string, timeoutMs = 60_000): Promise<NewsIngestJob> {
   const deadline = Date.now() + timeoutMs;

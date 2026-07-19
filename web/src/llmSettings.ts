@@ -95,11 +95,6 @@ export function isServerLlmConfigured(meta: LlmSettingsMeta): boolean {
   return Boolean(meta.server_configured);
 }
 
-/** @deprecated use isLlmConfiguredLocally or server meta */
-export function isLlmConfigured(): boolean {
-  return isLlmConfiguredLocally();
-}
-
 export function llmFormToApiBody(form: LlmUserSettings): Record<string, unknown> {
   return {
     api_key: form.apiKey.trim() || null,

@@ -177,7 +177,7 @@ export const zh: Dict = {
       title: "如果持仓一周内跌了 20%，你会？",
       optA: "立刻卖出止损",
       optB: "观察几天再决定",
-      optC: "逢低加仓",
+      optC: "趁低吸纳",
     },
     q5: {
       title: "你投资的主要目标是？",
@@ -342,7 +342,6 @@ export const zh: Dict = {
     refreshNews: "刷新市场快讯",
     loading: "加载市场数据…",
     indicesTitle: "主要指数",
-    indexBarsTitle: "指数涨跌",
     sectorsTitle: "行业板块涨跌",
     newsTitle: "今日市场 & 板块快讯",
     newsEmpty: "暂无市场快讯，点击刷新",

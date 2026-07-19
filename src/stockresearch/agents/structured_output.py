@@ -100,25 +100,3 @@ class VoteLabelOut(BaseModel):
             if token in raw:
                 return cls(vote=token)  # type: ignore[arg-type]
         return cls()
-
-
-class ResearchManagerOut(BaseModel):
-    investment_thesis: str = ""
-    key_risk: str = ""
-    debate_summary: str = ""
-    recommended_bias: Literal["偏多", "偏空", "中性"] = "中性"
-
-    @classmethod
-    def from_llm(cls, raw: str) -> "ResearchManagerOut":
-        data = extract_json_dict(raw)
-        if data:
-            try:
-                return cls(
-                    investment_thesis=str(data.get("investment_thesis", "")).strip(),
-                    key_risk=str(data.get("key_risk", "")).strip(),
-                    debate_summary=str(data.get("debate_summary", "")).strip(),
-                    recommended_bias=_normalize_bias(str(data.get("recommended_bias", "中性"))),
-                )
-            except ValidationError:
-                pass
-        return cls(investment_thesis=raw.strip())

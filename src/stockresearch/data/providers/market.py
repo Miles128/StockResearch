@@ -1093,19 +1093,9 @@ class TechnicalDataProvider:
         bars: list[dict[str, float | str]] = []
         source = "unknown"
 
-        # Chart path prefers AkShare qfq for stable indicators; quote/UI hot path keeps Sina first.
-        try_sina_first = before is None and not prefer_qfq
-        if try_sina_first:
-            sina_bars = await run_sync_fetch(
-                f"sina kline {symbol}",
-                lambda: fetch_sina_kline(symbol, days),
-                timeout=8.0,
-                fallback=None,
-            )
-            if sina_bars:
-                bars = sina_bars
-                source = "sina"
-
+        # PRD §5.1: 日 K 线 AkShare 优先（前复权 stock_zh_a_hist），efinance →
+        # Tushare（prefer_qfq=True 路径）→ 新浪（非 qfq，最后兜底）。
+        # 不再让 Sina 抢先；quote/UI hot path 与 chart path 都从 AkShare 开始。
         if not bars:
             ak_df = await self._fetch_akshare_kline_df(
                 symbol, start_date=start_date, end_date=end_date
@@ -1148,7 +1138,18 @@ class TechnicalDataProvider:
                 bars = ts_bars
                 source = "tushare"
 
-        if not prefer_qfq:
+        if not prefer_qfq and not bars:
+            # 默认路径兜底：efinance(qfq) → Sina(非 qfq)。Sina 是最后兜底，因其非前复权。
+            ef_bars = await run_sync_fetch(
+                f"efinance kline {symbol}",
+                lambda: fetch_efinance_kline(symbol, days, fqt=1),
+                timeout=12.0,
+                fallback=None,
+            )
+            if ef_bars:
+                bars = ef_bars
+                source = "efinance"
+
             if not bars and before is None:
                 sina_bars = await run_sync_fetch(
                     f"sina kline {symbol}",
@@ -1159,17 +1160,6 @@ class TechnicalDataProvider:
                 if sina_bars:
                     bars = sina_bars
                     source = "sina"
-
-            if not bars:
-                ef_bars = await run_sync_fetch(
-                    f"efinance kline {symbol}",
-                    lambda: fetch_efinance_kline(symbol, days, fqt=1),
-                    timeout=12.0,
-                    fallback=None,
-                )
-                if ef_bars:
-                    bars = ef_bars
-                    source = "efinance"
 
         if bars:
             if before:
@@ -1184,7 +1174,7 @@ class TechnicalDataProvider:
         logger.warning(
             "Kline unavailable for %s after %s",
             symbol,
-            "akshare/efinance (prefer_qfq)" if prefer_qfq else "akshare/sina/efinance",
+            "akshare/efinance/tushare (prefer_qfq)" if prefer_qfq else "akshare/efinance/sina",
         )
         return bars, source, self._kline_adjust(source)
 

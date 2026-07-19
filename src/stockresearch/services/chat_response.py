@@ -34,35 +34,61 @@ def _mark_text_if_enabled(text: str) -> str:
     return mark_terms(text, glossary=glossary)
 
 
-def _mark_str_list(items: list[str]) -> list[str]:
-    return [_mark_text_if_enabled(item) for item in items]
+def _finalize_text(text: str) -> str:
+    """Apply compliance guard (PRD §六) then optional glossary term marking.
+
+    Used for structured card text fields (highlights/risks/snippets/summary/
+    viewpoints/debate arguments) so that forbidden position language (e.g.
+    "目标价1800", "建议加仓") is scrubbed even when bypassing the chat reply
+    path. Fact-layer numbers (score/confidence) are untouched because
+    `neutral_guard` only does regex replacement on prose.
+    """
+    if not text:
+        return text
+    finalized = neutral_guard(text)
+    return _mark_text_if_enabled(finalized)
 
 
-def _mark_dimension(dim: DimensionResult) -> DimensionResult:
+def _finalize_str_list(items: list[str]) -> list[str]:
+    return [_finalize_text(item) for item in items]
+
+
+def _finalize_dimension(dim: DimensionResult) -> DimensionResult:
+    """Apply compliance guard + glossary to all prose fields of a dimension.
+
+    Covers highlights/risks/analysis and every evidence snippet (PRD §六
+    applies to the whole UI, including evidence bars).
+    """
+    evidence = [
+        ev.model_copy(update={"snippet": _finalize_text(ev.snippet)})
+        for ev in dim.evidence
+    ]
     return dim.model_copy(
         update={
-            "highlights": _mark_str_list(dim.highlights),
-            "risks": _mark_str_list(dim.risks),
+            "highlights": _finalize_str_list(dim.highlights),
+            "risks": _finalize_str_list(dim.risks),
+            "analysis": _finalize_text(dim.analysis) if dim.analysis else dim.analysis,
+            "evidence": evidence,
         }
     )
 
 
-def _mark_debate(debate: DebateResult) -> DebateResult:
+def _finalize_debate(debate: DebateResult) -> DebateResult:
     return debate.model_copy(
         update={
             "rounds": [
                 rnd.model_copy(
                     update={
-                        "bull_argument": _mark_text_if_enabled(rnd.bull_argument),
-                        "bear_rebuttal": _mark_text_if_enabled(rnd.bear_rebuttal),
+                        "bull_argument": _finalize_text(rnd.bull_argument),
+                        "bear_rebuttal": _finalize_text(rnd.bear_rebuttal),
                     }
                 )
                 for rnd in debate.rounds
             ],
-            "judge_verdict": _mark_text_if_enabled(debate.judge_verdict),
-            "consensus": _mark_text_if_enabled(debate.consensus),
-            "core_divergence": _mark_text_if_enabled(debate.core_divergence),
-            "manager_thesis": _mark_text_if_enabled(debate.manager_thesis or "")
+            "judge_verdict": _finalize_text(debate.judge_verdict),
+            "consensus": _finalize_text(debate.consensus),
+            "core_divergence": _finalize_text(debate.core_divergence),
+            "manager_thesis": _finalize_text(debate.manager_thesis or "")
             if debate.manager_thesis
             else debate.manager_thesis,
         }
@@ -70,23 +96,31 @@ def _mark_debate(debate: DebateResult) -> DebateResult:
 
 
 def finalize_research_report(report: ResearchReportOut) -> ResearchReportOut:
-    """Mark glossary terms in research card text fields."""
-    if not get_enable_glossary():
-        return report
-    dimensions = {key: _mark_dimension(dim) for key, dim in report.dimensions.items()}
-    debate = _mark_debate(report.debate) if report.debate else None
+    """Apply compliance guard (PRD §六) and glossary term marking to research card.
+
+    Compliance guard always runs (PRD §六 is a hard constraint, not gated by
+    glossary toggle); glossary marking is still gated by `enable_glossary`.
+    """
+    dimensions = {key: _finalize_dimension(dim) for key, dim in report.dimensions.items()}
+    debate = _finalize_debate(report.debate) if report.debate else None
     master_commentary = [
-        item.model_copy(update={"reasoning": _mark_text_if_enabled(item.reasoning)})
+        item.model_copy(
+            update={
+                "reasoning": _finalize_text(item.reasoning),
+                "key_metric": _finalize_text(item.key_metric) if item.key_metric else item.key_metric,
+            }
+        )
         for item in report.master_commentary
     ]
     return report.model_copy(
         update={
-            "summary": _mark_text_if_enabled(report.summary),
-            "viewpoints": {key: _mark_text_if_enabled(value) for key, value in report.viewpoints.items()},
-            "text_factor_summary": _mark_text_if_enabled(report.text_factor_summary or "")
+            "summary": _finalize_text(report.summary),
+            "brief_summary": _finalize_text(report.brief_summary) if report.brief_summary else report.brief_summary,
+            "viewpoints": {key: _finalize_text(value) for key, value in report.viewpoints.items()},
+            "text_factor_summary": _finalize_text(report.text_factor_summary or "")
             if report.text_factor_summary
             else report.text_factor_summary,
-            "news_text_factor": _mark_text_if_enabled(report.news_text_factor or "")
+            "news_text_factor": _finalize_text(report.news_text_factor or "")
             if report.news_text_factor
             else report.news_text_factor,
             "dimensions": dimensions,
@@ -97,7 +131,7 @@ def finalize_research_report(report: ResearchReportOut) -> ResearchReportOut:
 
 
 def finalize_cards(cards: list[dict[str, object]]) -> list[dict[str, object]]:
-    """Apply shared output policy to structured card payloads."""
+    """Apply shared output policy (compliance + glossary) to structured card payloads."""
     finalized: list[dict[str, object]] = []
     for card in cards:
         card_type = card.get("type")
@@ -115,14 +149,14 @@ def finalize_cards(cards: list[dict[str, object]]) -> list[dict[str, object]]:
             finalized.append(
                 {
                     "type": "text",
-                    "data": {"content": _mark_text_if_enabled(str(data["content"]))},
+                    "data": {"content": _finalize_text(str(data["content"]))},
                 }
             )
             continue
         if card_type == "financial" and isinstance(data, dict):
             marked_data = dict(data)
             if isinstance(marked_data.get("summary"), str):
-                marked_data["summary"] = _mark_text_if_enabled(str(marked_data["summary"]))
+                marked_data["summary"] = _finalize_text(str(marked_data["summary"]))
             finalized.append({"type": "financial", "data": marked_data})
             continue
         finalized.append(card)

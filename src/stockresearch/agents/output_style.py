@@ -10,8 +10,8 @@ Reading modes (三档表达风格):
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Iterator, Sequence
-from contextlib import asynccontextmanager, contextmanager
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from typing import Literal
 
@@ -90,14 +90,6 @@ def normalize_enable_glossary(value: bool | None) -> bool:
     if value is None:
         return DEFAULT_ENABLE_GLOSSARY
     return bool(value)
-
-
-OutputTone = ReadingMode
-DEFAULT_TONE = DEFAULT_READING_MODE
-
-
-def normalize_tone(value: str | None) -> ReadingMode:
-    return normalize_reading_mode(value)
 
 
 def set_output_style(
@@ -184,23 +176,4 @@ def output_style_scope(
         reset_output_style(tokens)
 
 
-@asynccontextmanager
-async def async_output_style_scope(
-    *,
-    tone: str | None = None,
-    reading_mode: str | None = None,
-    locale: str | None = None,
-    enable_glossary: bool | None = None,
-    custom_glossary: Sequence[CustomGlossaryTermOut] | None = None,
-) -> AsyncIterator[None]:
-    tokens = set_output_style(
-        tone=tone,
-        reading_mode=reading_mode,
-        locale=locale,
-        enable_glossary=enable_glossary,
-        custom_glossary=custom_glossary,
-    )
-    try:
-        yield
-    finally:
-        reset_output_style(tokens)
+

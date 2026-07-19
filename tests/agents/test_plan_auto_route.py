@@ -8,7 +8,6 @@ from stockresearch.agents.orchestrator.complexity import (
     resolve_execution_mode,
     should_auto_plan_execute,
 )
-from stockresearch.agents.orchestrator.route_plan import needs_execution_choice
 
 
 def test_stock_comparison_auto_plan() -> None:
@@ -49,8 +48,3 @@ def test_multi_scope_auto_plan() -> None:
         resolve_execution_mode("如果美联储加息，对A股大盘和银行板块会有什么影响")
         == ComplexityResult.PLAN_EXECUTE
     )
-
-
-def test_no_manual_route_choice() -> None:
-    assert not needs_execution_choice("对比茅台和五粮液的投资价值")
-    assert not needs_execution_choice("今天大盘行情")

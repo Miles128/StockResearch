@@ -1,6 +1,6 @@
 # StockResearch 产品需求文档
 
-**V10.6 · 开源 A 股市场研究 Agent**
+**V10.8 · 开源 A 股市场研究 Agent**
 
 > 唯一 PRD：`docs/PRD.md`。Git 中 `docs/` 还推送 `screenshots/` 界面预览图。本地可选 `docs/meta.yaml` 供 prd-first 工具读取。
 
@@ -25,10 +25,12 @@
 | 语言 | 人话、金额、关联原因 | 术语直出、全量指标 |
 | 术语弹窗 | 默认开 | 无 |
 | 辩论 | 默认关 | 默认开 |
-| 资产配置 | 按风险/现金流给参考 | 用户手动设目标，展示偏差 |
+| 资产配置 | 按风险/现金流给参考（API `/advisor/allocation` 已就绪） | 用户手动设目标，展示偏差（Phase 4 后续；当前未实现，UI 面板 `AssetAllocationPanel` 已就 advisor 模式实现但暂未挂载主流程） |
 | 证据链 | 默认折叠 | 默认展开 |
 
 **契约**：同一推理管线产出同一 JSON/cards；仅渲染策略不同。禁止因模式改变事实层数值。
+
+**表达档（reading_mode，与双模式正交的渲染策略）**：`friendly`（人话、金额感受、类比）对应 advisor 默认；`professional`（术语直出、全量指标）对应 research 默认；`standard`（中文术语 + 首次出现半句白话）为可选中间档，由用户在设置中显式选择。三档仅控制 LLM 文本措辞与术语呈现密度，不改变 score / confidence / 估值分位等事实层数值；`enable_glossary` 独立控制术语弹窗标记，与 reading_mode 解耦。
 
 ## 三、界面（Tri-Shell）
 
@@ -54,7 +56,8 @@
 | 四维投研 | 基本面 / 技术面 / 情绪 / 筹码 → SSE 流式；基本面含公告/研报证据 |
 | 证据链 | highlights/risks 可挂 source、date、snippet；显式信息缺口（`partial`） |
 | 多空辩论 | 可选；个人默认关、专家默认开 |
-| 风控体检 | 规则引擎 + 可选 LLM 解读 |
+| 大师点评 | 可选；用户勾选 1–N 位（巴菲特 / 芒格 / 伯里，可扩展自定义）→ 在四维研报与风控报告条件性挂载独立 commentary；受 `enable_master_commentary` 与 `enable_llm_analysis` 双重开关控制，默认关；不替代主结论，仅作辅助视角 |
+| 风控体检 | 规则引擎 + 可选 LLM 解读（`enable_llm_analysis` 开关，默认开；关时仅规则+量化指标） |
 | 新闻过滤 | 三层规则，3s SLA，零 LLM；统一 interest（持仓/自选/板块） |
 | 价格告警 | APScheduler 5min；铃铛 + 可选浏览器 Notification |
 | 定时简报 | 盘前 09:05 / 盘中 11:35 / 盘后 15:35；Cron 在独立 worker 运行 |
@@ -124,6 +127,8 @@
 
 Phase 2：`stockresearch worker` 独立 Cron + 可选 launchd 示例。
 
+**调度器跨进程互斥**：API（`RUN_SCHEDULERS_IN_API=true`）与 worker 不会同时运行同一调度器。启动时通过文件锁（`scheduler.lock`，置于 SQLite 数据库同目录）实现跨进程互斥；后启动的一方检测到锁被占用即跳过调度器启动（API 仅跳过调度器但仍正常服务请求，worker 直接退出码 1）。内存数据库（`sqlite://`）跳过锁。
+
 ## 八、路线图优先级
 
 ### Phase 2（基础设施）
@@ -159,6 +164,8 @@ uv run pytest && cd web && npm run build
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **V10.8** | 2026-07-16 | §七 补登记调度器跨进程互斥机制（文件锁）；§5.1 K 线默认 AkShare 优先对齐代码现状 |
+| **V10.7** | 2026-07-14 | §四 补登记「大师点评」为正式特性；风控 `enable_llm_analysis` 可选开关语义写明 |
 | **V10.6** | 2026-07-13 | 投研/投顾可靠性：qfq 日线仓、证据因子条、验证分列与事后核对、纸上冲击假设 |
 | V10.5 | 2026-07-13 | README 纳入最新 UI 截图（`docs/screenshots/`） |
 | V10.4 | 2026-07-11 | 方向：深度证据 + 轻量可验证；Phase 3/4 路线图；公告研报进主链路；数值因子与研究验证语义 |

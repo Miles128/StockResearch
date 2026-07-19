@@ -501,6 +501,7 @@ class RiskCheckupRequest(BaseModel):
     reading_mode: Literal["friendly", "standard", "professional"] | None = None
     output_locale: Literal["zh", "en"] | None = None
     enable_master_commentary: bool | None = None
+    enable_llm_analysis: bool | None = None
 
 
 class ChatUserContext(BaseModel):

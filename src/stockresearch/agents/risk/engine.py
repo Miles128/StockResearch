@@ -262,9 +262,17 @@ async def run_risk_checkup(
     llm: LLMClient | None = None,
     *,
     enable_master_commentary: bool = False,
+    enable_llm_analysis: bool = True,
     mode_settings: ModeSettingsOut | None = None,
     master_ids: list[str] | None = None,
 ) -> RiskCheckupOut:
+    """Run risk checkup.
+
+    PRD §四: 规则引擎 + 可选 LLM 解读。`enable_llm_analysis=False` 时跳过
+    所有 LLM 调用（humanize / market / correlation / narrative / scenario），
+    只返回规则告警 + 量化指标（metrics / VaR / stress）,`llm_analysis=None`。
+    默认 True 保持向后兼容；调用方（API payload / 设置）可显式关闭。
+    """
     client = llm or get_llm_client()
     quote_provider = QuoteProvider()
 
@@ -274,47 +282,53 @@ async def run_risk_checkup(
 
     alerts = _parse_rule_alerts(holdings, quotes)
 
-    try:
-        humanize_tasks = [_humanize(client, alert) for alert in alerts]
-        analysis_tasks = [
-            _llm_market_assessment(client, holdings),
-            _llm_correlation_analysis(client, holdings),
-            _llm_risk_narrative(client, alerts, holdings),
-            _llm_scenario_analysis(client, holdings, alerts),
-        ]
+    if enable_llm_analysis:
+        try:
+            humanize_tasks = [_humanize(client, alert) for alert in alerts]
+            analysis_tasks = [
+                _llm_market_assessment(client, holdings),
+                _llm_correlation_analysis(client, holdings),
+                _llm_risk_narrative(client, alerts, holdings),
+                _llm_scenario_analysis(client, holdings, alerts),
+            ]
 
-        humanize_results = await asyncio.gather(*humanize_tasks, return_exceptions=True)
-        for alert, result in zip(alerts, humanize_results):
-            alert.human_message = result if isinstance(result, str) else alert.message
+            humanize_results = await asyncio.gather(*humanize_tasks, return_exceptions=True)
+            for alert, result in zip(alerts, humanize_results):
+                alert.human_message = result if isinstance(result, str) else alert.message
 
-        analysis_results = await asyncio.gather(*analysis_tasks, return_exceptions=True)
-        market_assessment = (
-            analysis_results[0]
-            if isinstance(analysis_results[0], str)
-            else risk_msg.llm_unavailable_market()
-        )
-        correlation_analysis = (
-            analysis_results[1]
-            if isinstance(analysis_results[1], str)
-            else risk_msg.llm_unavailable_correlation()
-        )
-        risk_narrative = (
-            analysis_results[2]
-            if isinstance(analysis_results[2], str)
-            else risk_msg.llm_unavailable_narrative()
-        )
-        scenario_analysis = analysis_results[3] if isinstance(analysis_results[3], list) else []
-        llm_analysis = LLMRiskAnalysis(
-            market_assessment=market_assessment,
-            correlation_analysis=correlation_analysis,
-            risk_narrative=risk_narrative,
-            scenario_analysis=scenario_analysis,
-        )
-    except Exception:
-        logger.warning("LLM risk analysis failed, returning rule-based results only")
+            analysis_results = await asyncio.gather(*analysis_tasks, return_exceptions=True)
+            market_assessment = (
+                analysis_results[0]
+                if isinstance(analysis_results[0], str)
+                else risk_msg.llm_unavailable_market()
+            )
+            correlation_analysis = (
+                analysis_results[1]
+                if isinstance(analysis_results[1], str)
+                else risk_msg.llm_unavailable_correlation()
+            )
+            risk_narrative = (
+                analysis_results[2]
+                if isinstance(analysis_results[2], str)
+                else risk_msg.llm_unavailable_narrative()
+            )
+            scenario_analysis = analysis_results[3] if isinstance(analysis_results[3], list) else []
+            llm_analysis = LLMRiskAnalysis(
+                market_assessment=market_assessment,
+                correlation_analysis=correlation_analysis,
+                risk_narrative=risk_narrative,
+                scenario_analysis=scenario_analysis,
+            )
+        except Exception:
+            logger.warning("LLM risk analysis failed, returning rule-based results only")
+            for alert in alerts:
+                if not alert.human_message:
+                    alert.human_message = alert.message
+            llm_analysis = None
+    else:
+        # PRD §四 可选 LLM：关闭时 human_message 直接使用规则原文，不调用 LLM
         for alert in alerts:
-            if not alert.human_message:
-                alert.human_message = alert.message
+            alert.human_message = alert.message
         llm_analysis = None
 
     if not holdings:
@@ -371,7 +385,7 @@ async def run_risk_checkup(
         var_result=var_out,
         stress_results=stress_out,
     )
-    if enable_master_commentary and mode_settings is not None:
+    if enable_llm_analysis and enable_master_commentary and mode_settings is not None:
         masters = master_ids or resolve_master_ids(mode_settings)
         commentary_context = build_risk_context(result)
         commentary = await get_master_commentary(

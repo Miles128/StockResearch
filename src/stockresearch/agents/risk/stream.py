@@ -172,9 +172,17 @@ async def run_risk_checkup_stream(
     llm: LLMClient | None = None,
     *,
     enable_master_commentary: bool = False,
+    enable_llm_analysis: bool = True,
     mode_settings: ModeSettingsOut | None = None,
     master_ids: list[str] | None = None,
 ) -> AsyncIterator[dict[str, object]]:
+    """Stream risk checkup.
+
+    PRD §四: 规则引擎 + 可选 LLM 解读。`enable_llm_analysis=False` 时跳过
+    parallel LLM agents / 三角辩论 / Research Manager / Judge,直接返回
+    规则告警 + 量化指标。`enable_llm_analysis` 同时控制 master_commentary
+    (后者还需 `enable_master_commentary=True`)。
+    """
     client = llm or get_llm_client()
 
     yield status_event("status.risk.analysis")
@@ -221,8 +229,27 @@ async def run_risk_checkup_stream(
         }
 
     if not holdings:
-        empty = await run_risk_checkup(holdings, llm=client)
+        empty = await run_risk_checkup(
+            holdings, llm=client, enable_llm_analysis=enable_llm_analysis
+        )
         yield {"type": "done", "result": empty.model_dump(mode="json")}
+        return
+
+    # PRD §四 可选 LLM：关闭时跳过 parallel agents / debate / manager / judge
+    if not enable_llm_analysis:
+        if not alerts:
+            summary = risk_msg.portfolio_summary_all_clear(len(holdings))
+        else:
+            summary = risk_msg.portfolio_summary_with_alerts(len(alerts))
+        result = RiskCheckupOut(
+            alerts=alerts,
+            portfolio_summary=summary,
+            llm_analysis=None,
+            metrics=metrics_out,
+            var_result=var_out,
+            stress_results=stress_out,
+        )
+        yield {"type": "done", "result": result.model_dump(mode="json")}
         return
 
     context = _context_block(holdings, quotes, alerts)
@@ -393,7 +420,7 @@ async def run_risk_checkup_stream(
         stress_results=stress_out,
     )
 
-    if enable_master_commentary and mode_settings is not None:
+    if enable_llm_analysis and enable_master_commentary and mode_settings is not None:
         masters = master_ids or resolve_master_ids(mode_settings)
         commentary_context = build_risk_context(result)
         commentary: list[dict[str, Any]] = []

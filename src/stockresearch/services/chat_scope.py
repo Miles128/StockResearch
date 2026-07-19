@@ -15,7 +15,7 @@ from stockresearch.services.chat_context import (
     format_user_context_block,
     should_include_holdings_context,
 )
-from stockresearch.utils.symbols import extract_symbols, has_stock_reference, resolve_name
+from stockresearch.utils.symbols import extract_symbols, has_stock_reference, normalize_symbol, resolve_name
 
 PORTFOLIO_TOOL_NAMES: frozenset[str] = frozenset(
     {"get_sector_holdings", "get_portfolio_summary", "get_risk_summary", "skill_risk_checkup"},
@@ -44,7 +44,7 @@ def resolve_subject_symbol(
 ) -> tuple[str | None, str | None]:
     """Resolve discussion subject: confirmed > message > UI context."""
     if confirmed_symbol:
-        sym = confirmed_symbol.zfill(6)[-6:]
+        sym = normalize_symbol(confirmed_symbol)
         return sym, confirmed_name or resolve_name(sym)
 
     codes = extract_symbols(message)

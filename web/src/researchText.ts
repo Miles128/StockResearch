@@ -62,11 +62,6 @@ export function normalizeResearchConclusion(
   return result || trimmed;
 }
 
-/** @deprecated Use normalizeResearchConclusion */
-export function clipResearchConclusion(text: string, maxLen = 180): string {
-  return normalizeResearchConclusion(text, { maxLen, minLen: 0 });
-}
-
 export function researchExpandHintsFromReport(report: {
   dimensions?: Record<string, { highlights?: string[]; risks?: string[] }>;
   debate?: { consensus?: string; core_divergence?: string } | null;

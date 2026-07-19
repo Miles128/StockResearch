@@ -477,14 +477,8 @@ function applyCoreStreamEvent(
 
   if (event.type === "judge") {
     activeStreamIds = activeStreamIds.filter((id) => id !== "judge");
-    const biasLabel = t
-      ? event.verdict === "bullish"
-        ? t("card.bullish")
-        : event.verdict === "bearish"
-          ? t("card.bearish")
-          : event.verdict === "neutral"
-            ? t("card.neutral")
-            : undefined
+    const biasLabel = t && event.verdict
+      ? localizeVoteLabel(event.verdict, t)
       : event.verdict === "bullish"
         ? "偏多"
         : event.verdict === "bearish"

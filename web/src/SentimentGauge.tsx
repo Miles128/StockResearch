@@ -13,9 +13,20 @@ interface SentimentGaugeProps {
   name?: string;
   /** compact mode for inline display */
   compact?: boolean;
+  /** PRD §七: UI 轮询默认关。开启时按间隔轮询。 */
+  pollingEnabled?: boolean;
+  pollingIntervalMs?: number;
 }
 
-export function SentimentGauge({ variant, sectorName, symbol, name, compact }: SentimentGaugeProps) {
+export function SentimentGauge({
+  variant,
+  sectorName,
+  symbol,
+  name,
+  compact,
+  pollingEnabled = false,
+  pollingIntervalMs = 5 * 60 * 1000,
+}: SentimentGaugeProps) {
   const { t } = useI18n();
   const [data, setData] = useState<SentimentData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,14 +53,14 @@ export function SentimentGauge({ variant, sectorName, symbol, name, compact }: S
         if (!cancelled) setLoading(false);
       }
     };
-    fetchSentiment();
-    // 5 分钟轮询
-    const timer = setInterval(fetchSentiment, 5 * 60 * 1000);
+    void fetchSentiment();
+    if (!pollingEnabled) return;
+    const timer = window.setInterval(() => void fetchSentiment(), pollingIntervalMs);
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      window.clearInterval(timer);
     };
-  }, [variant, sectorName, symbol, name]);
+  }, [variant, sectorName, symbol, name, pollingEnabled, pollingIntervalMs]);
 
   if (loading && !data) {
     return compact

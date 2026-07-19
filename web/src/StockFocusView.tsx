@@ -9,6 +9,7 @@ import { MarketChart } from "./StockChart";
 import { localizeImpactLevel, localizeSentiment } from "./uiLabels";
 import { IconExternalLink, IconRefresh } from "./ui/Icons";
 import { SentimentGauge } from "./SentimentGauge";
+import { loadModeSettings } from "./modeSettings";
 
 interface StockFocusViewProps {
   focus: FocusContext;
@@ -106,7 +107,12 @@ export function StockFocusView({
 
       {focus.kind === "stock" && (
         <CollapsibleSection title={t("sentiment.stockTitle")}>
-          <SentimentGauge variant="stock" symbol={focus.symbol} name={focus.name} />
+          <SentimentGauge
+            variant="stock"
+            symbol={focus.symbol}
+            name={focus.name}
+            pollingEnabled={loadModeSettings().uiPollingEnabled}
+          />
         </CollapsibleSection>
       )}
 

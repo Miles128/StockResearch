@@ -15,6 +15,7 @@ from stockresearch.core.schemas import BriefingOut, BriefingSection, NewsItemOut
 from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.data.providers.market_overview import MarketOverviewProvider
 from stockresearch.db.models import Holding, RiskAlertRecord
+from stockresearch.utils.format import arrow_for_change
 from stockresearch.utils.llm import LLMClient
 
 logger = logging.getLogger(__name__)
@@ -121,7 +122,7 @@ def _collect_market_block(overview) -> str:
         lines.append("指数数据暂不可用")
     else:
         for idx in overview.indices[:4]:
-            arrow = "↑" if idx.change_pct > 0 else "↓" if idx.change_pct < 0 else "→"
+            arrow = arrow_for_change(idx.change_pct)
             lines.append(f"- {idx.name} {idx.price:.2f} {arrow}{idx.change_pct:+.2f}%")
     if overview.northbound_net_yi is not None:
         flow = "净流入" if overview.northbound_net_yi > 0 else "净流出"

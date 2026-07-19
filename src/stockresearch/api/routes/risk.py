@@ -41,6 +41,13 @@ def _master_on(payload: RiskCheckupRequest, settings) -> bool:
     return bool(settings.enable_master_commentary)
 
 
+def _llm_analysis_on(payload: RiskCheckupRequest) -> bool:
+    """PRD §四: 可选 LLM 解读。payload 显式传入优先;默认 True 保持向后兼容。"""
+    if payload.enable_llm_analysis is not None:
+        return bool(payload.enable_llm_analysis)
+    return True
+
+
 @router.post("/checkup", response_model=RiskCheckupOut)
 async def risk_checkup(
     payload: RiskCheckupRequest = Body(default_factory=RiskCheckupRequest),
@@ -58,6 +65,7 @@ async def risk_checkup(
             holdings,
             llm=llm,
             enable_master_commentary=_master_on(payload, settings),
+            enable_llm_analysis=_llm_analysis_on(payload),
             mode_settings=settings,
         )
     _persist_alerts(db, user.id, result)
@@ -84,6 +92,7 @@ async def risk_checkup_stream(
                 holdings,
                 llm=llm,
                 enable_master_commentary=_master_on(payload, settings),
+                enable_llm_analysis=_llm_analysis_on(payload),
                 mode_settings=settings,
             ):
                 if event.get("type") == "done":

@@ -12,11 +12,6 @@ const LEGACY_LIGHT = new Set([
   "institutional-light",
 ]);
 
-export const THEME_OPTIONS: { id: AppTheme; label: string; hint: string }[] = [
-  { id: "institutional-light", label: "金融 AI · 浅色", hint: "机构浅色 · 靛蓝信标 · 红涨绿跌" },
-  { id: "institutional-dark", label: "金融 AI · 深色", hint: "机构暗色 · 橘红信标 · 红涨绿跌" },
-];
-
 function normalizeLegacyTheme(raw: string): AppTheme | null {
   if (LEGACY_DARK.has(raw)) return "institutional-dark";
   if (LEGACY_LIGHT.has(raw)) {
@@ -51,8 +46,4 @@ export function saveTheme(theme: AppTheme): void {
 
 export function applyTheme(theme: AppTheme): void {
   document.documentElement.dataset.theme = theme;
-}
-
-export function isLightTheme(theme: AppTheme): boolean {
-  return theme === "institutional-light";
 }

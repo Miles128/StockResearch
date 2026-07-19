@@ -43,3 +43,8 @@ def resolve_name(symbol: str) -> str:
     if symbol in SYMBOL_NAMES:
         return SYMBOL_NAMES[symbol]
     return symbol
+
+
+def normalize_symbol(raw: str) -> str:
+    """Normalize a raw symbol string to a zero-padded 6-digit code."""
+    return raw.zfill(6)[-6:]

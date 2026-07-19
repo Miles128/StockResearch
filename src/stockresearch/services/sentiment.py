@@ -9,6 +9,7 @@ from stockresearch.data.providers.market import SentimentDataProvider
 from stockresearch.data.providers.market_overview import MarketOverviewProvider
 from stockresearch.data.providers.sector import SectorDataProvider
 from stockresearch.data.providers.news import NewsProvider
+from stockresearch.utils.format import arrow_for_change, news_score_to_label
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ class SentimentService:
             avg_change = sum(idx.change_pct for idx in overview.indices) / len(overview.indices)
             index_score = max(-20, min(20, avg_change * 4))  # -20 ~ +20
             score += index_score * 0.75  # weight 30% → *1.5 → *0.75 to get 0-30 range
-            arrow = "↑" if avg_change > 0 else "↓" if avg_change < 0 else "→"
+            arrow = arrow_for_change(avg_change)
             drivers.append(SentimentDriver(
                 label="主要指数",
                 value=f"{arrow} {avg_change:+.2f}%",
@@ -98,7 +99,7 @@ class SentimentService:
             news_score = SentimentDataProvider().score_titles(titles)
             # news_score: -1 ~ +1 → -12.5 ~ +12.5
             score += news_score * 12.5
-            label = "偏多" if news_score > 0.2 else "偏空" if news_score < -0.2 else "中性"
+            label = news_score_to_label(news_score)
             drivers.append(SentimentDriver(
                 label="新闻情感",
                 value=f"{len(titles)}条新闻 {label}",
@@ -127,7 +128,7 @@ class SentimentService:
             if target:
                 change = target.change_pct
                 score += max(-20, min(20, change * 4))
-                arrow = "↑" if change > 0 else "↓" if change < 0 else "→"
+                arrow = arrow_for_change(change)
                 drivers.append(SentimentDriver(
                     label="板块涨跌",
                     value=f"{arrow} {change:+.2f}%",
@@ -143,7 +144,7 @@ class SentimentService:
             titles = [item.title for item in news_items]
             news_score = SentimentDataProvider().score_titles(titles)
             score += news_score * 15
-            label = "偏多" if news_score > 0.2 else "偏空" if news_score < -0.2 else "中性"
+            label = news_score_to_label(news_score)
             drivers.append(SentimentDriver(
                 label="板块新闻",
                 value=f"{len(titles)}条 {label}",
@@ -189,7 +190,7 @@ class SentimentService:
             titles = [item["title"] for item in news]
             news_score = provider.score_titles(titles)
             score += news_score * 15  # -15 ~ +15
-            label = "偏多" if news_score > 0.2 else "偏空" if news_score < -0.2 else "中性"
+            label = news_score_to_label(news_score)
             drivers.append(SentimentDriver(
                 label="个股新闻",
                 value=f"{len(titles)}条 {label}",

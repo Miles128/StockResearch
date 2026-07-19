@@ -30,22 +30,12 @@ BiasLevel = Literal["bullish", "bearish", "neutral"]
 ConfidenceLevel = Literal["high", "medium", "low"]
 
 
-def _as_confidence(value: str) -> ConfidenceLevel:
-    from stockresearch.agents.research.agents._scoring import as_confidence
-
-    return as_confidence(value)
-
-
 async def prepare_fundamental(ctx: ResearchContext) -> tuple[str, str, dict[str, object]]:
     return await prepare_react_agent(AGENT_BY_ID["fundamental"], ctx)
 
 
 def build_fundamental(data: dict[str, object], analysis: str) -> DimensionResult:
     return AGENT_BY_ID["fundamental"].build(data, analysis)
-
-
-async def run_fundamental(ctx: ResearchContext) -> DimensionResult:
-    return await run_react_agent(AGENT_BY_ID["fundamental"], ctx)
 
 
 async def prepare_technical(ctx: ResearchContext) -> tuple[str, str, dict[str, object]]:
@@ -56,10 +46,6 @@ def build_technical(data: dict[str, object], analysis: str) -> DimensionResult:
     return AGENT_BY_ID["technical"].build(data, analysis)
 
 
-async def run_technical(ctx: ResearchContext) -> DimensionResult:
-    return await run_react_agent(AGENT_BY_ID["technical"], ctx)
-
-
 async def prepare_sentiment(ctx: ResearchContext) -> tuple[str, str, dict[str, object]]:
     return await prepare_react_agent(AGENT_BY_ID["sentiment"], ctx)
 
@@ -68,20 +54,12 @@ def build_sentiment(data: dict[str, object], analysis: str) -> DimensionResult:
     return AGENT_BY_ID["sentiment"].build(data, analysis)
 
 
-async def run_sentiment(ctx: ResearchContext) -> DimensionResult:
-    return await run_react_agent(AGENT_BY_ID["sentiment"], ctx)
-
-
 async def prepare_chips(ctx: ResearchContext) -> tuple[str, str, dict[str, object]]:
     return await prepare_react_agent(AGENT_BY_ID["chips"], ctx)
 
 
 def build_chips(data: dict[str, object], analysis: str) -> DimensionResult:
     return AGENT_BY_ID["chips"].build(data, analysis)
-
-
-async def run_chips(ctx: ResearchContext) -> DimensionResult:
-    return await run_react_agent(AGENT_BY_ID["chips"], ctx)
 
 
 async def _run_agent(agent: DimensionAgent, ctx: ResearchContext) -> DimensionResult:

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from stockresearch.core.constants import NAME_TO_SYMBOL
 from stockresearch.services.stock_lookup import STOCK_ALIASES, StockLookupResult, lookup_stock
 from stockresearch.utils.llm import LLMClient
-from stockresearch.utils.symbols import STOCK_CODE_RE, STOCK_NAME_RE, resolve_name
+from stockresearch.utils.symbols import STOCK_CODE_RE, STOCK_NAME_RE, normalize_symbol, resolve_name
 
 
 @dataclass(frozen=True)
@@ -76,7 +76,7 @@ async def resolve_message_stock(
     confirmed_name: str | None = None,
 ) -> ResolvedStock | StockLookupResult:
     if confirmed_symbol:
-        symbol = confirmed_symbol.zfill(6)[-6:]
+        symbol = normalize_symbol(confirmed_symbol)
         name = confirmed_name or resolve_name(symbol)
         return ResolvedStock(symbol=symbol, name=name)
 

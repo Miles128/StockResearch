@@ -344,7 +344,6 @@ export const en: Dict = {
     refreshNews: "Refresh market news",
     loading: "Loading market data…",
     indicesTitle: "Major indices",
-    indexBarsTitle: "Index moves",
     sectorsTitle: "Sector moves",
     newsTitle: "Today's market & sector news",
     newsEmpty: "No market headlines — tap refresh",

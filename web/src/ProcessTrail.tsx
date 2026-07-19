@@ -1,10 +1,7 @@
 import type { ReactNode } from "react";
 import { processTrailLabel } from "./processKind";
 import type { StreamState } from "./streamEvents";
-import { hasProcessContent } from "./streamEvents";
 import { useI18n } from "./i18n";
-
-export { hasProcessContent };
 
 interface ProcessTrailProps {
   label?: string;

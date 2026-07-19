@@ -55,24 +55,6 @@ export function IconList({ className = "ui-icon", size = 16 }: IconProps) {
   );
 }
 
-export function IconPanelBottom({ className = "ui-icon", size = 14 }: IconProps) {
-  return (
-    <svg className={className} width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <rect x="2" y="2.5" width="12" height="11" rx="1.25" stroke="currentColor" strokeWidth="1.25" />
-      <path d="M2 10.5h12" stroke="currentColor" strokeWidth="1.25" />
-    </svg>
-  );
-}
-
-export function IconPanelSide({ className = "ui-icon", size = 14 }: IconProps) {
-  return (
-    <svg className={className} width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <rect x="2" y="2.5" width="12" height="11" rx="1.25" stroke="currentColor" strokeWidth="1.25" />
-      <path d="M10 2.5v11" stroke="currentColor" strokeWidth="1.25" />
-    </svg>
-  );
-}
-
 export function IconMessages({ className = "ui-icon", size = 16 }: IconProps) {
   return (
     <svg className={className} width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -138,46 +120,10 @@ export function IconGlobe({ className = "ui-icon", size = 16 }: IconProps) {
   );
 }
 
-export function IconLayoutSidebar({ className = "ui-icon", size = 16 }: IconProps) {
-  return (
-    <svg className={className} width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <rect x="2" y="2.5" width="12" height="11" rx="1.25" stroke="currentColor" strokeWidth="1.25" />
-      <path d="M6 2.5v11" stroke="currentColor" strokeWidth="1.25" />
-    </svg>
-  );
-}
-
-export function IconLayoutTop({ className = "ui-icon", size = 16 }: IconProps) {
-  return (
-    <svg className={className} width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <rect x="2" y="2.5" width="12" height="11" rx="1.25" stroke="currentColor" strokeWidth="1.25" />
-      <path d="M2 6.5h12" stroke="currentColor" strokeWidth="1.25" />
-    </svg>
-  );
-}
-
 export function IconSignal({ className = "ui-icon", size = 16 }: IconProps) {
   return (
     <svg className={className} width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <circle cx="8" cy="8" r="2.5" fill="currentColor" />
-    </svg>
-  );
-}
-
-export function IconUser({ className = "ui-icon", size = 16 }: IconProps) {
-  return (
-    <svg className={className} width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <circle cx="8" cy="5.5" r="2.5" stroke="currentColor" strokeWidth="1.25" />
-      <path d="M3.5 13c.8-2 2.4-3 4.5-3s3.7 1 4.5 3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-export function IconLab({ className = "ui-icon", size = 16 }: IconProps) {
-  return (
-    <svg className={className} width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path d="M6 2.5h4l3 6.5a3 3 0 0 1-2.6 4.5H5.6A3 3 0 0 1 3 9l3-6.5Z" stroke="currentColor" strokeWidth="1.25" strokeLinejoin="round" />
-      <path d="M6.5 6h3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
     </svg>
   );
 }
