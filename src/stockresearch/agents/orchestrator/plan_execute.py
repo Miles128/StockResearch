@@ -182,6 +182,12 @@ def _normalize_plan_steps(query: str, steps: list[dict[str, Any]]) -> list[dict[
     symbol = _extract_symbol(msg)
     if has_stock_reference(msg) or symbol:
         sym = symbol or "600519"
+        from stockresearch.agents.research.budget import parse_depth_from_text
+
+        depth_cue = parse_depth_from_text(msg)
+        stock_args: dict[str, object] = {"symbol": sym, "utterance": msg}
+        if depth_cue:
+            stock_args["analysis_depth"] = depth_cue
         return _reindex_steps(
             [
                 {
@@ -194,7 +200,7 @@ def _normalize_plan_steps(query: str, steps: list[dict[str, Any]]) -> list[dict[
                     "id": 2,
                     "description": f"获取 {sym} 多维投研分析",
                     "tool": "skill_stock_research",
-                    "args": {"symbol": sym},
+                    "args": stock_args,
                 },
                 {
                     "id": 3,

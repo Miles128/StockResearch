@@ -46,8 +46,10 @@ PACKAGED_SKILLS: tuple[PackagedSkill, ...] = (
     PackagedSkill(
         "skill_stock_research",
         "个股四维投研",
-        "基本面/技术面/情绪/筹码四维分析；可选多空辩论",
-        '{"symbol": "600519", "with_debate": false, "context": "可选：结合前文的补充说明"}',
+        "基本面/技术面/情绪/筹码四维分析；可选多空辩论；"
+        "analysis_depth=standard|comprehensive|deep（标准/综合/深度预算）",
+        '{"symbol": "600519", "with_debate": false, "analysis_depth": "comprehensive", '
+        '"context": "可选：结合前文的补充说明"}',
     ),
     PackagedSkill(
         "skill_market_research",
@@ -227,13 +229,28 @@ class SkillRunner:
         if not symbol:
             return SkillRunResult(summary="请提供 symbol 参数", error="missing_symbol")
         with_debate = bool(args.get("with_debate", self._debate_default))
-        master_kwargs: dict[str, object] = {}
+        from stockresearch.agents.research.budget import resolve_analysis_depth
+
+        utterance = " ".join(
+            str(args.get(k) or "")
+            for k in ("context", "query", "message", "utterance")
+        ).strip()
+        depth = resolve_analysis_depth(
+            explicit=args.get("analysis_depth"),
+            utterance=utterance or None,
+            settings_depth=self._settings.analysis_depth,
+        )
+        master_kwargs: dict[str, object] = {
+            "mode_settings": self._settings,
+            "analysis_depth": depth,
+        }
         if self._master_default:
-            master_kwargs = {
-                "enable_master_commentary": True,
-                "mode_settings": self._settings,
-                "master_ids": resolve_master_ids(self._settings),
-            }
+            master_kwargs.update(
+                {
+                    "enable_master_commentary": True,
+                    "master_ids": resolve_master_ids(self._settings),
+                }
+            )
         payload: dict[str, object] | None = None
         async for event in run_research_stream(
             symbol,

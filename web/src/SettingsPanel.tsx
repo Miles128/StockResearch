@@ -21,6 +21,7 @@ import {
   saveModeSettings,
   type CustomGlossaryTerm,
   type CustomMaster,
+  type AnalysisDepth,
   type ModeSettings,
   type ReadingMode,
 } from "./modeSettings";
@@ -247,6 +248,10 @@ export function SettingsPanel({
     persistModeSettings({ ...modeSettingsState, readingMode });
   }
 
+  function selectAnalysisDepth(analysisDepth: AnalysisDepth) {
+    persistModeSettings({ ...modeSettingsState, analysisDepth });
+  }
+
   const readingModeOptions: { id: ReadingMode; labelKey: string; hintKey: string }[] = [
     { id: "friendly", labelKey: "settings.modeFriendly", hintKey: "settings.modeFriendlyHint" },
     { id: "standard", labelKey: "settings.modeStandard", hintKey: "settings.modeStandardHint" },
@@ -389,6 +394,7 @@ export function SettingsPanel({
           <AnalysisSettingsTab
             modeSettings={modeSettingsState}
             onToggleDebate={toggleDebate}
+            onSelectAnalysisDepth={selectAnalysisDepth}
             onToggleMasterCommentary={toggleMasterCommentary}
             onToggleMasterSelection={toggleMasterSelection}
             onAddCustomMaster={addCustomMaster}

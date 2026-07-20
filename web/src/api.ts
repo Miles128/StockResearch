@@ -712,6 +712,10 @@ export interface ResearchReport {
   factors?: NumericFactor[];
   bars_provenance?: BarsProvenance | null;
   dimension_weights?: Record<string, number>;
+  analysis_depth?: "standard" | "comprehensive" | "deep";
+  factors_expanded?: boolean;
+  factor_alignment_note?: string | null;
+  enable_signal_verify_hook?: boolean;
   post_hoc?: ReportPostHocHorizon[];
   dimensions?: Record<string, DimensionResult>;
   debate?: DebateResult | null;

@@ -190,6 +190,7 @@ class OrchestratorAgent:
         self._cards: list[dict[str, Any]] = []
         self._on_progress: Any = None
         self._skill_runner: SkillRunner | None = None
+        self._user_message: str = ""
 
     def set_progress_callback(self, cb: Any) -> None:
         """Set async callback for status + skill stream events."""
@@ -247,6 +248,7 @@ class OrchestratorAgent:
         if hint:
             system = f"{system.rstrip()}\n\n{hint}"
         user_content = message.strip()
+        self._user_message = user_content
         if user_context_text.strip():
             user_content = f"{user_content}\n\n{user_context_text.strip()}"
         messages: list[dict[str, str]] = [{"role": "system", "content": system}]
@@ -355,6 +357,16 @@ class OrchestratorAgent:
     async def _run_skill(self, skill_id: str, args: dict[str, Any]) -> str:
         if skill_id == "skill_stock_research" and not args.get("with_debate"):
             args = {**args, "with_debate": self._debate_default}
+        if skill_id == "skill_stock_research" and not args.get("analysis_depth"):
+            from stockresearch.agents.research.budget import parse_depth_from_text
+
+            cue = parse_depth_from_text(self._user_message) or parse_depth_from_text(
+                str(args.get("context") or args.get("query") or "")
+            )
+            if cue:
+                args = {**args, "analysis_depth": cue}
+            elif not args.get("utterance"):
+                args = {**args, "utterance": self._user_message}
         result = await self._skills().run(skill_id, args)
         for card in result.cards:
             ctype = card.get("type")

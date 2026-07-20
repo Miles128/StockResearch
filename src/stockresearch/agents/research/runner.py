@@ -4,6 +4,11 @@ import asyncio
 from typing import Literal
 
 from stockresearch.agents.research.agents import AGENT_BY_ID, DIMENSION_AGENTS
+from stockresearch.agents.research.budget import (
+    AnalysisDepth,
+    budget_for_depth,
+    resolve_analysis_depth,
+)
 from stockresearch.agents.research.context import ResearchContext
 from stockresearch.agents.research.debate import run_debate
 from stockresearch.agents.research.react import (
@@ -22,6 +27,8 @@ from stockresearch.core.schemas import (
     ModeSettingsOut,
     ResearchReportOut,
 )
+from stockresearch.agents.research.scoring import score_bias, weighted_composite_score
+from stockresearch.services.factors import factor_alignment_note
 from stockresearch.services.text_factor import build_news_text_factor, fetch_symbol_news_snippets
 from stockresearch.utils.llm import LLMClient, get_llm_client
 from stockresearch.utils.symbols import resolve_name
@@ -74,9 +81,15 @@ async def run_research(
     enable_master_commentary: bool = False,
     mode_settings: ModeSettingsOut | None = None,
     master_ids: list[str] | None = None,
+    analysis_depth: AnalysisDepth | str | None = None,
 ) -> ResearchReportOut:
     client = llm or get_llm_client()
-    ctx = ResearchContext(symbol=symbol, llm=client)
+    depth = resolve_analysis_depth(
+        explicit=analysis_depth,
+        settings_depth=mode_settings.analysis_depth if mode_settings else None,
+    )
+    budget = budget_for_depth(depth)
+    ctx = ResearchContext(symbol=symbol, llm=client, budget=budget)
     name = resolve_name(symbol)
 
     results = await asyncio.gather(*(_run_agent(agent, ctx) for agent in DIMENSION_AGENTS))
@@ -90,13 +103,23 @@ async def run_research(
     try:
         from stockresearch.services.factors import compute_numeric_factors
 
-        factors, bars_provenance = await compute_numeric_factors(symbol)
+        factors, bars_provenance = await compute_numeric_factors(
+            symbol, factor_keys=budget.factor_keys
+        )
     except Exception:
         factors = []
 
     debate: DebateResult | None = None
     if with_debate:
         debate = await run_debate(symbol, name, dimensions, client)
+
+    composite, _ = weighted_composite_score(dimensions)
+    bias_for_factors = debate.final_bias if debate is not None else score_bias(composite)
+    alignment = (
+        factor_alignment_note(bias_for_factors, factors)
+        if budget.factors_expanded and factors
+        else None
+    )
 
     _LABELS = {
         "fundamental": "基本面",
@@ -113,6 +136,10 @@ async def run_research(
         news_text_factor=news_text_factor,
         factors=factors,
         bars_provenance=bars_provenance,
+        analysis_depth=budget.depth,
+        factors_expanded=budget.factors_expanded,
+        factor_alignment_note=alignment,
+        enable_signal_verify_hook=budget.enable_signal_verify_hook,
     )
 
     if enable_master_commentary and mode_settings is not None:

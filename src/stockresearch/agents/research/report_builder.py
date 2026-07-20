@@ -80,6 +80,10 @@ def build_research_report(
     summary_prefix: str | None = None,
     factors: list | None = None,
     bars_provenance: object | None = None,
+    analysis_depth: Literal["standard", "comprehensive", "deep"] = "standard",
+    factors_expanded: bool = False,
+    factor_alignment_note: str | None = None,
+    enable_signal_verify_hook: bool = False,
 ) -> ResearchReportOut:
     composite, weights = weighted_composite_score(dimensions)
     composite_confidence = resolve_composite_confidence(dimensions)
@@ -155,6 +159,10 @@ def build_research_report(
         factors=list(factors or []),
         bars_provenance=bars_provenance,  # type: ignore[arg-type]
         dimension_weights=weights,
+        analysis_depth=analysis_depth,
+        factors_expanded=factors_expanded,
+        factor_alignment_note=factor_alignment_note,
+        enable_signal_verify_hook=enable_signal_verify_hook,
     )
     from stockresearch.services.follow_up import attach_report_follow_ups
 

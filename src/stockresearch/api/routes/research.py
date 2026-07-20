@@ -23,10 +23,12 @@ from stockresearch.core.schemas import (
 )
 from stockresearch.db.models import ResearchReport, User
 from stockresearch.db.session import get_db
+from stockresearch.agents.research.budget import resolve_analysis_depth
 from stockresearch.services.cache import CacheService
 from stockresearch.services.report_export import report_to_markdown, report_to_pdf
 from stockresearch.services.research_memory import search_research_memory
 from stockresearch.services.signal_backtest import compute_report_post_hoc, compute_signal_backtest
+from stockresearch.services.user_preferences import get_mode_settings
 from stockresearch.utils.llm import LLMClient
 
 router = APIRouter(prefix="/research", tags=["research"])
@@ -93,17 +95,25 @@ def extract_reports_from_cards(cards: list[dict[str, object]]) -> list[ResearchR
 @router.get("/analyze", response_model=ResearchReportOut)
 async def analyze_stock(
     symbol: str = Query(min_length=6, max_length=6, pattern=r"^\d{6}$"),
+    analysis_depth: str | None = Query(default=None),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     llm: LLMClient = Depends(llm_from_headers),
 ) -> ResearchReportOut:
+    settings = get_mode_settings(db, user.id)
+    depth = resolve_analysis_depth(
+        explicit=analysis_depth,
+        settings_depth=settings.analysis_depth,
+    )
     cache = CacheService()
-    cache_key = f"research:{symbol}"
+    cache_key = f"research:{symbol}:{depth}"
     cached = cache.get_json(cache_key)
     if cached:
         report = ResearchReportOut.model_validate({**cached, "cached": True})
     else:
-        report = await run_research(symbol, llm=llm)
+        report = await run_research(
+            symbol, llm=llm, mode_settings=settings, analysis_depth=depth
+        )
         cache.set_json(cache_key, report.model_dump(mode="json"), ttl_seconds=86400)
 
     row = persist_report(db, user.id, report)
@@ -113,12 +123,18 @@ async def analyze_stock(
 @router.get("/analyze/stream")
 async def analyze_stock_stream(
     symbol: str = Query(min_length=6, max_length=6, pattern=r"^\d{6}$"),
+    analysis_depth: str | None = Query(default=None),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     llm: LLMClient = Depends(llm_from_headers),
 ) -> StreamingResponse:
+    settings = get_mode_settings(db, user.id)
+    depth = resolve_analysis_depth(
+        explicit=analysis_depth,
+        settings_depth=settings.analysis_depth,
+    )
     cache = CacheService()
-    cache_key = f"research:{symbol}"
+    cache_key = f"research:{symbol}:{depth}"
 
     async def event_generator() -> AsyncIterator[str]:
         cached = cache.get_json(cache_key)
@@ -130,7 +146,12 @@ async def analyze_stock_stream(
             return
 
         final: ResearchReportOut | None = None
-        async for event in run_research_stream(symbol, llm=llm):
+        async for event in run_research_stream(
+            symbol,
+            llm=llm,
+            mode_settings=settings,
+            analysis_depth=depth,
+        ):
             if event.get("type") == "done":
                 raw = event.get("result")
                 if isinstance(raw, dict):

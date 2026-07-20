@@ -559,6 +559,7 @@ class FinancialDataProvider:
                 {
                     "period": period,
                     "revenue_yoy": self._optional_pct(row.get("营业收入同比增长率")),
+                    "net_profit_yoy": self._optional_pct(row.get("净利润同比增长率")),
                     "net_margin": self._optional_pct(row.get("销售净利率")),
                     "roe": self._optional_pct(row.get("净资产收益率")),
                     "debt_ratio": self._optional_pct(row.get("资产负债率")),
@@ -570,6 +571,7 @@ class FinancialDataProvider:
             gaps.append("财务序列不足 2 期")
         core = {
             "revenue_yoy": self._optional_pct(row.get("营业收入同比增长率")),
+            "net_profit_yoy": self._optional_pct(row.get("净利润同比增长率")),
             "net_margin": self._optional_pct(row.get("销售净利率")),
             "roe": self._optional_pct(row.get("净资产收益率")),
             "debt_ratio": self._optional_pct(row.get("资产负债率")),
@@ -601,6 +603,9 @@ class FinancialDataProvider:
                     "revenue_yoy": self._optional_pct(
                         row.get("营业总收入同比增长率", row.get("营业收入同比增长率"))
                     ),
+                    "net_profit_yoy": self._optional_pct(
+                        row.get("净利润同比增长率", row.get("归母净利润同比增长率"))
+                    ),
                     "net_margin": self._optional_pct(row.get("销售净利率")),
                     "roe": self._optional_pct(row.get("净资产收益率")),
                     "debt_ratio": self._optional_pct(row.get("资产负债率")),
@@ -610,6 +615,9 @@ class FinancialDataProvider:
         core = {
             "revenue_yoy": self._optional_pct(
                 latest.get("营业总收入同比增长率", latest.get("营业收入同比增长率"))
+            ),
+            "net_profit_yoy": self._optional_pct(
+                latest.get("净利润同比增长率", latest.get("归母净利润同比增长率"))
             ),
             "net_margin": self._optional_pct(latest.get("销售净利率")),
             "roe": self._optional_pct(latest.get("净资产收益率")),
@@ -638,14 +646,29 @@ class FinancialDataProvider:
         if _use_mock_market_data():
             return {
                 "revenue_yoy": 0.12,
+                "net_profit_yoy": 0.15,
                 "net_margin": 0.25,
                 "roe": 0.18,
                 "pe_percentile": 0.50,
                 "debt_ratio": 0.35,
                 "goodwill_ratio": 0.03,
                 "series": [
-                    {"period": "2023", "roe": 0.16, "revenue_yoy": 0.10, "net_margin": 0.24, "debt_ratio": 0.36},
-                    {"period": "2024", "roe": 0.18, "revenue_yoy": 0.12, "net_margin": 0.25, "debt_ratio": 0.35},
+                    {
+                        "period": "2023",
+                        "roe": 0.16,
+                        "revenue_yoy": 0.10,
+                        "net_profit_yoy": 0.11,
+                        "net_margin": 0.24,
+                        "debt_ratio": 0.36,
+                    },
+                    {
+                        "period": "2024",
+                        "roe": 0.18,
+                        "revenue_yoy": 0.12,
+                        "net_profit_yoy": 0.15,
+                        "net_margin": 0.25,
+                        "debt_ratio": 0.35,
+                    },
                 ],
                 "partial": False,
                 "gaps": [],

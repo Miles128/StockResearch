@@ -8,6 +8,7 @@ import { createLocalStorageStore } from "./settingsStore";
 
 export type AppMode = "advisor" | "research";
 export type ReadingMode = "friendly" | "standard" | "professional";
+export type AnalysisDepth = "standard" | "comprehensive" | "deep";
 export type RiskTolerance = "conservative" | "moderate" | "aggressive";
 export type HoldingsView = "table" | "cards";
 
@@ -33,6 +34,7 @@ export interface ModeSettings {
   riskTolerance: RiskTolerance;
   monthlyIncome?: number;
   readingMode: ReadingMode;
+  analysisDepth: AnalysisDepth;
   enableDebate: boolean;
   enableGlossary: boolean;
   maxSignals: number;
@@ -158,6 +160,16 @@ function migrateModeSettings(parsed: unknown): Partial<ModeSettings> {
       partial.readingMode === "standard"
         ? partial.readingMode
         : legacy.readingMode ?? preset.readingMode,
+    analysisDepth:
+      partial.analysisDepth === "standard" ||
+      partial.analysisDepth === "comprehensive" ||
+      partial.analysisDepth === "deep"
+        ? partial.analysisDepth
+        : (partial as { analysis_depth?: AnalysisDepth }).analysis_depth === "standard" ||
+            (partial as { analysis_depth?: AnalysisDepth }).analysis_depth === "comprehensive" ||
+            (partial as { analysis_depth?: AnalysisDepth }).analysis_depth === "deep"
+          ? (partial as { analysis_depth: AnalysisDepth }).analysis_depth
+          : preset.analysisDepth,
     enableDebate:
       typeof partial.enableDebate === "boolean"
         ? partial.enableDebate
@@ -214,6 +226,7 @@ export interface ModeSettingsApiPayload {
   risk_tolerance: RiskTolerance;
   monthly_income?: number | null;
   reading_mode: ReadingMode;
+  analysis_depth: AnalysisDepth;
   enable_debate: boolean;
   enable_glossary: boolean;
   max_signals: number;
@@ -232,6 +245,7 @@ export const ADVISOR_PRESET: Omit<ModeSettings, "onboarded"> = {
   riskTolerance: "moderate",
   monthlyIncome: undefined,
   readingMode: "friendly",
+  analysisDepth: "standard",
   enableDebate: false,
   enableGlossary: true,
   maxSignals: 5,
@@ -250,6 +264,7 @@ export const RESEARCH_PRESET: Omit<ModeSettings, "onboarded"> = {
   riskTolerance: "moderate",
   monthlyIncome: undefined,
   readingMode: "professional",
+  analysisDepth: "comprehensive",
   enableDebate: true,
   enableGlossary: false,
   maxSignals: 20,
@@ -279,12 +294,13 @@ export function presetForMode(
   current: ModeSettings,
 ): Pick<
   ModeSettings,
-  "mode" | "readingMode" | "enableDebate" | "enableGlossary" | "maxSignals"
+  "mode" | "readingMode" | "analysisDepth" | "enableDebate" | "enableGlossary" | "maxSignals"
 > {
   const preset = mode === "advisor" ? ADVISOR_PRESET : RESEARCH_PRESET;
   return {
     mode,
     readingMode: preset.readingMode,
+    analysisDepth: preset.analysisDepth,
     enableDebate: preset.enableDebate,
     enableGlossary: preset.enableGlossary,
     maxSignals: preset.maxSignals,
@@ -295,6 +311,7 @@ export function isPristinePreset(settings: ModeSettings): boolean {
   const preset = settings.mode === "advisor" ? ADVISOR_PRESET : RESEARCH_PRESET;
   return (
     settings.readingMode === preset.readingMode &&
+    settings.analysisDepth === preset.analysisDepth &&
     settings.enableDebate === preset.enableDebate &&
     settings.enableGlossary === preset.enableGlossary &&
     settings.maxSignals === preset.maxSignals
@@ -315,6 +332,7 @@ export function modeSettingsToApiPayload(settings: ModeSettings): ModeSettingsAp
     risk_tolerance: settings.riskTolerance,
     monthly_income: settings.monthlyIncome ?? null,
     reading_mode: settings.readingMode,
+    analysis_depth: settings.analysisDepth,
     enable_debate: settings.enableDebate,
     enable_glossary: settings.enableGlossary,
     max_signals: settings.maxSignals,
@@ -360,6 +378,12 @@ export function modeSettingsFromApiPayload(payload: Partial<ModeSettingsApiPaylo
       payload.reading_mode === "standard"
         ? payload.reading_mode
         : preset.readingMode,
+    analysisDepth:
+      payload.analysis_depth === "standard" ||
+      payload.analysis_depth === "comprehensive" ||
+      payload.analysis_depth === "deep"
+        ? payload.analysis_depth
+        : preset.analysisDepth,
     enableDebate:
       typeof payload.enable_debate === "boolean" ? payload.enable_debate : preset.enableDebate,
     enableGlossary:

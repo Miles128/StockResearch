@@ -343,6 +343,10 @@ class ResearchReportOut(BaseModel):
     bars_provenance: BarsProvenanceOut | None = None
     dimension_weights: dict[str, float] = Field(default_factory=dict)
     master_commentary: list[MasterCommentaryItem] = Field(default_factory=list)
+    analysis_depth: Literal["standard", "comprehensive", "deep"] = "standard"
+    factors_expanded: bool = False
+    factor_alignment_note: str | None = None
+    enable_signal_verify_hook: bool = False
     disclaimer: str = DISCLAIMER
     cached: bool = False
     id: int | None = None
@@ -473,6 +477,7 @@ class ModeSettingsOut(BaseModel):
     risk_tolerance: Literal["conservative", "moderate", "aggressive"] = "moderate"
     monthly_income: float | None = Field(default=None, gt=0)
     reading_mode: Literal["friendly", "standard", "professional"] = "friendly"
+    analysis_depth: Literal["standard", "comprehensive", "deep"] = "standard"
     enable_debate: bool = False
     enable_glossary: bool = True
     max_signals: int = Field(default=5, ge=1, le=50)

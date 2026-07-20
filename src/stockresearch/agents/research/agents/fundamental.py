@@ -21,13 +21,15 @@ _SYSTEM = (
     "引用公告标题/日期与研报机构评级时须与工具返回一致，禁止编造。"
 )
 
-_MAJOR_ANN_KEYWORDS = (
+_EARNINGS_ANN_KEYWORDS = (
     "年报",
     "半年报",
     "季报",
     "业绩",
     "预告",
     "快报",
+)
+_RISK_ANN_KEYWORDS = (
     "减持",
     "增持",
     "回购",
@@ -37,11 +39,35 @@ _MAJOR_ANN_KEYWORDS = (
     "重组",
     "停牌",
 )
+_MAJOR_ANN_KEYWORDS = _EARNINGS_ANN_KEYWORDS + _RISK_ANN_KEYWORDS
+
+
+def _ann_priority(title: str, ann_type: str, *, prefer_earnings: bool, include_risk: bool) -> int:
+    blob = f"{title}{ann_type}"
+    score = 0
+    if prefer_earnings and any(k in blob for k in _EARNINGS_ANN_KEYWORDS):
+        score += 20
+    if include_risk and any(k in blob for k in _RISK_ANN_KEYWORDS):
+        score += 10
+    if any(k in blob for k in _MAJOR_ANN_KEYWORDS):
+        score += 1
+    return score
 
 
 async def _tool_financials(ctx: ResearchContext) -> dict[str, object]:
     provider = FinancialDataProvider()
-    return await provider.get_financials(ctx.symbol)
+    payload = await provider.get_financials(ctx.symbol)
+    budget = ctx.resolved_budget()
+    series = payload.get("series")
+    if isinstance(series, list) and budget.financial_periods > 0:
+        payload = {
+            **payload,
+            "series": series[: budget.financial_periods],
+            "_budget_financial_periods": budget.financial_periods,
+        }
+    else:
+        payload = {**payload, "_budget_financial_periods": budget.financial_periods}
+    return payload
 
 
 async def _tool_valuation(ctx: ResearchContext) -> dict[str, object]:
@@ -98,17 +124,30 @@ async def _tool_announcements(ctx: ResearchContext) -> dict[str, object]:
             "partial": False,
             "gaps": [],
         }
+    budget = ctx.resolved_budget()
+    fetch_limit = max(budget.ann_limit * 2, budget.ann_limit)
     result = await AnnouncementProvider().fetch_announcements_result(
         ctx.symbol,
         resolve_name(ctx.symbol),
-        days=60,
-        limit=8,
+        days=budget.ann_days,
+        limit=fetch_limit,
     )
-    items = result.items
+    items = list(result.items)
+    if budget.prefer_earnings_anns or budget.include_risk_anns:
+        items.sort(
+            key=lambda it: _ann_priority(
+                it.title,
+                it.announcement_type,
+                prefer_earnings=budget.prefer_earnings_anns,
+                include_risk=budget.include_risk_anns,
+            ),
+            reverse=True,
+        )
+    items = items[: budget.ann_limit]
     gap = (
         "公告源暂时失败"
         if result.source_failed
-        else ("近60天无公告" if not items else None)
+        else (f"近{budget.ann_days}天无公告" if not items else None)
     )
     rows: list[dict[str, object]] = []
     title_only = True
@@ -117,9 +156,14 @@ async def _tool_announcements(ctx: ResearchContext) -> dict[str, object]:
     for it in items:
         excerpt = ""
         blob = f"{it.title}{it.announcement_type}"
+        is_earnings = any(k in blob for k in _EARNINGS_ANN_KEYWORDS)
+        is_risk = any(k in blob for k in _RISK_ANN_KEYWORDS)
         is_major = any(k in blob for k in _MAJOR_ANN_KEYWORDS)
-        if is_major and it.url:
-            excerpt = await fetch_url_excerpt(it.url, max_chars=200)
+        should_excerpt = is_major and bool(it.url)
+        if budget.prefer_earnings_anns:
+            should_excerpt = bool(it.url) and (is_earnings or (budget.include_risk_anns and is_risk))
+        if should_excerpt and it.url:
+            excerpt = await fetch_url_excerpt(it.url, max_chars=budget.ann_excerpt_chars)
         if excerpt:
             title_only = False
         rows.append(
@@ -163,10 +207,11 @@ async def _tool_research_reports(ctx: ResearchContext) -> dict[str, object]:
             "partial": False,
             "gaps": [],
         }
+    budget = ctx.resolved_budget()
     result = await ResearchReportProvider().fetch_reports_result(
         ctx.symbol,
         resolve_name(ctx.symbol),
-        limit=6,
+        limit=budget.report_limit,
     )
     items = result.items
     gap = (
@@ -299,7 +344,7 @@ def _collect_evidence(data: dict[str, object]) -> list[DimensionEvidence]:
     return evidence
 
 
-def _series_trend_note(fin: dict[str, object]) -> str | None:
+def _series_trend_note(fin: dict[str, object], *, periods: int = 2) -> str | None:
     series = fin.get("series")
     if not isinstance(series, list) or len(series) < 2:
         return None
@@ -307,9 +352,10 @@ def _series_trend_note(fin: dict[str, object]) -> str | None:
     if len(rows) < 2:
         return None
     # series is newest-first in provider.
-    newer, older = rows[0], rows[1]
+    window = rows[: max(2, periods)]
+    newer, older = window[0], window[-1]
     bits: list[str] = []
-    for key, label in (("revenue_yoy", "营收增速"), ("roe", "ROE")):
+    for key, label in (("revenue_yoy", "营收增速"), ("roe", "ROE"), ("net_margin", "净利率")):
         a = _optional_metric(newer.get(key))
         b = _optional_metric(older.get(key))
         if a is None or b is None:
@@ -318,9 +364,18 @@ def _series_trend_note(fin: dict[str, object]) -> str | None:
             bits.append(f"{label}改善")
         elif a < b - 0.01:
             bits.append(f"{label}走弱")
+        else:
+            bits.append(f"{label}大致持平")
     if not bits:
         return None
-    return "财务序列：" + "、".join(bits)
+    span = str(newer.get("period") or "")
+    older_span = str(older.get("period") or "")
+    prefix = "财务序列"
+    if span and older_span and span != older_span:
+        prefix = f"财务序列（{older_span}→{span}，{len(window)}期）"
+    elif len(window) > 2:
+        prefix = f"财务序列（{len(window)}期）"
+    return prefix + "：" + "、".join(bits)
 
 
 def _peer_relative_note(data: dict[str, object]) -> str | None:
@@ -413,7 +468,9 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
         f"营收增速 {_fmt_ratio(revenue_yoy, missing='缺失')}",
         f"ROE {_fmt_ratio(roe, missing='缺失')}",
     ]
-    trend = _series_trend_note(fin)
+    periods_raw = fin.get("_budget_financial_periods")
+    periods = int(periods_raw) if isinstance(periods_raw, (int, float)) else 2
+    trend = _series_trend_note(fin, periods=periods)
     if trend:
         fallback_highlights.append(trend)
     peer_note = _peer_relative_note(data)

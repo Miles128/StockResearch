@@ -8,6 +8,7 @@ def test_get_mode_settings_defaults(client) -> None:
     assert data["mode"] == "advisor"
     assert data["risk_tolerance"] == "moderate"
     assert data["reading_mode"] == "friendly"
+    assert data["analysis_depth"] == "standard"
     assert data["onboarded"] is False
     assert data["enable_master_commentary"] is False
     assert data["selected_masters"] == ["buffett", "munger", "burry"]
@@ -20,6 +21,7 @@ def test_put_mode_settings_persists(client) -> None:
         "risk_tolerance": "conservative",
         "monthly_income": 18000,
         "reading_mode": "friendly",
+        "analysis_depth": "comprehensive",
         "enable_debate": False,
         "enable_glossary": True,
         "enable_master_commentary": True,

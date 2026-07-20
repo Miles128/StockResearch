@@ -42,8 +42,17 @@ export function ResearchTrustStrip({
     ...missingFromFactors(report.ashare_factors, 2),
   ].filter((g, i, arr) => arr.indexOf(g) === i).slice(0, 4);
   const evidence = collectEvidence(report, compact ? 2 : 3);
-  const factors = (report.factors ?? []).slice(0, compact ? 3 : 4);
+  const expanded = Boolean(report.factors_expanded) || report.analysis_depth !== "standard";
+  const factorLimit = compact ? (expanded ? 5 : 3) : expanded ? 8 : 4;
+  const factors = (report.factors ?? []).slice(0, factorLimit);
   const provenance = report.bars_provenance;
+  const depth = report.analysis_depth ?? "standard";
+  const depthLabel =
+    depth === "deep"
+      ? t("card.analysisDepthDeep")
+      : depth === "comprehensive"
+        ? t("card.analysisDepthComprehensive")
+        : t("card.analysisDepthStandard");
 
   if (!gaps.length && !evidence.length && !factors.length && !provenance) {
     return null;
@@ -51,7 +60,10 @@ export function ResearchTrustStrip({
 
   return (
     <div className={`research-trust-strip ${compact ? "compact" : ""}`}>
-      <div className="research-trust-title">{t("card.trustStrip")}</div>
+      <div className="research-trust-title">
+        {t("card.trustStrip")}
+        <span className="muted"> · {t("card.analysisDepthLabel")}：{depthLabel}</span>
+      </div>
       {provenance ? (
         <p className="muted research-trust-line">
           <strong>{t("card.barsProvenance")}：</strong>
@@ -117,6 +129,15 @@ export function ResearchTrustStrip({
               </span>
             ))}
           </div>
+          {report.factor_alignment_note ? (
+            <p className="muted research-trust-line">
+              <strong>{t("card.factorAlignment")}：</strong>
+              {report.factor_alignment_note}
+            </p>
+          ) : null}
+          {report.enable_signal_verify_hook ? (
+            <p className="muted research-trust-line">{t("card.signalVerifyHint")}</p>
+          ) : null}
         </div>
       )}
     </div>

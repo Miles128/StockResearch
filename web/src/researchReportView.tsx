@@ -180,15 +180,20 @@ function ResearchAshareFactorsBlock({
 
 function ResearchNumericFactorsBlock({
   factors,
+  expanded = false,
+  alignmentNote,
   t,
 }: {
   factors?: NumericFactor[];
+  expanded?: boolean;
+  alignmentNote?: string | null;
   t: (key: string) => string;
 }) {
   if (!factors?.length) return null;
   return (
-    <details className="ashare-factor-block" open>
+    <details className="ashare-factor-block" open={expanded || undefined}>
       <summary>{t("card.numericFactors")}</summary>
+      {alignmentNote ? <p className="muted">{alignmentNote}</p> : null}
       <div className="ashare-factor-grid">
         {factors.map((factor) => (
           <article
@@ -287,7 +292,12 @@ export function ResearchReportDetails({
           <ResearchDebateBlock debate={report.debate} labels={debateLabels} />
         </details>
       )}
-      <ResearchNumericFactorsBlock factors={report.factors} t={t} />
+      <ResearchNumericFactorsBlock
+        factors={report.factors}
+        expanded={Boolean(report.factors_expanded) || report.analysis_depth !== "standard"}
+        alignmentNote={report.factor_alignment_note}
+        t={t}
+      />
       <ResearchAshareFactorsBlock factors={report.ashare_factors} t={t} />
     </div>
   );
