@@ -1,4 +1,5 @@
-import type { AshareFactor, DimensionEvidence, NumericFactor, ResearchReport } from "./api";
+import { useState } from "react";
+import { api, type AshareFactor, type DimensionEvidence, type NumericFactor, type ReportPostHoc, type ResearchReport } from "./api";
 import { useI18n } from "./i18n";
 
 function collectEvidence(report: ResearchReport, limit = 3): DimensionEvidence[] {
@@ -37,6 +38,7 @@ export function ResearchTrustStrip({
   onFollowUp?: (query: string) => void;
 }) {
   const { t } = useI18n();
+  const [postHoc, setPostHoc] = useState<ReportPostHoc | "loading" | "error" | null>(null);
   const gaps = [
     ...(report.data_gaps ?? []).slice(0, 3),
     ...missingFromFactors(report.ashare_factors, 2),
@@ -53,8 +55,20 @@ export function ResearchTrustStrip({
       : depth === "comprehensive"
         ? t("card.analysisDepthComprehensive")
         : t("card.analysisDepthStandard");
+  const canVerify =
+    Boolean(report.enable_signal_verify_hook) && typeof report.id === "number" && report.id > 0;
 
-  if (!gaps.length && !evidence.length && !factors.length && !provenance) {
+  async function runPostHoc() {
+    if (typeof report.id !== "number") return;
+    setPostHoc("loading");
+    try {
+      setPostHoc(await api.reportPostHoc(report.id));
+    } catch {
+      setPostHoc("error");
+    }
+  }
+
+  if (!gaps.length && !evidence.length && !factors.length && !provenance && !canVerify) {
     return null;
   }
 
@@ -135,11 +149,39 @@ export function ResearchTrustStrip({
               {report.factor_alignment_note}
             </p>
           ) : null}
-          {report.enable_signal_verify_hook ? (
-            <p className="muted research-trust-line">{t("card.signalVerifyHint")}</p>
-          ) : null}
         </div>
       )}
+      {canVerify ? (
+        <div className="research-trust-block">
+          <strong>{t("card.postHoc")}</strong>
+          <p className="muted research-trust-line">{t("card.signalVerifyHint")}</p>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            disabled={postHoc === "loading"}
+            onClick={() => void runPostHoc()}
+          >
+            {postHoc === "loading" ? "…" : t("card.postHocBtn")}
+          </button>
+          {postHoc && postHoc !== "loading" && postHoc !== "error" ? (
+            <p className="muted research-trust-line">
+              {postHoc.horizons.some((h) => h.return_pct != null)
+                ? postHoc.horizons
+                    .map((h) =>
+                      t("card.postHocRow", {
+                        days: String(h.days),
+                        ret: h.return_pct != null ? String(h.return_pct) : "—",
+                      }),
+                    )
+                    .join(" · ")
+                : t("card.postHocEmpty")}
+            </p>
+          ) : null}
+          {postHoc === "error" ? (
+            <p className="muted research-trust-line">{t("card.postHocEmpty")}</p>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

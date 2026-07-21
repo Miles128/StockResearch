@@ -1,4 +1,9 @@
-import { chatBodyField } from "./modeSettings";
+import {
+  chatBodyField,
+  loadModeSettings,
+  type AnalysisDepth,
+  type ModeSettingsApiPayload,
+} from "./modeSettings";
 import { dataSourceRequestHeaders } from "./dataSourceSettings";
 import {
   llmBodyField,
@@ -8,7 +13,6 @@ import {
   type LlmTestResult,
   type LlmUserSettings,
 } from "./llmSettings";
-import type { ModeSettingsApiPayload } from "./modeSettings";
 import { createJsonSseStream } from "./apiSse";
 
 export type { LlmSettingsMeta };
@@ -274,15 +278,26 @@ export const api = {
     return waitForNewsIngestJob(accepted.job_id);
   },
   newsIngestJob: (jobId: string) => request<NewsIngestJob>(`/news/ingest/${encodeURIComponent(jobId)}`),
-  research: (symbol: string) => request<ResearchReport>(`/research/analyze?symbol=${symbol}`),
-  researchStream: (symbol: string, onEvent?: (event: AgentStreamEvent) => void) =>
-    createJsonSseStream<ResearchReport, AgentStreamEvent>({
-      url: apiUrl(`/research/analyze/stream?symbol=${symbol}`),
+  research: (symbol: string, analysisDepth?: AnalysisDepth) => {
+    const depth = analysisDepth ?? loadModeSettings().analysisDepth;
+    const params = new URLSearchParams({ symbol, analysis_depth: depth });
+    return request<ResearchReport>(`/research/analyze?${params.toString()}`);
+  },
+  researchStream: (
+    symbol: string,
+    onEvent?: (event: AgentStreamEvent) => void,
+    analysisDepth?: AnalysisDepth,
+  ) => {
+    const depth = analysisDepth ?? loadModeSettings().analysisDepth;
+    const params = new URLSearchParams({ symbol, analysis_depth: depth });
+    return createJsonSseStream<ResearchReport, AgentStreamEvent>({
+      url: apiUrl(`/research/analyze/stream?${params.toString()}`),
       headers: llmRequestHeaders(),
       onEvent,
       extractResult: (event) =>
         event.type === "done" && event.result ? (event.result as unknown as ResearchReport) : undefined,
-    }),
+    });
+  },
   riskCheckup: () =>
     requestWithLlm<RiskCheckup>(
       "/risk/checkup",
