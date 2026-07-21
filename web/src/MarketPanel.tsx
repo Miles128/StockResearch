@@ -7,6 +7,7 @@ import { useI18n } from "./i18n";
 import { localizeIndexName } from "./indexLabels";
 import { localizeSentiment } from "./uiLabels";
 import { SentimentGauge } from "./SentimentGauge";
+import { loadModeSettings } from "./modeSettings";
 
 interface MarketPanelProps {
   overview: MarketOverview | null;
@@ -93,17 +94,6 @@ export function MarketPanel({
     [sectors, onSectorClick],
   );
 
-  const indexBars: PctBarItem[] = useMemo(
-    () =>
-      (overview?.indices ?? []).map((idx) => ({
-        id: idx.symbol ?? idx.name,
-        label: localizeIndexName(idx.symbol, idx.name, t),
-        value: idx.change_pct,
-        onClick: () => onIndexClick(localizeIndexName(idx.symbol, idx.name, t)),
-      })),
-    [overview?.indices, onIndexClick, t],
-  );
-
   return (
     <div className="panel market-panel">
       <div className="panel-actions-row">
@@ -138,12 +128,6 @@ export function MarketPanel({
                 );
               })}
             </div>
-            {indexBars.length > 0 && (
-              <div className="market-subsection">
-                <h4 className="market-subsection-title">{t("market.indexBarsTitle")}</h4>
-                <HorizontalPctBars items={indexBars} ariaLabel={t("market.indexBarsTitle")} />
-              </div>
-            )}
           </>
         )}
         {overview && (overview.advancers != null || overview.decliners != null) && (
@@ -177,7 +161,7 @@ export function MarketPanel({
 
       <section className="market-section">
         <h3 className="market-section-title">{t("sentiment.marketTitle")}</h3>
-        <SentimentGauge variant="market" />
+        <SentimentGauge variant="market" pollingEnabled={loadModeSettings().uiPollingEnabled} />
       </section>
 
       <section className="market-section">

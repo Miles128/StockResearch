@@ -13,9 +13,11 @@ from stockresearch.agents.research.debate import (
 )
 from stockresearch.agents.risk import messages as risk_msg
 from stockresearch.agents.risk.engine import (
+    _attach_daily_returns,
     _llm_correlation_analysis,
     _llm_market_assessment,
     _llm_scenario_analysis,
+    _metrics_to_out,
     _parse_rule_alerts,
     run_risk_checkup,
 )
@@ -23,6 +25,7 @@ from stockresearch.agents.risk.metrics import (
     HoldingQuote,
     calculate_portfolio_metrics,
     calculate_var,
+    run_stress_presets,
 )
 from stockresearch.agents.risk.judge import (
     JudgeVerdict,
@@ -49,6 +52,7 @@ from stockresearch.core.schemas import (
     PortfolioMetricsOut,
     RiskAlertOut,
     RiskCheckupOut,
+    StressResultOut,
     VaRResultOut,
 )
 from stockresearch.data.providers.market import QuoteProvider
@@ -121,12 +125,12 @@ def _context_block(
     return f"持仓明细（共 {len(holdings)} 只）：\n{detail}"
 
 
-def _compute_quant_metrics(
+async def _compute_quant_metrics(
     holdings: list[Holding],
     quotes: list,
-) -> tuple[PortfolioMetricsOut | None, VaRResultOut | None]:
+) -> tuple[PortfolioMetricsOut | None, VaRResultOut | None, list[StressResultOut]]:
     if not holdings:
-        return None, None
+        return None, None, []
     try:
         holding_quotes = [
             HoldingQuote(
@@ -140,22 +144,9 @@ def _compute_quant_metrics(
             )
             for h, q in zip(holdings, quotes, strict=True)
         ]
+        await _attach_daily_returns(holding_quotes)
         pm = calculate_portfolio_metrics(holding_quotes)
-        metrics_out = PortfolioMetricsOut(
-            sharpe_ratio=round(pm.sharpe_ratio, 4),
-            sortino_ratio=round(pm.sortino_ratio, 4),
-            max_drawdown=round(pm.max_drawdown, 4),
-            volatility=round(pm.volatility, 4),
-            concentration_ratio=round(pm.concentration_ratio, 4),
-            concentration_sector=pm.concentration_sector,
-            individual_drawdowns=pm.individual_drawdowns,
-            calmar_ratio=round(pm.calmar_ratio, 4),
-            information_ratio=round(pm.information_ratio, 4),
-            max_loss_1d=round(pm.max_loss_1d, 2),
-            max_loss_1d_pct=round(pm.max_loss_1d_pct, 4),
-            expected_loss=round(pm.expected_loss, 2),
-            expected_loss_pct=round(pm.expected_loss_pct, 4),
-        )
+        metrics_out = _metrics_to_out(pm)
         vr = calculate_var(holding_quotes)
         var_out = VaRResultOut(
             confidence_level=vr.confidence_level,
@@ -167,10 +158,13 @@ def _compute_quant_metrics(
             cvar_value=round(vr.cvar_value, 2),
             cvar_pct=round(vr.cvar_pct, 4),
         )
-        return metrics_out, var_out
+        stress_out = [
+            StressResultOut.model_validate(item) for item in run_stress_presets(holding_quotes)
+        ]
+        return metrics_out, var_out, stress_out
     except Exception:
         logger.warning("Quantitative metrics calculation failed", exc_info=True)
-        return None, None
+        return None, None, []
 
 
 async def run_risk_checkup_stream(
@@ -178,9 +172,17 @@ async def run_risk_checkup_stream(
     llm: LLMClient | None = None,
     *,
     enable_master_commentary: bool = False,
+    enable_llm_analysis: bool = True,
     mode_settings: ModeSettingsOut | None = None,
     master_ids: list[str] | None = None,
 ) -> AsyncIterator[dict[str, object]]:
+    """Stream risk checkup.
+
+    PRD §四: 规则引擎 + 可选 LLM 解读。`enable_llm_analysis=False` 时跳过
+    parallel LLM agents / 三角辩论 / Research Manager / Judge,直接返回
+    规则告警 + 量化指标。`enable_llm_analysis` 同时控制 master_commentary
+    (后者还需 `enable_master_commentary=True`)。
+    """
     client = llm or get_llm_client()
 
     yield status_event("status.risk.analysis")
@@ -212,8 +214,8 @@ async def run_risk_checkup_stream(
     ):
         yield event
 
-    metrics_out, var_out = _compute_quant_metrics(holdings, quotes)
-    if holdings and (metrics_out or var_out or alerts):
+    metrics_out, var_out, stress_out = await _compute_quant_metrics(holdings, quotes)
+    if holdings and (metrics_out or var_out or alerts or stress_out):
         yield {
             "type": "risk_snapshot",
             "result": RiskCheckupOut(
@@ -222,12 +224,32 @@ async def run_risk_checkup_stream(
                 llm_analysis=None,
                 metrics=metrics_out,
                 var_result=var_out,
+                stress_results=stress_out,
             ).model_dump(mode="json"),
         }
 
     if not holdings:
-        empty = await run_risk_checkup(holdings, llm=client)
+        empty = await run_risk_checkup(
+            holdings, llm=client, enable_llm_analysis=enable_llm_analysis
+        )
         yield {"type": "done", "result": empty.model_dump(mode="json")}
+        return
+
+    # PRD §四 可选 LLM：关闭时跳过 parallel agents / debate / manager / judge
+    if not enable_llm_analysis:
+        if not alerts:
+            summary = risk_msg.portfolio_summary_all_clear(len(holdings))
+        else:
+            summary = risk_msg.portfolio_summary_with_alerts(len(alerts))
+        result = RiskCheckupOut(
+            alerts=alerts,
+            portfolio_summary=summary,
+            llm_analysis=None,
+            metrics=metrics_out,
+            var_result=var_out,
+            stress_results=stress_out,
+        )
+        yield {"type": "done", "result": result.model_dump(mode="json")}
         return
 
     context = _context_block(holdings, quotes, alerts)
@@ -387,7 +409,7 @@ async def run_risk_checkup_stream(
 
     # Metrics already computed for risk_snapshot; reuse if still valid.
     if metrics_out is None and var_out is None:
-        metrics_out, var_out = _compute_quant_metrics(holdings, quotes)
+        metrics_out, var_out, stress_out = await _compute_quant_metrics(holdings, quotes)
 
     result = RiskCheckupOut(
         alerts=alerts,
@@ -395,9 +417,10 @@ async def run_risk_checkup_stream(
         llm_analysis=llm_analysis,
         metrics=metrics_out,
         var_result=var_out,
+        stress_results=stress_out,
     )
 
-    if enable_master_commentary and mode_settings is not None:
+    if enable_llm_analysis and enable_master_commentary and mode_settings is not None:
         masters = master_ids or resolve_master_ids(mode_settings)
         commentary_context = build_risk_context(result)
         commentary: list[dict[str, Any]] = []

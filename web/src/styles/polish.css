@@ -193,24 +193,15 @@ select {
 
 .copilot-panel {
   background: var(--bbg-panel);
-  border-left: 2px solid var(--accent-ai);
+  border-left: none;
   box-shadow: none;
 }
 
-[data-theme="institutional-light"] .copilot-panel.layout-vertical {
-  box-shadow: 0 -2px 12px rgba(15, 23, 42, 0.06);
-}
-
-[data-theme="institutional-dark"] .copilot-panel.layout-vertical {
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
-}
-
-[data-theme="institutional-light"] .copilot-panel:not(.layout-vertical) {
-  box-shadow: -2px 0 12px rgba(15, 23, 42, 0.06);
-}
-
+[data-theme="institutional-light"] .copilot-panel.layout-vertical,
+[data-theme="institutional-dark"] .copilot-panel.layout-vertical,
+[data-theme="institutional-light"] .copilot-panel:not(.layout-vertical),
 [data-theme="institutional-dark"] .copilot-panel:not(.layout-vertical) {
-  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.25);
+  box-shadow: none;
 }
 
 .holdings-table tbody tr {
@@ -430,82 +421,6 @@ select {
   line-height: 1.55;
 }
 
-/* Unified card + quote data surfaces */
-.ui-card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
-  min-width: 0;
-  padding: 12px;
-  border: 1px solid var(--bbg-border);
-  border-radius: var(--radius);
-  background: var(--bbg-panel);
-  color: var(--text);
-  text-align: left;
-  box-shadow: none;
-}
-
-button.ui-card {
-  font: inherit;
-  width: 100%;
-  cursor: pointer;
-}
-
-button.ui-card:hover {
-  border-color: var(--accent-ai);
-  background: var(--bbg-panel-2);
-}
-
-.ui-card-active {
-  border-color: var(--accent-ai);
-  background: var(--accent-ai-bg);
-}
-
-.ui-card-head {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 100%;
-}
-
-.ui-card-title {
-  color: var(--bbg-muted);
-  font-size: 11.5px;
-}
-
-.ui-card-body {
-  width: 100%;
-}
-
-.ui-quote-price {
-  font-family: var(--font-mono);
-  font-size: 20px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--text);
-}
-
-.ui-quote-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-start;
-}
-
-.ui-quote-stack-inline {
-  flex-direction: row;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.ui-quote-change {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
 .market-chart-panel {
   margin-top: 12px;
   padding: 10px;
@@ -521,18 +436,15 @@ button.ui-card:hover {
   margin-bottom: 4px;
 }
 
-.market-index-card.ui-card .ui-quote-price {
-  font-size: 20px;
-}
-
-/* AI research surfaces */
+/* AI research surfaces — accent rail only, no outer box */
 .message.conclusion-panel,
 .light-research-card {
-  border: 1px solid var(--bbg-border);
-  border-left: 3px solid var(--accent-ai);
-  border-radius: var(--radius);
-  background: var(--bbg-panel);
+  border: none;
+  border-left: 2px solid color-mix(in srgb, var(--accent-ai) 40%, transparent);
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
+  padding-left: 10px;
 }
 
 .process-panel {
@@ -547,8 +459,6 @@ button.ui-card:hover {
 
 .holdings-table td.num,
 .holdings-table th.num,
-.ui-quote-price,
-.ui-quote-change,
 .portfolio-vertical .summary-cell .value,
 .terminal-clock,
 .chrome-usage,

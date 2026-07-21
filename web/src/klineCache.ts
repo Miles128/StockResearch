@@ -23,11 +23,13 @@ export function getCachedKline(symbol: string): KlineChart | null {
 
 export function setCachedKline(symbol: string, bars: KlineBar[]): KlineChart {
   const closes = bars.map((b) => b.close);
+  const highs = bars.map((b) => b.high);
+  const lows = bars.map((b) => b.low);
   const chart: KlineChart = {
     symbol,
     days: bars.length,
     bars,
-    indicators: buildIndicators(closes),
+    indicators: buildIndicators(closes, highs, lows),
   };
   sessionCache.set(symbol, { chart, fetchedAt: Date.now() });
   return chart;

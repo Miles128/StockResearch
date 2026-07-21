@@ -37,10 +37,16 @@ _JUDGE_SYSTEM = f"""你是 impartial 裁判 Agent。
 def _dimension_summary(dimensions: dict[str, DimensionResult]) -> str:
     lines: list[str] = []
     for key, dim in dimensions.items():
+        evidence_bits = [
+            (e.snippet or "")[:60]
+            for e in (dim.evidence or [])[:2]
+            if (e.snippet or "").strip()
+        ]
+        evidence_part = f" 证据:{' | '.join(evidence_bits)}" if evidence_bits else ""
         lines.append(
             f"[{key}] 评分{dim.score}/10 置信{dim.confidence} "
             f"亮点:{'; '.join(dim.highlights)} 风险:{'; '.join(dim.risks)} "
-            f"来源:{','.join(dim.data_sources)}"
+            f"来源:{','.join(dim.data_sources)}{evidence_part}"
         )
     return "\n".join(lines)
 

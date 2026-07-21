@@ -92,21 +92,6 @@ export function syncFocusTabsFromChat(
   return { tabs, activeId: null };
 }
 
-export function openStockFocusTab(
-  tabs: FocusTab[],
-  symbol: string,
-  name: string,
-  quote?: { price?: number | null; change_pct?: number | null },
-): { tabs: FocusTab[]; activeId: string } {
-  return upsertFocusTab(tabs, {
-    kind: "stock",
-    symbol,
-    name,
-    price: quote?.price ?? null,
-    change_pct: quote?.change_pct ?? null,
-  });
-}
-
 export function buildKnownSymbols(
   holdings: { symbol: string; name: string }[],
   watchlist: { symbol: string; name: string }[],

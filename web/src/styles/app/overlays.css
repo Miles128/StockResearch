@@ -765,9 +765,11 @@
   flex-direction: row;
   min-width: 0;
   min-height: 0;
-  border-left: 2px solid var(--accent-ai);
+  border-left: none;
   background: var(--bbg-panel);
   position: relative;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .copilot-panel-main {
@@ -1074,7 +1076,7 @@
   display: flex;
   flex: 1;
   min-height: 0;
-  padding: 8px;
+  padding: 8px 0 8px 10px;
 }
 
 .copilot-content .chat-panel {
@@ -1082,7 +1084,7 @@
 }
 
 .copilot-content .chat-messages {
-  padding-right: 2px;
+  padding-right: 0;
 }
 
 .copilot-content .research-quick-picks {
@@ -1195,14 +1197,15 @@
     display: block;
   }
 
-  .copilot-panel {
+  /* Only canvas uses full-bleed overlay; tri-shell keeps the grid column. */
+  .canvas-shell .copilot-panel {
     position: fixed;
     inset: 96px 0 0;
     z-index: 500;
     border-left: none;
   }
 
-  .copilot-resize-handle {
+  .canvas-shell .copilot-resize-handle {
     display: none;
   }
 

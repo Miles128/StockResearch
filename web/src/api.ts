@@ -1,4 +1,9 @@
-import { chatBodyField } from "./modeSettings";
+import {
+  chatBodyField,
+  loadModeSettings,
+  type AnalysisDepth,
+  type ModeSettingsApiPayload,
+} from "./modeSettings";
 import { dataSourceRequestHeaders } from "./dataSourceSettings";
 import {
   llmBodyField,
@@ -8,7 +13,6 @@ import {
   type LlmTestResult,
   type LlmUserSettings,
 } from "./llmSettings";
-import type { ModeSettingsApiPayload } from "./modeSettings";
 import { createJsonSseStream } from "./apiSse";
 
 export type { LlmSettingsMeta };
@@ -170,8 +174,6 @@ export interface HoldingAction {
   priority?: string;
 }
 
-export type StreamEvent = AgentStreamEvent;
-
 export type ExecutionPreference = "react" | "plan_execute" | "preset" | "auto";
 
 export interface ChatUserContextPayload {
@@ -276,15 +278,26 @@ export const api = {
     return waitForNewsIngestJob(accepted.job_id);
   },
   newsIngestJob: (jobId: string) => request<NewsIngestJob>(`/news/ingest/${encodeURIComponent(jobId)}`),
-  research: (symbol: string) => request<ResearchReport>(`/research/analyze?symbol=${symbol}`),
-  researchStream: (symbol: string, onEvent?: (event: AgentStreamEvent) => void) =>
-    createJsonSseStream<ResearchReport, AgentStreamEvent>({
-      url: apiUrl(`/research/analyze/stream?symbol=${symbol}`),
+  research: (symbol: string, analysisDepth?: AnalysisDepth) => {
+    const depth = analysisDepth ?? loadModeSettings().analysisDepth;
+    const params = new URLSearchParams({ symbol, analysis_depth: depth });
+    return request<ResearchReport>(`/research/analyze?${params.toString()}`);
+  },
+  researchStream: (
+    symbol: string,
+    onEvent?: (event: AgentStreamEvent) => void,
+    analysisDepth?: AnalysisDepth,
+  ) => {
+    const depth = analysisDepth ?? loadModeSettings().analysisDepth;
+    const params = new URLSearchParams({ symbol, analysis_depth: depth });
+    return createJsonSseStream<ResearchReport, AgentStreamEvent>({
+      url: apiUrl(`/research/analyze/stream?${params.toString()}`),
       headers: llmRequestHeaders(),
       onEvent,
       extractResult: (event) =>
         event.type === "done" && event.result ? (event.result as unknown as ResearchReport) : undefined,
-    }),
+    });
+  },
   riskCheckup: () =>
     requestWithLlm<RiskCheckup>(
       "/risk/checkup",
@@ -353,6 +366,8 @@ export const api = {
     await downloadReportBlob("/research/export/pdf", report, `${report.symbol}-report.pdf`);
   },
   signalBacktest: () => request<SignalBacktest>("/research/signal-backtest"),
+  reportPostHoc: (id: number) =>
+    request<ReportPostHoc>(`/research/reports/${id}/post-hoc`),
   searchMemory: (q: string) =>
     request<MemorySearchResult>(`/research/memory/search?q=${encodeURIComponent(q)}`),
   generateBriefing: (kind: "premarket" | "intraday" | "postmarket") =>
@@ -577,9 +592,6 @@ export interface NewsIngestJob {
   error?: string | null;
 }
 
-/** @deprecated Use NewsIngestJob — kept for call sites expecting the old sync shape. */
-export type NewsIngestOut = NewsIngestJob;
-
 async function waitForNewsIngestJob(jobId: string, timeoutMs = 60_000): Promise<NewsIngestJob> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -668,6 +680,33 @@ export interface NumericFactor {
   unit?: string;
   partial?: boolean;
   note?: string | null;
+  bars_source?: string | null;
+  bars_adjust?: string | null;
+}
+
+export interface BarsProvenance {
+  source: string;
+  adjust: string;
+  as_of?: string | null;
+  partial?: boolean;
+  note?: string | null;
+}
+
+export interface ReportPostHocHorizon {
+  days: number;
+  return_pct: number | null;
+  partial?: boolean;
+  note?: string | null;
+  bars_adjust?: string | null;
+  bars_source?: string | null;
+}
+
+export interface ReportPostHoc {
+  report_id: number;
+  symbol: string;
+  horizons: ReportPostHocHorizon[];
+  disclaimer?: string;
+  label?: string;
 }
 
 export interface ResearchReport {
@@ -686,10 +725,18 @@ export interface ResearchReport {
   text_factor_summary?: string | null;
   ashare_factors?: AshareFactor[];
   factors?: NumericFactor[];
+  bars_provenance?: BarsProvenance | null;
   dimension_weights?: Record<string, number>;
-  dimensions: Record<string, DimensionResult>;
+  analysis_depth?: "standard" | "comprehensive" | "deep";
+  factors_expanded?: boolean;
+  factor_alignment_note?: string | null;
+  enable_signal_verify_hook?: boolean;
+  post_hoc?: ReportPostHocHorizon[];
+  dimensions?: Record<string, DimensionResult>;
   debate?: DebateResult | null;
   master_commentary?: MasterCommentaryItem[];
+  disclaimer?: string;
+  cached?: boolean;
 }
 
 async function downloadReportBlob(path: string, report: ResearchReport, filename: string): Promise<void> {
@@ -737,6 +784,18 @@ export interface PortfolioMetrics {
   max_loss_1d_pct: number;
   expected_loss: number;
   expected_loss_pct: number;
+  sector_weights?: { sector?: string; weight?: number; value?: number }[];
+  top_holding_weight?: number;
+  top_holding_symbol?: string | null;
+  top_holding_name?: string | null;
+}
+
+export interface StressResult {
+  id: string;
+  name: string;
+  pnl: number;
+  pnl_pct: number;
+  shocked_value?: number;
 }
 
 export interface RiskCheckup {
@@ -759,6 +818,7 @@ export interface RiskCheckup {
     cvar_pct: number;
     holdings_var: { name: string; symbol?: string; weight: number; var_value: number }[];
   };
+  stress_results?: StressResult[];
   master_commentary?: MasterCommentaryItem[];
 }
 
@@ -848,6 +908,7 @@ export interface DataSourceStatus {
   use_mock: boolean;
   tushare_configured?: boolean;
   tushare_available?: boolean;
+  tushare_status?: "no_token" | "unavailable" | "invalid" | "ok" | "quota";
   price_conflicts?: QuotePriceConflict[];
 }
 
@@ -933,8 +994,15 @@ export interface SignalBacktestHorizon {
   bearish_count: number;
   bullish_avg_return_pct: number | null;
   bearish_avg_return_pct: number | null;
+  bullish_median_return_pct?: number | null;
+  bearish_median_return_pct?: number | null;
   bullish_positive_rate_pct: number | null;
   bearish_negative_rate_pct: number | null;
+  spread_avg_return_pct?: number | null;
+  bias_bullish_avg_return_pct?: number | null;
+  bias_bearish_avg_return_pct?: number | null;
+  factor_tilt_bullish_avg_return_pct?: number | null;
+  factor_tilt_bearish_avg_return_pct?: number | null;
 }
 
 export interface SignalBacktest {
@@ -943,6 +1011,9 @@ export interface SignalBacktest {
   label?: string;
   notes?: string[];
   sample_bias_note?: string;
+  unique_symbols?: number;
+  bias_sample_count?: number;
+  factor_tilt_sample_count?: number;
 }
 
 export interface MemorySearchHit {
@@ -1011,12 +1082,21 @@ export interface KlineChart {
     close: number;
     volume: number;
   }[];
+  source?: string;
+  adjust?: string;
   indicators: {
     ma20: (number | null)[];
     rsi: (number | null)[];
     macd: (number | null)[];
     macd_signal: (number | null)[];
     macd_histogram: (number | null)[];
+    boll_mid?: (number | null)[];
+    boll_upper?: (number | null)[];
+    boll_lower?: (number | null)[];
+    atr?: (number | null)[];
+    kdj_k?: (number | null)[];
+    kdj_d?: (number | null)[];
+    kdj_j?: (number | null)[];
   };
 }
 

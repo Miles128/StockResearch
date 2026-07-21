@@ -163,13 +163,3 @@ export function skillStepLabel(skill: SkillStep, t: TFn): string {
   return skill.label;
 }
 
-/** @deprecated use detectProcessFlow */
-export type ProcessKind = "react" | "plan" | "multi_agent";
-
-/** @deprecated use detectProcessFlow */
-export function detectProcessKind(process: StreamState): ProcessKind {
-  const flow = detectProcessFlow(process);
-  if (flow === "plan") return "plan";
-  if (flow === "react") return "react";
-  return "multi_agent";
-}

@@ -7,9 +7,13 @@ from stockresearch.agents.master_commentary.context import build_risk_context
 from stockresearch.agents.master_commentary.stream import get_master_commentary
 from stockresearch.agents.risk import messages as risk_msg
 from stockresearch.agents.risk.metrics import (
+    SINGLE_NAME_CONCENTRATION_LIMIT,
+    SECTOR_CONCENTRATION_LIMIT,
     HoldingQuote,
     calculate_portfolio_metrics,
     calculate_var,
+    closes_to_daily_returns,
+    run_stress_presets,
 )
 from stockresearch.agents.voice import AGENT_VOICE
 from stockresearch.core.constants import (
@@ -26,9 +30,10 @@ from stockresearch.core.schemas import (
     PortfolioMetricsOut,
     RiskAlertOut,
     RiskCheckupOut,
+    StressResultOut,
     VaRResultOut,
 )
-from stockresearch.data.providers.market import QuoteProvider
+from stockresearch.data.providers.market import QuoteProvider, TechnicalDataProvider
 from stockresearch.db.models import Holding
 from stockresearch.utils.llm import LLMClient, get_llm_client
 
@@ -103,13 +108,14 @@ async def _llm_scenario_analysis(
     return scenarios[:2]
 
 
-def _sector_concentration(holdings: list[Holding]) -> tuple[float, str | None]:
-    if not holdings:
+def _sector_concentration(holdings: list[Holding], quotes: list) -> tuple[float, str | None]:
+    """Max sector weight by market value (aligned with PortfolioMetrics)."""
+    if not holdings or not quotes:
         return 0.0, None
     sector_values: dict[str, float] = {}
     total = 0.0
-    for h in holdings:
-        value = h.float_cost_price * h.quantity
+    for h, q in zip(holdings, quotes, strict=True):
+        value = float(q.price) * h.quantity
         sector_values[h.sector] = sector_values.get(h.sector, 0) + value
         total += value
     if total <= 0:
@@ -117,6 +123,22 @@ def _sector_concentration(holdings: list[Holding]) -> tuple[float, str | None]:
     max_sector = max(sector_values, key=lambda sector: sector_values[sector])
     ratio = sector_values[max_sector] / total
     return ratio, max_sector
+
+
+def _single_name_concentration(
+    holdings: list[Holding], quotes: list
+) -> tuple[float, str | None, str | None]:
+    if not holdings or not quotes:
+        return 0.0, None, None
+    total = sum(float(q.price) * h.quantity for h, q in zip(holdings, quotes, strict=True))
+    if total <= 0:
+        return 0.0, None, None
+    top_h, top_q = max(
+        zip(holdings, quotes, strict=True),
+        key=lambda pair: float(pair[1].price) * pair[0].quantity,
+    )
+    weight = (float(top_q.price) * top_h.quantity) / total
+    return weight, top_h.symbol, top_h.name
 
 
 def _parse_rule_alerts(holdings: list[Holding], quotes: list) -> list[RiskAlertOut]:
@@ -171,8 +193,8 @@ def _parse_rule_alerts(holdings: list[Holding], quotes: list) -> list[RiskAlertO
                     )
                 )
                 break
-    ratio, sector = _sector_concentration(holdings)
-    if ratio > 0.40 and sector:
+    ratio, sector = _sector_concentration(holdings, quotes)
+    if ratio > SECTOR_CONCENTRATION_LIMIT and sector:
         alerts.append(
             RiskAlertOut(
                 rule_id="concentration",
@@ -182,7 +204,57 @@ def _parse_rule_alerts(holdings: list[Holding], quotes: list) -> list[RiskAlertO
                 human_message="",
             )
         )
+    name_w, name_sym, name_label = _single_name_concentration(holdings, quotes)
+    if name_w > SINGLE_NAME_CONCENTRATION_LIMIT and name_sym and name_label:
+        alerts.append(
+            RiskAlertOut(
+                rule_id="single_name_concentration",
+                severity=SEVERITY_WARNING,
+                symbol=name_sym,
+                message=risk_msg.alert_single_name_concentration(name_label, name_sym, name_w),
+                human_message="",
+            )
+        )
     return alerts
+
+
+def _metrics_to_out(pm) -> PortfolioMetricsOut:
+    return PortfolioMetricsOut(
+        sharpe_ratio=round(pm.sharpe_ratio, 4),
+        sortino_ratio=round(pm.sortino_ratio, 4),
+        max_drawdown=round(pm.max_drawdown, 4),
+        volatility=round(pm.volatility, 4),
+        concentration_ratio=round(pm.concentration_ratio, 4),
+        concentration_sector=pm.concentration_sector,
+        individual_drawdowns=pm.individual_drawdowns,
+        calmar_ratio=round(pm.calmar_ratio, 4),
+        information_ratio=round(pm.information_ratio, 4),
+        max_loss_1d=round(pm.max_loss_1d, 2),
+        max_loss_1d_pct=round(pm.max_loss_1d_pct, 4),
+        expected_loss=round(pm.expected_loss, 2),
+        expected_loss_pct=round(pm.expected_loss_pct, 4),
+        sector_weights=pm.sector_weights,
+        top_holding_weight=round(pm.top_holding_weight, 4),
+        top_holding_symbol=pm.top_holding_symbol,
+        top_holding_name=pm.top_holding_name,
+    )
+
+
+async def _attach_daily_returns(holding_quotes: list[HoldingQuote]) -> None:
+    """Best-effort fill of recent daily returns for VaR/vol (A-share closes)."""
+    if not holding_quotes:
+        return
+    tech = TechnicalDataProvider()
+
+    async def _one(hq: HoldingQuote) -> None:
+        try:
+            bars = await tech.get_kline_bars(hq.symbol, days=60)
+            closes = [float(b["close"]) for b in bars]
+            hq.daily_returns = closes_to_daily_returns(closes)[-40:]
+        except Exception:
+            logger.debug("daily_returns unavailable for %s", hq.symbol, exc_info=True)
+
+    await asyncio.gather(*[_one(hq) for hq in holding_quotes])
 
 
 async def run_risk_checkup(
@@ -190,9 +262,17 @@ async def run_risk_checkup(
     llm: LLMClient | None = None,
     *,
     enable_master_commentary: bool = False,
+    enable_llm_analysis: bool = True,
     mode_settings: ModeSettingsOut | None = None,
     master_ids: list[str] | None = None,
 ) -> RiskCheckupOut:
+    """Run risk checkup.
+
+    PRD §四: 规则引擎 + 可选 LLM 解读。`enable_llm_analysis=False` 时跳过
+    所有 LLM 调用（humanize / market / correlation / narrative / scenario），
+    只返回规则告警 + 量化指标（metrics / VaR / stress）,`llm_analysis=None`。
+    默认 True 保持向后兼容；调用方（API payload / 设置）可显式关闭。
+    """
     client = llm or get_llm_client()
     quote_provider = QuoteProvider()
 
@@ -202,47 +282,53 @@ async def run_risk_checkup(
 
     alerts = _parse_rule_alerts(holdings, quotes)
 
-    try:
-        humanize_tasks = [_humanize(client, alert) for alert in alerts]
-        analysis_tasks = [
-            _llm_market_assessment(client, holdings),
-            _llm_correlation_analysis(client, holdings),
-            _llm_risk_narrative(client, alerts, holdings),
-            _llm_scenario_analysis(client, holdings, alerts),
-        ]
+    if enable_llm_analysis:
+        try:
+            humanize_tasks = [_humanize(client, alert) for alert in alerts]
+            analysis_tasks = [
+                _llm_market_assessment(client, holdings),
+                _llm_correlation_analysis(client, holdings),
+                _llm_risk_narrative(client, alerts, holdings),
+                _llm_scenario_analysis(client, holdings, alerts),
+            ]
 
-        humanize_results = await asyncio.gather(*humanize_tasks, return_exceptions=True)
-        for alert, result in zip(alerts, humanize_results):
-            alert.human_message = result if isinstance(result, str) else alert.message
+            humanize_results = await asyncio.gather(*humanize_tasks, return_exceptions=True)
+            for alert, result in zip(alerts, humanize_results):
+                alert.human_message = result if isinstance(result, str) else alert.message
 
-        analysis_results = await asyncio.gather(*analysis_tasks, return_exceptions=True)
-        market_assessment = (
-            analysis_results[0]
-            if isinstance(analysis_results[0], str)
-            else risk_msg.llm_unavailable_market()
-        )
-        correlation_analysis = (
-            analysis_results[1]
-            if isinstance(analysis_results[1], str)
-            else risk_msg.llm_unavailable_correlation()
-        )
-        risk_narrative = (
-            analysis_results[2]
-            if isinstance(analysis_results[2], str)
-            else risk_msg.llm_unavailable_narrative()
-        )
-        scenario_analysis = analysis_results[3] if isinstance(analysis_results[3], list) else []
-        llm_analysis = LLMRiskAnalysis(
-            market_assessment=market_assessment,
-            correlation_analysis=correlation_analysis,
-            risk_narrative=risk_narrative,
-            scenario_analysis=scenario_analysis,
-        )
-    except Exception:
-        logger.warning("LLM risk analysis failed, returning rule-based results only")
+            analysis_results = await asyncio.gather(*analysis_tasks, return_exceptions=True)
+            market_assessment = (
+                analysis_results[0]
+                if isinstance(analysis_results[0], str)
+                else risk_msg.llm_unavailable_market()
+            )
+            correlation_analysis = (
+                analysis_results[1]
+                if isinstance(analysis_results[1], str)
+                else risk_msg.llm_unavailable_correlation()
+            )
+            risk_narrative = (
+                analysis_results[2]
+                if isinstance(analysis_results[2], str)
+                else risk_msg.llm_unavailable_narrative()
+            )
+            scenario_analysis = analysis_results[3] if isinstance(analysis_results[3], list) else []
+            llm_analysis = LLMRiskAnalysis(
+                market_assessment=market_assessment,
+                correlation_analysis=correlation_analysis,
+                risk_narrative=risk_narrative,
+                scenario_analysis=scenario_analysis,
+            )
+        except Exception:
+            logger.warning("LLM risk analysis failed, returning rule-based results only")
+            for alert in alerts:
+                if not alert.human_message:
+                    alert.human_message = alert.message
+            llm_analysis = None
+    else:
+        # PRD §四 可选 LLM：关闭时 human_message 直接使用规则原文，不调用 LLM
         for alert in alerts:
-            if not alert.human_message:
-                alert.human_message = alert.message
+            alert.human_message = alert.message
         llm_analysis = None
 
     if not holdings:
@@ -255,6 +341,7 @@ async def run_risk_checkup(
     # ── 量化风险指标 ──
     metrics_out: PortfolioMetricsOut | None = None
     var_out: VaRResultOut | None = None
+    stress_out: list[StressResultOut] = []
     if holdings:
         try:
             holding_quotes = [
@@ -269,22 +356,9 @@ async def run_risk_checkup(
                 )
                 for h, q in zip(holdings, quotes, strict=True)
             ]
+            await _attach_daily_returns(holding_quotes)
             pm = calculate_portfolio_metrics(holding_quotes)
-            metrics_out = PortfolioMetricsOut(
-                sharpe_ratio=round(pm.sharpe_ratio, 4),
-                sortino_ratio=round(pm.sortino_ratio, 4),
-                max_drawdown=round(pm.max_drawdown, 4),
-                volatility=round(pm.volatility, 4),
-                concentration_ratio=round(pm.concentration_ratio, 4),
-                concentration_sector=pm.concentration_sector,
-                individual_drawdowns=pm.individual_drawdowns,
-                calmar_ratio=round(pm.calmar_ratio, 4),
-                information_ratio=round(pm.information_ratio, 4),
-                max_loss_1d=round(pm.max_loss_1d, 2),
-                max_loss_1d_pct=round(pm.max_loss_1d_pct, 4),
-                expected_loss=round(pm.expected_loss, 2),
-                expected_loss_pct=round(pm.expected_loss_pct, 4),
-            )
+            metrics_out = _metrics_to_out(pm)
             vr = calculate_var(holding_quotes)
             var_out = VaRResultOut(
                 confidence_level=vr.confidence_level,
@@ -296,6 +370,10 @@ async def run_risk_checkup(
                 cvar_value=round(vr.cvar_value, 2),
                 cvar_pct=round(vr.cvar_pct, 4),
             )
+            stress_out = [
+                StressResultOut.model_validate(item)
+                for item in run_stress_presets(holding_quotes)
+            ]
         except Exception:
             logger.warning("Quantitative metrics calculation failed", exc_info=True)
 
@@ -305,8 +383,9 @@ async def run_risk_checkup(
         llm_analysis=llm_analysis,
         metrics=metrics_out,
         var_result=var_out,
+        stress_results=stress_out,
     )
-    if enable_master_commentary and mode_settings is not None:
+    if enable_llm_analysis and enable_master_commentary and mode_settings is not None:
         masters = master_ids or resolve_master_ids(mode_settings)
         commentary_context = build_risk_context(result)
         commentary = await get_master_commentary(

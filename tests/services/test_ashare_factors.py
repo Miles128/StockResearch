@@ -33,6 +33,7 @@ def test_ashare_factor_checklist_uses_existing_sources_only() -> None:
     assert by_name["龙虎榜与游资席位"].status == "verified"
     assert by_name["限售解禁"].status == "verified"
     assert by_name["主力资金流向"].status == "missing"
+    assert by_name["雪球/东财情绪"].status == "missing"
     assert by_name["新闻、政策与事件文本"].status == "verified"
     assert not by_name["涨跌停 / ST / 停复牌"].missing
     trading_sources = {source.key: source for source in by_name["涨跌停 / ST / 停复牌"].source_details}

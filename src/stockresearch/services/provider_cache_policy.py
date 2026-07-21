@@ -34,11 +34,54 @@ async def get_or_set_cached_dict(
     cache_key: str,
     ttl_seconds: int,
     fetch: Callable[[], Awaitable[dict[str, object]]],
+    *,
+    should_cache: Callable[[dict[str, object]], bool] | None = None,
 ) -> dict[str, object]:
+    """Fetch-through cache. Empty or failed payloads are not persisted by default.
+
+    Pass ``should_cache`` to skip storing unusable shells (e.g. valuation with
+    all nulls) so the next request can retry the live provider.
+    """
     cached = get_sqlite_cached(cache_key)
     if cached is not None:
         return cached
     result = await fetch()
-    if result:
-        set_sqlite_cached(cache_key, result, ttl_seconds)
+    if not result:
+        return result
+    if should_cache is not None and not should_cache(result):
+        return result
+    if should_cache is None and not should_persist_provider_dict(result):
+        return result
+    set_sqlite_cached(cache_key, result, ttl_seconds)
     return result
+
+
+def should_persist_provider_dict(result: dict[str, object]) -> bool:
+    """Return False for empty / poison shells that must not occupy TTL cache."""
+    if result.get("available") is False:
+        return False
+    if result.get("signal") == "暂无数据":
+        return False
+
+    peers = result.get("peers")
+    if isinstance(peers, list) and len(peers) == 0:
+        return False
+
+    source = result.get("source")
+    if source in (None, "", "none"):
+        return False
+
+    if result.get("partial") is True:
+        gaps = result.get("gaps")
+        if isinstance(gaps, list) and gaps and source in (None, "", "none"):
+            return False
+        # Incomplete valuation shells (e.g. Tushare PE without percentile) block EM recovery.
+        if "tushare" in str(source) and result.get("pe_percentile") is None:
+            return False
+
+    return True
+
+
+def _looks_like_empty_failure(result: dict[str, object]) -> bool:
+    """Backward-compatible alias: True means 'do not cache'."""
+    return not should_persist_provider_dict(result)

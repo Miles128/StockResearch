@@ -4,6 +4,8 @@
 AkShare 接口：stock_zh_a_disclosure_report_cninfo
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from dataclasses import dataclass
@@ -13,18 +15,25 @@ import akshare as ak  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
-_CNINFO_TIMEOUT_SEC = 10.0
+_CNINFO_TIMEOUT_SEC = 12.0
 
 
 @dataclass(frozen=True)
 class AnnouncementItem:
     """巨潮公告条目。"""
+
     title: str
     announcement_type: str  # 公告类型，如"年报"、"重大事项"、"减持"等
     announcement_time: datetime
     symbol: str
     name: str
     url: str = ""
+
+
+@dataclass(frozen=True)
+class AnnouncementFetchResult:
+    items: list[AnnouncementItem]
+    source_failed: bool = False
 
 
 def _parse_datetime(value: object) -> datetime:
@@ -49,15 +58,11 @@ def fetch_cninfo_announcements_sync(
     category: str = "",
     days: int = 30,
     limit: int = 20,
-) -> list[AnnouncementItem]:
+) -> AnnouncementFetchResult:
     """同步拉取指定股票最近 N 天的巨潮公告。
 
-    Args:
-        symbol: 6 位股票代码，如 "600519"
-        name: 股票简称（akshare 部分接口要求），可选
-        category: 公告类别筛选关键字，如 "年报" / "减持" / "重大事项"，空字符串表示全部
-        days: 回看天数，默认 30 天
-        limit: 最大返回条数
+    Empty items + source_failed=False means the source answered with no rows.
+    source_failed=True means the provider call itself failed.
     """
     end_date = datetime.now(UTC).strftime("%Y%m%d")
     start_date = (datetime.now(UTC) - timedelta(days=days)).strftime("%Y%m%d")
@@ -71,10 +76,10 @@ def fetch_cninfo_announcements_sync(
         )
     except Exception as exc:
         logger.warning("AkShare cninfo announcements failed for %s: %s", symbol, exc)
-        return []
+        return AnnouncementFetchResult(items=[], source_failed=True)
 
     if df is None or df.empty:
-        return []
+        return AnnouncementFetchResult(items=[], source_failed=False)
 
     items: list[AnnouncementItem] = []
     for _, row in df.head(limit).iterrows():
@@ -94,7 +99,7 @@ def fetch_cninfo_announcements_sync(
                 url=url,
             )
         )
-    return items
+    return AnnouncementFetchResult(items=items, source_failed=False)
 
 
 def _market_code(symbol: str) -> str:
@@ -109,6 +114,50 @@ def _market_code(symbol: str) -> str:
 class AnnouncementProvider:
     """异步公告 provider，封装 cninfo 拉取逻辑。"""
 
+    async def fetch_announcements_result(
+        self,
+        symbol: str,
+        name: str = "",
+        *,
+        category: str = "",
+        days: int = 30,
+        limit: int = 20,
+    ) -> AnnouncementFetchResult:
+        last_exc: Exception | None = None
+        for attempt in range(2):
+            try:
+                return await asyncio.wait_for(
+                    asyncio.to_thread(
+                        fetch_cninfo_announcements_sync,
+                        symbol,
+                        name,
+                        category=category,
+                        days=days,
+                        limit=limit,
+                    ),
+                    timeout=_CNINFO_TIMEOUT_SEC,
+                )
+            except TimeoutError as exc:
+                last_exc = exc
+                logger.warning(
+                    "Cninfo announcements timed out for %s (attempt %d)",
+                    symbol,
+                    attempt + 1,
+                )
+            except Exception as exc:
+                last_exc = exc
+                logger.warning(
+                    "Cninfo announcements failed for %s (attempt %d): %s",
+                    symbol,
+                    attempt + 1,
+                    exc,
+                )
+            if attempt == 0:
+                await asyncio.sleep(0.4)
+        if last_exc:
+            return AnnouncementFetchResult(items=[], source_failed=True)
+        return AnnouncementFetchResult(items=[], source_failed=True)
+
     async def fetch_announcements(
         self,
         symbol: str,
@@ -118,24 +167,10 @@ class AnnouncementProvider:
         days: int = 30,
         limit: int = 20,
     ) -> list[AnnouncementItem]:
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(
-                    fetch_cninfo_announcements_sync,
-                    symbol,
-                    name,
-                    category=category,
-                    days=days,
-                    limit=limit,
-                ),
-                timeout=_CNINFO_TIMEOUT_SEC,
-            )
-        except TimeoutError:
-            logger.warning("Cninfo announcements timed out for %s", symbol)
-            return []
-        except Exception as exc:
-            logger.warning("Cninfo announcements failed for %s: %s", symbol, exc)
-            return []
+        result = await self.fetch_announcements_result(
+            symbol, name, category=category, days=days, limit=limit
+        )
+        return list(result.items)
 
     async def fetch_latest_for_symbols(
         self,

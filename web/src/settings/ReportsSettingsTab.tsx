@@ -1,4 +1,11 @@
-import { api, type MemorySearchResult, type ResearchReportListItem, type SignalBacktest } from "../api";
+import { useState } from "react";
+import {
+  api,
+  type MemorySearchResult,
+  type ReportPostHoc,
+  type ResearchReportListItem,
+  type SignalBacktest,
+} from "../api";
 import { useI18n } from "../i18n";
 
 interface ReportsSettingsTabProps {
@@ -19,6 +26,17 @@ export function ReportsSettingsTab({
   onMemorySearch,
 }: ReportsSettingsTabProps) {
   const { t, locale } = useI18n();
+  const [postHocById, setPostHocById] = useState<Record<number, ReportPostHoc | "loading" | "error">>({});
+
+  async function loadPostHoc(id: number) {
+    setPostHocById((prev) => ({ ...prev, [id]: "loading" }));
+    try {
+      const result = await api.reportPostHoc(id);
+      setPostHocById((prev) => ({ ...prev, [id]: result }));
+    } catch {
+      setPostHocById((prev) => ({ ...prev, [id]: "error" }));
+    }
+  }
 
   return (
     <>
@@ -28,38 +46,65 @@ export function ReportsSettingsTab({
         <p className="settings-muted">{t("settings.reportEmpty")}</p>
       ) : (
         <ul className="report-history-list">
-          {reports.map((r) => (
-            <li key={r.id} className="report-history-item">
-              <div className="report-history-main">
-                <strong>
-                  {r.name} ({r.symbol})
-                </strong>
-                <span className="settings-muted">
-                  {r.composite_score}/10 ·{" "}
-                  {r.has_debate ? t("settings.reportDebate") : t("settings.reportResearchOnly")}
-                </span>
-                <span className="settings-muted report-history-time">
-                  {new Date(r.created_at).toLocaleString(locale === "zh" ? "zh-CN" : "en-US")}
-                </span>
-              </div>
-              <div className="report-history-actions">
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => api.downloadReportMarkdown(r.id)}
-                >
-                  {t("settings.reportExport")}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => api.downloadReportPdf(r.id)}
-                >
-                  {t("settings.reportExportPdf")}
-                </button>
-              </div>
-            </li>
-          ))}
+          {reports.map((r) => {
+            const post = postHocById[r.id];
+            return (
+              <li key={r.id} className="report-history-item">
+                <div className="report-history-main">
+                  <strong>
+                    {r.name} ({r.symbol})
+                  </strong>
+                  <span className="settings-muted">
+                    {r.composite_score}/10 ·{" "}
+                    {r.has_debate ? t("settings.reportDebate") : t("settings.reportResearchOnly")}
+                  </span>
+                  <span className="settings-muted report-history-time">
+                    {new Date(r.created_at).toLocaleString(locale === "zh" ? "zh-CN" : "en-US")}
+                  </span>
+                  {post && post !== "loading" && post !== "error" ? (
+                    <p className="settings-muted">
+                      {t("card.postHoc")}：
+                      {post.horizons.some((h) => h.return_pct != null)
+                        ? post.horizons
+                            .map((h) =>
+                              t("card.postHocRow", {
+                                days: String(h.days),
+                                ret: h.return_pct != null ? String(h.return_pct) : "—",
+                              }),
+                            )
+                            .join(" · ")
+                        : t("card.postHocEmpty")}
+                    </p>
+                  ) : null}
+                  {post === "error" ? <p className="settings-muted">{t("card.postHocEmpty")}</p> : null}
+                </div>
+                <div className="report-history-actions">
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    disabled={post === "loading"}
+                    onClick={() => void loadPostHoc(r.id)}
+                  >
+                    {post === "loading" ? "…" : t("card.postHocBtn")}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => api.downloadReportMarkdown(r.id)}
+                  >
+                    {t("settings.reportExport")}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => api.downloadReportPdf(r.id)}
+                  >
+                    {t("settings.reportExportPdf")}
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 
@@ -67,6 +112,15 @@ export function ReportsSettingsTab({
       <p className="settings-hint">{t("settings.signalBacktestHint")}</p>
       {backtest?.sample_bias_note ? (
         <p className="settings-muted">{backtest.sample_bias_note}</p>
+      ) : null}
+      {backtest && (backtest.unique_symbols != null || backtest.bias_sample_count != null) ? (
+        <p className="settings-muted">
+          {t("settings.signalBacktestMeta", {
+            symbols: String(backtest.unique_symbols ?? 0),
+            bias: String(backtest.bias_sample_count ?? 0),
+            tilt: String(backtest.factor_tilt_sample_count ?? 0),
+          })}
+        </p>
       ) : null}
       {backtest?.notes?.map((note) => (
         <p className="settings-muted" key={note}>
@@ -81,8 +135,20 @@ export function ReportsSettingsTab({
                 days: String(h.days),
                 n: String(h.sample_count),
                 bull: h.bullish_avg_return_pct != null ? String(h.bullish_avg_return_pct) : "—",
+                bullMed: h.bullish_median_return_pct != null ? String(h.bullish_median_return_pct) : "—",
                 bear: h.bearish_avg_return_pct != null ? String(h.bearish_avg_return_pct) : "—",
+                bearMed: h.bearish_median_return_pct != null ? String(h.bearish_median_return_pct) : "—",
+                spread: h.spread_avg_return_pct != null ? String(h.spread_avg_return_pct) : "—",
+                bullHit: h.bullish_positive_rate_pct != null ? String(h.bullish_positive_rate_pct) : "—",
+                bearHit: h.bearish_negative_rate_pct != null ? String(h.bearish_negative_rate_pct) : "—",
               })}
+              {(h.bias_bullish_avg_return_pct != null || h.factor_tilt_bullish_avg_return_pct != null) && (
+                <span>
+                  {" "}
+                  · bias {h.bias_bullish_avg_return_pct ?? "—"}/{h.bias_bearish_avg_return_pct ?? "—"} · tilt{" "}
+                  {h.factor_tilt_bullish_avg_return_pct ?? "—"}/{h.factor_tilt_bearish_avg_return_pct ?? "—"}
+                </span>
+              )}
             </li>
           ))}
         </ul>

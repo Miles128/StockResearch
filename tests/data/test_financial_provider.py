@@ -29,7 +29,7 @@ async def test_get_financials_fail_without_fabricating(
         fake_run_sync_fetch,
     )
 
-    async def no_cache(key: str, ttl: int, factory):  # type: ignore[no-untyped-def]
+    async def no_cache(key: str, ttl: int, factory, *, should_cache=None):  # type: ignore[no-untyped-def]
         return await factory()
 
     monkeypatch.setattr(
@@ -90,7 +90,7 @@ async def test_get_financials_prefers_ths_over_indicator(
         fake_run_sync_fetch,
     )
 
-    async def no_cache(key: str, ttl: int, factory):  # type: ignore[no-untyped-def]
+    async def no_cache(key: str, ttl: int, factory, *, should_cache=None):  # type: ignore[no-untyped-def]
         return await factory()
 
     monkeypatch.setattr(
@@ -131,7 +131,7 @@ async def test_get_valuation_no_default_pe(
         fake_run_sync_fetch,
     )
 
-    async def no_cache(key: str, ttl: int, factory):  # type: ignore[no-untyped-def]
+    async def no_cache(key: str, ttl: int, factory, *, should_cache=None):  # type: ignore[no-untyped-def]
         return await factory()
 
     monkeypatch.setattr(
@@ -143,6 +143,92 @@ async def test_get_valuation_no_default_pe(
     assert result["pe_ttm"] is None
     assert result["pe_percentile"] is None
     assert result["partial"] is True
+    assert result["source"] == "none"
+
+
+@pytest.mark.asyncio
+async def test_get_valuation_from_value_em(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = FinancialDataProvider()
+    monkeypatch.setattr(
+        "stockresearch.data.providers.market._use_mock_market_data",
+        lambda: False,
+    )
+    em = pd.DataFrame(
+        [
+            {"数据日期": "2024-01-02", "PE(TTM)": 20.0, "市净率": 6.0},
+            {"数据日期": "2024-01-03", "PE(TTM)": 22.0, "市净率": 6.5},
+            {"数据日期": "2024-01-04", "PE(TTM)": 18.0, "市净率": 5.5},
+        ]
+    )
+
+    async def fake_run_sync_fetch(name: str, fn, *, timeout: float, fallback=None):  # type: ignore[no-untyped-def]
+        if "value_em" in name:
+            return em
+        raise AssertionError(f"unexpected fetch: {name}")
+
+    monkeypatch.setattr(
+        "stockresearch.data.providers.market.run_sync_fetch",
+        fake_run_sync_fetch,
+    )
+
+    async def no_cache(key: str, ttl: int, factory, *, should_cache=None):  # type: ignore[no-untyped-def]
+        result = await factory()
+        if should_cache is not None:
+            assert should_cache(result) is True
+        return result
+
+    monkeypatch.setattr(
+        "stockresearch.data.providers.market.get_or_set_cached_dict",
+        no_cache,
+    )
+
+    result = await provider.get_valuation("600519")
+    assert result["source"] == "akshare_value_em"
+    assert result["pe_ttm"] == pytest.approx(18.0)
+    assert result["pb"] == pytest.approx(5.5)
+    assert result["pe_percentile"] is not None
+
+
+@pytest.mark.asyncio
+async def test_get_valuation_falls_back_to_baidu(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = FinancialDataProvider()
+    monkeypatch.setattr(
+        "stockresearch.data.providers.market._use_mock_market_data",
+        lambda: False,
+    )
+    pe = pd.DataFrame({"date": ["2024-01-01", "2024-01-02"], "value": [25.0, 18.2]})
+    pb = pd.DataFrame({"date": ["2024-01-01", "2024-01-02"], "value": [7.0, 5.56]})
+
+    async def fake_run_sync_fetch(name: str, fn, *, timeout: float, fallback=None):  # type: ignore[no-untyped-def]
+        if "value_em" in name:
+            return None
+        if "baidu pe" in name:
+            return pe
+        if "baidu pb" in name:
+            return pb
+        return None
+
+    monkeypatch.setattr(
+        "stockresearch.data.providers.market.run_sync_fetch",
+        fake_run_sync_fetch,
+    )
+
+    async def no_cache(key: str, ttl: int, factory, *, should_cache=None):  # type: ignore[no-untyped-def]
+        return await factory()
+
+    monkeypatch.setattr(
+        "stockresearch.data.providers.market.get_or_set_cached_dict",
+        no_cache,
+    )
+
+    result = await provider.get_valuation("600519")
+    assert result["source"] == "akshare_baidu"
+    assert result["pe_ttm"] == pytest.approx(18.2)
+    assert result["pb"] == pytest.approx(5.56)
 
 
 @pytest.mark.asyncio
@@ -165,7 +251,7 @@ async def test_seed_peers_marked_as_seed(
         fake_run_sync_fetch,
     )
 
-    async def no_cache(key: str, ttl: int, factory):  # type: ignore[no-untyped-def]
+    async def no_cache(key: str, ttl: int, factory, *, should_cache=None):  # type: ignore[no-untyped-def]
         return await factory()
 
     monkeypatch.setattr(

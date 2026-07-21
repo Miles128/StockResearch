@@ -294,6 +294,8 @@ export default function App() {
   }
 
   useEffect(() => {
+    // PRD §七: UI 轮询默认关。开启前不启动任何定时器。
+    if (!modeSettings.uiPollingEnabled) return;
     let cancelled = false;
     let timeoutId = 0;
     const tradingPollMs = 30_000;
@@ -322,7 +324,7 @@ export default function App() {
       cancelled = true;
       if (timeoutId) window.clearTimeout(timeoutId);
     };
-  }, [loadHoldings, refreshWatchlistQuotes, modeSettings.quoteRefreshMinutes]);
+  }, [loadHoldings, refreshWatchlistQuotes, modeSettings.quoteRefreshMinutes, modeSettings.uiPollingEnabled]);
 
   useEffect(() => {
     setFocusTabs((tabs) => {

@@ -289,6 +289,18 @@ class NumericFactorOut(BaseModel):
     unit: str = ""
     partial: bool = False
     note: str | None = None
+    bars_source: str | None = None
+    bars_adjust: str | None = None
+
+
+class BarsProvenanceOut(BaseModel):
+    """OHLCV provenance stamp attached to a research report."""
+
+    source: str = "unknown"
+    adjust: str = "none"
+    as_of: str | None = None
+    partial: bool = False
+    note: str | None = None
 
 
 class SectorLeaderBrief(BaseModel):
@@ -328,12 +340,18 @@ class ResearchReportOut(BaseModel):
     text_factor_summary: str | None = None
     ashare_factors: list[AshareFactorOut] = Field(default_factory=list)
     factors: list[NumericFactorOut] = Field(default_factory=list)
+    bars_provenance: BarsProvenanceOut | None = None
     dimension_weights: dict[str, float] = Field(default_factory=dict)
     master_commentary: list[MasterCommentaryItem] = Field(default_factory=list)
+    analysis_depth: Literal["standard", "comprehensive", "deep"] = "standard"
+    factors_expanded: bool = False
+    factor_alignment_note: str | None = None
+    enable_signal_verify_hook: bool = False
     disclaimer: str = DISCLAIMER
     cached: bool = False
     id: int | None = None
-
+    # Optional post-hoc verification for this report (filled by API when requested)
+    post_hoc: list[dict[str, object]] = Field(default_factory=list)
 
 class RiskAlertOut(BaseModel):
     rule_id: str
@@ -377,6 +395,10 @@ class PortfolioMetricsOut(BaseModel):
     max_loss_1d_pct: float = Field(default=0.0, description="单日最大可能损失(%)")
     expected_loss: float = Field(default=0.0, description="期望损失EL(元)")
     expected_loss_pct: float = Field(default=0.0, description="期望损失EL(%)")
+    sector_weights: list[dict[str, object]] = Field(default_factory=list)
+    top_holding_weight: float = Field(default=0.0, description="最大个股权重")
+    top_holding_symbol: str | None = None
+    top_holding_name: str | None = None
 
 
 class VaRResultOut(BaseModel):
@@ -391,12 +413,21 @@ class VaRResultOut(BaseModel):
     cvar_pct: float = Field(default=0.0, description="CVaR占组合比例(%)")
 
 
+class StressResultOut(BaseModel):
+    id: str
+    name: str
+    pnl: float
+    pnl_pct: float
+    shocked_value: float = 0.0
+
+
 class RiskCheckupOut(BaseModel):
     alerts: list[RiskAlertOut]
     portfolio_summary: str
     llm_analysis: LLMRiskAnalysis | None = None
     metrics: PortfolioMetricsOut | None = None
     var_result: VaRResultOut | None = None
+    stress_results: list[StressResultOut] = Field(default_factory=list)
     master_commentary: list[MasterCommentaryItem] = Field(default_factory=list)
     disclaimer: str = DISCLAIMER
 
@@ -446,6 +477,7 @@ class ModeSettingsOut(BaseModel):
     risk_tolerance: Literal["conservative", "moderate", "aggressive"] = "moderate"
     monthly_income: float | None = Field(default=None, gt=0)
     reading_mode: Literal["friendly", "standard", "professional"] = "friendly"
+    analysis_depth: Literal["standard", "comprehensive", "deep"] = "standard"
     enable_debate: bool = False
     enable_glossary: bool = True
     max_signals: int = Field(default=5, ge=1, le=50)
@@ -474,6 +506,7 @@ class RiskCheckupRequest(BaseModel):
     reading_mode: Literal["friendly", "standard", "professional"] | None = None
     output_locale: Literal["zh", "en"] | None = None
     enable_master_commentary: bool | None = None
+    enable_llm_analysis: bool | None = None
 
 
 class ChatUserContext(BaseModel):
@@ -561,6 +594,13 @@ class KlineIndicatorsOut(BaseModel):
     macd: list[float | None]
     macd_signal: list[float | None]
     macd_histogram: list[float | None]
+    boll_mid: list[float | None] = Field(default_factory=list)
+    boll_upper: list[float | None] = Field(default_factory=list)
+    boll_lower: list[float | None] = Field(default_factory=list)
+    atr: list[float | None] = Field(default_factory=list)
+    kdj_k: list[float | None] = Field(default_factory=list)
+    kdj_d: list[float | None] = Field(default_factory=list)
+    kdj_j: list[float | None] = Field(default_factory=list)
 
 
 class KlineChartOut(BaseModel):
@@ -568,6 +608,8 @@ class KlineChartOut(BaseModel):
     days: int
     bars: list[KlineBarOut]
     indicators: KlineIndicatorsOut
+    source: str = "unknown"
+    adjust: str = "none"  # qfq | none
 
 
 class MarketOverviewOut(BaseModel):
@@ -643,6 +685,7 @@ class DataSourceStatusOut(BaseModel):
     use_mock: bool = False
     tushare_configured: bool = False
     tushare_available: bool = False
+    tushare_status: Literal["no_token", "unavailable", "invalid", "ok", "quota"] = "no_token"
     price_conflicts: list[QuotePriceConflictOut] = Field(default_factory=list)
 
 
@@ -710,8 +753,16 @@ class SignalBacktestHorizon(BaseModel):
     bearish_count: int
     bullish_avg_return_pct: float | None = None
     bearish_avg_return_pct: float | None = None
+    bullish_median_return_pct: float | None = None
+    bearish_median_return_pct: float | None = None
     bullish_positive_rate_pct: float | None = None
     bearish_negative_rate_pct: float | None = None
+    # 偏多均涨 − 偏空均涨：方向可分性（正值表示偏多事后更强）
+    spread_avg_return_pct: float | None = None
+    bias_bullish_avg_return_pct: float | None = None
+    bias_bearish_avg_return_pct: float | None = None
+    factor_tilt_bullish_avg_return_pct: float | None = None
+    factor_tilt_bearish_avg_return_pct: float | None = None
 
 
 class SignalBacktestOut(BaseModel):
@@ -724,6 +775,26 @@ class SignalBacktestOut(BaseModel):
     sample_bias_note: str = (
         "样本来自本机历史研报，存在选择偏差；未计入交易成本与冲击成本。"
     )
+    unique_symbols: int = 0
+    bias_sample_count: int = 0
+    factor_tilt_sample_count: int = 0
+
+
+class ReportPostHocHorizon(BaseModel):
+    days: int
+    return_pct: float | None = None
+    partial: bool = False
+    note: str | None = None
+    bars_adjust: str | None = None
+    bars_source: str | None = None
+
+
+class ReportPostHocOut(BaseModel):
+    report_id: int
+    symbol: str
+    horizons: list[ReportPostHocHorizon]
+    disclaimer: str = DISCLAIMER
+    label: str = "单报告事后核对"
 
 
 class MemorySearchHit(BaseModel):

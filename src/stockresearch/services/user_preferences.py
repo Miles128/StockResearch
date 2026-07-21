@@ -11,8 +11,15 @@ DEFAULT_MODE_SETTINGS = ModeSettingsOut()
 def _coerce_mode_settings(raw: object) -> ModeSettingsOut:
     if not isinstance(raw, dict):
         return DEFAULT_MODE_SETTINGS.model_copy()
+    data = dict(raw)
+    if "analysis_depth" not in data:
+        from stockresearch.agents.research.budget import default_depth_for_mode
+
+        data["analysis_depth"] = default_depth_for_mode(
+            str(data.get("mode") or "advisor")
+        )
     try:
-        return ModeSettingsOut.model_validate(raw)
+        return ModeSettingsOut.model_validate(data)
     except Exception:
         return DEFAULT_MODE_SETTINGS.model_copy()
 

@@ -17,12 +17,12 @@ def _run_api(host: str, port: int, reload: bool) -> None:
     )
 
 
-def _run_worker() -> None:
+def _run_worker() -> int:
     import asyncio
 
     from stockresearch.worker import run_worker
 
-    asyncio.run(run_worker())
+    return asyncio.run(run_worker())
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -41,8 +41,7 @@ def main(argv: list[str] | None = None) -> int:
         _run_api(args.host, args.port, args.reload)
         return 0
     if args.command == "worker":
-        _run_worker()
-        return 0
+        return _run_worker()
 
     parser.print_help()
     return 1

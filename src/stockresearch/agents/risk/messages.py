@@ -77,6 +77,15 @@ def alert_concentration_short(sector: str, ratio: float) -> str:
     return f"行业集中度偏高：{sector} 占仓位 {ratio:.0%}。"
 
 
+def alert_single_name_concentration(name: str, symbol: str, ratio: float) -> str:
+    if _en():
+        return (
+            f"Single-name concentration is elevated: {name} ({symbol}) is {ratio:.0%} "
+            f"of the book (above the 30% threshold)."
+        )
+    return f"个股集中度偏高：{name}({symbol}) 占仓位 {ratio:.0%}，超过 30% 阈值。"
+
+
 def portfolio_summary_no_holdings() -> str:
     if _en():
         return "No holdings on file — add positions for a personalized risk checkup."

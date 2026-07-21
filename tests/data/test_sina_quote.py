@@ -77,7 +77,7 @@ async def test_quotes_fallback_to_akshare_when_sina_fails(
 
 
 @pytest.mark.asyncio
-async def test_quotes_return_partial_sina_without_blocking_on_fallback(
+async def test_quotes_sync_fill_missing_on_partial_sina(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from datetime import UTC, datetime
@@ -98,19 +98,33 @@ async def test_quotes_return_partial_sina_without_blocking_on_fallback(
             }
         }
 
+    def fake_ef(_symbols: list[str]) -> dict[str, QuoteRow]:
+        return {}
+
     def fake_ak(_symbols: list[str]) -> dict[str, QuoteRow]:
         nonlocal ak_called
         ak_called = True
-        return {}
+        return {
+            "300750": {
+                "symbol": "300750",
+                "name": "宁德时代",
+                "price": 200.0,
+                "change_pct": -1.0,
+                "high": 205.0,
+                "low": 198.0,
+                "volume": 1000.0,
+                "updated_at": datetime.now(UTC),
+            }
+        }
 
     monkeypatch.setattr(market_mod, "fetch_sina_quotes", fake_sina)
+    monkeypatch.setattr(market_mod, "fetch_efinance_quotes", fake_ef)
     monkeypatch.setattr(market_mod, "fetch_akshare_hist_quotes", fake_ak)
-    monkeypatch.setattr(market_mod, "fetch_efinance_quotes", fake_ak)
 
     quotes = await QuoteProvider().get_quotes(["600519", "300750"], force_refresh=True)
     assert quotes["600519"].price == 10.0
-    assert "300750" not in quotes
-    assert ak_called is False
+    assert quotes["300750"].price == 200.0
+    assert ak_called is True
 
 
 @pytest.mark.asyncio

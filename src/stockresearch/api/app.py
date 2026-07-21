@@ -48,6 +48,7 @@ from stockresearch.core.exceptions import (
 from stockresearch.db.session import init_db
 from stockresearch.services.briefing_scheduler import get_scheduler
 from stockresearch.services.price_alert_scheduler import get_price_alert_scheduler
+from stockresearch.services.scheduler_lock import scheduler_lock
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _WEB_DIST = _PROJECT_ROOT / "web" / "dist"
@@ -70,15 +71,21 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     finally:
         db.close()
     settings = get_settings()
-    if settings.run_schedulers_in_api:
-        get_scheduler().start()
-        get_price_alert_scheduler().start()
-    try:
-        yield
-    finally:
-        if settings.run_schedulers_in_api:
-            get_price_alert_scheduler().shutdown()
-            get_scheduler().shutdown()
+    with scheduler_lock() as lock_acquired:
+        if settings.run_schedulers_in_api and not lock_acquired:
+            logging.warning(
+                "Schedulers disabled in API: another process holds the scheduler lock. "
+                "Run schedulers in only one process (worker OR API, not both)."
+            )
+        if settings.run_schedulers_in_api and lock_acquired:
+            get_scheduler().start()
+            get_price_alert_scheduler().start()
+        try:
+            yield
+        finally:
+            if settings.run_schedulers_in_api and lock_acquired:
+                get_price_alert_scheduler().shutdown()
+                get_scheduler().shutdown()
 
 
 def create_app() -> FastAPI:

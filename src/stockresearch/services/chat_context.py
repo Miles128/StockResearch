@@ -17,6 +17,7 @@ from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.db.models import Holding
 from stockresearch.prompts import load_prompt
 from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
+from stockresearch.utils.format import arrow_for_change
 
 if TYPE_CHECKING:
     from stockresearch.services.chat_scope import ChatContextScope
@@ -90,7 +91,7 @@ def _holdings_summary(holdings: list[Holding]) -> str:
 
 
 def _format_quote_line(holding: Holding, price: float, change_pct: float) -> str:
-    arrow = "↑" if change_pct > 0 else "↓" if change_pct < 0 else "→"
+    arrow = arrow_for_change(change_pct)
     return f"{holding.name}({holding.symbol}) 现价{price:.2f} {arrow}{change_pct:+.2f}%"
 
 

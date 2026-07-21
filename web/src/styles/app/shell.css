@@ -364,8 +364,7 @@
   font-size: 11px;
 }
 
-.market-ticker-oneline .ticker-price,
-.market-ticker-oneline .ui-quote-change {
+.market-ticker-oneline .ticker-price {
   font-size: 12px;
 }
 

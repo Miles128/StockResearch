@@ -5,6 +5,11 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
+from stockresearch.agents.research.budget import (
+    AnalysisDepth,
+    budget_for_depth,
+    resolve_analysis_depth,
+)
 from stockresearch.agents.research.context import ResearchContext
 from stockresearch.agents.research.debate import (
     iter_battle_vote_events,
@@ -26,6 +31,8 @@ from stockresearch.agents.research.runner import (
     prepare_sentiment,
     prepare_technical,
 )
+from stockresearch.agents.research.scoring import score_bias, weighted_composite_score
+from stockresearch.services.factors import factor_alignment_note
 from stockresearch.agents.stream_typewriter import (
     iter_llm_stream_events,
     iter_queue_merged_events,
@@ -90,6 +97,11 @@ def _build_report(
     news_text_factor: str | None = None,
     dimension_labels: dict[str, str] | None = None,
     factors: list | None = None,
+    bars_provenance: object | None = None,
+    analysis_depth: AnalysisDepth = "standard",
+    factors_expanded: bool = False,
+    factor_alignment_note: str | None = None,
+    enable_signal_verify_hook: bool = False,
 ) -> ResearchReportOut:
     return build_research_report(
         symbol,
@@ -99,6 +111,11 @@ def _build_report(
         dimension_labels=dimension_labels or _AGENT_LABELS,
         news_text_factor=news_text_factor,
         factors=factors,
+        bars_provenance=bars_provenance,
+        analysis_depth=analysis_depth,
+        factors_expanded=factors_expanded,
+        factor_alignment_note=factor_alignment_note,
+        enable_signal_verify_hook=enable_signal_verify_hook,
     )
 
 
@@ -110,12 +127,23 @@ async def run_research_stream(
     enable_master_commentary: bool = False,
     mode_settings: ModeSettingsOut | None = None,
     master_ids: list[str] | None = None,
+    analysis_depth: AnalysisDepth | str | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     client = llm or get_llm_client()
-    ctx = ResearchContext(symbol=symbol, llm=client)
+    depth = resolve_analysis_depth(
+        explicit=analysis_depth,
+        settings_depth=mode_settings.analysis_depth if mode_settings else None,
+    )
+    budget = budget_for_depth(depth)
+    ctx = ResearchContext(symbol=symbol, llm=client, budget=budget)
     name = resolve_name(symbol)
 
-    yield status_event("status.research.start", name=name, symbol=symbol)
+    yield status_event(
+        "status.research.start",
+        name=name,
+        symbol=symbol,
+        analysis_depth=budget.depth,
+    )
 
     dimensions: dict[str, DimensionResult] = {}
     queue: asyncio.Queue[object] = asyncio.Queue()
@@ -142,12 +170,23 @@ async def run_research_stream(
     news_text_factor = build_news_text_factor(news_snippets, subject=f"{name}({symbol})")
 
     factors: list = []
+    bars_provenance = None
     try:
         from stockresearch.services.factors import compute_numeric_factors
 
-        factors = await compute_numeric_factors(symbol)
+        factors, bars_provenance = await compute_numeric_factors(
+            symbol, factor_keys=budget.factor_keys
+        )
     except Exception as exc:
         logger.warning("numeric factors failed for %s: %s", symbol, exc)
+
+    def _alignment_for(debate: DebateResult | None) -> str | None:
+        if not budget.factors_expanded or not factors:
+            return None
+        if debate is not None:
+            return factor_alignment_note(debate.final_bias, factors)
+        composite, _ = weighted_composite_score(dimensions)
+        return factor_alignment_note(score_bias(composite), factors)
 
     yield status_event("status.research.summarize")
     if not with_debate:
@@ -158,6 +197,11 @@ async def run_research_stream(
             None,
             news_text_factor=news_text_factor,
             factors=factors,
+            bars_provenance=bars_provenance,
+            analysis_depth=budget.depth,
+            factors_expanded=budget.factors_expanded,
+            factor_alignment_note=_alignment_for(None),
+            enable_signal_verify_hook=budget.enable_signal_verify_hook,
         )
         yield status_event("status.research.report_done")
         yield {"type": "done", "result": report.model_dump(mode="json")}
@@ -264,6 +308,11 @@ async def run_research_stream(
         debate,
         news_text_factor=news_text_factor,
         factors=factors,
+        bars_provenance=bars_provenance,
+        analysis_depth=budget.depth,
+        factors_expanded=budget.factors_expanded,
+        factor_alignment_note=_alignment_for(debate),
+        enable_signal_verify_hook=budget.enable_signal_verify_hook,
     )
 
     if enable_master_commentary and mode_settings is not None:

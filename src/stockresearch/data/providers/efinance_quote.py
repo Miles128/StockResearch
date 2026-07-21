@@ -76,17 +76,38 @@ def fetch_efinance_quotes(symbols: list[str]) -> dict[str, dict[str, float | str
     return results
 
 
-def fetch_efinance_kline(symbol: str, days: int) -> list[dict[str, float | str]]:
-    """Daily OHLCV history via efinance."""
+def fetch_efinance_kline(
+    symbol: str,
+    days: int,
+    *,
+    fqt: int = 1,
+) -> list[dict[str, float | str]]:
+    """Daily OHLCV history via efinance.
+
+    ``fqt``: 0=不复权, 1=前复权(qfq), 2=后复权. Default 1 — matches factor needs
+    and is what East Money returns reliably when AkShare ``adjust=qfq`` flakes.
+    """
     if not _HAS_EFINANCE:
         raise DataProviderError("efinance 未安装")
     if days < 1:
         return []
 
+    end = datetime.now(UTC).date()
+    # Pad calendar days so we still get ~``days`` trading sessions.
+    start = end.fromordinal(max(end.toordinal() - max(days * 2, days + 30), 1))
+    beg = start.strftime("%Y%m%d")
+    end_s = end.strftime("%Y%m%d")
+
     try:
-        df: Any = ef.stock.get_quote_history(symbol, klt=101)
+        df: Any = ef.stock.get_quote_history(symbol, beg=beg, end=end_s, klt=101, fqt=fqt)
     except TypeError:
-        df = ef.stock.get_quote_history(symbol)
+        try:
+            df = ef.stock.get_quote_history(symbol, beg=beg, end=end_s, fqt=fqt)
+        except TypeError:
+            try:
+                df = ef.stock.get_quote_history(symbol, klt=101, fqt=fqt)
+            except TypeError:
+                df = ef.stock.get_quote_history(symbol)
     except Exception as exc:
         raise DataProviderError(f"efinance kline failed for {symbol}: {exc}") from exc
 
@@ -115,5 +136,10 @@ def fetch_efinance_kline(symbol: str, days: int) -> list[dict[str, float | str]]
         raise DataProviderError(f"efinance kline parse failed for {symbol}")
 
     trimmed = bars[-days:]
-    logger.info("Fetched %d kline bars from efinance for %s", len(trimmed), symbol)
+    logger.info(
+        "Fetched %d kline bars from efinance for %s (fqt=%s)",
+        len(trimmed),
+        symbol,
+        fqt,
+    )
     return trimmed

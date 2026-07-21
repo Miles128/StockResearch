@@ -13,14 +13,13 @@ from stockresearch.core.exceptions import DataProviderError
 from stockresearch.data.providers.akshare_quote import fetch_akshare_hist_quotes
 from stockresearch.data.providers.base import run_sync_fetch
 from stockresearch.data.providers.efinance_quote import fetch_efinance_kline, fetch_efinance_quotes
-from stockresearch.data.providers.news import _fetch_em_symbol_news_sync
 from stockresearch.data.providers.sina_kline import fetch_sina_kline
 from stockresearch.data.providers.sina_quote import QuoteRow, fetch_sina_quotes
 from stockresearch.data.providers.tushare_financial import fetch_daily_basic_sync
 from stockresearch.data.registry import record_quote_fetch, record_quote_conflicts, record_symbol_sources
 from stockresearch.data.registry import QuotePriceConflict
 from stockresearch.data.provider_meta import get_provider_meta
-from stockresearch.services.cache import get_cached
+from stockresearch.services.cache import peek_cached
 from stockresearch.services.provider_cache_policy import (
     DEFAULT_QUOTE_CACHE_TTL_SECONDS,
     get_or_set_cached_dict,
@@ -323,19 +322,31 @@ class QuoteProvider:
 
         missing = [sym for sym in symbols if sym not in raw]
 
-        # Partial Sina success: return immediately; fill gaps in background.
+        # Partial Sina success: sync-fill gaps so holdings/risk see a complete book,
+        # then keep background retry for any still-missing symbols.
         if missing and raw:
-            asyncio.create_task(
-                self._background_fill_missing_quotes(missing, background_ttl)
+            fallback_rows = await self._fetch_fallback_rows(missing)
+            for sym, row in fallback_rows.items():
+                raw[sym] = row
+            ak_count = sum(
+                1 for sym in symbols if sym in raw and raw[sym].get("_source") == "akshare"
             )
+            ef_count = sum(
+                1 for sym in symbols if sym in raw and raw[sym].get("_source") == "efinance"
+            )
+            missing = [sym for sym in symbols if sym not in raw]
+            if missing:
+                asyncio.create_task(
+                    self._background_fill_missing_quotes(missing, background_ttl)
+                )
             sina_count = sum(
                 1 for sym in symbols if sym in raw and raw[sym].get("_source") == "sina"
             )
             record_quote_fetch(
                 requested=len(symbols),
                 sina_count=sina_count,
-                akshare_count=0,
-                efinance_count=0,
+                akshare_count=ak_count,
+                efinance_count=ef_count,
                 message=sina_error,
             )
             record_symbol_sources(
@@ -548,6 +559,7 @@ class FinancialDataProvider:
                 {
                     "period": period,
                     "revenue_yoy": self._optional_pct(row.get("营业收入同比增长率")),
+                    "net_profit_yoy": self._optional_pct(row.get("净利润同比增长率")),
                     "net_margin": self._optional_pct(row.get("销售净利率")),
                     "roe": self._optional_pct(row.get("净资产收益率")),
                     "debt_ratio": self._optional_pct(row.get("资产负债率")),
@@ -559,6 +571,7 @@ class FinancialDataProvider:
             gaps.append("财务序列不足 2 期")
         core = {
             "revenue_yoy": self._optional_pct(row.get("营业收入同比增长率")),
+            "net_profit_yoy": self._optional_pct(row.get("净利润同比增长率")),
             "net_margin": self._optional_pct(row.get("销售净利率")),
             "roe": self._optional_pct(row.get("净资产收益率")),
             "debt_ratio": self._optional_pct(row.get("资产负债率")),
@@ -590,6 +603,9 @@ class FinancialDataProvider:
                     "revenue_yoy": self._optional_pct(
                         row.get("营业总收入同比增长率", row.get("营业收入同比增长率"))
                     ),
+                    "net_profit_yoy": self._optional_pct(
+                        row.get("净利润同比增长率", row.get("归母净利润同比增长率"))
+                    ),
                     "net_margin": self._optional_pct(row.get("销售净利率")),
                     "roe": self._optional_pct(row.get("净资产收益率")),
                     "debt_ratio": self._optional_pct(row.get("资产负债率")),
@@ -599,6 +615,9 @@ class FinancialDataProvider:
         core = {
             "revenue_yoy": self._optional_pct(
                 latest.get("营业总收入同比增长率", latest.get("营业收入同比增长率"))
+            ),
+            "net_profit_yoy": self._optional_pct(
+                latest.get("净利润同比增长率", latest.get("归母净利润同比增长率"))
             ),
             "net_margin": self._optional_pct(latest.get("销售净利率")),
             "roe": self._optional_pct(latest.get("净资产收益率")),
@@ -627,14 +646,29 @@ class FinancialDataProvider:
         if _use_mock_market_data():
             return {
                 "revenue_yoy": 0.12,
+                "net_profit_yoy": 0.15,
                 "net_margin": 0.25,
                 "roe": 0.18,
                 "pe_percentile": 0.50,
                 "debt_ratio": 0.35,
                 "goodwill_ratio": 0.03,
                 "series": [
-                    {"period": "2023", "roe": 0.16, "revenue_yoy": 0.10, "net_margin": 0.24, "debt_ratio": 0.36},
-                    {"period": "2024", "roe": 0.18, "revenue_yoy": 0.12, "net_margin": 0.25, "debt_ratio": 0.35},
+                    {
+                        "period": "2023",
+                        "roe": 0.16,
+                        "revenue_yoy": 0.10,
+                        "net_profit_yoy": 0.11,
+                        "net_margin": 0.24,
+                        "debt_ratio": 0.36,
+                    },
+                    {
+                        "period": "2024",
+                        "roe": 0.18,
+                        "revenue_yoy": 0.12,
+                        "net_profit_yoy": 0.15,
+                        "net_margin": 0.25,
+                        "debt_ratio": 0.35,
+                    },
                 ],
                 "partial": False,
                 "gaps": [],
@@ -668,8 +702,90 @@ class FinancialDataProvider:
 
             return self._empty_financials(gaps=["财务指标序列不可用（THS/指标均失败）"])
 
-        cached = await get_or_set_cached_dict(cache_key, ttl, _fetch)
+        def _cacheable(payload: dict[str, object]) -> bool:
+            return payload.get("source") not in (None, "", "none") and (
+                payload.get("roe") is not None
+                or payload.get("revenue_yoy") is not None
+                or payload.get("net_margin") is not None
+            )
+
+        cached = await get_or_set_cached_dict(
+            cache_key, ttl, _fetch, should_cache=_cacheable
+        )
         return {k: v for k, v in cached.items()}  # type: ignore[misc]
+
+    def _valuation_from_series(
+        self,
+        *,
+        pe_ttm: float | None,
+        pb: float | None,
+        pe_series: list[float],
+        source: str,
+    ) -> dict[str, object]:
+        pe_pct = (
+            self._percentile_rank(pe_series, pe_ttm) if pe_ttm is not None else None
+        )
+        gaps: list[str] = []
+        if pe_ttm is None:
+            gaps.append("PE 不可用")
+        if pb is None:
+            gaps.append("PB 不可用")
+        if pe_pct is None:
+            gaps.append("估值历史分位不可算")
+        return {
+            "pe_ttm": pe_ttm,
+            "pb": pb,
+            "pe_percentile": pe_pct,
+            "pe_history_count": len(pe_series),
+            "source": source,
+            "partial": bool(gaps),
+            "gaps": gaps,
+        }
+
+    def _from_value_em_df(self, df: Any) -> dict[str, object] | None:
+        """Parse East Money stock_value_em history (PE TTM + PB)."""
+        if df is None or getattr(df, "empty", True):
+            return None
+        pe_col = "PE(TTM)" if "PE(TTM)" in df.columns else None
+        pb_col = "市净率" if "市净率" in df.columns else None
+        if not pe_col and not pb_col:
+            return None
+        row = df.iloc[-1]
+        pe_ttm = self._optional_float(row.get(pe_col)) if pe_col else None
+        pb = self._optional_float(row.get(pb_col)) if pb_col else None
+        pe_series: list[float] = []
+        if pe_col:
+            for val in df[pe_col].tolist():
+                fval = self._optional_float(val)
+                if fval is not None and fval > 0:
+                    pe_series.append(fval)
+        if pe_ttm is None and pb is None:
+            return None
+        return self._valuation_from_series(
+            pe_ttm=pe_ttm, pb=pb, pe_series=pe_series, source="akshare_value_em"
+        )
+
+    def _from_baidu_valuation(
+        self, pe_df: Any, pb_df: Any
+    ) -> dict[str, object] | None:
+        """Parse Baidu stock_zh_valuation_baidu PE/PB series."""
+        pe_series: list[float] = []
+        pe_ttm: float | None = None
+        pb: float | None = None
+        if pe_df is not None and not getattr(pe_df, "empty", True) and "value" in pe_df.columns:
+            for val in pe_df["value"].tolist():
+                fval = self._optional_float(val)
+                if fval is not None and fval > 0:
+                    pe_series.append(fval)
+            if pe_series:
+                pe_ttm = pe_series[-1]
+        if pb_df is not None and not getattr(pb_df, "empty", True) and "value" in pb_df.columns:
+            pb = self._optional_float(pb_df["value"].iloc[-1])
+        if pe_ttm is None and pb is None:
+            return None
+        return self._valuation_from_series(
+            pe_ttm=pe_ttm, pb=pb, pe_series=pe_series, source="akshare_baidu"
+        )
 
     async def get_valuation(self, symbol: str) -> dict[str, float | str | object]:
         if _use_mock_market_data():
@@ -681,74 +797,89 @@ class FinancialDataProvider:
                 "partial": False,
                 "gaps": [],
             }
-        cache_key = f"financials:valuation:v3:{symbol}"
+        # v4: stock_a_indicator_lg removed in newer akshare; use value_em / baidu.
+        cache_key = f"financials:valuation:v4:{symbol}"
         ttl = provider_ttl("akshare_financials")
 
         async def _fetch() -> dict[str, object]:
-            df = await run_sync_fetch(
-                f"akshare valuation {symbol}",
-                lambda: ak.stock_a_indicator_lg(symbol=symbol),
-                timeout=8.0,
+            # Primary: East Money valuation history (still available in akshare 1.18+).
+            em_df = await run_sync_fetch(
+                f"akshare value_em {symbol}",
+                lambda: ak.stock_value_em(symbol=symbol),
+                timeout=12.0,
                 fallback=None,
             )
-            if df is not None and not df.empty:
-                pe_col = "pe" if "pe" in df.columns else ("市盈率" if "市盈率" in df.columns else None)
-                pb_col = "pb" if "pb" in df.columns else ("市净率" if "市净率" in df.columns else None)
-                row = df.iloc[-1]
-                pe_ttm = self._optional_float(row.get(pe_col)) if pe_col else None
-                pb = self._optional_float(row.get(pb_col)) if pb_col else None
-                pe_series: list[float] = []
-                if pe_col:
-                    for val in df[pe_col].tolist():
-                        fval = self._optional_float(val)
-                        if fval is not None and fval > 0:
-                            pe_series.append(fval)
-                pe_pct = (
-                    self._percentile_rank(pe_series, pe_ttm)
-                    if pe_ttm is not None
-                    else None
-                )
-                gaps: list[str] = []
-                if pe_ttm is None:
-                    gaps.append("PE 不可用")
-                if pe_pct is None:
-                    gaps.append("估值历史分位不可算")
-                return {
-                    "pe_ttm": pe_ttm,
-                    "pb": pb,
-                    "pe_percentile": pe_pct,
-                    "pe_history_count": len(pe_series),
-                    "source": "akshare",
-                    "partial": bool(gaps),
-                    "gaps": gaps,
-                }
+            parsed = self._from_value_em_df(em_df)
+            if parsed is not None:
+                return parsed
 
-            tushare = await run_sync_fetch(
-                f"tushare valuation {symbol}",
-                lambda: fetch_daily_basic_sync(symbol),
-                timeout=_DATA_TIMEOUT_SEC,
+            # Optional L3: Tushare daily_basic when token is configured (before Baidu).
+            from stockresearch.core.data_source_config import get_tushare_token
+
+            if get_tushare_token():
+                tushare = await run_sync_fetch(
+                    f"tushare valuation {symbol}",
+                    lambda: fetch_daily_basic_sync(symbol),
+                    timeout=_DATA_TIMEOUT_SEC,
+                    fallback=None,
+                )
+                if tushare:
+                    pe = self._optional_float(tushare.get("pe_ttm"))
+                    pb = self._optional_float(tushare.get("pb"))
+                    if pe is not None or pb is not None:
+                        return {
+                            "pe_ttm": pe,
+                            "pb": pb,
+                            "pe_percentile": None,
+                            "source": str(tushare.get("source", "tushare_daily_basic")),
+                            "partial": True,
+                            "gaps": ["Tushare 仅提供当日估值，无历史分位"],
+                        }
+
+            # Fallback: Baidu PE/PB series.
+            pe_df = await run_sync_fetch(
+                f"akshare baidu pe {symbol}",
+                lambda: ak.stock_zh_valuation_baidu(
+                    symbol=symbol, indicator="市盈率(TTM)", period="近一年"
+                ),
+                timeout=10.0,
                 fallback=None,
             )
-            if tushare:
-                pe = self._optional_float(tushare.get("pe_ttm"))
-                pb = self._optional_float(tushare.get("pb"))
-                return {
-                    "pe_ttm": pe,
-                    "pb": pb,
-                    "pe_percentile": None,
-                    "source": str(tushare.get("source", "tushare")),
-                    "partial": True,
-                    "gaps": ["Tushare 仅提供当日估值，无历史分位"],
-                }
+            pb_df = await run_sync_fetch(
+                f"akshare baidu pb {symbol}",
+                lambda: ak.stock_zh_valuation_baidu(
+                    symbol=symbol, indicator="市净率", period="近一年"
+                ),
+                timeout=10.0,
+                fallback=None,
+            )
+            parsed = self._from_baidu_valuation(pe_df, pb_df)
+            if parsed is not None:
+                return parsed
+
             return {
                 "pe_ttm": None,
                 "pb": None,
                 "pe_percentile": None,
+                "source": "none",
                 "partial": True,
                 "gaps": ["估值数据不可用"],
             }
 
-        cached = await get_or_set_cached_dict(cache_key, ttl, _fetch)
+        def _cacheable(payload: dict[str, object]) -> bool:
+            if payload.get("pe_ttm") is None and payload.get("pb") is None:
+                return False
+            src = str(payload.get("source") or "")
+            # Tushare/none shells without percentile poison the day-long cache.
+            if payload.get("pe_percentile") is None and (
+                "tushare" in src or src in ("", "none")
+            ):
+                return False
+            return True
+
+        cached = await get_or_set_cached_dict(
+            cache_key, ttl, _fetch, should_cache=_cacheable
+        )
         return {k: v for k, v in cached.items()}  # type: ignore[misc]
 
     async def get_industry_peers(self, symbol: str) -> list[dict[str, object]]:
@@ -762,9 +893,19 @@ class FinancialDataProvider:
 
         async def _fetch() -> dict[str, object]:
             peers = await self._resolve_dynamic_peers(symbol)
-            return {"peers": peers}
+            return {"peers": peers, "source": peers[0].get("source", "none") if peers else "none"}
 
-        cached = await get_or_set_cached_dict(cache_key, ttl, _fetch)
+        def _cacheable(payload: dict[str, object]) -> bool:
+            peers = payload.get("peers")
+            if not isinstance(peers, list) or not peers:
+                return False
+            # Seed-only / none: allow retry next request instead of locking a thin set for a day.
+            sources = {str(p.get("source", "")) for p in peers if isinstance(p, dict)}
+            if sources <= {"seed", "none", ""}:
+                return False
+            return True
+
+        cached = await get_or_set_cached_dict(cache_key, ttl, _fetch, should_cache=_cacheable)
         raw = cached.get("peers", [])
         if isinstance(raw, list):
             return [p for p in raw if isinstance(p, dict)]
@@ -913,17 +1054,36 @@ class TechnicalDataProvider:
             fallback=None,
         )
 
+    @staticmethod
+    def _kline_adjust(source: str) -> str:
+        # AkShare hist / efinance fqt=1 / Tushare pro_bar adj="qfq".
+        return "qfq" if source in ("akshare", "efinance", "tushare") else "none"
+
     async def get_kline_bars(
         self,
         symbol: str,
         days: int = 90,
         *,
         before: str | None = None,
+        prefer_qfq: bool = False,
     ) -> list[dict[str, float | str]]:
+        bars, _source, _adjust = await self.get_kline_bars_meta(
+            symbol, days, before=before, prefer_qfq=prefer_qfq
+        )
+        return bars
+
+    async def get_kline_bars_meta(
+        self,
+        symbol: str,
+        days: int = 90,
+        *,
+        before: str | None = None,
+        prefer_qfq: bool = False,
+    ) -> tuple[list[dict[str, float | str]], str, str]:
         if _use_mock_market_data():
             quote = _mock_quote(symbol)
             base = quote.price
-            return [
+            bars = [
                 {
                     "date": (datetime.now(UTC).date().isoformat()),
                     "open": round(base * 0.99, 4),
@@ -934,6 +1094,7 @@ class TechnicalDataProvider:
                 }
                 for i in range(max(days, 20))
             ]
+            return bars, "mock", "none"
 
         end_dt = datetime.now(UTC)
         if before:
@@ -943,29 +1104,21 @@ class TechnicalDataProvider:
                 end_dt = datetime.now(UTC)
         end_date = end_dt.strftime("%Y%m%d")
         start_date = self._calendar_start(end_dt, days)
-        cache_key = f"kline:{symbol}:{days}:{before or 'latest'}"
+        cache_key = f"kline:{symbol}:{days}:{before or 'latest'}:{'qfq' if prefer_qfq else 'fast'}"
         ttl = provider_ttl("akshare_kline")
         cached = get_sqlite_cached(cache_key)
         if cached is not None and isinstance(cached.get("bars"), list):
             cached_bars = cached["bars"]
             if cached_bars:
-                return cached_bars  # type: ignore[return-value]
+                source = str(cached.get("source") or "unknown")
+                return cached_bars, source, self._kline_adjust(source)  # type: ignore[return-value]
 
         bars: list[dict[str, float | str]] = []
         source = "unknown"
 
-        # Fast path: Sina HTTP (~200ms) for latest window; akshare for paginated history.
-        if before is None:
-            sina_bars = await run_sync_fetch(
-                f"sina kline {symbol}",
-                lambda: fetch_sina_kline(symbol, days),
-                timeout=8.0,
-                fallback=None,
-            )
-            if sina_bars:
-                bars = sina_bars
-                source = "sina"
-
+        # PRD §5.1: 日 K 线 AkShare 优先（前复权 stock_zh_a_hist），efinance →
+        # Tushare（prefer_qfq=True 路径）→ 新浪（非 qfq，最后兜底）。
+        # 不再让 Sina 抢先；quote/UI hot path 与 chart path 都从 AkShare 开始。
         if not bars:
             ak_df = await self._fetch_akshare_kline_df(
                 symbol, start_date=start_date, end_date=end_date
@@ -973,11 +1126,21 @@ class TechnicalDataProvider:
             bars = self._bars_from_akshare_df(ak_df, days)
             if bars:
                 source = "akshare"
+            elif prefer_qfq:
+                # One short retry — AkShare qfq flakes frequently under load.
+                await asyncio.sleep(0.35)
+                ak_df = await self._fetch_akshare_kline_df(
+                    symbol, start_date=start_date, end_date=end_date
+                )
+                bars = self._bars_from_akshare_df(ak_df, days)
+                if bars:
+                    source = "akshare"
 
-        if not bars:
+        if prefer_qfq and not bars:
+            # AkShare adjust=qfq often flakes; efinance fqt=1 is the qfq fallback.
             ef_bars = await run_sync_fetch(
-                f"efinance kline {symbol}",
-                lambda: fetch_efinance_kline(symbol, days),
+                f"efinance kline qfq {symbol}",
+                lambda: fetch_efinance_kline(symbol, days, fqt=1),
                 timeout=12.0,
                 fallback=None,
             )
@@ -985,15 +1148,58 @@ class TechnicalDataProvider:
                 bars = ef_bars
                 source = "efinance"
 
+        if prefer_qfq and not bars:
+            from stockresearch.data.providers.tushare_financial import fetch_qfq_bars_sync
+
+            ts_bars = await run_sync_fetch(
+                f"tushare kline qfq {symbol}",
+                lambda: fetch_qfq_bars_sync(symbol, days=days, end_date=end_date),
+                timeout=12.0,
+                fallback=None,
+            )
+            if ts_bars:
+                bars = ts_bars
+                source = "tushare"
+
+        if not prefer_qfq and not bars:
+            # 默认路径兜底：efinance(qfq) → Sina(非 qfq)。Sina 是最后兜底，因其非前复权。
+            ef_bars = await run_sync_fetch(
+                f"efinance kline {symbol}",
+                lambda: fetch_efinance_kline(symbol, days, fqt=1),
+                timeout=12.0,
+                fallback=None,
+            )
+            if ef_bars:
+                bars = ef_bars
+                source = "efinance"
+
+            if not bars and before is None:
+                sina_bars = await run_sync_fetch(
+                    f"sina kline {symbol}",
+                    lambda: fetch_sina_kline(symbol, days),
+                    timeout=8.0,
+                    fallback=None,
+                )
+                if sina_bars:
+                    bars = sina_bars
+                    source = "sina"
+
         if bars:
             if before:
                 cutoff = before[:10]
                 bars = [b for b in bars if str(b["date"])[:10] < cutoff]
-            set_sqlite_cached(cache_key, {"bars": bars, "source": source}, ttl)
-            logger.info("Kline for %s: %d bars via %s", symbol, len(bars), source)
-        else:
-            logger.warning("Kline unavailable for %s after akshare/sina/efinance", symbol)
-        return bars
+            adjust = self._kline_adjust(source)
+            if not prefer_qfq or adjust == "qfq":
+                set_sqlite_cached(cache_key, {"bars": bars, "source": source}, ttl)
+            logger.info("Kline for %s: %d bars via %s (%s)", symbol, len(bars), source, adjust)
+            return bars, source, adjust
+
+        logger.warning(
+            "Kline unavailable for %s after %s",
+            symbol,
+            "akshare/efinance/tushare (prefer_qfq)" if prefer_qfq else "akshare/efinance/sina",
+        )
+        return bars, source, self._kline_adjust(source)
 
     async def get_kline(self, symbol: str, days: int = 60) -> list[dict[str, float]]:
         bars = await self.get_kline_bars(symbol, days)
@@ -1006,21 +1212,48 @@ class TechnicalDataProvider:
         *,
         before: str | None = None,
     ) -> dict[str, object]:
-        from stockresearch.data.technical_indicators import ma_series, macd_series, rsi_series
+        from stockresearch.data.technical_indicators import (
+            atr_series,
+            boll_series,
+            kdj_series,
+            ma_series,
+            macd_series,
+            rsi_series,
+        )
 
-        bars = await self.get_kline_bars(symbol, days, before=before)
+        bars, source, adjust = await self.get_kline_bars_meta(
+            symbol, days, before=before, prefer_qfq=True
+        )
+        if not bars:
+            # Chart may still render unadjusted bars when AkShare qfq is down.
+            bars, source, adjust = await self.get_kline_bars_meta(
+                symbol, days, before=before, prefer_qfq=False
+            )
         closes = [float(b["close"]) for b in bars]
+        highs = [float(b["high"]) for b in bars]
+        lows = [float(b["low"]) for b in bars]
         macd = macd_series(closes)
+        boll = boll_series(closes)
+        kdj = kdj_series(highs, lows, closes)
         return {
             "symbol": symbol,
             "days": days,
             "bars": bars,
+            "source": source,
+            "adjust": adjust,
             "indicators": {
                 "ma20": ma_series(closes, 20),
                 "rsi": rsi_series(closes),
                 "macd": macd["macd"],
                 "macd_signal": macd["signal"],
                 "macd_histogram": macd["histogram"],
+                "boll_mid": boll["mid"],
+                "boll_upper": boll["upper"],
+                "boll_lower": boll["lower"],
+                "atr": atr_series(highs, lows, closes),
+                "kdj_k": kdj["k"],
+                "kdj_d": kdj["d"],
+                "kdj_j": kdj["j"],
             },
         }
 
@@ -1063,7 +1296,11 @@ def _lookup_xueqiu_row(df: Any, code: str, name: str) -> Any | None:
 
 
 def _fetch_xueqiu_hot_sync(symbol: str, name: str) -> dict[str, float | int | str | bool]:
-    """Real Xueqiu + Eastmoney sentiment metrics (no fake minimum heat)."""
+    """Eastmoney stock-comment APIs first; Xueqiu hot lists only from warm cache.
+
+    Full-market scrapes (stock_comment_em / stock_hot_*_xq) take 20–60s and would
+    trip the async timeout, so they are never fetched on the hot path.
+    """
     result: dict[str, float | int | str | bool] = {
         "heat_score": 0,
         "post_count": 0,
@@ -1094,52 +1331,49 @@ def _fetch_xueqiu_hot_sync(symbol: str, name: str) -> dict[str, float | int | st
     except Exception as exc:
         logger.warning("EM participation desire failed for %s: %s", symbol, exc)
 
-    try:
-        comment_df = ak.stock_comment_em()
-        row = comment_df[comment_df["代码"].astype(str) == symbol]
-        if not row.empty:
-            attention = float(row.iloc[0]["关注指数"])
-            result["attention_index"] = attention
-            if int(result["heat_score"]) == 0:
-                result["heat_score"] = min(100, max(1, round(attention)))
-            sources.append("em_attention")
-    except Exception as exc:
-        logger.warning("EM stock comment list failed for %s: %s", symbol, exc)
+    # Warm-cache enrichments only — never block on full-market scrapes.
+    df_deal = peek_cached("xq_hot_deal", 900.0)
+    if df_deal is not None:
+        try:
+            deal_row = _lookup_xueqiu_row(df_deal, code, name)
+            if deal_row is not None:
+                result["post_count"] = int(float(deal_row["关注"]))
+                rank = int(deal_row.name) + 1
+                xq_heat = min(100, max(5, round(100 - (rank / max(len(df_deal), 1)) * 95)))
+                if int(result["heat_score"]) == 0:
+                    result["heat_score"] = xq_heat
+                sources.append("xueqiu_deal")
+        except Exception as exc:
+            logger.warning("Xueqiu deal hot (cache) failed for %s: %s", symbol, exc)
 
-    try:
-        df_deal = get_cached("xq_hot_deal", 900.0, ak.stock_hot_deal_xq)
-        deal_row = _lookup_xueqiu_row(df_deal, code, name)
-        if deal_row is not None:
-            result["post_count"] = int(float(deal_row["关注"]))
-            rank = int(deal_row.name) + 1
-            xq_heat = min(100, max(5, round(100 - (rank / max(len(df_deal), 1)) * 95)))
-            if int(result["heat_score"]) == 0:
-                result["heat_score"] = xq_heat
-            sources.append("xueqiu_deal")
-    except Exception as exc:
-        logger.warning("Xueqiu deal hot failed for %s: %s", symbol, exc)
+    df_tweet = peek_cached("xq_hot_tweet", 900.0)
+    if df_tweet is not None:
+        try:
+            tweet_row = _lookup_xueqiu_row(df_tweet, code, name)
+            if tweet_row is not None:
+                result["tweet_heat"] = int(float(tweet_row["关注"]))
+                sources.append("xueqiu_tweet")
+        except Exception as exc:
+            logger.warning("Xueqiu tweet hot (cache) failed for %s: %s", symbol, exc)
 
-    try:
-        df_tweet = get_cached("xq_hot_tweet", 900.0, ak.stock_hot_tweet_xq)
-        tweet_row = _lookup_xueqiu_row(df_tweet, code, name)
-        if tweet_row is not None:
-            result["tweet_heat"] = int(float(tweet_row["关注"]))
-            sources.append("xueqiu_tweet")
-    except Exception as exc:
-        logger.warning("Xueqiu tweet hot failed for %s: %s", symbol, exc)
-
-    try:
-        df_follow = get_cached("xq_hot_follow", 900.0, ak.stock_hot_follow_xq)
-        follow_row = _lookup_xueqiu_row(df_follow, code, name)
-        if follow_row is not None:
-            result["follow_count"] = int(float(follow_row["关注"]))
-            sources.append("xueqiu_follow")
-    except Exception as exc:
-        logger.warning("Xueqiu follow hot failed for %s: %s", symbol, exc)
+    df_follow = peek_cached("xq_hot_follow", 900.0)
+    if df_follow is not None:
+        try:
+            follow_row = _lookup_xueqiu_row(df_follow, code, name)
+            if follow_row is not None:
+                result["follow_count"] = int(float(follow_row["关注"]))
+                sources.append("xueqiu_follow")
+        except Exception as exc:
+            logger.warning("Xueqiu follow hot (cache) failed for %s: %s", symbol, exc)
 
     if sources:
         result["source"] = "+".join(sources)
         result["available"] = True
+        # Honest labeling when Xueqiu warm cache is cold — EM stock-comment only.
+        has_xq = any(s.startswith("xueqiu_") for s in sources)
+        if not has_xq and any(s.startswith("em_") for s in sources):
+            result["coverage_note"] = "仅东财个股情绪（雪球热榜暖缓存未命中）"
+            result["partial"] = True
     return result
 
 
@@ -1156,19 +1390,21 @@ class SentimentDataProvider:
                 queries.append(query)
         items = []
         for query in queries:
-            batch = await provider._fetch_akshare_symbol(query, limit)
+            batch = await provider.fetch_symbol_news(
+                query, symbol=symbol, limit=limit, enrich=True
+            )
             if batch:
                 items = batch
                 break
-        if not items:
-            raw = await run_sync_fetch(
-                f"em symbol news {symbol}",
-                lambda: _fetch_em_symbol_news_sync(name or symbol, limit),
-                timeout=_DATA_TIMEOUT_SEC,
-                fallback=[],
-            )
-            items = raw or []
-        return [{"title": item.title, "source": item.source} for item in items[:limit]]
+        return [
+            {
+                "title": item.title,
+                "source": item.source,
+                "url": item.url,
+                "content": item.content[:200],
+            }
+            for item in items[:limit]
+        ]
 
     def score_titles(self, titles: list[str]) -> float:
         if not titles:
@@ -1211,6 +1447,17 @@ class SentimentDataProvider:
 
 
 class ChipsDataProvider:
+    @staticmethod
+    def _cache_chips_result(cache_key: str, ttl: int | None, result: dict[str, object]) -> None:
+        """Persist only usable chips payloads — never poison TTL with empty shells."""
+        if not ttl:
+            return
+        if result.get("signal") == "暂无数据":
+            return
+        if result.get("available") is False or result.get("partial") is True:
+            return
+        set_sqlite_cached(cache_key, dict(result), ttl)
+
     async def get_dragon_tiger(self, symbol: str) -> dict[str, str | float | int]:
         if _use_mock_market_data():
             return {
@@ -1229,16 +1476,25 @@ class ChipsDataProvider:
             f"akshare lhb {symbol}",
             lambda: self._fetch_dragon_tiger_sync(symbol),
             timeout=_DATA_TIMEOUT_SEC,
-            fallback={"appearances": 0, "net_buy": 0.0, "institution_ratio": 0.0, "signal": "暂无数据", "source": "akshare_lhb"},
+            fallback={
+                "appearances": 0,
+                "net_buy": 0.0,
+                "institution_ratio": 0.0,
+                "signal": "暂无数据",
+                "source": "akshare_lhb",
+                "available": False,
+                "partial": True,
+                "gaps": ["龙虎榜不可用"],
+            },
         )
-        if ttl and result.get("source") == "akshare_lhb":
-            set_sqlite_cached(cache_key, dict(result), ttl)
+        self._cache_chips_result(cache_key, ttl, dict(result))
         return result
 
     async def get_fund_flow(self, symbol: str) -> dict[str, float | str]:
         if _use_mock_market_data():
             return {
                 "main_net_inflow": 0.0,
+                "main_net_inflow_5d": 0.0,
                 "main_net_pct": 0.0,
                 "days_positive": 0,
                 "source": "mock",
@@ -1252,10 +1508,18 @@ class ChipsDataProvider:
             f"akshare fund flow {symbol}",
             lambda: self._fetch_fund_flow_sync(symbol),
             timeout=_DATA_TIMEOUT_SEC,
-            fallback={"main_net_inflow": 0.0, "main_net_pct": 0.0, "days_positive": 0, "source": "akshare_fund_flow"},
+            fallback={
+                "main_net_inflow": 0.0,
+                "main_net_inflow_5d": 0.0,
+                "main_net_pct": 0.0,
+                "days_positive": 0,
+                "source": "akshare_fund_flow",
+                "available": False,
+                "partial": True,
+                "gaps": ["主力资金流向不可用"],
+            },
         )
-        if ttl and result.get("source") == "akshare_fund_flow":
-            set_sqlite_cached(cache_key, dict(result), ttl)
+        self._cache_chips_result(cache_key, ttl, dict(result))
         return result
 
     async def get_northbound_flow(self, symbol: str) -> dict[str, float | str]:
@@ -1283,10 +1547,12 @@ class ChipsDataProvider:
                 "net_change_value": 0.0,
                 "signal": "暂无数据",
                 "source": "akshare_northbound",
+                "available": False,
+                "partial": True,
+                "gaps": ["北向资金不可用"],
             },
         )
-        if ttl and result.get("source") == "akshare_northbound":
-            set_sqlite_cached(cache_key, dict(result), ttl)
+        self._cache_chips_result(cache_key, ttl, dict(result))
         return result
 
     async def get_margin_trading(self, symbol: str) -> dict[str, float | str]:
@@ -1312,10 +1578,12 @@ class ChipsDataProvider:
                 "securities_balance": 0.0,
                 "total_balance": 0.0,
                 "source": "akshare_margin",
+                "available": False,
+                "partial": True,
+                "gaps": ["融资融券不可用"],
             },
         )
-        if ttl and result.get("source") == "akshare_margin":
-            set_sqlite_cached(cache_key, dict(result), ttl)
+        self._cache_chips_result(cache_key, ttl, dict(result))
         return result
 
     async def get_holder_count(self, symbol: str) -> dict[str, float | str]:
@@ -1330,10 +1598,16 @@ class ChipsDataProvider:
             f"akshare holder count {symbol}",
             lambda: self._fetch_holder_count_sync(symbol),
             timeout=_DATA_TIMEOUT_SEC,
-            fallback={"holder_count": 0.0, "qoq_change": 0.0, "source": "akshare_gdhs"},
+            fallback={
+                "holder_count": 0.0,
+                "qoq_change": 0.0,
+                "source": "akshare_gdhs",
+                "available": False,
+                "partial": True,
+                "gaps": ["股东户数不可用"],
+            },
         )
-        if ttl and result.get("source") == "akshare_gdhs":
-            set_sqlite_cached(cache_key, dict(result), ttl)
+        self._cache_chips_result(cache_key, ttl, dict(result))
         return result
 
     async def get_lockup(self, symbol: str) -> dict[str, str | float | int]:
@@ -1348,10 +1622,17 @@ class ChipsDataProvider:
             f"akshare lockup {symbol}",
             lambda: self._fetch_lockup_sync(symbol),
             timeout=_DATA_TIMEOUT_SEC,
-            fallback={"upcoming_count": 0, "next_date": "", "ratio_pct": 0.0, "source": "akshare_lockup"},
+            fallback={
+                "upcoming_count": 0,
+                "next_date": "",
+                "ratio_pct": 0.0,
+                "source": "akshare_lockup",
+                "available": False,
+                "partial": True,
+                "gaps": ["限售解禁不可用"],
+            },
         )
-        if ttl and result.get("source") == "akshare_lockup":
-            set_sqlite_cached(cache_key, dict(result), ttl)
+        self._cache_chips_result(cache_key, ttl, dict(result))
         return result
 
     def _fetch_dragon_tiger_sync(self, symbol: str) -> dict[str, str | float | int]:
@@ -1469,13 +1750,21 @@ class ChipsDataProvider:
     def _fetch_fund_flow_sync(self, symbol: str) -> dict[str, float | str]:
         df = ak.stock_individual_fund_flow(stock=symbol, market=_market_code(symbol))
         if df.empty:
-            return {"main_net_inflow": 0.0, "main_net_pct": 0.0, "days_positive": 0, "source": "akshare_fund_flow"}
+            return {
+                "main_net_inflow": 0.0,
+                "main_net_inflow_5d": 0.0,
+                "main_net_pct": 0.0,
+                "days_positive": 0,
+                "source": "akshare_fund_flow",
+            }
         recent = df.tail(5)
         main_net = float(recent.iloc[-1]["主力净流入-净额"])
         main_pct = float(recent.iloc[-1]["主力净流入-净占比"])
         days_positive = int((recent["主力净流入-净额"] > 0).sum())
+        main_5d = float(recent["主力净流入-净额"].sum())
         return {
             "main_net_inflow": main_net,
+            "main_net_inflow_5d": main_5d,
             "main_net_pct": main_pct,
             "days_positive": days_positive,
             "source": "akshare_fund_flow",

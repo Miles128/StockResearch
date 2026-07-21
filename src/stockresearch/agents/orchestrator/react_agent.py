@@ -50,12 +50,14 @@ ORCHESTRATOR_SYSTEM = """你是「StockResearch」的编排 Agent。由你决定
 工作流程：
 1. 理解用户问题与对话上下文
 2. 简单问题：轻量工具（行情/新闻/财报）即可
-3. 深度问题：调用对应 Skill（风控、四维投研、多空辩论、大师点评）
+3. 深度问题：调用对应 Skill（四维投研、多空辩论、大师点评；仅当用户明确要求持仓风控时才用风控）
 4. 复合问题：可串联多个 Skill，后序 Skill 的 context 参数引用前序结果摘要
 5. 先在心里形成总体结论，调用 reply 输出给用户（各 Skill 过程已自动展开）
 
 简单新闻/快讯：get_news + get_stock_quote，不要启动 Skill。
 走势/涨跌/原因类（用户未要求深度投研）：先 get_stock_quote + get_news(symbol=...) 或 get_market_data + get_news，结合相关新闻解读可能驱动因素，不要启动 Skill。
+个股/市场分析：不要调用 skill_risk_checkup / get_risk_summary；个股「有什么风险」属于投研，用 skill_stock_research 或报价/新闻即可。
+仅当用户明确说持仓风控、组合体检、止损、回撤、我的持仓风险时，才做风控体检。
 
 {context_rules}
 
@@ -118,25 +120,28 @@ _PAGE_CONTEXT_HINTS: dict[str, str] = {
     "market": (
         "当前界面为市场视图。优先使用 get_market_data 获取大盘数据，"
         "用 get_news 获取市场快讯，用 get_sentiment 获取情绪数据；"
-        "个股问题再用 get_stock_quote。避免不必要的持仓查询。"
+        "个股问题再用 get_stock_quote。不要调用 skill_risk_checkup，除非用户明确要求持仓风控。"
     ),
     "risk": (
         "当前界面为风控视图。若用户问风控相关问题，优先用 get_risk_summary 读取已有告警，"
         "需要完整风控体检再调 skill_risk_checkup；"
-        "问个股风险可用 get_stock_quote。避免拉取无关市场新闻。"
+        "问个股风险可用 get_stock_quote / skill_stock_research，勿默认做持仓体检。"
+        "问市场/大盘时不要做风控体检。"
     ),
     "news": (
         "当前界面为资讯视图。优先使用 get_news 获取新闻；"
         "个股相关新闻可传 symbol。避免启动四维投研 Skill，除非用户明确要求深度分析。"
+        "不要调用 skill_risk_checkup，除非用户明确要求持仓风控。"
     ),
     "stock": (
         "当前界面为个股详情。优先使用 get_stock_quote + get_financial_ratios 获取该个股数据，"
         "用 get_news(symbol=...) 获取相关新闻，用 get_sentiment(scope=stock, symbol=...) 获取情绪。"
-        "避免拉取全市场数据。"
+        "避免拉取全市场数据。不要调用 skill_risk_checkup，除非用户明确要求持仓风控。"
     ),
     "focus": (
-        "当前界面为焦点视图。根据用户问题选择对应工具，"
-        "可用 get_portfolio_summary 读取持仓摘要，避免拉取与问题无关的数据。"
+        "当前界面为焦点视图。根据用户问题选择对应工具；"
+        "仅当用户明确问持仓/组合时再用 get_portfolio_summary。"
+        "分析个股或市场时不要调用 skill_risk_checkup。"
     ),
 }
 
@@ -185,6 +190,7 @@ class OrchestratorAgent:
         self._cards: list[dict[str, Any]] = []
         self._on_progress: Any = None
         self._skill_runner: SkillRunner | None = None
+        self._user_message: str = ""
 
     def set_progress_callback(self, cb: Any) -> None:
         """Set async callback for status + skill stream events."""
@@ -242,6 +248,7 @@ class OrchestratorAgent:
         if hint:
             system = f"{system.rstrip()}\n\n{hint}"
         user_content = message.strip()
+        self._user_message = user_content
         if user_context_text.strip():
             user_content = f"{user_content}\n\n{user_context_text.strip()}"
         messages: list[dict[str, str]] = [{"role": "system", "content": system}]
@@ -350,6 +357,16 @@ class OrchestratorAgent:
     async def _run_skill(self, skill_id: str, args: dict[str, Any]) -> str:
         if skill_id == "skill_stock_research" and not args.get("with_debate"):
             args = {**args, "with_debate": self._debate_default}
+        if skill_id == "skill_stock_research" and not args.get("analysis_depth"):
+            from stockresearch.agents.research.budget import parse_depth_from_text
+
+            cue = parse_depth_from_text(self._user_message) or parse_depth_from_text(
+                str(args.get("context") or args.get("query") or "")
+            )
+            if cue:
+                args = {**args, "analysis_depth": cue}
+            elif not args.get("utterance"):
+                args = {**args, "utterance": self._user_message}
         result = await self._skills().run(skill_id, args)
         for card in result.cards:
             ctype = card.get("type")

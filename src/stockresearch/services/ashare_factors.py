@@ -24,6 +24,7 @@ _SOURCE_META: dict[str, tuple[str, str, str]] = {
     "ths_ratio_snapshot": ("同花顺比率摘要", "L2", "ths"),
     "cninfo_announcements": ("巨潮公告", "L1", "cninfo"),
     "em_research_reports": ("机构研报", "L2", "eastmoney"),
+    "xueqiu_hot": ("雪球/东财情绪热度", "L2", "xueqiu"),
     "news_text_factor": ("新闻文本因子", "L1", "news"),
 }
 
@@ -90,6 +91,15 @@ def build_ashare_factor_checklist(
             required={"akshare_margin"},
             evidence_label="融资融券",
             missing_label="融资融券",
+        ),
+        _source_factor(
+            category="资金与筹码",
+            name="雪球/东财情绪",
+            impact="sentiment",
+            sources=sources,
+            required={"xueqiu_hot"},
+            evidence_label="雪球/东财情绪热度",
+            missing_label="雪球热度或多空比",
         ),
         _source_factor(
             category="供给冲击与股权事件",

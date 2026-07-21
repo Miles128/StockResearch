@@ -15,6 +15,13 @@ export interface KlineIndicators {
   macd: (number | null)[];
   macd_signal: (number | null)[];
   macd_histogram: (number | null)[];
+  boll_mid: (number | null)[];
+  boll_upper: (number | null)[];
+  boll_lower: (number | null)[];
+  atr: (number | null)[];
+  kdj_k: (number | null)[];
+  kdj_d: (number | null)[];
+  kdj_j: (number | null)[];
 }
 
 function emaSeries(values: number[], period: number): (number | null)[] {
@@ -110,14 +117,117 @@ export function macdSeries(closes: number[]): {
   return { macd: macdLine, signal: signalLine, histogram };
 }
 
-export function buildIndicators(closes: number[]): KlineIndicators {
+export function bollSeries(
+  closes: number[],
+  window = 20,
+  numStd = 2,
+): { mid: (number | null)[]; upper: (number | null)[]; lower: (number | null)[] } {
+  const n = closes.length;
+  const mid: (number | null)[] = new Array(n).fill(null);
+  const upper: (number | null)[] = new Array(n).fill(null);
+  const lower: (number | null)[] = new Array(n).fill(null);
+  if (window < 2 || n < window) return { mid, upper, lower };
+  for (let i = window - 1; i < n; i += 1) {
+    let sum = 0;
+    for (let j = i - window + 1; j <= i; j += 1) sum += closes[j];
+    const mean = sum / window;
+    let varSum = 0;
+    for (let j = i - window + 1; j <= i; j += 1) varSum += (closes[j] - mean) ** 2;
+    const std = Math.sqrt(varSum / window);
+    mid[i] = Math.round(mean * 10000) / 10000;
+    upper[i] = Math.round((mean + numStd * std) * 10000) / 10000;
+    lower[i] = Math.round((mean - numStd * std) * 10000) / 10000;
+  }
+  return { mid, upper, lower };
+}
+
+export function atrSeries(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  period = 14,
+): (number | null)[] {
+  const n = closes.length;
+  const out: (number | null)[] = new Array(n).fill(null);
+  if (n < 2 || highs.length !== n || lows.length !== n || period < 1) return out;
+  const trs: number[] = new Array(n).fill(0);
+  trs[0] = highs[0] - lows[0];
+  for (let i = 1; i < n; i += 1) {
+    trs[i] = Math.max(
+      highs[i] - lows[i],
+      Math.abs(highs[i] - closes[i - 1]),
+      Math.abs(lows[i] - closes[i - 1]),
+    );
+  }
+  if (n <= period) return out;
+  let atr = trs.slice(1, period + 1).reduce((a, b) => a + b, 0) / period;
+  out[period] = Math.round(atr * 10000) / 10000;
+  for (let i = period + 1; i < n; i += 1) {
+    atr = (atr * (period - 1) + trs[i]) / period;
+    out[i] = Math.round(atr * 10000) / 10000;
+  }
+  return out;
+}
+
+export function kdjSeries(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  n = 9,
+  m1 = 3,
+  m2 = 3,
+): { k: (number | null)[]; d: (number | null)[]; j: (number | null)[] } {
+  const length = closes.length;
+  const empty: (number | null)[] = new Array(length).fill(null);
+  if (length < n || highs.length !== length || lows.length !== length) {
+    return { k: empty.slice(), d: empty.slice(), j: empty.slice() };
+  }
+  const kLine: (number | null)[] = new Array(length).fill(null);
+  const dLine: (number | null)[] = new Array(length).fill(null);
+  const jLine: (number | null)[] = new Array(length).fill(null);
+  let kPrev = 50;
+  let dPrev = 50;
+  for (let i = n - 1; i < length; i += 1) {
+    let hi = highs[i];
+    let lo = lows[i];
+    for (let j = i - n + 1; j <= i; j += 1) {
+      hi = Math.max(hi, highs[j]);
+      lo = Math.min(lo, lows[j]);
+    }
+    const denom = hi - lo;
+    const rsv = denom <= 0 ? 50 : ((closes[i] - lo) / denom) * 100;
+    kPrev = (rsv + (m1 - 1) * kPrev) / m1;
+    dPrev = (kPrev + (m2 - 1) * dPrev) / m2;
+    kLine[i] = Math.round(kPrev * 100) / 100;
+    dLine[i] = Math.round(dPrev * 100) / 100;
+    jLine[i] = Math.round((3 * kPrev - 2 * dPrev) * 100) / 100;
+  }
+  return { k: kLine, d: dLine, j: jLine };
+}
+
+export function buildIndicators(
+  closes: number[],
+  highs?: number[],
+  lows?: number[],
+): KlineIndicators {
   const macd = macdSeries(closes);
+  const boll = bollSeries(closes);
+  const hi = highs ?? closes;
+  const lo = lows ?? closes;
+  const kdj = kdjSeries(hi, lo, closes);
   return {
     ma20: maSeries(closes, 20),
     rsi: rsiSeries(closes),
     macd: macd.macd,
     macd_signal: macd.signal,
     macd_histogram: macd.histogram,
+    boll_mid: boll.mid,
+    boll_upper: boll.upper,
+    boll_lower: boll.lower,
+    atr: atrSeries(hi, lo, closes),
+    kdj_k: kdj.k,
+    kdj_d: kdj.d,
+    kdj_j: kdj.j,
   };
 }
 

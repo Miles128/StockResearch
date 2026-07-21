@@ -107,3 +107,68 @@ def test_finalize_cards_marks_research_card() -> None:
         )
     summary = cards[0]["data"]["summary"]
     assert '<term data-id="ROE">ROE</term>' in summary
+
+
+def test_finalize_cards_scrubs_target_price_in_evidence_snippet() -> None:
+    """PRD §六: 目标价禁止 — research card evidence snippet 必须经 neutral_guard。
+
+    Regression: 旧版 finalize_cards 只做术语标记，不调合规护栏，
+    导致研报 target_price 字段以 "目标价1800" 形式直出 UI 证据条。
+    """
+    from stockresearch.core.schemas import DimensionEvidence
+
+    with output_style_scope(reading_mode="professional", locale="zh", enable_glossary=False):
+        report = ResearchReportOut(
+            symbol="600519",
+            name="贵州茅台",
+            dimensions={
+                "fundamental": DimensionResult(
+                    agent="fundamental",
+                    score=8.0,
+                    confidence="high",
+                    highlights=["业绩稳健"],
+                    risks=["估值偏高"],
+                    data_sources=["akshare"],
+                    evidence=[
+                        DimensionEvidence(
+                            source="东财研报",
+                            snippet="中金公司 买入 目标价1800 · 高端白酒竞争加剧",
+                            kind="research_report",
+                        )
+                    ],
+                )
+            },
+            composite_score=8.0,
+            composite_confidence="high",
+            bias="bullish",
+            summary="建议加仓茅台",
+        )
+        finalized = finalize_cards([{"type": "research", "data": report.model_dump(mode="json")}])
+
+    data = finalized[0]["data"]
+    snippet = data["dimensions"]["fundamental"]["evidence"][0]["snippet"]
+    summary = data["summary"]
+    # 目标价必须被合规替换为"合理估值区间"
+    assert "目标价1800" not in snippet
+    assert "合理估值区间" in snippet
+    # "建议加仓" 必须被替换为中性表达
+    assert "加仓" not in summary
+
+
+def test_finalize_research_report_runs_compliance_even_when_glossary_off() -> None:
+    """合规护栏不依赖 glossary 开关（PRD §六 是硬约束，不是术语标记）。"""
+    with output_style_scope(reading_mode="professional", locale="zh", enable_glossary=False):
+        report = finalize_research_report(
+            ResearchReportOut(
+                symbol="600519",
+                name="贵州茅台",
+                dimensions={},
+                composite_score=8.0,
+                composite_confidence="high",
+                bias="bullish",
+                summary="建议减仓茅台",
+            )
+        )
+    assert "减仓" not in report.summary
+    # glossary 关闭时不应出现术语标记
+    assert "<term" not in report.summary
