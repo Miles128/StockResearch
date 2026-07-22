@@ -778,6 +778,11 @@ class SignalBacktestOut(BaseModel):
     unique_symbols: int = 0
     bias_sample_count: int = 0
     factor_tilt_sample_count: int = 0
+    point_in_time: bool = True
+    pit_note: str = (
+        "点-in-time：验证仅使用报告落库时保存的 bias/factors 快照 + 之后的前复权日线；"
+        "不重拉事后财务。"
+    )
 
 
 class ReportPostHocHorizon(BaseModel):
@@ -795,6 +800,113 @@ class ReportPostHocOut(BaseModel):
     horizons: list[ReportPostHocHorizon]
     disclaimer: str = DISCLAIMER
     label: str = "单报告事后核对"
+    point_in_time: bool = True
+    signal_as_of: str | None = None
+    pit_note: str = (
+        "点-in-time：信号时点为报告创建日；收益仅用创建日及之后的前复权收盘价。"
+    )
+
+
+class CompareRowOut(BaseModel):
+    symbol: str
+    name: str
+    factors: list[NumericFactorOut] = Field(default_factory=list)
+    bars_adjust: str = "none"
+    bars_source: str = ""
+    bars_as_of: str | None = None
+    partial: bool = False
+    note: str | None = None
+
+
+class CompareTableOut(BaseModel):
+    rows: list[CompareRowOut]
+    as_of: str
+    point_in_time: bool = True
+    notes: list[str] = Field(default_factory=list)
+
+
+class CompareRequest(BaseModel):
+    symbols: list[str] = Field(default_factory=list, max_length=12)
+
+
+class EventStudyWindowOut(BaseModel):
+    days: int
+    sample_count: int
+    avg_return_pct: float | None = None
+    positive_rate_pct: float | None = None
+
+
+class EventStudyEventOut(BaseModel):
+    title: str
+    event_kind: str
+    event_date: str
+    returns: dict[str, float | None] = Field(default_factory=dict)
+    partial: bool = False
+    note: str | None = None
+    url: str | None = None
+
+
+class EventStudyOut(BaseModel):
+    symbol: str
+    name: str
+    event_filter: str
+    events: list[EventStudyEventOut]
+    windows: list[EventStudyWindowOut]
+    bars_adjust: str = "none"
+    bars_source: str = ""
+    notes: list[str] = Field(default_factory=list)
+    disclaimer: str = DISCLAIMER
+    as_of: str | None = None
+    point_in_time: bool = True
+
+
+class HypothesisWindowOut(BaseModel):
+    days: int
+    sample_count: int
+    avg_return_pct: float | None = None
+    hit_rate_pct: float | None = None
+
+
+class HypothesisVerifyOut(BaseModel):
+    symbol: str
+    name: str
+    rule: str
+    rule_label: str
+    windows: list[HypothesisWindowOut]
+    sample_count: int = 0
+    bars_adjust: str = "none"
+    bars_source: str = ""
+    point_in_time: bool = True
+    as_of: str | None = None
+    notes: list[str] = Field(default_factory=list)
+    partial: bool = False
+    disclaimer: str = DISCLAIMER
+
+
+class HypothesisVerifyRequest(BaseModel):
+    symbol: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+    rule: str = "momentum_positive"
+    lookback_days: int = Field(default=240, ge=60, le=800)
+
+
+class BatchResearchRequest(BaseModel):
+    symbols: list[str] = Field(default_factory=list, max_length=8)
+    analysis_depth: Literal["standard", "comprehensive", "deep"] = "standard"
+    with_debate: bool = False
+
+
+class BatchResearchItemOut(BaseModel):
+    symbol: str
+    name: str
+    report: ResearchReportOut | None = None
+    error: str | None = None
+    partial: bool = False
+
+
+class BatchResearchOut(BaseModel):
+    items: list[BatchResearchItemOut]
+    as_of: str
+    notes: list[str] = Field(default_factory=list)
 
 
 class MemorySearchHit(BaseModel):

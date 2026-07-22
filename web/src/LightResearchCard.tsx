@@ -23,7 +23,7 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
   const isAdvisor = appMode === "advisor";
   const isExpert = appMode === "research";
   const [view, setView] = useState<ReportView>(isAdvisor ? "brief" : "formal");
-  const [downloading, setDownloading] = useState<"md" | "pdf" | null>(null);
+  const [downloading, setDownloading] = useState<"md" | "pdf" | "json" | "csv" | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const dimensions = Object.entries(report.dimensions ?? {});
   const brief = isAdvisor && view === "brief";
@@ -41,11 +41,15 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
         expandHints: researchExpandHintsFromReport(report),
       });
 
-  async function handleDownload(kind: "md" | "pdf") {
+  async function handleDownload(kind: "md" | "pdf" | "json" | "csv") {
     setDownloadError(null);
     setDownloading(kind);
     try {
-      if (report.id != null) {
+      if (kind === "json") {
+        await api.exportReportJson(report);
+      } else if (kind === "csv") {
+        await api.exportReportCsv(report);
+      } else if (report.id != null) {
         if (kind === "md") api.downloadReportMarkdown(report.id);
         else api.downloadReportPdf(report.id);
       } else if (kind === "md") {
@@ -116,6 +120,22 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
             onClick={() => void handleDownload("pdf")}
           >
             {downloading === "pdf" ? t("card.downloading") : t("card.downloadPdf")}
+          </button>
+          <button
+            type="button"
+            className="example-chip"
+            disabled={downloading != null}
+            onClick={() => void handleDownload("json")}
+          >
+            {downloading === "json" ? t("card.downloading") : t("card.downloadJson")}
+          </button>
+          <button
+            type="button"
+            className="example-chip"
+            disabled={downloading != null}
+            onClick={() => void handleDownload("csv")}
+          >
+            {downloading === "csv" ? t("card.downloading") : t("card.downloadCsv")}
           </button>
         </div>
       </div>

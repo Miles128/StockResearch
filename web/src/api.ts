@@ -365,9 +365,43 @@ export const api = {
   exportReportPdf: async (report: ResearchReport) => {
     await downloadReportBlob("/research/export/pdf", report, `${report.symbol}-report.pdf`);
   },
+  exportReportJson: async (report: ResearchReport) => {
+    await downloadReportBlob("/research/export/json", report, `${report.symbol}-report.json`);
+  },
+  exportReportCsv: async (report: ResearchReport) => {
+    await downloadReportBlob("/research/export/csv", report, `${report.symbol}-factors.csv`);
+  },
   signalBacktest: () => request<SignalBacktest>("/research/signal-backtest"),
   reportPostHoc: (id: number) =>
     request<ReportPostHoc>(`/research/reports/${id}/post-hoc`),
+  compareSymbols: (symbols: string[]) =>
+    request<CompareTable>("/research/compare", {
+      method: "POST",
+      body: JSON.stringify({ symbols }),
+    }),
+  eventStudy: (symbol: string, eventFilter: "earnings" | "risk" | "all" = "earnings") =>
+    request<EventStudy>(
+      `/research/event-study?symbol=${encodeURIComponent(symbol)}&event_filter=${eventFilter}`,
+    ),
+  hypothesisPresets: () => request<Record<string, string>>("/research/hypothesis/presets"),
+  hypothesisVerify: (symbol: string, rule: string, lookbackDays = 240) =>
+    request<HypothesisVerify>("/research/hypothesis/verify", {
+      method: "POST",
+      body: JSON.stringify({ symbol, rule, lookback_days: lookbackDays }),
+    }),
+  batchResearch: (symbols: string[], analysisDepth?: AnalysisDepth) =>
+    requestWithLlm<BatchResearch>(
+      "/research/batch",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          symbols,
+          analysis_depth: analysisDepth ?? loadModeSettings().analysisDepth,
+          with_debate: false,
+        }),
+      },
+      300_000,
+    ),
   searchMemory: (q: string) =>
     request<MemorySearchResult>(`/research/memory/search?q=${encodeURIComponent(q)}`),
   generateBriefing: (kind: "premarket" | "intraday" | "postmarket") =>
@@ -707,6 +741,88 @@ export interface ReportPostHoc {
   horizons: ReportPostHocHorizon[];
   disclaimer?: string;
   label?: string;
+  point_in_time?: boolean;
+  signal_as_of?: string | null;
+  pit_note?: string;
+}
+
+export interface CompareRow {
+  symbol: string;
+  name: string;
+  factors: NumericFactor[];
+  bars_adjust: string;
+  bars_source: string;
+  bars_as_of?: string | null;
+  partial: boolean;
+  note?: string | null;
+}
+
+export interface CompareTable {
+  rows: CompareRow[];
+  as_of: string;
+  point_in_time?: boolean;
+  notes?: string[];
+}
+
+export interface EventStudyWindow {
+  days: number;
+  sample_count: number;
+  avg_return_pct?: number | null;
+  positive_rate_pct?: number | null;
+}
+
+export interface EventStudyEvent {
+  title: string;
+  event_kind: string;
+  event_date: string;
+  returns: Record<string, number | null>;
+  partial?: boolean;
+  note?: string | null;
+  url?: string | null;
+}
+
+export interface EventStudy {
+  symbol: string;
+  name: string;
+  event_filter: string;
+  events: EventStudyEvent[];
+  windows: EventStudyWindow[];
+  bars_adjust?: string;
+  notes?: string[];
+  point_in_time?: boolean;
+}
+
+export interface HypothesisWindow {
+  days: number;
+  sample_count: number;
+  avg_return_pct?: number | null;
+  hit_rate_pct?: number | null;
+}
+
+export interface HypothesisVerify {
+  symbol: string;
+  name: string;
+  rule: string;
+  rule_label: string;
+  windows: HypothesisWindow[];
+  sample_count: number;
+  point_in_time?: boolean;
+  notes?: string[];
+  partial?: boolean;
+}
+
+export interface BatchResearchItem {
+  symbol: string;
+  name: string;
+  report?: ResearchReport | null;
+  error?: string | null;
+  partial?: boolean;
+}
+
+export interface BatchResearch {
+  items: BatchResearchItem[];
+  as_of: string;
+  notes?: string[];
 }
 
 export interface ResearchReport {

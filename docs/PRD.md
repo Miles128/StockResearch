@@ -1,6 +1,6 @@
 # StockResearch 产品需求文档
 
-**V10.9 · 开源 A 股市场研究 Agent**
+**V10.10 · 开源 A 股市场研究 Agent**
 
 > 唯一 PRD：`docs/PRD.md`。Git 中 `docs/` 还推送 `screenshots/` 界面预览图。本地可选 `docs/meta.yaml` 供 prd-first 工具读取。
 
@@ -196,6 +196,16 @@ Phase 2：`stockresearch worker` 独立 Cron + 可选 launchd 示例。
 
 **产品验收**：设置选综合且无覆盖 → 报告 `analysis_depth=comprehensive` 且因子条展开；「深度分析{标的}」本轮为 deep、设置不变；deep 证据密于 standard，缺数 `partial`；轻问报价不升档。
 
+### Phase 6（可带走的研究验证）
+
+仍不做策略回测器 / 第三套量化 Shell。补齐「半专业/个人量化能核对并导出」：
+
+1. **机器可读导出**：报告 JSON（`stockresearch.report.v1`）+ CSV 因子表；Markdown/PDF 附日线口径与数值因子
+2. **点-in-time 声明**：事后核对 / 信号验证显式 `point_in_time` + `signal_as_of`；只用报告快照因子 + 之后的 qfq 日线，不重拉事后财务
+3. **自选对比与批量**：`POST /research/compare` 因子并排；`POST /research/batch` 批量四维（≤8，默认无辩论）
+4. **事件研究**：`GET /research/event-study` 以公告日为 t0 的前向收益（业绩/风险过滤）
+5. **假设一键验证**：`POST /research/hypothesis/verify` 预设动量规则，历史条件触发后量收益
+
 ## 九、工程
 
 ```bash
@@ -208,6 +218,7 @@ uv run pytest && cd web && npm run build
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **V10.10** | 2026-07-22 | Phase 6：JSON/CSV 导出、PIT 核对声明、自选对比/批量、事件研究、假设一键验证 |
 | **V10.9** | 2026-07-20 | §4.1 分析深度档（standard/comprehensive/deep）为四维预算；新闻/财报明确为四维内证据；§5.3 增补质量/成长因子；§八 Phase 5 P0–P3 |
 | V10.8 | 2026-07-16 | §七 补登记调度器跨进程互斥机制（文件锁）；§5.1 K 线默认 AkShare 优先对齐代码现状 |
 | **V10.7** | 2026-07-14 | §四 补登记「大师点评」为正式特性；风控 `enable_llm_analysis` 可选开关语义写明 |

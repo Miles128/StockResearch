@@ -1,5 +1,10 @@
-"""Research report Markdown and PDF export."""
+"""Research report Markdown, PDF, JSON and CSV export."""
 
+from __future__ import annotations
+
+import csv
+import io
+import json
 from pathlib import Path
 
 from stockresearch.core.schemas import DebateResult, DimensionResult, ResearchReportOut
@@ -51,6 +56,140 @@ def _debate_section(debate: DebateResult) -> list[str]:
     return lines
 
 
+def report_machine_payload(report: ResearchReportOut) -> dict[str, object]:
+    """Stable machine-readable snapshot for export / downstream tools."""
+    prov = report.bars_provenance
+    return {
+        "schema": "stockresearch.report.v1",
+        "symbol": report.symbol,
+        "name": report.name,
+        "analysis_depth": report.analysis_depth,
+        "composite_score": report.composite_score,
+        "composite_confidence": report.composite_confidence,
+        "bias": report.bias,
+        "summary": report.summary,
+        "brief_summary": report.brief_summary,
+        "data_gaps": list(report.data_gaps),
+        "bars_provenance": (
+            {
+                "source": prov.source,
+                "adjust": prov.adjust,
+                "as_of": prov.as_of,
+                "partial": prov.partial,
+                "note": prov.note,
+            }
+            if prov is not None
+            else None
+        ),
+        "factors": [
+            {
+                "key": f.key,
+                "label": f.label,
+                "value": f.value,
+                "percentile": f.percentile,
+                "as_of": f.as_of,
+                "unit": f.unit,
+                "partial": f.partial,
+                "note": f.note,
+                "bars_source": f.bars_source,
+                "bars_adjust": f.bars_adjust,
+            }
+            for f in report.factors
+        ],
+        "factor_alignment_note": report.factor_alignment_note,
+        "dimension_scores": {
+            key: {"score": dim.score, "confidence": dim.confidence, "agent": dim.agent}
+            for key, dim in report.dimensions.items()
+        },
+        "id": report.id,
+        "disclaimer": report.disclaimer,
+    }
+
+
+def report_to_json(report: ResearchReportOut, *, indent: int = 2) -> str:
+    return json.dumps(report_machine_payload(report), ensure_ascii=False, indent=indent)
+
+
+def report_to_csv(report: ResearchReportOut) -> str:
+    """Flat CSV: one row per numeric factor with report provenance columns."""
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(
+        [
+            "symbol",
+            "name",
+            "analysis_depth",
+            "bias",
+            "composite_score",
+            "bars_adjust",
+            "bars_source",
+            "bars_as_of",
+            "factor_key",
+            "factor_label",
+            "factor_value",
+            "factor_percentile",
+            "factor_as_of",
+            "factor_unit",
+            "factor_partial",
+            "factor_bars_adjust",
+            "factor_bars_source",
+            "factor_note",
+        ]
+    )
+    prov = report.bars_provenance
+    bars_adjust = prov.adjust if prov else ""
+    bars_source = prov.source if prov else ""
+    bars_as_of = prov.as_of if prov else ""
+    rows = report.factors or []
+    if not rows:
+        writer.writerow(
+            [
+                report.symbol,
+                report.name,
+                report.analysis_depth,
+                report.bias,
+                report.composite_score,
+                bars_adjust,
+                bars_source,
+                bars_as_of,
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+            ]
+        )
+    for f in rows:
+        writer.writerow(
+            [
+                report.symbol,
+                report.name,
+                report.analysis_depth,
+                report.bias,
+                report.composite_score,
+                bars_adjust,
+                bars_source,
+                bars_as_of,
+                f.key,
+                f.label,
+                f.value if f.value is not None else "",
+                f.percentile if f.percentile is not None else "",
+                f.as_of or "",
+                f.unit,
+                "1" if f.partial else "0",
+                f.bars_adjust or "",
+                f.bars_source or "",
+                f.note or "",
+            ]
+        )
+    return buf.getvalue()
+
+
 def report_to_markdown(report: ResearchReportOut) -> str:
     bias = _BIAS_LABEL.get(report.bias, report.bias)
     conf = _CONF_LABEL.get(report.composite_confidence, report.composite_confidence)
@@ -58,10 +197,34 @@ def report_to_markdown(report: ResearchReportOut) -> str:
         f"# {report.name}（{report.symbol}）投研报告",
         "",
         f"**加权综合评分**：{report.composite_score}/10 · **倾向**：{bias} · **置信度**：{conf}",
+        f"**分析深度**：{report.analysis_depth}",
         "",
         report.summary,
         "",
     ]
+    if report.bars_provenance is not None:
+        p = report.bars_provenance
+        lines.extend(
+            [
+                "## 日线口径",
+                f"- 复权：`{p.adjust}` · 来源：`{p.source}` · as_of：{p.as_of or '—'}"
+                + (f" · partial：{p.note or 'yes'}" if p.partial else ""),
+                "",
+            ]
+        )
+    if report.factors:
+        lines.append("## 数值因子")
+        for f in report.factors:
+            val = f"{f.value}{f.unit}" if f.value is not None else "—"
+            extra = f" · P{round(f.percentile * 100)}" if f.percentile is not None else ""
+            partial = " · partial" if f.partial else ""
+            lines.append(
+                f"- **{f.label}** (`{f.key}`)：{val}{extra}{partial}"
+                f" · as_of={f.as_of or '—'} · bars={f.bars_adjust or '—'}/{f.bars_source or '—'}"
+            )
+        if report.factor_alignment_note:
+            lines.append(f"- 对照：{report.factor_alignment_note}")
+        lines.append("")
     if report.text_factor_summary:
         lines.extend(["## 文本因子·总结", report.text_factor_summary, ""])
     if report.news_text_factor:
@@ -78,7 +241,8 @@ def report_to_markdown(report: ResearchReportOut) -> str:
                 lines.append(f"  - 缺口：{'；'.join(factor.missing)}")
             if factor.source_details:
                 source_text = "；".join(
-                    f"{src.layer}/{src.provider}/{src.label}/{src.status}" for src in factor.source_details
+                    f"{src.layer}/{src.provider}/{src.label}/{src.status}"
+                    for src in factor.source_details
                 )
                 lines.append(f"  - 来源：{source_text}")
         lines.append("")
@@ -142,7 +306,6 @@ def report_to_pdf(report: ResearchReportOut) -> bytes:
             pdf.set_font("Helvetica", style=style, size=size)
             safe = text.encode("ascii", "replace").decode("ascii")
         width = pdf.epw if pdf.epw > 0 else 180
-        # Keep very long chapters from blowing a single cell.
         chunk = safe if len(safe) <= 1200 else safe[:1199] + "…"
         pdf.multi_cell(width, 7, chunk)
 
@@ -150,7 +313,16 @@ def report_to_pdf(report: ResearchReportOut) -> bytes:
     conf = _CONF_LABEL.get(report.composite_confidence, report.composite_confidence)
     write_line(f"{report.name}（{report.symbol}）投研报告", size=16, bold=True)
     write_line(f"综合评分：{report.composite_score}/10 · 倾向：{bias} · 置信度：{conf}")
+    write_line(f"分析深度：{report.analysis_depth}")
     write_line(report.summary)
+    if report.bars_provenance is not None:
+        p = report.bars_provenance
+        write_line(f"日线口径：{p.adjust}/{p.source} as_of={p.as_of or '—'}", size=10)
+    if report.factors:
+        write_line("数值因子", size=13, bold=True)
+        for f in report.factors[:12]:
+            val = f"{f.value}{f.unit}" if f.value is not None else "—"
+            write_line(f"{f.label}: {val}")
     if report.ashare_factors:
         write_line("A 股因子检查", size=13, bold=True)
         for factor in report.ashare_factors:

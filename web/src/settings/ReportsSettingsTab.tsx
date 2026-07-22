@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   api,
+  type CompareTable,
+  type EventStudy,
+  type HypothesisVerify,
   type MemorySearchResult,
   type ReportPostHoc,
   type ResearchReportListItem,
@@ -27,6 +30,18 @@ export function ReportsSettingsTab({
 }: ReportsSettingsTabProps) {
   const { t, locale } = useI18n();
   const [postHocById, setPostHocById] = useState<Record<number, ReportPostHoc | "loading" | "error">>({});
+  const [toolSymbol, setToolSymbol] = useState("600519");
+  const [compareSymbols, setCompareSymbols] = useState("600519,000858");
+  const [compare, setCompare] = useState<CompareTable | "loading" | "error" | null>(null);
+  const [eventStudy, setEventStudy] = useState<EventStudy | "loading" | "error" | null>(null);
+  const [hypothesis, setHypothesis] = useState<HypothesisVerify | "loading" | "error" | null>(null);
+  const [presets, setPresets] = useState<Record<string, string>>({});
+  const [rule, setRule] = useState("momentum_positive");
+  const [batchStatus, setBatchStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    void api.hypothesisPresets().then(setPresets).catch(() => {});
+  }, []);
 
   async function loadPostHoc(id: number) {
     setPostHocById((prev) => ({ ...prev, [id]: "loading" }));
@@ -35,6 +50,57 @@ export function ReportsSettingsTab({
       setPostHocById((prev) => ({ ...prev, [id]: result }));
     } catch {
       setPostHocById((prev) => ({ ...prev, [id]: "error" }));
+    }
+  }
+
+  async function runCompare() {
+    const symbols = compareSymbols
+      .split(/[,，\s]+/)
+      .map((s) => s.trim())
+      .filter((s) => /^\d{6}$/.test(s));
+    if (!symbols.length) return;
+    setCompare("loading");
+    try {
+      setCompare(await api.compareSymbols(symbols));
+    } catch {
+      setCompare("error");
+    }
+  }
+
+  async function runEventStudy() {
+    if (!/^\d{6}$/.test(toolSymbol)) return;
+    setEventStudy("loading");
+    try {
+      setEventStudy(await api.eventStudy(toolSymbol, "earnings"));
+    } catch {
+      setEventStudy("error");
+    }
+  }
+
+  async function runHypothesis() {
+    if (!/^\d{6}$/.test(toolSymbol)) return;
+    setHypothesis("loading");
+    try {
+      setHypothesis(await api.hypothesisVerify(toolSymbol, rule));
+    } catch {
+      setHypothesis("error");
+    }
+  }
+
+  async function runBatch() {
+    const symbols = compareSymbols
+      .split(/[,，\s]+/)
+      .map((s) => s.trim())
+      .filter((s) => /^\d{6}$/.test(s))
+      .slice(0, 4);
+    if (!symbols.length) return;
+    setBatchStatus(t("settings.batchRunning"));
+    try {
+      const result = await api.batchResearch(symbols);
+      const ok = result.items.filter((i) => i.report).length;
+      setBatchStatus(t("settings.batchDone", { ok: String(ok), n: String(result.items.length) }));
+    } catch (err) {
+      setBatchStatus(err instanceof Error ? err.message : t("settings.batchFailed"));
     }
   }
 
@@ -198,6 +264,105 @@ export function ReportsSettingsTab({
           )}
         </ul>
       )}
+
+      <h4 className="settings-section-title">{t("settings.verifyTools")}</h4>
+      <p className="settings-hint">{t("settings.verifyToolsHint")}</p>
+      <label className="settings-field">
+        <span>{t("settings.verifySymbol")}</span>
+        <input value={toolSymbol} onChange={(e) => setToolSymbol(e.target.value.trim())} maxLength={6} />
+      </label>
+      <label className="settings-field">
+        <span>{t("settings.compareSymbols")}</span>
+        <input
+          value={compareSymbols}
+          onChange={(e) => setCompareSymbols(e.target.value)}
+          placeholder="600519,000858"
+        />
+      </label>
+      <div className="settings-memory-row">
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => void runCompare()}>
+          {compare === "loading" ? "…" : t("settings.compareBtn")}
+        </button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => void runBatch()}>
+          {t("settings.batchBtn")}
+        </button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => void runEventStudy()}>
+          {eventStudy === "loading" ? "…" : t("settings.eventStudyBtn")}
+        </button>
+      </div>
+      {batchStatus ? <p className="settings-muted">{batchStatus}</p> : null}
+      {compare && compare !== "loading" && compare !== "error" ? (
+        <ul className="report-history-list">
+          {compare.rows.map((row) => (
+            <li key={row.symbol} className="report-history-item">
+              <strong>
+                {row.name} ({row.symbol})
+              </strong>
+              <span className="settings-muted">
+                {row.bars_adjust}/{row.bars_source}
+                {row.partial ? " · partial" : ""}
+              </span>
+              <p className="settings-muted">
+                {row.factors
+                  .slice(0, 6)
+                  .map((f) => `${f.label}:${f.value ?? "—"}`)
+                  .join(" · ") || row.note || "—"}
+              </p>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {compare === "error" ? <p className="settings-muted">{t("settings.verifyFailed")}</p> : null}
+
+      <label className="settings-field">
+        <span>{t("settings.hypothesisRule")}</span>
+        <select value={rule} onChange={(e) => setRule(e.target.value)}>
+          {Object.entries(presets).map(([id, label]) => (
+            <option key={id} value={id}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button type="button" className="btn btn-ghost btn-sm" onClick={() => void runHypothesis()}>
+        {hypothesis === "loading" ? "…" : t("settings.hypothesisBtn")}
+      </button>
+      {hypothesis && hypothesis !== "loading" && hypothesis !== "error" ? (
+        <ul className="report-history-list">
+          <li className="settings-muted">
+            {hypothesis.rule_label} · n={hypothesis.sample_count}
+            {hypothesis.point_in_time ? " · PIT" : ""}
+          </li>
+          {hypothesis.windows.map((w) => (
+            <li key={w.days} className="settings-muted">
+              {w.days}d · avg {w.avg_return_pct ?? "—"}% · hit {w.hit_rate_pct ?? "—"}% · n=
+              {w.sample_count}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {hypothesis === "error" ? <p className="settings-muted">{t("settings.verifyFailed")}</p> : null}
+
+      {eventStudy && eventStudy !== "loading" && eventStudy !== "error" ? (
+        <ul className="report-history-list">
+          {eventStudy.windows.map((w) => (
+            <li key={w.days} className="settings-muted">
+              {t("settings.eventStudyRow", {
+                days: String(w.days),
+                n: String(w.sample_count),
+                avg: w.avg_return_pct != null ? String(w.avg_return_pct) : "—",
+                pos: w.positive_rate_pct != null ? String(w.positive_rate_pct) : "—",
+              })}
+            </li>
+          ))}
+          {eventStudy.events.slice(0, 5).map((ev) => (
+            <li key={`${ev.event_date}-${ev.title}`} className="settings-muted">
+              {ev.event_date} · {ev.title.slice(0, 40)}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {eventStudy === "error" ? <p className="settings-muted">{t("settings.verifyFailed")}</p> : null}
     </>
   );
 }
