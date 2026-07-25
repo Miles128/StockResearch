@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type IndexIntraday, type MarketOverview, type NewsItem, type SectorBoard } from "./api";
-import { HorizontalPctBars, type PctBarItem } from "./HorizontalPctBars";
 import { IndexSparkCard } from "./IndexSparkCard";
 import { signedClass } from "./holdingDisplay";
 import { useI18n } from "./i18n";
 import { localizeIndexName } from "./indexLabels";
+import { SectorStripCards, type SectorStripItem } from "./SectorStripCards";
 import { localizeSentiment } from "./uiLabels";
 import { SentimentGauge } from "./SentimentGauge";
 import { loadModeSettings } from "./modeSettings";
@@ -83,14 +83,17 @@ export function MarketPanel({
     [news],
   );
 
-  const sectorBars: PctBarItem[] = useMemo(
+  const sectorCards: SectorStripItem[] = useMemo(
     () =>
-      sectors.map((board) => ({
-        id: board.code,
-        label: board.name,
-        value: board.change_pct,
-        onClick: () => onSectorClick(board.name),
-      })),
+      [...sectors]
+        .sort((a, b) => a.change_pct - b.change_pct)
+        .map((board) => ({
+          id: board.code,
+          label: board.name,
+          value: board.change_pct,
+          meta: board.leader_name || undefined,
+          onClick: () => onSectorClick(board.name),
+        })),
     [sectors, onSectorClick],
   );
 
@@ -168,12 +171,11 @@ export function MarketPanel({
         <h3 className="market-section-title">{t("market.sectorsTitle")}</h3>
         {sectorsLoading ? (
           <p className="muted">{t("sectors.loading")}</p>
-        ) : sectorBars.length === 0 ? (
+        ) : sectorCards.length === 0 ? (
           <p className="muted">{t("sectors.empty")}</p>
         ) : (
-          <HorizontalPctBars
-            items={sectorBars}
-            dense
+          <SectorStripCards
+            items={sectorCards}
             ariaLabel={t("market.sectorsTitle")}
           />
         )}

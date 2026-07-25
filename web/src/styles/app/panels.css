@@ -3159,6 +3159,93 @@
   font-size: 12px;
 }
 
+.sector-strip-scroll {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 10px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sector-strip-card {
+  position: relative;
+  flex: 0 0 88px;
+  width: 88px;
+  min-height: 132px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 10px 10px;
+  border: 1px solid var(--bbg-border);
+  border-radius: 8px;
+  background: var(--sector-fill, var(--bbg-panel-alt, rgba(255, 255, 255, 0.02)));
+  color: var(--bbg-text);
+  cursor: pointer;
+  scroll-snap-align: start;
+  transition: border-color 0.15s, transform 0.15s;
+  overflow: hidden;
+  text-align: left;
+}
+
+.sector-strip-card:hover {
+  border-color: var(--bbg-accent, #888);
+  transform: translateY(-1px);
+}
+
+.sector-strip-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--sector-bar, 20%);
+  opacity: 0.22;
+  pointer-events: none;
+}
+
+.sector-strip-up .sector-strip-bar {
+  background: var(--bbg-up);
+}
+
+.sector-strip-down .sector-strip-bar {
+  background: var(--bbg-down);
+}
+
+.sector-strip-name {
+  position: relative;
+  z-index: 1;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-all;
+}
+
+.sector-strip-pct {
+  position: relative;
+  z-index: 1;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sector-strip-meta {
+  position: relative;
+  z-index: 1;
+  font-size: 10px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .pct-bar-chart {
   display: flex;
   flex-direction: column;
