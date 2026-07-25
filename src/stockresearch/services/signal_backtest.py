@@ -8,7 +8,7 @@ from statistics import median
 from sqlalchemy.orm import Session
 
 from stockresearch.core.constants import DISCLAIMER
-from stockresearch.core.schemas import ReportPostHocHorizon, ReportPostHocOut, SignalBacktestHorizon, SignalBacktestOut
+from stockresearch.core.schemas import ReportPostHocHorizon, SignalBacktestHorizon, SignalBacktestOut
 from stockresearch.db.models import ResearchReport
 from stockresearch.services.daily_bars import get_bars_meta_for_symbol
 
