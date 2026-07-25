@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import PlainTextResponse, Response, StreamingResponse
@@ -19,6 +20,8 @@ from stockresearch.core.schemas import (
     BatchResearchRequest,
     CompareRequest,
     CompareTableOut,
+    EventStudyBatchOut,
+    EventStudyBatchRequest,
     EventStudyOut,
     HypothesisVerifyOut,
     HypothesisVerifyRequest,
@@ -27,6 +30,7 @@ from stockresearch.core.schemas import (
     ReportPostHocOut,
     ResearchReportListItem,
     ResearchReportOut,
+    ResearchTimelineOut,
     SignalBacktestOut,
 )
 from stockresearch.db.models import ResearchReport, User
@@ -34,7 +38,7 @@ from stockresearch.db.session import get_db
 from stockresearch.agents.research.budget import resolve_analysis_depth
 from stockresearch.services.cache import CacheService
 from stockresearch.services.compare_table import build_compare_table, flatten_compare_csv
-from stockresearch.services.event_study import compute_event_study
+from stockresearch.services.event_study import compute_event_study, compute_event_study_batch
 from stockresearch.services.hypothesis_verify import HYPOTHESIS_PRESETS, verify_hypothesis
 from stockresearch.services.report_export import (
     report_to_csv,
@@ -43,6 +47,7 @@ from stockresearch.services.report_export import (
     report_to_pdf,
 )
 from stockresearch.services.research_memory import search_research_memory
+from stockresearch.services.research_timeline import compute_research_timeline
 from stockresearch.services.signal_backtest import compute_report_post_hoc, compute_signal_backtest
 from stockresearch.services.user_preferences import get_mode_settings
 from stockresearch.utils.llm import LLMClient
@@ -393,6 +398,23 @@ async def signal_backtest(
     return await compute_signal_backtest(db, user.id)
 
 
+@router.get("/timeline", response_model=ResearchTimelineOut)
+async def research_timeline(
+    symbol: str = Query(min_length=6, max_length=6, pattern=r"^\d{6}$"),
+    include_post_hoc: bool = Query(default=True),
+    limit: int = Query(default=20, ge=1, le=50),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ResearchTimelineOut:
+    return await compute_research_timeline(
+        db,
+        user.id,
+        symbol,
+        include_post_hoc=include_post_hoc,
+        limit=limit,
+    )
+
+
 @router.get("/reports/{report_id}/post-hoc", response_model=ReportPostHocOut)
 async def report_post_hoc(
     report_id: int,
@@ -449,6 +471,25 @@ async def event_study(
     allowed = {"earnings", "risk", "all"}
     filt = event_filter if event_filter in allowed else "earnings"
     return await compute_event_study(symbol, event_filter=filt)
+
+
+@router.post("/event-study/batch", response_model=EventStudyBatchOut)
+async def event_study_batch(
+    payload: EventStudyBatchRequest,
+    user: User = Depends(get_current_user),
+) -> EventStudyBatchOut:
+    _ = user
+    items = await compute_event_study_batch(
+        payload.symbols,
+        event_filter=payload.event_filter,
+    )
+    return EventStudyBatchOut(
+        items=items,
+        event_filter=payload.event_filter,
+        as_of=datetime.now(UTC).date().isoformat(),
+        notes=["自选池事件研究批量入口；逐标的独立统计，非组合回测。"],
+        disclaimer=items[0].disclaimer if items else "",
+    )
 
 
 @router.get("/hypothesis/presets")

@@ -47,9 +47,11 @@ PACKAGED_SKILLS: tuple[PackagedSkill, ...] = (
         "skill_stock_research",
         "个股四维投研",
         "基本面/技术面/情绪/筹码四维分析；可选多空辩论；"
-        "analysis_depth=standard|comprehensive|deep（标准/综合/深度预算）",
+        "analysis_depth=standard|comprehensive|deep（标准/综合/深度预算）；"
+        "用户说「只补缺口再跑/补充数据」时必须调用本 Skill，"
+        "analysis_depth≥comprehensive，并在 context 列出待补缺口",
         '{"symbol": "600519", "with_debate": false, "analysis_depth": "comprehensive", '
-        '"context": "可选：结合前文的补充说明"}',
+        '"context": "可选：缺口列表或前文补充说明"}',
     ),
     PackagedSkill(
         "skill_market_research",

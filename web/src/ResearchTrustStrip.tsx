@@ -13,8 +13,13 @@ function collectEvidence(report: ResearchReport, limit = 3): DimensionEvidence[]
   return items;
 }
 
-function gapFollowUp(gap: string): string {
-  return `补充数据：${gap}`;
+function gapFollowUp(symbol: string, gap: string): string {
+  return `补充数据并重新投研 ${symbol}：${gap}。请用综合分析档重新跑四维投研。`;
+}
+
+function gapCloseQuery(symbol: string, name: string, gaps: string[]): string {
+  const list = gaps.slice(0, 4).join("；");
+  return `只补缺口再跑 综合分析${name}（${symbol}）。优先补齐：${list}。请调用 skill_stock_research 重新投研，并在 context 中列出上述缺口。`;
 }
 
 function missingFromFactors(factors?: AshareFactor[], limit = 3): string[] {
@@ -91,13 +96,24 @@ export function ResearchTrustStrip({
         <div className="research-trust-block">
           <strong>{t("card.dataGaps")}</strong>
           <div className="follow-up-row">
+            {onFollowUp ? (
+              <button
+                type="button"
+                className="example-chip active"
+                onClick={() =>
+                  onFollowUp(gapCloseQuery(report.symbol, report.name || report.symbol, gaps))
+                }
+              >
+                {t("card.gapCloseRerun")}
+              </button>
+            ) : null}
             {gaps.map((gap) =>
               onFollowUp ? (
                 <button
                   key={gap}
                   type="button"
                   className="example-chip"
-                  onClick={() => onFollowUp(gapFollowUp(gap))}
+                  onClick={() => onFollowUp(gapFollowUp(report.symbol, gap))}
                 >
                   {gap}
                 </button>

@@ -189,6 +189,7 @@ async def test_get_valuation_from_value_em(
     assert result["pe_ttm"] == pytest.approx(18.0)
     assert result["pb"] == pytest.approx(5.5)
     assert result["pe_percentile"] is not None
+    assert result["pb_percentile"] is not None
 
 
 @pytest.mark.asyncio

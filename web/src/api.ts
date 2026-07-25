@@ -248,6 +248,11 @@ export const api = {
         event.type === "done" && event.response ? (event.response as ChatResponse) : undefined,
     }),
   holdings: () => request<Holding[]>("/portfolio/holdings"),
+  allocationDeviation: (targets: Record<string, number>) =>
+    request<AllocationDeviation>("/portfolio/allocation/deviation", {
+      method: "POST",
+      body: JSON.stringify({ targets }),
+    }),
   holdingsEnriched: (opts?: { forceRefresh?: boolean }) => {
     const qs = opts?.forceRefresh ? "?force_refresh=true" : "";
     return request<HoldingEnriched[]>(`/portfolio/holdings/enriched${qs}`);
@@ -372,6 +377,10 @@ export const api = {
     await downloadReportBlob("/research/export/csv", report, `${report.symbol}-factors.csv`);
   },
   signalBacktest: () => request<SignalBacktest>("/research/signal-backtest"),
+  researchTimeline: (symbol: string, includePostHoc = true) =>
+    request<ResearchTimeline>(
+      `/research/timeline?symbol=${encodeURIComponent(symbol)}&include_post_hoc=${includePostHoc}`,
+    ),
   reportPostHoc: (id: number) =>
     request<ReportPostHoc>(`/research/reports/${id}/post-hoc`),
   compareSymbols: (symbols: string[]) =>
@@ -383,6 +392,11 @@ export const api = {
     request<EventStudy>(
       `/research/event-study?symbol=${encodeURIComponent(symbol)}&event_filter=${eventFilter}`,
     ),
+  eventStudyBatch: (symbols: string[], eventFilter: "earnings" | "risk" | "all" = "earnings") =>
+    request<EventStudyBatch>("/research/event-study/batch", {
+      method: "POST",
+      body: JSON.stringify({ symbols, event_filter: eventFilter }),
+    }),
   hypothesisPresets: () => request<Record<string, string>>("/research/hypothesis/presets"),
   hypothesisVerify: (symbol: string, rule: string, lookbackDays = 240) =>
     request<HypothesisVerify>("/research/hypothesis/verify", {
@@ -746,6 +760,37 @@ export interface ReportPostHoc {
   pit_note?: string;
 }
 
+export interface ResearchTimelineFactorSnap {
+  key: string;
+  label: string;
+  value?: number | null;
+  percentile?: number | null;
+  partial?: boolean;
+}
+
+export interface ResearchTimelineEntry {
+  report_id: number;
+  created_at: string;
+  bias: string;
+  composite_score: number;
+  analysis_depth?: string;
+  summary?: string;
+  factor_alignment_note?: string | null;
+  factors: ResearchTimelineFactorSnap[];
+  post_hoc: ReportPostHocHorizon[];
+  bias_changed?: boolean;
+  score_delta?: number | null;
+}
+
+export interface ResearchTimeline {
+  symbol: string;
+  name: string;
+  entries: ResearchTimelineEntry[];
+  point_in_time?: boolean;
+  notes?: string[];
+  disclaimer?: string;
+}
+
 export interface CompareRow {
   symbol: string;
   name: string;
@@ -787,9 +832,18 @@ export interface EventStudy {
   event_filter: string;
   events: EventStudyEvent[];
   windows: EventStudyWindow[];
+  kind_counts?: Record<string, number>;
   bars_adjust?: string;
   notes?: string[];
   point_in_time?: boolean;
+}
+
+export interface EventStudyBatch {
+  items: EventStudy[];
+  event_filter: string;
+  as_of?: string | null;
+  notes?: string[];
+  disclaimer?: string;
 }
 
 export interface HypothesisWindow {
@@ -946,6 +1000,21 @@ export interface AssetAllocation {
   cash_flow_impact?: string;
   emergency_fund_note?: string;
   disclaimer: string;
+}
+
+export interface AllocationDeviationRow {
+  sector: string;
+  actual: number;
+  target: number;
+  delta: number;
+}
+
+export interface AllocationDeviation {
+  actual: Record<string, number>;
+  targets: Record<string, number>;
+  rows: AllocationDeviationRow[];
+  notes?: string[];
+  disclaimer?: string;
 }
 
 export interface MarketOverview {
@@ -1172,7 +1241,7 @@ export interface BriefingSchedule {
 }
 
 export interface ActionSignal {
-  type: "price" | "news" | "risk" | "fundamental" | "market" | "info";
+  type: "price" | "news" | "risk" | "fundamental" | "market" | "research" | "info";
   severity: "critical" | "warning" | "info";
   title: string;
   detail: string;

@@ -807,6 +807,37 @@ class ReportPostHocOut(BaseModel):
     )
 
 
+class ResearchTimelineFactorSnap(BaseModel):
+    key: str
+    label: str
+    value: float | None = None
+    percentile: float | None = None
+    partial: bool = False
+
+
+class ResearchTimelineEntryOut(BaseModel):
+    report_id: int
+    created_at: datetime
+    bias: str
+    composite_score: float
+    analysis_depth: str = "standard"
+    summary: str = ""
+    factor_alignment_note: str | None = None
+    factors: list[ResearchTimelineFactorSnap] = Field(default_factory=list)
+    post_hoc: list[ReportPostHocHorizon] = Field(default_factory=list)
+    bias_changed: bool = False
+    score_delta: float | None = None
+
+
+class ResearchTimelineOut(BaseModel):
+    symbol: str
+    name: str
+    entries: list[ResearchTimelineEntryOut] = Field(default_factory=list)
+    point_in_time: bool = True
+    notes: list[str] = Field(default_factory=list)
+    disclaimer: str = DISCLAIMER
+
+
 class CompareRowOut(BaseModel):
     symbol: str
     name: str
@@ -852,12 +883,26 @@ class EventStudyOut(BaseModel):
     event_filter: str
     events: list[EventStudyEventOut]
     windows: list[EventStudyWindowOut]
+    kind_counts: dict[str, int] = Field(default_factory=dict)
     bars_adjust: str = "none"
     bars_source: str = ""
     notes: list[str] = Field(default_factory=list)
     disclaimer: str = DISCLAIMER
     as_of: str | None = None
     point_in_time: bool = True
+
+
+class EventStudyBatchRequest(BaseModel):
+    symbols: list[str] = Field(default_factory=list, max_length=8)
+    event_filter: Literal["earnings", "risk", "all"] = "earnings"
+
+
+class EventStudyBatchOut(BaseModel):
+    items: list[EventStudyOut] = Field(default_factory=list)
+    event_filter: str = "earnings"
+    as_of: str | None = None
+    notes: list[str] = Field(default_factory=list)
+    disclaimer: str = DISCLAIMER
 
 
 class HypothesisWindowOut(BaseModel):
@@ -985,7 +1030,7 @@ class NewsAnalysisOut(BaseModel):
 
 
 class ActionSignal(BaseModel):
-    type: Literal["price", "news", "risk", "fundamental", "market"] = "fundamental"
+    type: Literal["price", "news", "risk", "fundamental", "market", "research"] = "fundamental"
     severity: Literal["critical", "warning", "info"] = "info"
     title: str
     detail: str = ""
@@ -1023,6 +1068,27 @@ class AssetAllocationOut(BaseModel):
     rationale: str = Field(description="为什么这样配置的解释（投顾模式用大白话）")
     cash_flow_impact: str | None = Field(default=None, description="现金流影响分析（有月收入时）")
     emergency_fund_note: str | None = Field(default=None, description="应急资金建议（有月收入时）")
+    disclaimer: str = DISCLAIMER
+
+
+class AllocationDeviationRequest(BaseModel):
+    """Expert-mode sector targets (fractions or percents). Display only."""
+
+    targets: dict[str, float] = Field(default_factory=dict, max_length=30)
+
+
+class AllocationDeviationRow(BaseModel):
+    sector: str
+    actual: float
+    target: float
+    delta: float
+
+
+class AllocationDeviationOut(BaseModel):
+    actual: dict[str, float] = Field(default_factory=dict)
+    targets: dict[str, float] = Field(default_factory=dict)
+    rows: list[AllocationDeviationRow] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
     disclaimer: str = DISCLAIMER
 
 

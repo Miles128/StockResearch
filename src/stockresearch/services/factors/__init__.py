@@ -171,18 +171,33 @@ async def compute_numeric_factors(
 
     if _want(wanted, "pb_percentile"):
         pb = valuation.get("pb")
+        pb_pct = valuation.get("pb_percentile")
         pb_val = float(pb) if isinstance(pb, (int, float)) else None
-        # No true PB history percentile in current provider — mark partial.
+        pb_percentile = float(pb_pct) if isinstance(pb_pct, (int, float)) else None
+        pb_display: float | None = None
+        if pb_percentile is not None:
+            pb_display = (
+                round(pb_percentile * 100.0, 1)
+                if pb_percentile <= 1.0
+                else round(pb_percentile, 1)
+            )
+        elif pb_val is not None:
+            pb_display = round(pb_val, 2)
+        pb_notes = [str(g) for g in (valuation.get("gaps") or []) if g and "PB" in str(g)]
+        if pb_val is not None:
+            pb_notes.append(f"PB={pb_val:.2f}")
+        if pb_percentile is None:
+            pb_notes.append("无 PB 历史分位" if pb_val is not None else "PB 不可用")
         factors.append(
             NumericFactorOut(
                 key="pb_percentile",
-                label="PB",
-                value=round(pb_val, 2) if pb_val is not None else None,
-                percentile=None,
+                label="PB历史分位" if pb_percentile is not None else "PB",
+                value=pb_display,
+                percentile=pb_percentile,
                 as_of=as_of,
-                unit="",
-                partial=pb_val is None,
-                note=None if pb_val is not None else "PB 不可用（无历史分位）",
+                unit="%" if pb_percentile is not None else "",
+                partial=pb_percentile is None,
+                note="；".join(pb_notes) or None,
                 bars_source=str(valuation.get("source") or ""),
                 bars_adjust=None,
             )
@@ -218,6 +233,105 @@ async def compute_numeric_factors(
     _fin_pct("roe", "ROE(TTM)", "roe_ttm")
     _fin_pct("revenue_yoy", "营收同比", "revenue_yoy")
     _fin_pct("net_profit_yoy", "净利同比", "np_yoy")
+
+    want_peer_mom = _want(wanted, "peer_rel_momentum_20d")
+    want_peer_pe = _want(wanted, "peer_rel_pe_percentile")
+    if want_peer_mom or want_peer_pe:
+        own_mom = next((f.value for f in factors if f.key == "momentum_20d"), None)
+        own_pe_pct = pe_percentile
+        peers = await provider.get_industry_peers(symbol)
+        peer_moms: list[float] = []
+        peer_pe_pcts: list[float] = []
+        for peer in peers[:2]:
+            if not isinstance(peer, dict):
+                continue
+            psym = str(peer.get("symbol") or "")
+            if len(psym) != 6:
+                continue
+            if want_peer_mom:
+                try:
+                    pmeta = await get_bars_meta_for_symbol(psym, days=60)
+                    pcloses = [
+                        float(b["close"]) for b in pmeta.bars if b.get("close") is not None
+                    ]
+                    if len(pcloses) >= 21 and pcloses[-21] > 0 and pmeta.adjust == "qfq":
+                        peer_moms.append((pcloses[-1] / pcloses[-21] - 1.0) * 100.0)
+                except Exception:
+                    pass
+            if want_peer_pe:
+                raw_pct = peer.get("pe_percentile")
+                if isinstance(raw_pct, (int, float)):
+                    peer_pe_pcts.append(float(raw_pct))
+                else:
+                    try:
+                        pval = await provider.get_valuation(psym)
+                        pp = pval.get("pe_percentile")
+                        if isinstance(pp, (int, float)):
+                            peer_pe_pcts.append(float(pp))
+                    except Exception:
+                        pass
+        if want_peer_mom:
+            if own_mom is not None and peer_moms:
+                med = sorted(peer_moms)[len(peer_moms) // 2]
+                rel = round(float(own_mom) - med, 2)
+                factors.append(
+                    NumericFactorOut(
+                        key="peer_rel_momentum_20d",
+                        label="相对同业动量",
+                        value=rel,
+                        as_of=provenance.as_of,
+                        unit="pp",
+                        partial=False,
+                        note=f"自身−同业中位（n={len(peer_moms)}）",
+                        bars_source=provenance.source,
+                        bars_adjust=provenance.adjust,
+                    )
+                )
+            else:
+                factors.append(
+                    NumericFactorOut(
+                        key="peer_rel_momentum_20d",
+                        label="相对同业动量",
+                        value=None,
+                        as_of=as_of,
+                        unit="pp",
+                        partial=True,
+                        note="同业动量不足",
+                        bars_source=provenance.source,
+                        bars_adjust=provenance.adjust,
+                    )
+                )
+        if want_peer_pe:
+            if own_pe_pct is not None and peer_pe_pcts:
+                med_pe = sorted(peer_pe_pcts)[len(peer_pe_pcts) // 2]
+                rel_pe = round((float(own_pe_pct) - med_pe) * 100.0, 1)
+                factors.append(
+                    NumericFactorOut(
+                        key="peer_rel_pe_percentile",
+                        label="相对同业PE分位",
+                        value=rel_pe,
+                        as_of=as_of,
+                        unit="pp",
+                        partial=False,
+                        note=f"自身分位−同业中位（n={len(peer_pe_pcts)}）",
+                        bars_source=str(valuation.get("source") or ""),
+                        bars_adjust=None,
+                    )
+                )
+            else:
+                factors.append(
+                    NumericFactorOut(
+                        key="peer_rel_pe_percentile",
+                        label="相对同业PE分位",
+                        value=None,
+                        as_of=as_of,
+                        unit="pp",
+                        partial=True,
+                        note="同业PE分位不足",
+                        bars_source=str(valuation.get("source") or ""),
+                        bars_adjust=None,
+                    )
+                )
 
     if _want(wanted, "main_net_inflow_5d") or _want(wanted, "northbound_hold_pct"):
         from stockresearch.data.providers.market import ChipsDataProvider

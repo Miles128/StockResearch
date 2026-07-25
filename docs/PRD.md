@@ -1,6 +1,6 @@
 # StockResearch 产品需求文档
 
-**V10.10 · 开源 A 股市场研究 Agent**
+**V10.11 · 开源 A 股市场研究 Agent**
 
 > 唯一 PRD：`docs/PRD.md`。Git 中 `docs/` 还推送 `screenshots/` 界面预览图。本地可选 `docs/meta.yaml` 供 prd-first 工具读取。
 
@@ -25,7 +25,7 @@
 | 语言 | 人话、金额、关联原因 | 术语直出、全量指标 |
 | 术语弹窗 | 默认开 | 无 |
 | 辩论 | 默认关 | 默认开 |
-| 资产配置 | 按风险/现金流给参考（API `/advisor/allocation` 已就绪） | 用户手动设目标，展示偏差（Phase 4 后续；当前未实现，UI 面板 `AssetAllocationPanel` 已就 advisor 模式实现但暂未挂载主流程） |
+| 资产配置 | 按风险/现金流给参考（`/advisor/allocation`；风控 Tab 挂载 `AssetAllocationPanel`） | 用户自设板块目标权重 vs 持仓偏差（`/portfolio/allocation/deviation` + `AllocationDeviationPanel`；只展示，不做再平衡） |
 | 证据链 | 默认折叠 | 默认展开 |
 
 **契约**：同一推理管线产出同一 JSON/cards；仅渲染策略不同。禁止因模式改变事实层数值。
@@ -64,6 +64,7 @@
 | 定时简报 | 盘前 09:05 / 盘中 11:35 / 盘后 15:35；Cron 在独立 worker 运行 |
 | Action Center | 规则信号，零 LLM |
 | 研究信号验证 | 历史研报 bias / 因子阈值 → 前向收益统计；单报告事后核对；仅前复权日线（研究验证，非策略回测器）；深度档可露出入口，不静默自动跑 |
+| 研究复盘时间线 | 同标的多份研报时间线：结论/因子快照变化 + 可挂事后核对（Phase 7a） |
 | 数值因子 | 估值分位、动量、波动等可计算因子；证据覆盖清单与因子分离；报告附日线口径戳记；综合及以上默认展开因子条并附「与结论是否同向」一句 |
 | 纸上持仓假设 | 风控定量压力情景 + 最大行业/个股相对现价冲击（非历史回放） |
 | 合规输出 | §六 语言政策 |
@@ -131,7 +132,7 @@
 | 财务增强 | **Tushare Pro**（可选 L3，用户 Token） | 有 Token 时进估值（东财后）与 qfq 日线兜底；Registry=元数据+状态探针+降级链，非行情 conflict ledger |
 | 筹码面 | AkShare | 龙虎榜、资金流、北向持股、两融、股东户数、解禁 |
 | 情绪面 | AkShare + 东方财富个股新闻 + 雪球热度 | — |
-| 数值因子 | 本地日线仓 + 财务/筹码快照 | 基线：`momentum_20d` / `volatility_20d` / `pe_percentile` / `main_net_inflow_5d` / `northbound_hold_pct`；综合起算、深度必算质量/成长类（如 `roe_ttm` 或 `roe_delta`、`revenue_yoy`、`np_yoy`、`pb_percentile`）；有数才写，缺则 `partial`，禁止填默认分位；写入 `factors` |
+| 数值因子 | 本地日线仓 + 财务/筹码快照 | 基线：`momentum_20d` / `volatility_20d` / `pe_percentile` / `main_net_inflow_5d` / `northbound_hold_pct`；综合起算、深度必算质量/成长类（`roe_ttm`、`revenue_yoy`、`np_yoy`、`pb_percentile`）及相对同业（`peer_rel_momentum_20d`、`peer_rel_pe_percentile`）；PE/PB 历史分位有序列才算，缺则 `partial`，禁止填默认分位；写入 `factors` |
 
 ### 5.4 冲突与降级
 
@@ -206,6 +207,28 @@ Phase 2：`stockresearch worker` 独立 Cron + 可选 launchd 示例。
 4. **事件研究**：`GET /research/event-study` 以公告日为 t0 的前向收益（业绩/风险过滤）
 5. **假设一键验证**：`POST /research/hypothesis/verify` 预设动量规则，历史条件触发后量收益
 
+### Phase 7（研究 OS 加厚 · 仍非交易）
+
+不做真实交易场景（滑点/撮合/组合优化/再平衡引擎/模拟盘/实盘）。在 Phase 6 底座上按 **7a → 7b → 7c** 挨个落地：
+
+#### 7a · 核（验证与复盘）
+
+1. **研究复盘时间线**：同标的历史研报按时间排列；展示 bias / 分数 / 关键因子快照变化；可挂载各报告事后核对（点-in-time）。API：`GET /research/timeline`；设置页报告区可查。
+2. **验证规则加厚**：假设验证预设扩展（估值×动量、ROE/成长相关等研究型规则，仍非策略）；事件研究支持更清晰的公告类型分组与自选池批量入口（MVP 可先单标的强化）。
+3. **因子可信度**：`pb_percentile` 尽量给真实历史分位（不能则明确 `partial`）；PE/PB 缺口更显眼；可选行业相对动量/估值（相对同业，不作买卖指令）。
+
+#### 7b · 日常（闭环与雷达）
+
+4. **证据缺口闭环**：报告 `data_gaps` / partial 因子可在 Copilot 一键「只补缺口再跑」或定向补拉公告/财务，不新开平行产品 Tab。
+5. **自选研究雷达**：零 LLM 规则信号（因子与上次结论背离、临近财报窗口、事件研究样本变差等）→ Action Center / 简报；非交易信号文案。
+
+#### 7c · 外缘（感知与外带）
+
+6. **专家模式资产配置偏差**：用户自设目标权重 vs 当前持仓偏差展示（挂主流程）；**不做**优化器与再平衡建议引擎。
+7. **CLI / MCP 外带**：`stockresearch research {timeline,hypothesis,compare,export}` 输出 JSON（便于 Jupyter/管道）；与 HTTP 研究验证 API 同源。完整 MCP server 可后续薄包同一套函数，不另开产品面。
+
+**产品验收（分波）**：7a 同标的 ≥2 份报告可见时间线且可挂事后收益；假设预设 > 动量四条；因子缺数不填默认分位。7b 缺口可追问补跑；自选雷达有 ≥1 条规则进 Action Center。7c research 模式可见配置偏差；CLI/MCP 至少覆盖 export + timeline + hypothesis。
+
 ## 九、工程
 
 ```bash
@@ -218,6 +241,7 @@ uv run pytest && cd web && npm run build
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **V10.11** | 2026-07-25 | Phase 7：研究复盘时间线、验证/因子加厚、缺口闭环、研究雷达、配置偏差、CLI/MCP（7a→7c，非交易） |
 | **V10.10** | 2026-07-22 | Phase 6：JSON/CSV 导出、PIT 核对声明、自选对比/批量、事件研究、假设一键验证 |
 | **V10.9** | 2026-07-20 | §4.1 分析深度档（standard/comprehensive/deep）为四维预算；新闻/财报明确为四维内证据；§5.3 增补质量/成长因子；§八 Phase 5 P0–P3 |
 | V10.8 | 2026-07-16 | §七 补登记调度器跨进程互斥机制（文件锁）；§5.1 K 线默认 AkShare 优先对齐代码现状 |

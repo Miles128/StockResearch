@@ -759,6 +759,9 @@ export default function App() {
                   riskStream={riskStream}
                   riskStatusMsg={riskStatusMsg}
                   numLocale={numLocale}
+                  appMode={modeSettings.mode}
+                  riskTolerance={modeSettings.riskTolerance}
+                  monthlyIncome={modeSettings.monthlyIncome}
                   ratioGrade={ratioGrade}
                   alertHoldingTags={alertHoldingTags}
                   onRunRisk={() => void runRisk()}

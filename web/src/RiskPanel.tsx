@@ -1,7 +1,10 @@
 import { useState, type ReactNode } from "react";
 import type { HoldingEnriched, RiskCheckup } from "./api";
+import { AllocationDeviationPanel } from "./AllocationDeviationPanel";
+import { AssetAllocationPanel } from "./AssetAllocationPanel";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { MarkdownContent } from "./MarkdownContent";
+import type { AppMode, RiskTolerance } from "./modeSettings";
 import { computePaperShock, type PaperShockResult, type ShockTarget } from "./paperShock";
 import { RiskSourceCharts } from "./RiskSourceCharts";
 import { StreamFeed } from "./StreamFeed";
@@ -17,6 +20,9 @@ interface RiskPanelProps {
   riskStream: StreamState;
   riskStatusMsg: string;
   numLocale: string;
+  appMode: AppMode;
+  riskTolerance: RiskTolerance;
+  monthlyIncome?: number;
   ratioGrade: (v: number, excellent: number, good: number) => string;
   alertHoldingTags: (message: string) => HoldingEnriched[];
   onRunRisk: () => void;
@@ -85,6 +91,9 @@ export function RiskPanel({
   riskStream,
   riskStatusMsg,
   numLocale,
+  appMode,
+  riskTolerance,
+  monthlyIncome,
   ratioGrade,
   alertHoldingTags,
   onRunRisk,
@@ -105,6 +114,11 @@ export function RiskPanel({
 
   return (
     <div className="panel risk-panel">
+      {appMode === "advisor" ? (
+        <AssetAllocationPanel riskTolerance={riskTolerance} monthlyIncome={monthlyIncome} />
+      ) : (
+        <AllocationDeviationPanel holdings={holdings} />
+      )}
       <div className="risk-panel-head">
         <div className="risk-panel-title-row">
           <IconAlert className="ui-icon risk-panel-icon" size={18} />

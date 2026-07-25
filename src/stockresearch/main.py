@@ -26,6 +26,8 @@ def _run_worker() -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from stockresearch.cli.research_tools import register_research_cli, run_research_cli
+
     parser = argparse.ArgumentParser(prog="stockresearch")
     subparsers = parser.add_subparsers(dest="command")
 
@@ -35,6 +37,7 @@ def main(argv: list[str] | None = None) -> int:
     api_parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
 
     subparsers.add_parser("worker", help="Run the background scheduler worker")
+    register_research_cli(subparsers)
 
     args = parser.parse_args(argv)
     if args.command == "api":
@@ -42,6 +45,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "worker":
         return _run_worker()
+    if args.command == "research":
+        return run_research_cli(args)
 
     parser.print_help()
     return 1

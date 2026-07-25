@@ -15,6 +15,7 @@ from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.data.providers.market_overview import MarketOverviewProvider
 from stockresearch.db.models import Holding
 from stockresearch.services.news_interests import load_user_news_interests
+from stockresearch.services.research_radar import collect_research_radar_signals
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +148,10 @@ async def generate_daily_actions(
                     weight=40,
                 ))
 
-    # ── 4. Market-level signals (overview + sentiment) ──
+    # ── 4. Research radar (bias flip / factor divergence on holdings+watchlist) ──
+    signals.extend(collect_research_radar_signals(db, user_id, holdings))
+
+    # ── 5. Market-level signals (overview + sentiment) ──
     market_signals = await _collect_market_signals()
     signals.extend(market_signals)
 
@@ -166,6 +170,7 @@ async def generate_daily_actions(
         news_count = sum(1 for s in ranked if s.type == "news")
         price_count = sum(1 for s in ranked if s.type == "price")
         market_count = sum(1 for s in ranked if s.type == "market")
+        research_count = sum(1 for s in ranked if s.type == "research")
         parts: list[str] = []
         if risk_count:
             parts.append(f"{risk_count}条风控")
@@ -175,6 +180,8 @@ async def generate_daily_actions(
             parts.append(f"{price_count}条行情")
         if market_count:
             parts.append(f"{market_count}条市场")
+        if research_count:
+            parts.append(f"{research_count}条研究雷达")
         summary = "、".join(parts) if parts else "有待关注事项"
 
     return DailyActionCenterOut(

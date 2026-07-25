@@ -39,6 +39,10 @@ async def compute_event_study(
         symbol, name, days=lookback_days, limit=max(limit * 3, 20)
     )
     items = list(result.items)
+    kind_counts: dict[str, int] = {"earnings": 0, "risk": 0, "other": 0}
+    for it in items:
+        kind = _event_kind(it.title, it.announcement_type)
+        kind_counts[kind] = kind_counts.get(kind, 0) + 1
     if event_filter != "all":
         items = [
             it
@@ -117,6 +121,12 @@ async def compute_event_study(
     notes = [
         "事件研究：以公告日为 t0，仅用前复权日线前向收益；非策略回测。",
         "点-in-time：事件日取公告时间，不使用事后才可知的财务修订。",
+        (
+            "公告类型分组（过滤前）："
+            f"业绩 {kind_counts.get('earnings', 0)} · "
+            f"风险 {kind_counts.get('risk', 0)} · "
+            f"其他 {kind_counts.get('other', 0)}"
+        ),
     ]
     if meta.adjust != "qfq":
         notes.append(meta.note or "日线非 qfq，事件收益未计算")
@@ -129,6 +139,7 @@ async def compute_event_study(
         event_filter=event_filter,
         events=events,
         windows=windows,
+        kind_counts=kind_counts,
         bars_adjust=meta.adjust,
         bars_source=meta.source,
         notes=notes,
@@ -136,3 +147,18 @@ async def compute_event_study(
         as_of=datetime.now(UTC).date().isoformat(),
         point_in_time=True,
     )
+
+
+async def compute_event_study_batch(
+    symbols: list[str],
+    *,
+    event_filter: str = "earnings",
+) -> list[EventStudyOut]:
+    """Run event study for up to 8 symbols (watchlist batch entry)."""
+    out: list[EventStudyOut] = []
+    for symbol in symbols[:8]:
+        sym = symbol.strip()
+        if len(sym) != 6 or not sym.isdigit():
+            continue
+        out.append(await compute_event_study(sym, event_filter=event_filter))
+    return out
