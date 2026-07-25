@@ -88,6 +88,15 @@ cd web && npm install && npm run dev
 
 打开 **http://localhost:5174**。首次引导：选模式 → Demo 持仓 → 配置 LLM（或 `USE_MOCK_LLM=true` 先体验）。
 
+桌面壳（Tauri 2，macOS / Windows；需本机 `uv` + 已构建前端）：
+
+```bash
+cd web && npm run build
+cd ../desktop && npm install && npm run dev
+```
+
+详见 [desktop/README.md](desktop/README.md)。
+
 ### 环境变量
 
 见 [.env.example](.env.example)。
@@ -138,6 +147,8 @@ uv run python -m stockresearch worker
 # Terminal 3 — Web
 cd web && npm install && npm run dev   # http://localhost:5174
 ```
+
+Desktop shell (Tauri 2, macOS/Windows): build `web` first, then `cd desktop && npm install && npm run dev`. See [desktop/README.md](desktop/README.md).
 
 ### Data sources
 
