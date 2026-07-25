@@ -56,6 +56,7 @@ async def generate_daily_actions(
     try:
         quote_map = await quote_provider.get_quotes([h.symbol for h in holdings])
     except Exception:
+        logger.warning("action center quotes failed for user_id=%s", user_id, exc_info=True)
         quote_map = {}
     quotes = {sym: q for sym, q in quote_map.items()}
 

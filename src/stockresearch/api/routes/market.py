@@ -1,6 +1,7 @@
 """Market data routes."""
 
 import asyncio
+import logging
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -35,6 +36,8 @@ from stockresearch.db.models import Holding, User
 from stockresearch.db.session import get_db
 from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
 from stockresearch.services.user_preferences import get_mode_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -109,6 +112,7 @@ async def index_intraday(
             raw = await asyncio.to_thread(fetch_sina_intraday, symbol)
             points = [IntradayPointOut(time=str(p["time"]), price=float(p["price"])) for p in raw]
         except Exception:
+            logger.warning("intraday fetch failed for %s", symbol, exc_info=True)
             points = []
         results.append(IndexIntradayOut(symbol=symbol, points=points))
     return results

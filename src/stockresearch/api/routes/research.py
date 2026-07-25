@@ -1,6 +1,7 @@
 """Research routes."""
 
 import json
+import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
@@ -52,6 +53,8 @@ from stockresearch.services.signal_backtest import compute_report_post_hoc, comp
 from stockresearch.services.user_preferences import get_mode_settings
 from stockresearch.utils.llm import LLMClient
 from stockresearch.utils.symbols import resolve_name
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/research", tags=["research"])
 
@@ -554,6 +557,7 @@ async def batch_research(
                 )
             )
         except Exception as exc:
+            logger.warning("batch research failed for %s: %s", symbol, exc, exc_info=True)
             items.append(
                 BatchResearchItemOut(
                     symbol=symbol,

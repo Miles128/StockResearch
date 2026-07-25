@@ -1,6 +1,7 @@
 """Research sub-agents orchestration — delegates to isolated ReAct agents."""
 
 import asyncio
+import logging
 from typing import Literal
 
 from stockresearch.agents.research.agents import AGENT_BY_ID, DIMENSION_AGENTS
@@ -32,6 +33,8 @@ from stockresearch.services.factors import factor_alignment_note
 from stockresearch.services.text_factor import build_news_text_factor, fetch_symbol_news_snippets
 from stockresearch.utils.llm import LLMClient, get_llm_client
 from stockresearch.utils.symbols import resolve_name
+
+logger = logging.getLogger(__name__)
 
 BiasLevel = Literal["bullish", "bearish", "neutral"]
 ConfidenceLevel = Literal["high", "medium", "low"]
@@ -107,6 +110,7 @@ async def run_research(
             symbol, factor_keys=budget.factor_keys
         )
     except Exception:
+        logger.warning("numeric factors failed for %s", symbol, exc_info=True)
         factors = []
 
     debate: DebateResult | None = None

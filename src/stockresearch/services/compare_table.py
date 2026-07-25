@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 
 from stockresearch.core.schemas import CompareRowOut, CompareTableOut, NumericFactorOut
 from stockresearch.services.factors import compute_numeric_factors
 from stockresearch.utils.symbols import resolve_name
+
+logger = logging.getLogger(__name__)
 
 
 async def build_compare_table(
@@ -43,6 +46,7 @@ async def build_compare_table(
                 )
             )
         except Exception as exc:
+            logger.warning("compare factors failed for %s: %s", symbol, exc, exc_info=True)
             rows.append(
                 CompareRowOut(
                     symbol=symbol,

@@ -110,7 +110,11 @@ class FinancialRatioAgent:
                 if data.get("bvps") and data["bvps"] > 0:
                     data["pb"] = round(data["price"] / data["bvps"], 2)
             except Exception:
-                pass
+                logger.warning(
+                    "quote refresh for cached financials failed for %s",
+                    symbol,
+                    exc_info=True,
+                )
             return data
 
         data: dict[str, Any] = {
@@ -144,7 +148,7 @@ class FinancialRatioAgent:
             )
             data["price"] = quote.price
         except Exception:
-            pass
+            logger.warning("quote fetch failed for %s during financials", symbol, exc_info=True)
 
         # Use stock_financial_abstract_ths (the only working API)
         try:

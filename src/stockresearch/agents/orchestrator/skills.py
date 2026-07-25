@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -24,6 +25,8 @@ from stockresearch.services.message_stock import resolve_message_stock, stock_ch
 from stockresearch.services.stock_lookup import StockLookupResult
 from stockresearch.utils.llm import LLMClient
 from stockresearch.utils.symbols import resolve_name
+
+logger = logging.getLogger(__name__)
 
 EventCallback = Callable[[dict[str, object]], Awaitable[None]]
 
@@ -161,6 +164,7 @@ class SkillRunner:
             else:
                 result = SkillRunResult(summary=f"未知 Skill: {skill_id}", error="unknown_skill")
         except Exception as exc:
+            logger.warning("skill %s failed: %s", skill_id, exc, exc_info=True)
             result = SkillRunResult(summary=f"Skill {label} 执行失败: {exc}", error=str(exc))
 
         await self._emit(

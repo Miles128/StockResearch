@@ -51,6 +51,10 @@ class PriceAlertScheduler:
             if not is_a_share_trading_day(today):
                 return
         except Exception:
+            logger.warning(
+                "trading calendar check failed in price alert scheduler; using weekday fallback",
+                exc_info=True,
+            )
             if today.weekday() >= 5:
                 return
         if not (_MARKET_OPEN <= now.time() <= _MARKET_CLOSE):

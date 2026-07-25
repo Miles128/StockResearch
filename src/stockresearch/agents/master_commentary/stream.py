@@ -1,6 +1,7 @@
 """Streaming master commentary for research / industry / risk reports."""
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -8,6 +9,8 @@ from stockresearch.agents.master_commentary.registry import get_master_config, t
 from stockresearch.agents.master_commentary.schemas import MasterCommentaryOut
 from stockresearch.core.schemas import ModeSettingsOut
 from stockresearch.utils.llm import LLMClient
+
+logger = logging.getLogger(__name__)
 
 
 async def _fetch_master(
@@ -20,6 +23,7 @@ async def _fetch_master(
         config = get_master_config(master_id, settings)
         raw = await llm.complete(config["system"], context)
     except Exception as exc:
+        logger.warning("master commentary failed for %s: %s", master_id, exc, exc_info=True)
         return MasterCommentaryOut(
             master=master_id,
             signal="neutral",

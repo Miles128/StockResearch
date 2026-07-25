@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from statistics import median
 
@@ -11,6 +12,8 @@ from stockresearch.core.constants import DISCLAIMER
 from stockresearch.core.schemas import ReportPostHocHorizon, SignalBacktestHorizon, SignalBacktestOut
 from stockresearch.db.models import ResearchReport
 from stockresearch.services.daily_bars import get_bars_meta_for_symbol
+
+logger = logging.getLogger(__name__)
 
 _MIN_SAMPLE_FOR_CONFIDENCE = 8
 
@@ -126,6 +129,7 @@ async def _load_qfq_bars(
         cache[symbol] = meta.bars
         return meta.bars
     except Exception:
+        logger.warning("qfq bars load failed for signal backtest %s", symbol, exc_info=True)
         cache[symbol] = None
         return None
 

@@ -302,7 +302,7 @@ async def generate_briefing(
                 if polished.strip():
                     summary = polished.strip()
             except Exception:
-                pass
+                logger.warning("LLM briefing polish failed", exc_info=True)
 
     return BriefingOut(
         kind=normalized,

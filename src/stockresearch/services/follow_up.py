@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import logging
+
 from stockresearch.agents.output_style import get_reading_mode
 from stockresearch.core.constants import INTENT_RISK
 from stockresearch.core.schemas import AshareFactorOut, ResearchReportOut
+
+logger = logging.getLogger(__name__)
 
 
 def _research_from_cards(cards: list[dict[str, object]]) -> ResearchReportOut | None:
@@ -16,6 +20,7 @@ def _research_from_cards(cards: list[dict[str, object]]) -> ResearchReportOut | 
             try:
                 return ResearchReportOut.model_validate(data)
             except Exception:
+                logger.debug("research card validation failed for follow-up", exc_info=True)
                 return None
     return None
 

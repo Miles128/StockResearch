@@ -1,9 +1,13 @@
 """Local single-user preference persistence."""
 
+import logging
+
 from sqlalchemy.orm import Session
 
 from stockresearch.core.schemas import ModeSettingsOut, ModeSettingsUpdate
 from stockresearch.db.models import UserPreference
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_MODE_SETTINGS = ModeSettingsOut()
 
@@ -21,6 +25,7 @@ def _coerce_mode_settings(raw: object) -> ModeSettingsOut:
     try:
         return ModeSettingsOut.model_validate(data)
     except Exception:
+        logger.warning("invalid mode_settings; using defaults", exc_info=True)
         return DEFAULT_MODE_SETTINGS.model_copy()
 
 

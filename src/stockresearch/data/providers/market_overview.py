@@ -53,7 +53,7 @@ class MarketOverviewProvider:
             try:
                 return MarketOverviewOut.model_validate(cached)
             except Exception:
-                pass
+                logger.warning("stale market overview cache rejected", exc_info=True)
 
         overview = await self._fetch_live_overview()
         if overview.data_status != "unavailable" and overview.indices:

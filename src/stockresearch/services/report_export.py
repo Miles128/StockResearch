@@ -5,9 +5,12 @@ from __future__ import annotations
 import csv
 import io
 import json
+import logging
 from pathlib import Path
 
 from stockresearch.core.schemas import DebateResult, DimensionResult, ResearchReportOut
+
+logger = logging.getLogger(__name__)
 
 _BIAS_LABEL = {"bullish": "偏多", "bearish": "偏空", "neutral": "中性"}
 _CONF_LABEL = {"high": "高", "medium": "中", "low": "低"}
@@ -295,6 +298,7 @@ def report_to_pdf(report: ResearchReportOut) -> bytes:
             pdf.add_font("CJK", "", str(font_path))
             use_cjk = True
         except Exception:
+            logger.warning("CJK font load failed for PDF export: %s", font_path, exc_info=True)
             use_cjk = False
 
     def write_line(text: str, *, size: int = 11, bold: bool = False) -> None:

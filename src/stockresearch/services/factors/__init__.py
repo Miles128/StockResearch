@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 from datetime import UTC, datetime
 from typing import Iterable
@@ -10,6 +11,8 @@ from stockresearch.agents.research.budget import BASE_FACTOR_KEYS
 from stockresearch.core.schemas import BarsProvenanceOut, NumericFactorOut
 from stockresearch.data.providers.market import FinancialDataProvider
 from stockresearch.services.daily_bars import get_bars_meta_for_symbol
+
+logger = logging.getLogger(__name__)
 
 
 def _std(values: list[float]) -> float | None:
@@ -257,7 +260,7 @@ async def compute_numeric_factors(
                     if len(pcloses) >= 21 and pcloses[-21] > 0 and pmeta.adjust == "qfq":
                         peer_moms.append((pcloses[-1] / pcloses[-21] - 1.0) * 100.0)
                 except Exception:
-                    pass
+                    logger.debug("peer momentum skipped for %s", psym, exc_info=True)
             if want_peer_pe:
                 raw_pct = peer.get("pe_percentile")
                 if isinstance(raw_pct, (int, float)):
@@ -269,7 +272,7 @@ async def compute_numeric_factors(
                         if isinstance(pp, (int, float)):
                             peer_pe_pcts.append(float(pp))
                     except Exception:
-                        pass
+                        logger.debug("peer PE percentile skipped for %s", psym, exc_info=True)
         if want_peer_mom:
             if own_mom is not None and peer_moms:
                 med = sorted(peer_moms)[len(peer_moms) // 2]

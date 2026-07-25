@@ -989,6 +989,7 @@ class FinancialDataProvider:
                 entry["pb"] = val.get("pb")
                 entry["pe_percentile"] = val.get("pe_percentile")
             except Exception:
+                logger.debug("peer valuation attach failed for %s", peer, exc_info=True)
                 continue
         return peers
 
@@ -1742,6 +1743,7 @@ class ChipsDataProvider:
                     df = ak.stock_margin_detail_szse(date=date)
                     code_col = "证券代码"
             except Exception:
+                logger.debug("margin detail fetch failed for %s date=%s", symbol, date, exc_info=True)
                 continue
             if df.empty or code_col not in df.columns:
                 continue
