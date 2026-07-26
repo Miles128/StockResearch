@@ -45,6 +45,7 @@
   - **市场 Tab**：A 股主要指数行情、指数分时、涨跌家数、北向资金；行业板块涨跌分布；指数与行业相关的主要新闻快讯
 - **焦点多 Tab**：Sidebar 选中、Copilot 指令、顶栏指数各可占一 Tab
 - **Copilot = 焦点 source of truth**：「分析茅台」→ 茅台 Tab；「茅台 vs 当前选中」→ 交叉对比
+- **Copilot 对话线**：仅点「+」开新线程；未点「+」时同窗口续问落在当前线程，共用同一 `session_id`，回合写入会话记忆（`conversations.messages`）
 - **Demo 持仓**：空组合时 `/portfolio/demo` 快速体验
 - 对话结束展示 **disclaimer**（与 API 字段同文）
 - 深度研究落在 Copilot 报告卡（证据链）；焦点区可附财务摘要条，不新开整页工作簿
@@ -257,6 +258,7 @@ cd desktop && npm install && npm run tauri dev
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **V10.13** | 2026-07-27 | Copilot：仅「+」开新对话线；同窗续问不自动分叉，回合写入同一会话记忆 |
 | **V10.12** | 2026-07-26 | Phase 8：Tauri 2 桌面壳（macOS/Windows），启动 uvicorn + 可选 worker |
 | **V10.11** | 2026-07-25 | Phase 7：研究复盘时间线、验证/因子加厚、缺口闭环、研究雷达、配置偏差、CLI/MCP（7a→7c，非交易） |
 | **V10.10** | 2026-07-22 | Phase 6：JSON/CSV 导出、PIT 核对声明、自选对比/批量、事件研究、假设一键验证 |

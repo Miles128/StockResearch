@@ -4,7 +4,6 @@ import {
   autoThreadTitle,
   createThread,
   messagesForStorage,
-  shouldForkCopilotThread,
   titleFromMessages,
   truncateThreadTitle,
 } from "../copilotThreads";
@@ -29,23 +28,14 @@ describe("copilotThreads", () => {
     expect(titleFromMessages(messages, "新对话")).toBe("今天大盘怎么样");
   });
 
-  it("forks thread when topic shifts from stock to market", () => {
+  it("keeps topic shifts on the same thread title helper (no auto-fork)", () => {
+    // Product rule: only Plus starts a new thread; topic change only updates title.
     const messages: Message[] = [
       { role: "user", content: "分析贵州茅台" },
       { role: "assistant", content: "..." },
+      { role: "user", content: "今天A股大盘走势如何" },
     ];
-    const known = [{ symbol: "600519", name: "贵州茅台" }];
-    expect(shouldForkCopilotThread(messages, "今天A股大盘走势如何", known)).toBe(true);
-    expect(shouldForkCopilotThread(messages, "茅台估值怎么看", known)).toBe(false);
-  });
-
-  it("forks thread when switching stocks", () => {
-    const messages: Message[] = [{ role: "user", content: "分析600519" }];
-    const known = [
-      { symbol: "600519", name: "贵州茅台" },
-      { symbol: "300750", name: "宁德时代" },
-    ];
-    expect(shouldForkCopilotThread(messages, "帮我看看300750", known)).toBe(true);
+    expect(titleFromMessages(messages, "新对话")).toBe("今天A股大盘走势如何");
   });
 
   it("strips process from stored messages", () => {
