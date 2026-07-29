@@ -1,6 +1,6 @@
 # StockResearch 产品需求文档
 
-**V10.12 · 开源 A 股市场研究 Agent**
+**V10.14 · 开源 A 股市场研究 Agent**
 
 > 唯一 PRD：`docs/PRD.md`。Git 中 `docs/` 还推送 `screenshots/` 界面预览图。本地可选 `docs/meta.yaml` 供 prd-first 工具读取。
 
@@ -116,6 +116,9 @@
 | 实时报价 | **新浪财经** `hq.sinajs.cn` | AkShare hist → **efinance** | 三源兜底 |
 | 日 K 线 | **AkShare**（前复权 `stock_zh_a_hist`） | efinance → **Tushare**（有 Token）→ 新浪（非 qfq） | 指数用 `index_zh_a_hist`；本地日线仓增量缓存持仓/自选/近期研报标的 |
 | 指数概览 | **新浪指数** | AkShare | 北向：AkShare `stock_hsgt_north_net_flow_in_em` |
+| K 线画线层 | 前端算法（Phase 9a） | 后端同源 schema（Phase 9b） | 斜趋势 + 水平参考；默认最强 ≤4 条；非交易信号 |
+
+**画线层契约（`ChartOverlaySet`）**：见 §八 Phase 9。Phase 9a 纯前端；9b 同一 JSON 供 Copilot 筛选/解说。
 
 ### 5.2 新闻、公告、研报
 
@@ -243,6 +246,58 @@ Phase 2：`stockresearch worker` 独立 Cron + 可选 launchd 示例。
 
 **产品验收**：macOS / Windows 上 `npm run tauri dev`（或等价）能打开窗口并完成登录/持仓/对话一条主路径；退出后 8000 端口无残留本壳拉起的 uvicorn（复用外部已有服务时不杀）。
 
+### Phase 9（K 线算法画线 · 再接 Copilot）
+
+在现有 `lightweight-charts`（`MarketChart`：K 线 + MA + 量 + MACD/RSI）上叠加**算法画线层**；手动画线 / 斐波那契 / 通道 / 用户线持久化 **不做**。合规：线旁与 Copilot 解说均禁止买卖建议措辞。
+
+#### 9a · 前端自动层（先落地）
+
+1. **开关**：`StockChart` 工具栏「画线」toggle，默认 **开**；与 MACD/RSI 并列。
+2. **算法模块**：`web/src/chartOverlays.ts`（与 `chartIndicators.ts` 并列），输入已加载 `KlineBar[]` + 可见逻辑区间。
+3. **趋势线**：仅用**当前可见** bars；摆动高/低（默认左右各 **3** 根）→ 同侧有效点连线 → 按未破/触碰打 `strength`；最多约 1 上 + 1 下（计入总上限）。可见 bars 少于 **20** 则跳过趋势线。
+4. **水平参考线**：用已加载历史，上限 **180** 根；摆动价聚类（容差优先 **ATR(14)×0.5**，ATR 不可用时用价的 **0.8%**）→ 触碰计分；最多约 2 条。
+5. **截断**：合并后按 `strength` 排序，默认展示 **≤ 4** 条。可见区变化约 **150ms** debounce 重算趋势线；bars 集合变化时重算水平线。bars 过少则静默不画。
+6. **渲染**：趋势用 `addLineSeries`；水平用 `createPriceLine`。支撑/压力分色；无交易文案。
+
+**数据模型（前后端共用 shape，9a 仅前端产出）**：
+
+```ts
+type ChartOverlay =
+  | {
+      id: string;
+      kind: "trend";
+      a: { time: string; price: number };
+      b: { time: string; price: number };
+      side: "support" | "resistance";
+      strength: number; // 0–1
+      source: "algo";
+    }
+  | {
+      id: string;
+      kind: "level";
+      price: number;
+      strength: number;
+      touches: number;
+      source: "algo";
+    };
+
+type ChartOverlaySet = {
+  symbol: string;
+  generatedAt: string;
+  overlays: ChartOverlay[];
+};
+```
+
+**测试**：摆动点 / 聚类 / 排序截断单测（固定 fixtures）；toggle 开关键线出现与清除。
+
+#### 9b · Copilot 复用（后接，本阶段只预留）
+
+1. 将同一 `ChartOverlaySet` 抽到后端 endpoint 或 research tool（算法可与前端对齐或服务端重算）。
+2. Copilot「画趋势线 / 标一下支撑」→ 返回或筛选 overlay + **一句描述性解读**（仍禁止交易指令）；`source` 可扩 `"ai"`，可选 `rationale`。
+3. 前端仍用 9a 同一渲染路径。
+
+**产品验收（9a）**：个股 K 线默认可见 ≤4 条算法线；关「画线」后全部消失；滚动可见区时趋势线更新、水平线不乱跳；无买卖措辞。**9b**：对话可触发画线并附描述，schema 与 9a 一致。
+
 ## 九、工程
 
 ```bash
@@ -258,6 +313,7 @@ cd desktop && npm install && npm run tauri dev
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **V10.14** | 2026-07-30 | Phase 9：K 线算法画线层（趋势+水平，≤4）；9a 前端先落地，9b Copilot 复用同 schema |
 | **V10.13** | 2026-07-27 | Copilot：仅「+」开新对话线；同窗续问不自动分叉，回合写入同一会话记忆 |
 | **V10.12** | 2026-07-26 | Phase 8：Tauri 2 桌面壳（macOS/Windows），启动 uvicorn + 可选 worker |
 | **V10.11** | 2026-07-25 | Phase 7：研究复盘时间线、验证/因子加厚、缺口闭环、研究雷达、配置偏差、CLI/MCP（7a→7c，非交易） |
