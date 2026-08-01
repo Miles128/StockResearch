@@ -1,6 +1,6 @@
 # StockResearch 产品需求文档
 
-**V10.14 · 开源 A 股市场研究 Agent**
+**V10.15 · 开源 A 股市场研究 Agent**
 
 > 唯一 PRD：`docs/PRD.md`。Git 中 `docs/` 还推送 `screenshots/` 界面预览图。本地可选 `docs/meta.yaml` 供 prd-first 工具读取。
 
@@ -16,7 +16,9 @@
 
 帮助用户回答：**今天发生了什么 · 为什么与我有关 · 还需要验证什么**。
 
-深度投研交付「可核对证据」；轻量化交付「可验证假设/信号」——因子与回测服务于验证研究结论，不是第二套量化产品。
+**深度分析演进（Phase 10）**：在四维证据之上，用可核对因果链回答 **为何涨跌 · 现价定了什么 · 主张如何证伪**（Impact → Pricing → Thesis）。因子与验证服务于该链条，不是第二套量化产品。
+
+深度投研交付「可核对证据」；轻量化交付「可验证假设/信号」。
 
 ## 二、用户与双模式
 
@@ -204,23 +206,23 @@ Phase 2：`stockresearch worker` 独立 Cron + 可选 launchd 示例。
 
 ### Phase 6（可带走的研究验证）
 
-仍不做策略回测器 / 第三套量化 Shell。补齐「半专业/个人量化能核对并导出」：
+仍不做策略回测器 / 第三套量化 Shell。API/能力清单如下；**产品叙事与主界面拼装以 Phase 10 三层为准**（事件研究并入 Impact，假设验证/时间线并入 Thesis，导出与 PIT 为横切）。
 
 1. **机器可读导出**：报告 JSON（`stockresearch.report.v1`）+ CSV 因子表；Markdown/PDF 附日线口径与数值因子
 2. **点-in-time 声明**：事后核对 / 信号验证显式 `point_in_time` + `signal_as_of`；只用报告快照因子 + 之后的 qfq 日线，不重拉事后财务
-3. **自选对比与批量**：`POST /research/compare` 因子并排；`POST /research/batch` 批量四维（≤8，默认无辩论）
-4. **事件研究**：`GET /research/event-study` 以公告日为 t0 的前向收益（业绩/风险过滤）
-5. **假设一键验证**：`POST /research/hypothesis/verify` 预设动量规则，历史条件触发后量收益
+3. **自选对比与批量**：`POST /research/compare` 因子并排；`POST /research/batch` 批量四维（≤8，默认无辩论）——**工具能力，不进 DeepAnalysisBlock 核心叙事**
+4. **事件研究**：`GET /research/event-study` 以公告日为 t0 的前向收益（业绩/风险过滤）——Impact 层数据核
+5. **假设一键验证**：`POST /research/hypothesis/verify` 预设规则，历史条件触发后量收益——Thesis 层压测面
 
 ### Phase 7（研究 OS 加厚 · 仍非交易）
 
-不做真实交易场景（滑点/撮合/组合优化/再平衡引擎/模拟盘/实盘）。在 Phase 6 底座上按 **7a → 7b → 7c** 挨个落地：
+不做真实交易场景（滑点/撮合/组合优化/再平衡引擎/模拟盘/实盘）。**7a 并入 Phase 10 落地波次**；7b/7c 仍按序在 10 之后或并行外缘。
 
-#### 7a · 核（验证与复盘）
+#### 7a · 核（验证与复盘）→ 见 Phase 10 L2/L3
 
-1. **研究复盘时间线**：同标的历史研报按时间排列；展示 bias / 分数 / 关键因子快照变化；可挂载各报告事后核对（点-in-time）。API：`GET /research/timeline`；设置页报告区可查。
-2. **验证规则加厚**：假设验证预设扩展（估值×动量、ROE/成长相关等研究型规则，仍非策略）；事件研究支持更清晰的公告类型分组与自选池批量入口（MVP 可先单标的强化）。
-3. **因子可信度**：`pb_percentile` 尽量给真实历史分位（不能则明确 `partial`）；PE/PB 缺口更显眼；可选行业相对动量/估值（相对同业，不作买卖指令）。
+1. **研究复盘时间线**：同标的历史研报按时间排列；展示 bias / 分数 / 关键因子（及 Thesis）快照变化；可挂载各报告事后核对（点-in-time）。API：`GET /research/timeline`。
+2. **验证规则加厚**：假设验证预设扩展（估值×动量、ROE/成长相关等研究型规则，仍非策略）；服务 Thesis 压测，不另开「回测产品」。
+3. **因子可信度**：`pb_percentile` 尽量给真实历史分位（不能则明确 `partial`）；PE/PB 缺口更显眼；与 Pricing 层**同一数值源**（禁止两套 PE）。
 
 #### 7b · 日常（闭环与雷达）
 
@@ -298,6 +300,107 @@ type ChartOverlaySet = {
 
 **产品验收（9a）**：个股 K 线默认可见 ≤4 条算法线；关「画线」后全部消失；滚动可见区时趋势线更新、水平线不乱跳；无买卖措辞。**9b**：对话可触发画线并附描述，schema 与 9a 一致。
 
+### Phase 10（深度分析三层 · Impact / Pricing / Thesis）
+
+将 Phase 6–7a 能力与「归因 / 定价桥 / 可证伪主张」**去重合并**为一条深度分析主线。不新开平行产品 Tab；不引入 Qlib；不做完整 DCF；不做策略回测 Shell / 实盘。
+
+**深度定义**：因果链完整且可核对——已实现涨跌（Impact）→ 现价含义（Pricing）→ 前瞻路径与证伪（Thesis）。每层有确定性计算内核；LLM 只解释与串联，**禁止另造与计算层冲突的数字**。
+
+#### 10.0 架构（唯一骨架）
+
+| 层 | 回答 | 合并自 | 主产出 |
+|----|------|--------|--------|
+| **L1 Impact** | 为何涨跌 | 归因 + 6.4 事件研究 | 市场/行业/特异分解 + 事件冲击 |
+| **L2 Pricing** | 现价定了什么 | 定价桥 + 7a.3 因子可信 + 现有因子条 | 盈利×倍数分解；可选隐含增速；因子内嵌 |
+| **L3 Thesis** | 走向靠什么、错了怎么认 | Thesis + 6.5/7a.2 假设验证 + 7a.1 时间线 | 主张 / 监控 / 失效；验证与复盘为其两面 |
+| **横切 Accuracy** | — | 6.1 导出 + 6.2 PIT | 全层强制；不当独立「深度卖点」 |
+
+**deep 报告块顺序**（`analysis_depth=deep` 必出 L1–L3；`comprehensive` 可出简化 L1，L2/L3 可选）：
+
+1. 四维证据（现有，不扩平行维）  
+2. Impact  
+3. Pricing（因子数字只在此呈现一次，不另开因子秀）  
+4. Thesis（旁路「验证这条」与「历史结论/时间线」）  
+5. 导出含 `deep_analysis` + PIT 戳记  
+
+Copilot：深度档默认先答「为何动」，再答观点与主张。
+
+#### 10.1 L1 Impact（W1）
+
+**计算**
+
+- 窗口默认近 **20** 个交易日（可配置，须写入报告元数据）。  
+- 个股超额近似：对市场指数与行业指数做收益分解，得到 **市场贡献 / 行业贡献 / 特异收益**（单因子或两步残差即可；模型名与 R² 写入 payload）。  
+- 特异收益绝对值最高的交易日（默认 top **3**）尝试挂载同期公告/事件；有则附事件研究窗收益摘要，无则显式 `unexplained`（流动性/情绪等，禁止编造原因）。  
+- 复用/延伸 `GET /research/event-study`；主界面与报告共用同一计算结果。
+
+**准确性**
+
+- 仅前复权日线；估计窗与事件窗分离（防前视）。  
+- 缺行业指数或样本不足 → `partial=true` + 缺口说明，**禁止硬凑 β**。
+
+**验收**：焦点股 deep 报告可见三分解；至少一处特异高峰有事件挂载或明确 `unexplained`；导出含 `deep_analysis.impact`。
+
+#### 10.2 L2 Pricing（W2）
+
+**计算**
+
+- 在可得财务/估值序列上分解近期涨跌中的 **盈利变化贡献 vs 倍数变化贡献**（窗口与口径戳记必写）。  
+- 可选：在简化假设下给出 **隐含增速**（反向推演）；数据不足则整段 `partial`，不输出假精确。  
+- **不做**完整三表会计引擎 / 产品化 DCF / 自造目标价。  
+- PE/PB 分位、质量/成长因子与 Pricing **同源**；报告内禁止出现两套不一致的 PE。
+
+**准确性**
+
+- 无历史序列则不分位、不填默认 0.5。  
+- 口径（TTM/LYR、前复权）与因子条、导出一致。
+
+**验收**：deep 报告有定价桥或明确 partial；因子数值与 Pricing 引用一致；无目标价。
+
+#### 10.3 L3 Thesis（W3）
+
+**结构**（报告必出块，非可选散文）
+
+```ts
+type Thesis = {
+  claim: string;           // 核心主张（描述性，非下单指令）
+  evidence_ids: string[];  // 指向四维/Impact/Pricing 证据
+  monitors: string[];      // 关键跟踪变量
+  invalidate_if: string[]; // 失效条件
+  horizon: string;         // 时间窗表述
+  scenarios?: { base: string; upside?: string; downside?: string };
+};
+```
+
+**验证与复盘（Thesis 的两面，不另开产品）**
+
+- `hypothesis/verify` 规则加厚（估值×动量、ROE/成长等），用于压测主张相关假设；文案称「研究验证」。  
+- `timeline` 展示同标的历史结论 / Thesis 变更，可挂事后收益（PIT）。  
+- 辩论/大师点评若开启：对 Thesis 加压，不替代 Thesis 块。
+
+**准确性**
+
+- 验证与事后核对：`point_in_time=true`，只用报告快照因子 + 之后 qfq 日线，不重拉事后财务。  
+- 禁止伪装精确目标价与买卖指令（§六）。
+
+**验收**：deep 报告必有 Thesis 四要素（claim / evidence_ids / monitors / invalidate_if）；至少一条研究型假设规则可跑；同标的 ≥2 份报告时时间线可见且可挂事后收益。
+
+#### 10.4 横切与非目标
+
+- **导出**：`stockresearch.report.v1` 增加 `deep_analysis: { impact, pricing, thesis }`；MD/PDF 同步摘要。  
+- **PIT**：Impact 事件窗、Thesis 验证、时间线事后核对共用纪律。  
+- **非目标**：Qlib 依赖；vectorbt 级策略回测 UI；完整 DCF；BUY/SELL 北极星；为深度分析新开第四套 Shell；compare/batch 塞进主叙事。
+
+#### 10.5 落地波次
+
+| 波次 | 交付 | 对应 |
+|------|------|------|
+| **W1** | Impact 进焦点/Copilot/报告 + 事件挂载 + 导出字段 + PIT | L1 · 6.2 · 6.4 · 部分 6.1 |
+| **W2** | Pricing 桥 + 因子可信/同源收束 | L2 · 7a.3 |
+| **W3** | Thesis schema + 假设规则加厚 + 时间线复盘 Thesis | L3 · 6.5 · 7a.1 · 7a.2 |
+
+**产品验收（Phase 10）**：`analysis_depth=deep` 时报告块顺序为四维→Impact→Pricing→Thesis；三层缺数均 `partial` 而非静默编造；导出含 `deep_analysis` 与 PIT 戳记；无交易指令与自造目标价。
+
 ## 九、工程
 
 ```bash
@@ -313,6 +416,7 @@ cd desktop && npm install && npm run tauri dev
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **V10.15** | 2026-08-01 | Phase 10：深度分析三层（Impact/Pricing/Thesis）去重合并 Phase 6–7a；导出 `deep_analysis`；PIT 横切；明确非 Qlib/非完整 DCF |
 | **V10.14** | 2026-07-30 | Phase 9：K 线算法画线层（趋势+水平，≤4）；9a 前端先落地，9b Copilot 复用同 schema |
 | **V10.13** | 2026-07-27 | Copilot：仅「+」开新对话线；同窗续问不自动分叉，回合写入同一会话记忆 |
 | **V10.12** | 2026-07-26 | Phase 8：Tauri 2 桌面壳（macOS/Windows），启动 uvicorn + 可选 worker |
