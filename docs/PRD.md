@@ -401,6 +401,8 @@ type Thesis = {
 
 **产品验收（Phase 10）**：`analysis_depth=deep` 时报告块顺序为四维→Impact→Pricing→Thesis；三层缺数均 `partial` 而非静默编造；导出含 `deep_analysis` 与 PIT 戳记；无交易指令与自造目标价。
 
+**实现计划（本机）**：`docs/superpowers/plans/2026-08-01-phase10-deep-analysis.md`（`docs/*` 除 PRD/screenshots 外不入库；供 Agent 按任务执行 W1→W3）。
+
 ## 九、工程
 
 ```bash
