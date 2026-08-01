@@ -217,6 +217,35 @@ def _impact_section(impact) -> list[str]:
     return lines
 
 
+def _pricing_section(pricing) -> list[str]:
+    """深度分析 · 定价桥 — PE/earnings decomposition of recent return.
+
+    Honest-partial: only emits the lines whose values are present; gaps are
+    surfaced verbatim so the reader sees what is missing rather than a
+    fabricated number.
+    """
+    lines = ["## 深度分析 · 定价桥"]
+    if pricing.window_label:
+        lines.append(f"- 窗口：`{pricing.window_label}`")
+    if pricing.price_change_pct is not None:
+        lines.append(f"- 区间涨跌：**{pricing.price_change_pct:+.2f}%**")
+    if pricing.earnings_contrib_pct is not None:
+        lines.append(f"- 盈利贡献：{pricing.earnings_contrib_pct:+.2f}%")
+    if pricing.multiple_contrib_pct is not None:
+        lines.append(f"- 估值贡献（PE 变动）：{pricing.multiple_contrib_pct:+.2f}%")
+    if pricing.pe_end is not None:
+        lines.append(f"- PE(TTM) 终值：{pricing.pe_end:.2f}")
+    if pricing.pe_start is not None:
+        lines.append(f"- PE 起点：{pricing.pe_start:.2f}")
+    if pricing.implied_growth_pct is not None:
+        lines.append(f"- 隐含增长率：{pricing.implied_growth_pct:+.2f}%")
+    if pricing.factor_keys_used:
+        lines.append(f"- 使用因子：{', '.join(pricing.factor_keys_used)}")
+    if pricing.partial:
+        lines.append(f"- partial：{'；'.join(pricing.gaps) if pricing.gaps else 'yes'}")
+    return lines
+
+
 def report_to_markdown(report: ResearchReportOut) -> str:
     bias = _BIAS_LABEL.get(report.bias, report.bias)
     conf = _CONF_LABEL.get(report.composite_confidence, report.composite_confidence)
@@ -283,6 +312,9 @@ def report_to_markdown(report: ResearchReportOut) -> str:
         lines.append("")
     if report.deep_analysis is not None and report.deep_analysis.impact is not None:
         lines.extend(_impact_section(report.deep_analysis.impact))
+        lines.append("")
+    if report.deep_analysis is not None and report.deep_analysis.pricing is not None:
+        lines.extend(_pricing_section(report.deep_analysis.pricing))
         lines.append("")
     if report.leaders:
         lines.append("## 板块龙头简评")

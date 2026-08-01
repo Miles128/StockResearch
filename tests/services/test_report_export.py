@@ -130,3 +130,91 @@ def test_markdown_omits_deep_analysis_when_absent() -> None:
 def test_machine_payload_deep_analysis_none_when_absent() -> None:
     payload = report_machine_payload(_mini_report())
     assert payload["deep_analysis"] is None
+
+
+def test_export_includes_deep_analysis_pricing() -> None:
+    from stockresearch.core.schemas import DeepAnalysisOut, PricingBridgeOut
+
+    r = _mini_report()
+    r.analysis_depth = "deep"
+    r.deep_analysis = DeepAnalysisOut(
+        pricing=PricingBridgeOut(
+            window_label="60d qfq",
+            price_change_pct=8.5,
+            earnings_contrib_pct=4.2,
+            multiple_contrib_pct=None,
+            pe_start=None,
+            pe_end=28.0,
+            implied_growth_pct=None,
+            factor_keys_used=["np_yoy", "pe_percentile"],
+            partial=True,
+            gaps=["pe_start 不可用"],
+        )
+    )
+    payload = report_machine_payload(r)
+    assert payload["deep_analysis"]["pricing"]["price_change_pct"] == 8.5
+    assert payload["deep_analysis"]["pricing"]["pe_end"] == 28.0
+
+
+def test_markdown_includes_deep_analysis_pricing_section() -> None:
+    from stockresearch.core.schemas import DeepAnalysisOut, PricingBridgeOut
+
+    r = _mini_report()
+    r.analysis_depth = "deep"
+    r.deep_analysis = DeepAnalysisOut(
+        pricing=PricingBridgeOut(
+            window_label="60d qfq",
+            price_change_pct=6.5,
+            earnings_contrib_pct=3.0,
+            multiple_contrib_pct=None,
+            pe_start=None,
+            pe_end=22.0,
+            implied_growth_pct=None,
+            factor_keys_used=["np_yoy"],
+            partial=True,
+            gaps=["pe_start 不可用"],
+        )
+    )
+    md = report_to_markdown(r)
+    assert "## 深度分析 · 定价桥" in md
+    assert "6.5" in md
+    assert "3.0" in md
+    assert "22.0" in md
+    assert "np_yoy" in md
+
+
+def test_markdown_includes_both_impact_and_pricing_sections() -> None:
+    from stockresearch.core.schemas import DeepAnalysisOut, ImpactOut, PricingBridgeOut
+
+    r = _mini_report()
+    r.analysis_depth = "deep"
+    r.deep_analysis = DeepAnalysisOut(
+        impact=ImpactOut(
+            window_trading_days=20,
+            stock_return_pct=2.5,
+            market_contrib_pct=1.0,
+            industry_contrib_pct=0.4,
+            idio_return_pct=1.1,
+            partial=False,
+        ),
+        pricing=PricingBridgeOut(
+            window_label="60d qfq",
+            price_change_pct=5.0,
+            earnings_contrib_pct=2.0,
+            pe_end=20.0,
+            partial=True,
+            gaps=["pe_start 不可用"],
+        ),
+    )
+    md = report_to_markdown(r)
+    assert "## 深度分析 · 影响" in md
+    assert "## 深度分析 · 定价桥" in md
+    # Impact section present
+    assert "2.5" in md
+    # Pricing section present
+    assert "5.0" in md
+
+
+def test_markdown_omits_pricing_when_absent() -> None:
+    md = report_to_markdown(_mini_report())
+    assert "## 深度分析 · 定价桥" not in md

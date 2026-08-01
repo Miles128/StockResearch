@@ -1,4 +1,4 @@
-import type { ImpactOut, ImpactPeakDayOut, ResearchReport } from "./api";
+import type { ImpactOut, ImpactPeakDayOut, PricingBridgeOut, ResearchReport } from "./api";
 import { useI18n } from "./i18n";
 
 function fmtPct(value: number | null | undefined): string {
@@ -90,6 +90,45 @@ function ImpactBlock({
   );
 }
 
+function PricingBlock({
+  pricing,
+  t,
+}: {
+  pricing: PricingBridgeOut;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  const stats: { label: string; value: string }[] = [
+    { label: t("card.pricingPriceChange"), value: fmtPct(pricing.price_change_pct) },
+    { label: t("card.pricingEarnings"), value: fmtPct(pricing.earnings_contrib_pct) },
+    { label: t("card.pricingMultiple"), value: fmtPct(pricing.multiple_contrib_pct) },
+  ];
+  return (
+    <div className="pricing-block">
+      <p className="pricing-title">{t("card.pricingTitle")}</p>
+      <div className="impact-stats-row">
+        {stats.map((s) => (
+          <span key={s.label} className="stat-pill impact-stat">
+            <span className="impact-stat-label">{s.label}</span>
+            <span className="impact-stat-value">{s.value}</span>
+          </span>
+        ))}
+      </div>
+      <p className="muted impact-meta">
+        {pricing.window_label ? ` · ${pricing.window_label}` : ""}
+        {pricing.pe_end != null ? ` · PE(TTM) ${pricing.pe_end.toFixed(2)}` : ""}
+        {pricing.pe_start != null ? ` · PE 起 ${pricing.pe_start.toFixed(2)}` : ""}
+        {pricing.partial ? ` · ${t("card.factorPartial")}` : ""}
+      </p>
+      {pricing.gaps && pricing.gaps.length > 0 && (
+        <p className="muted impact-gaps">
+          <strong>{t("card.dataGaps")}：</strong>
+          {pricing.gaps.join("；")}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function DeepAnalysisBlock({
   report,
   compact = false,
@@ -99,11 +138,13 @@ export function DeepAnalysisBlock({
 }) {
   const { t } = useI18n();
   const impact = report.deep_analysis?.impact;
-  if (!impact) return null;
+  const pricing = report.deep_analysis?.pricing;
+  if (!impact && !pricing) return null;
   return (
     <details className={`deep-analysis-block${compact ? " compact" : ""}`} open={!compact}>
       <summary>{t("card.deepAnalysisTitle")}</summary>
-      <ImpactBlock impact={impact} t={t} />
+      {impact ? <ImpactBlock impact={impact} t={t} /> : null}
+      {pricing ? <PricingBlock pricing={pricing} t={t} /> : null}
     </details>
   );
 }

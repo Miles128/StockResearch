@@ -709,6 +709,10 @@ export const zh: Dict = {
     impactPeakDays: "峰值交易日",
     impactUnexplained: "未匹配事件",
     impactFwd5d: "后续5日 {value}",
+    pricingTitle: "定价桥（PE/盈利分解）",
+    pricingPriceChange: "区间涨跌",
+    pricingEarnings: "盈利贡献",
+    pricingMultiple: "估值贡献",
     impactEventKind: {
       earnings: "财报",
       risk: "风险",

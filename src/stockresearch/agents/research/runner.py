@@ -152,9 +152,27 @@ async def run_research(
             from stockresearch.services.impact import compute_impact
 
             impact = await compute_impact(symbol)
-            report.deep_analysis = DeepAnalysisOut(impact=impact)
+            if report.deep_analysis is None:
+                report.deep_analysis = DeepAnalysisOut(impact=impact)
+            else:
+                report.deep_analysis.impact = impact
         except Exception:
             logger.warning("impact failed for %s", symbol, exc_info=True)
+
+    # Pricing bridge is deep-only: comprehensive keeps Impact per PRD.
+    if budget.depth == "deep":
+        try:
+            from stockresearch.services.pricing_bridge import compute_pricing_bridge
+
+            pricing = await compute_pricing_bridge(symbol, report.factors)
+            if report.deep_analysis is None:
+                from stockresearch.core.schemas import DeepAnalysisOut
+
+                report.deep_analysis = DeepAnalysisOut(pricing=pricing)
+            else:
+                report.deep_analysis.pricing = pricing
+        except Exception:
+            logger.warning("pricing bridge failed for %s", symbol, exc_info=True)
 
     if enable_master_commentary and mode_settings is not None:
         masters = master_ids or resolve_master_ids(mode_settings)

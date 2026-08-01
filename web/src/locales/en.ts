@@ -712,6 +712,10 @@ export const en: Dict = {
     impactPeakDays: "Peak trading days",
     impactUnexplained: "Unmatched event",
     impactFwd5d: "Fwd 5d {value}",
+    pricingTitle: "Pricing bridge (PE/earnings)",
+    pricingPriceChange: "Price change",
+    pricingEarnings: "Earnings contrib",
+    pricingMultiple: "Multiple contrib",
     impactEventKind: {
       earnings: "Earnings",
       risk: "Risk",
