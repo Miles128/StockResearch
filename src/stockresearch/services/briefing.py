@@ -130,6 +130,38 @@ def _collect_market_block(overview) -> str:
     return "\n".join(lines)
 
 
+def _collect_kimi_block() -> str:
+    """读取 Kimi 预取的宏观/Wind 缓存，格式化为简报 prompt 块。无数据返回空串。"""
+    from stockresearch.data.providers.kimi_macro import MACRO_CACHE_KEY
+    from stockresearch.data.providers.kimi_wind import WIND_CACHE_KEY
+    from stockresearch.services.sqlite_cache import get_sqlite_cached
+
+    lines: list[str] = []
+    macro = get_sqlite_cached(MACRO_CACHE_KEY)
+    if macro:
+        lines.append(f"【宏观数据(Kimi, {macro.get('as_of', '?')})】")
+        for ind in macro.get("indicators") or []:
+            if isinstance(ind, dict):
+                lines.append(
+                    f"- {ind.get('name')}: {ind.get('value')}({ind.get('period')}){ind.get('comment', '')}"
+                )
+        for hl in macro.get("industry_highlights") or []:
+            if isinstance(hl, dict):
+                lines.append(f"- 行业·{hl.get('industry')}: {hl.get('summary')}")
+    wind = get_sqlite_cached(WIND_CACHE_KEY)
+    if wind:
+        lines.append(f"【市场公告与研报(Kimi, {wind.get('as_of', '?')})】")
+        for ann in wind.get("announcements") or []:
+            if isinstance(ann, dict):
+                lines.append(f"- 公告: {ann.get('title')} — {ann.get('summary')}")
+        for rep in wind.get("research_reports") or []:
+            if isinstance(rep, dict):
+                lines.append(
+                    f"- 研报: {rep.get('title')}({rep.get('org')},{rep.get('rating')})— {rep.get('summary')}"
+                )
+    return "\n".join(lines)
+
+
 def _split_news(news: list[NewsItemOut]) -> tuple[list[NewsItemOut], list[NewsItemOut], list[NewsItemOut]]:
     holding: list[NewsItemOut] = []
     sector: list[NewsItemOut] = []
@@ -256,15 +288,22 @@ async def generate_briefing(
     holding_news, sector_news, market_news = _split_news(news)
     holdings_block = await _collect_holdings_block(holdings, normalized)
     market_block = _collect_market_block(overview)
+    kimi_block = _collect_kimi_block()
 
     context_parts = [
         f"简报类型：{title}",
         holdings_block,
         market_block,
-        _format_news_block("持仓相关新闻", holding_news),
-        _format_news_block("行业新闻", sector_news),
-        _format_news_block("大盘新闻", market_news),
     ]
+    if kimi_block:
+        context_parts.append(kimi_block)
+    context_parts.extend(
+        [
+            _format_news_block("持仓相关新闻", holding_news),
+            _format_news_block("行业新闻", sector_news),
+            _format_news_block("大盘新闻", market_news),
+        ]
+    )
     if alerts:
         context_parts.append(
             "【风控提醒】\n" + "\n".join(f"- [{a.severity}] {a.message}" for a in alerts)
