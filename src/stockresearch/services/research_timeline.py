@@ -89,7 +89,22 @@ def entry_from_payload(
             else None
         ),
         factors=snapshot_factors(payload),
+        thesis_claim=_thesis_claim(payload),
     )
+
+
+def _thesis_claim(payload: dict[str, object]) -> str | None:
+    """Copy thesis.claim from report_json deep_analysis if present."""
+    deep = payload.get("deep_analysis")
+    if not isinstance(deep, dict):
+        return None
+    thesis = deep.get("thesis")
+    if not isinstance(thesis, dict):
+        return None
+    claim = thesis.get("claim")
+    if isinstance(claim, str) and claim.strip():
+        return claim.strip()
+    return None
 
 
 def _post_hoc_for_day(

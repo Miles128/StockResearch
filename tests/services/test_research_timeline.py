@@ -54,3 +54,45 @@ def test_entry_from_payload_trims_summary() -> None:
     assert len(entry.summary) == 160
     assert entry.analysis_depth == "deep"
     assert entry.factor_alignment_note is not None
+
+
+def test_entry_from_payload_copies_thesis_claim() -> None:
+    entry = entry_from_payload(
+        report_id=10,
+        created_at=datetime(2026, 4, 1, tzinfo=UTC),
+        payload={
+            "bias": "bullish",
+            "composite_score": 7.0,
+            "summary": "with thesis",
+            "deep_analysis": {
+                "thesis": {
+                    "claim": "估值低位叠加动量转正，看好后续修复",
+                    "evidence_ids": ["factor:pe_percentile"],
+                }
+            },
+        },
+    )
+    assert entry.thesis_claim == "估值低位叠加动量转正，看好后续修复"
+
+
+def test_entry_from_payload_thesis_claim_none_when_absent() -> None:
+    entry = entry_from_payload(
+        report_id=11,
+        created_at=datetime(2026, 5, 1, tzinfo=UTC),
+        payload={"bias": "neutral", "composite_score": 5, "summary": "no thesis"},
+    )
+    assert entry.thesis_claim is None
+
+
+def test_entry_from_payload_thesis_claim_none_when_thesis_missing_claim() -> None:
+    entry = entry_from_payload(
+        report_id=12,
+        created_at=datetime(2026, 6, 1, tzinfo=UTC),
+        payload={
+            "bias": "neutral",
+            "composite_score": 5,
+            "summary": "thesis without claim",
+            "deep_analysis": {"thesis": {"evidence_ids": ["x"]}},
+        },
+    )
+    assert entry.thesis_claim is None

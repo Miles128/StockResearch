@@ -883,6 +883,7 @@ class ResearchTimelineEntryOut(BaseModel):
     post_hoc: list[ReportPostHocHorizon] = Field(default_factory=list)
     bias_changed: bool = False
     score_delta: float | None = None
+    thesis_claim: str | None = None
 
 
 class ResearchTimelineOut(BaseModel):
