@@ -154,6 +154,21 @@ async def _attach_deep_analysis(
         except Exception:
             logger.warning("pricing bridge failed for %s", symbol, exc_info=True)
 
+    # Thesis is deep-only and must run AFTER impact + pricing so it can cite them.
+    if depth == "deep":
+        try:
+            from stockresearch.services.thesis_build import build_thesis
+
+            thesis = build_thesis(report)
+            if report.deep_analysis is None:
+                from stockresearch.core.schemas import DeepAnalysisOut
+
+                report.deep_analysis = DeepAnalysisOut(thesis=thesis)
+            else:
+                report.deep_analysis.thesis = thesis
+        except Exception:
+            logger.warning("thesis build failed for %s", symbol, exc_info=True)
+
 
 async def run_research_stream(
     symbol: str,

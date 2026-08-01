@@ -716,6 +716,11 @@ export const en: Dict = {
     pricingPriceChange: "Price change",
     pricingEarnings: "Earnings contrib",
     pricingMultiple: "Multiple contrib",
+    thesisTitle: "Thesis",
+    thesisHorizon: "Horizon: {horizon}",
+    thesisMonitors: "Monitors",
+    thesisInvalidateIf: "Invalidate if",
+    thesisEvidence: "Evidence",
     impactEventKind: {
       earnings: "Earnings",
       risk: "Risk",

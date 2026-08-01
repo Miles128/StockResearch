@@ -167,9 +167,10 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
           )}
         />
       )}
-      {report.deep_analysis?.impact && !brief && (
-        <DeepAnalysisBlock report={report} compact />
-      )}
+      {(report.deep_analysis?.impact ||
+        report.deep_analysis?.pricing ||
+        report.deep_analysis?.thesis) &&
+        !brief && <DeepAnalysisBlock report={report} compact />}
       {report.data_gaps && report.data_gaps.length > 0 && !brief && (
         <p className="muted light-research-gaps">
           <strong>{t("card.dataGaps")}：</strong>

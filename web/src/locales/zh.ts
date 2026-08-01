@@ -713,6 +713,11 @@ export const zh: Dict = {
     pricingPriceChange: "区间涨跌",
     pricingEarnings: "盈利贡献",
     pricingMultiple: "估值贡献",
+    thesisTitle: "研究论点（Thesis）",
+    thesisHorizon: "观察窗口：{horizon}",
+    thesisMonitors: "持续监控",
+    thesisInvalidateIf: "证伪条件",
+    thesisEvidence: "证据",
     impactEventKind: {
       earnings: "财报",
       risk: "风险",

@@ -1845,6 +1845,40 @@
   margin-top: 8px;
 }
 
+.thesis-block {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--bbg-border);
+}
+
+.thesis-title {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.thesis-claim {
+  font-size: 12.5px;
+  margin: 0 0 4px;
+}
+
+.thesis-horizon,
+.thesis-evidence,
+.thesis-partial {
+  font-size: 12px;
+  margin: 4px 0;
+}
+
+.thesis-list-block {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.thesis-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
 .impact-stats-row {
   display: flex;
   flex-wrap: wrap;

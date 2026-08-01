@@ -1,4 +1,4 @@
-import type { ImpactOut, ImpactPeakDayOut, PricingBridgeOut, ResearchReport } from "./api";
+import type { ImpactOut, ImpactPeakDayOut, PricingBridgeOut, ResearchReport, ThesisOut } from "./api";
 import { useI18n } from "./i18n";
 
 function fmtPct(value: number | null | undefined): string {
@@ -129,6 +129,51 @@ function PricingBlock({
   );
 }
 
+function ThesisBlock({
+  thesis,
+  t,
+}: {
+  thesis: ThesisOut;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  return (
+    <div className="thesis-block">
+      <p className="thesis-title">{t("card.thesisTitle")}</p>
+      <p className="thesis-claim">{thesis.claim}</p>
+      {thesis.horizon ? (
+        <p className="muted thesis-horizon">{t("card.thesisHorizon", { horizon: thesis.horizon })}</p>
+      ) : null}
+      {thesis.monitors && thesis.monitors.length > 0 && (
+        <div className="thesis-list-block">
+          <strong>{t("card.thesisMonitors")}</strong>
+          <ul className="thesis-list">
+            {thesis.monitors.map((m, i) => (
+              <li key={i}>{m}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {thesis.invalidate_if && thesis.invalidate_if.length > 0 && (
+        <div className="thesis-list-block">
+          <strong>{t("card.thesisInvalidateIf")}</strong>
+          <ul className="thesis-list">
+            {thesis.invalidate_if.map((c, i) => (
+              <li key={i}>{c}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {thesis.evidence_ids && thesis.evidence_ids.length > 0 && (
+        <p className="muted thesis-evidence">
+          <strong>{t("card.thesisEvidence")}</strong>
+          {thesis.evidence_ids.join(" · ")}
+        </p>
+      )}
+      {thesis.partial ? <p className="muted thesis-partial">{t("card.factorPartial")}</p> : null}
+    </div>
+  );
+}
+
 export function DeepAnalysisBlock({
   report,
   compact = false,
@@ -139,12 +184,14 @@ export function DeepAnalysisBlock({
   const { t } = useI18n();
   const impact = report.deep_analysis?.impact;
   const pricing = report.deep_analysis?.pricing;
-  if (!impact && !pricing) return null;
+  const thesis = report.deep_analysis?.thesis;
+  if (!impact && !pricing && !thesis) return null;
   return (
     <details className={`deep-analysis-block${compact ? " compact" : ""}`} open={!compact}>
       <summary>{t("card.deepAnalysisTitle")}</summary>
       {impact ? <ImpactBlock impact={impact} t={t} /> : null}
       {pricing ? <PricingBlock pricing={pricing} t={t} /> : null}
+      {thesis ? <ThesisBlock thesis={thesis} t={t} /> : null}
     </details>
   );
 }

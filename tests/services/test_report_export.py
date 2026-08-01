@@ -218,3 +218,54 @@ def test_markdown_includes_both_impact_and_pricing_sections() -> None:
 def test_markdown_omits_pricing_when_absent() -> None:
     md = report_to_markdown(_mini_report())
     assert "## 深度分析 · 定价桥" not in md
+
+
+def test_markdown_includes_deep_analysis_thesis_section() -> None:
+    from stockresearch.core.schemas import DeepAnalysisOut, ThesisOut
+
+    r = _mini_report()
+    r.analysis_depth = "deep"
+    r.deep_analysis = DeepAnalysisOut(
+        thesis=ThesisOut(
+            claim="综合倾向偏多，营收稳健，近期特质收益为正。",
+            evidence_ids=["dim:fundamental", "impact:idio"],
+            monitors=["补全因子：20日动量", "跟踪因子：净利同比"],
+            invalidate_if=["综合评分转弱且倾向转为偏空或中性", "20日动量转负"],
+            horizon="20个交易日观察窗",
+            partial=False,
+        )
+    )
+    md = report_to_markdown(r)
+    assert "## 深度分析 · 研究论点" in md
+    assert "综合倾向偏多" in md
+    assert "20个交易日观察窗" in md
+    assert "dim:fundamental" in md
+    assert "impact:idio" in md
+    assert "补全因子：20日动量" in md
+    assert "20日动量转负" in md
+
+
+def test_markdown_omits_thesis_when_absent() -> None:
+    md = report_to_markdown(_mini_report())
+    assert "## 深度分析 · 研究论点" not in md
+
+
+def test_machine_payload_includes_thesis() -> None:
+    from stockresearch.core.schemas import DeepAnalysisOut, ThesisOut
+
+    r = _mini_report()
+    r.analysis_depth = "deep"
+    r.deep_analysis = DeepAnalysisOut(
+        thesis=ThesisOut(
+            claim="综合倾向偏多。",
+            evidence_ids=["dim:fundamental"],
+            monitors=[],
+            invalidate_if=[],
+            horizon="20个交易日观察窗",
+            partial=True,
+        )
+    )
+    payload = report_machine_payload(r)
+    assert payload["deep_analysis"]["thesis"]["claim"] == "综合倾向偏多。"
+    assert payload["deep_analysis"]["thesis"]["horizon"] == "20个交易日观察窗"
+    assert payload["deep_analysis"]["thesis"]["partial"] is True

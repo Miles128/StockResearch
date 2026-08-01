@@ -246,6 +246,32 @@ def _pricing_section(pricing) -> list[str]:
     return lines
 
 
+def _thesis_section(thesis) -> list[str]:
+    """深度分析 · 研究论点 — claim, monitors, invalidate_if, horizon.
+
+    Descriptive only (no trade verbs). Lists are emitted only when non-empty
+    so a partial thesis does not produce empty bullets.
+    """
+    lines = ["## 深度分析 · 研究论点"]
+    if thesis.claim:
+        lines.append(f"- 论点：{thesis.claim}")
+    if thesis.horizon:
+        lines.append(f"- 观察窗口：{thesis.horizon}")
+    if thesis.evidence_ids:
+        lines.append("- 证据：" + " · ".join(thesis.evidence_ids))
+    if thesis.monitors:
+        lines.append("- 持续监控：")
+        for item in thesis.monitors:
+            lines.append(f"  - {item}")
+    if thesis.invalidate_if:
+        lines.append("- 证伪条件：")
+        for item in thesis.invalidate_if:
+            lines.append(f"  - {item}")
+    if thesis.partial:
+        lines.append("- partial：yes")
+    return lines
+
+
 def report_to_markdown(report: ResearchReportOut) -> str:
     bias = _BIAS_LABEL.get(report.bias, report.bias)
     conf = _CONF_LABEL.get(report.composite_confidence, report.composite_confidence)
@@ -315,6 +341,9 @@ def report_to_markdown(report: ResearchReportOut) -> str:
         lines.append("")
     if report.deep_analysis is not None and report.deep_analysis.pricing is not None:
         lines.extend(_pricing_section(report.deep_analysis.pricing))
+        lines.append("")
+    if report.deep_analysis is not None and report.deep_analysis.thesis is not None:
+        lines.extend(_thesis_section(report.deep_analysis.thesis))
         lines.append("")
     if report.leaders:
         lines.append("## 板块龙头简评")

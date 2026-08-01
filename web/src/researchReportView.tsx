@@ -289,9 +289,12 @@ export function ResearchReportDetails({
           )}
         />
       )}
-      {showDeepAnalysis && report.deep_analysis?.impact && (
-        <DeepAnalysisBlock report={report} />
-      )}
+      {showDeepAnalysis &&
+        (report.deep_analysis?.impact ||
+          report.deep_analysis?.pricing ||
+          report.deep_analysis?.thesis) && (
+          <DeepAnalysisBlock report={report} />
+        )}
       {showDebate && report.debate && (
         <details className="research-debate-details">
           <summary>{t("card.debateSection")}</summary>
