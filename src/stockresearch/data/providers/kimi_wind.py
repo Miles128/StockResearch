@@ -16,7 +16,7 @@ _WIND_PROMPT = """请整理今日 A 股市场重要公告与券商研报摘要,�
   "as_of": "数据日期 YYYY-MM-DD",
   "announcements": [{"title": "公告标题", "summary": "一句话摘要", "symbols": ["相关股票代码"]}],
   "research_reports": [{"title": "研报标题", "org": "券商", "rating": "评级",
-                        "summary": "核心观点"}]
+                        "summary": "核心观点一句话"}]
 }
 announcements 取全市场最重要的 5-8 条;research_reports 取 3-5 条。"""
 

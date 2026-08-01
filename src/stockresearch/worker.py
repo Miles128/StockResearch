@@ -19,6 +19,7 @@ import signal
 from stockresearch.db.session import init_db
 from stockresearch.services.briefing_scheduler import get_scheduler
 from stockresearch.services.daily_bar_scheduler import get_daily_bar_scheduler
+from stockresearch.services.kimi_prefetch_scheduler import get_kimi_prefetch_scheduler
 from stockresearch.services.price_alert_scheduler import get_price_alert_scheduler
 from stockresearch.services.scheduler_lock import scheduler_lock
 
@@ -49,6 +50,7 @@ async def run_worker() -> int:
         get_scheduler().start()
         get_price_alert_scheduler().start()
         get_daily_bar_scheduler().start()
+        get_kimi_prefetch_scheduler().start()
 
         stop_event = asyncio.Event()
 
@@ -64,6 +66,7 @@ async def run_worker() -> int:
         try:
             await stop_event.wait()
         finally:
+            get_kimi_prefetch_scheduler().shutdown()
             get_daily_bar_scheduler().shutdown()
             get_price_alert_scheduler().shutdown()
             get_scheduler().shutdown()
