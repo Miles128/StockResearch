@@ -321,6 +321,61 @@ class MasterCommentaryItem(BaseModel):
     key_metric: str = ""
 
 
+class ImpactPeakDayOut(BaseModel):
+    date: str
+    idio_return_pct: float
+    event_title: str | None = None
+    event_kind: str | None = None  # earnings | risk | other | None
+    event_fwd_return_5d_pct: float | None = None
+    unexplained: bool = False
+
+
+class ImpactOut(BaseModel):
+    window_trading_days: int = 20
+    stock_return_pct: float | None = None
+    market_contrib_pct: float | None = None
+    industry_contrib_pct: float | None = None
+    idio_return_pct: float | None = None
+    model: str = "two_step_residual_v1"
+    r_squared: float | None = None
+    market_symbol: str = "000300"
+    industry_proxy: str = "peer_ew"  # peer equal-weight basket
+    partial: bool = False
+    gaps: list[str] = Field(default_factory=list)
+    peak_days: list[ImpactPeakDayOut] = Field(default_factory=list)
+    point_in_time: bool = True
+
+
+class PricingBridgeOut(BaseModel):
+    window_label: str = ""
+    price_change_pct: float | None = None
+    earnings_contrib_pct: float | None = None
+    multiple_contrib_pct: float | None = None
+    pe_start: float | None = None
+    pe_end: float | None = None
+    implied_growth_pct: float | None = None
+    factor_keys_used: list[str] = Field(default_factory=list)
+    partial: bool = False
+    gaps: list[str] = Field(default_factory=list)
+    point_in_time: bool = True
+
+
+class ThesisOut(BaseModel):
+    claim: str
+    evidence_ids: list[str] = Field(default_factory=list)
+    monitors: list[str] = Field(default_factory=list)
+    invalidate_if: list[str] = Field(default_factory=list)
+    horizon: str = ""
+    scenarios: dict[str, str] | None = None
+    partial: bool = False
+
+
+class DeepAnalysisOut(BaseModel):
+    impact: ImpactOut | None = None
+    pricing: PricingBridgeOut | None = None
+    thesis: ThesisOut | None = None
+
+
 class ResearchReportOut(BaseModel):
     symbol: str
     name: str
@@ -344,6 +399,7 @@ class ResearchReportOut(BaseModel):
     dimension_weights: dict[str, float] = Field(default_factory=dict)
     master_commentary: list[MasterCommentaryItem] = Field(default_factory=list)
     analysis_depth: Literal["standard", "comprehensive", "deep"] = "standard"
+    deep_analysis: DeepAnalysisOut | None = None
     factors_expanded: bool = False
     factor_alignment_note: str | None = None
     enable_signal_verify_hook: bool = False
