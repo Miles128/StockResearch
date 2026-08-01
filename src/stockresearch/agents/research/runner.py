@@ -146,6 +146,16 @@ async def run_research(
         enable_signal_verify_hook=budget.enable_signal_verify_hook,
     )
 
+    if budget.depth in ("deep", "comprehensive"):
+        try:
+            from stockresearch.core.schemas import DeepAnalysisOut
+            from stockresearch.services.impact import compute_impact
+
+            impact = await compute_impact(symbol)
+            report.deep_analysis = DeepAnalysisOut(impact=impact)
+        except Exception:
+            logger.warning("impact failed for %s", symbol, exc_info=True)
+
     if enable_master_commentary and mode_settings is not None:
         masters = master_ids or resolve_master_ids(mode_settings)
         commentary = await get_master_commentary(

@@ -104,6 +104,9 @@ def report_machine_payload(report: ResearchReportOut) -> dict[str, object]:
             key: {"score": dim.score, "confidence": dim.confidence, "agent": dim.agent}
             for key, dim in report.dimensions.items()
         },
+        "deep_analysis": (
+            report.deep_analysis.model_dump() if report.deep_analysis is not None else None
+        ),
         "id": report.id,
         "disclaimer": report.disclaimer,
     }
@@ -193,6 +196,27 @@ def report_to_csv(report: ResearchReportOut) -> str:
     return buf.getvalue()
 
 
+def _impact_section(impact) -> list[str]:
+    """深度分析 · 影响 — attribution lines only, no trade verbs."""
+    lines = [
+        "## 深度分析 · 影响",
+        f"- 窗口：{impact.window_trading_days} 个交易日 · 基准：`{impact.market_symbol}` · 模型：`{impact.model}`",
+    ]
+    if impact.stock_return_pct is not None:
+        lines.append(f"- 个股累计：**{impact.stock_return_pct:+.2f}%**")
+    if impact.market_contrib_pct is not None:
+        lines.append(f"- 市场贡献：{impact.market_contrib_pct:+.2f}%")
+    if impact.industry_contrib_pct is not None:
+        lines.append(f"- 行业贡献（peer EW 代理）：{impact.industry_contrib_pct:+.2f}%")
+    if impact.idio_return_pct is not None:
+        lines.append(f"- 特质收益：{impact.idio_return_pct:+.2f}%")
+    if impact.r_squared is not None:
+        lines.append(f"- β 拟合 R²：{impact.r_squared:.2f}")
+    if impact.partial:
+        lines.append(f"- partial：{'；'.join(impact.gaps) if impact.gaps else 'yes'}")
+    return lines
+
+
 def report_to_markdown(report: ResearchReportOut) -> str:
     bias = _BIAS_LABEL.get(report.bias, report.bias)
     conf = _CONF_LABEL.get(report.composite_confidence, report.composite_confidence)
@@ -256,6 +280,9 @@ def report_to_markdown(report: ResearchReportOut) -> str:
         lines.append("")
     if report.debate:
         lines.extend(_debate_section(report.debate))
+        lines.append("")
+    if report.deep_analysis is not None and report.deep_analysis.impact is not None:
+        lines.extend(_impact_section(report.deep_analysis.impact))
         lines.append("")
     if report.leaders:
         lines.append("## 板块龙头简评")

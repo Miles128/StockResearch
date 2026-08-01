@@ -119,6 +119,22 @@ def _build_report(
     )
 
 
+async def _attach_deep_analysis(
+    report: ResearchReportOut, depth: AnalysisDepth, symbol: str
+) -> None:
+    """For deep/comprehensive depth, compute Impact and attach to the report."""
+    if depth not in ("deep", "comprehensive"):
+        return
+    try:
+        from stockresearch.core.schemas import DeepAnalysisOut
+        from stockresearch.services.impact import compute_impact
+
+        impact = await compute_impact(symbol)
+        report.deep_analysis = DeepAnalysisOut(impact=impact)
+    except Exception:
+        logger.warning("impact failed for %s", symbol, exc_info=True)
+
+
 async def run_research_stream(
     symbol: str,
     llm: LLMClient | None = None,
@@ -203,6 +219,7 @@ async def run_research_stream(
             factor_alignment_note=_alignment_for(None),
             enable_signal_verify_hook=budget.enable_signal_verify_hook,
         )
+        await _attach_deep_analysis(report, budget.depth, symbol)
         yield status_event("status.research.report_done")
         yield {"type": "done", "result": report.model_dump(mode="json")}
         return
@@ -314,6 +331,7 @@ async def run_research_stream(
         factor_alignment_note=_alignment_for(debate),
         enable_signal_verify_hook=budget.enable_signal_verify_hook,
     )
+    await _attach_deep_analysis(report, budget.depth, symbol)
 
     if enable_master_commentary and mode_settings is not None:
         masters = master_ids or resolve_master_ids(mode_settings)

@@ -77,3 +77,56 @@ def test_markdown_includes_numeric_factors_section() -> None:
     assert "## 数值因子" in md
     assert "## 日线口径" in md
     assert "comprehensive" in md
+
+
+def test_export_includes_deep_analysis_impact() -> None:
+    from stockresearch.core.schemas import DeepAnalysisOut, ImpactOut
+
+    r = _mini_report()
+    r.analysis_depth = "deep"
+    r.deep_analysis = DeepAnalysisOut(
+        impact=ImpactOut(
+            window_trading_days=20,
+            stock_return_pct=1.0,
+            market_contrib_pct=0.5,
+            industry_contrib_pct=0.2,
+            idio_return_pct=0.3,
+            partial=False,
+        )
+    )
+    payload = report_machine_payload(r)
+    assert payload["deep_analysis"]["impact"]["window_trading_days"] == 20
+    assert payload["deep_analysis"]["impact"]["stock_return_pct"] == 1.0
+
+
+def test_markdown_includes_deep_analysis_impact_section() -> None:
+    from stockresearch.core.schemas import DeepAnalysisOut, ImpactOut
+
+    r = _mini_report()
+    r.analysis_depth = "deep"
+    r.deep_analysis = DeepAnalysisOut(
+        impact=ImpactOut(
+            window_trading_days=20,
+            stock_return_pct=2.5,
+            market_contrib_pct=1.0,
+            industry_contrib_pct=0.4,
+            idio_return_pct=1.1,
+            partial=False,
+        )
+    )
+    md = report_to_markdown(r)
+    assert "## 深度分析 · 影响" in md
+    assert "2.5" in md
+    assert "1.0" in md
+    assert "0.4" in md
+    assert "1.1" in md
+
+
+def test_markdown_omits_deep_analysis_when_absent() -> None:
+    md = report_to_markdown(_mini_report())
+    assert "## 深度分析 · 影响" not in md
+
+
+def test_machine_payload_deep_analysis_none_when_absent() -> None:
+    payload = report_machine_payload(_mini_report())
+    assert payload["deep_analysis"] is None
