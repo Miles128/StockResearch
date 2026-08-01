@@ -188,6 +188,98 @@ async def test_compute_pricing_bridge_honest_partial(monkeypatch: pytest.MonkeyP
 
 
 @pytest.mark.asyncio
+async def test_compute_pricing_bridge_requests_61_bars_for_60d(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from stockresearch.services.daily_bars import BarsMeta
+
+    requested_days: list[int] = []
+
+    async def _fake_meta(symbol: str, days: int = 90):
+        requested_days.append(days)
+        return BarsMeta(
+            bars=[
+                {
+                    "date": f"2024-01-{i + 1:02d}",
+                    "open": 10,
+                    "high": 11,
+                    "low": 9,
+                    "close": 100.0 + i,
+                    "volume": 1000,
+                }
+                for i in range(61)
+            ],
+            source="warehouse",
+            adjust="qfq",
+            as_of="2024-03-01",
+        )
+
+    monkeypatch.setattr(
+        "stockresearch.services.pricing_bridge.get_bars_meta_for_symbol",
+        _fake_meta,
+    )
+
+    class _FakeProvider:
+        async def get_valuation(self, symbol: str):
+            return {"pe_ttm": 20.0, "source": "mock", "partial": False, "gaps": []}
+
+    monkeypatch.setattr(
+        "stockresearch.services.pricing_bridge.FinancialDataProvider",
+        _FakeProvider,
+    )
+
+    out = await compute_pricing_bridge("600519", [_factor("np_yoy", 5.0)])
+    assert requested_days == [61]
+    assert out.window_label.startswith("60d")
+    assert "20d" not in out.window_label
+    assert out.price_change_pct == round((160.0 / 100.0 - 1.0) * 100.0, 2)
+
+
+@pytest.mark.asyncio
+async def test_compute_pricing_bridge_60_closes_falls_back_to_20d(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from stockresearch.services.daily_bars import BarsMeta
+
+    async def _fake_meta(symbol: str, days: int = 90):
+        return BarsMeta(
+            bars=[
+                {
+                    "date": f"2024-01-{i + 1:02d}",
+                    "open": 10,
+                    "high": 11,
+                    "low": 9,
+                    "close": 100.0 + i * 0.5,
+                    "volume": 1000,
+                }
+                for i in range(60)
+            ],
+            source="warehouse",
+            adjust="qfq",
+            as_of="2024-03-01",
+        )
+
+    monkeypatch.setattr(
+        "stockresearch.services.pricing_bridge.get_bars_meta_for_symbol",
+        _fake_meta,
+    )
+
+    class _FakeProvider:
+        async def get_valuation(self, symbol: str):
+            return {"pe_ttm": 20.0, "source": "mock", "partial": False, "gaps": []}
+
+    monkeypatch.setattr(
+        "stockresearch.services.pricing_bridge.FinancialDataProvider",
+        _FakeProvider,
+    )
+
+    out = await compute_pricing_bridge("600519", [_factor("np_yoy", 5.0)])
+    assert "20d" in out.window_label
+    assert out.price_change_pct is not None
+    assert any("60" in g for g in out.gaps)
+
+
+@pytest.mark.asyncio
 async def test_compute_pricing_bridge_no_bars(monkeypatch: pytest.MonkeyPatch) -> None:
     from stockresearch.services.daily_bars import BarsMeta
 

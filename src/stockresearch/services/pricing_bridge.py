@@ -150,7 +150,7 @@ async def compute_pricing_bridge(
     partial = False
 
     # 1) price_change_pct from qfq bars (~60d).
-    meta = await get_bars_meta_for_symbol(symbol, days=_WINDOW)
+    meta = await get_bars_meta_for_symbol(symbol, days=_WINDOW + 1)
     closes = [
         float(b["close"]) for b in meta.bars if b.get("close") is not None
     ]
