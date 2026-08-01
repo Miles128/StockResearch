@@ -217,16 +217,27 @@ async def compute_impact(
     stock_closes = [float(stock_by_date[d]["close"]) for d in common]
     stock_rets = _daily_rets(stock_closes)  # len = len(common) - 1
 
-    # 5. OLS β over the aligned estimation sample (≥20 points preferred).
+    # 5. OLS β on pre-window estimation sample when enough history exists;
+    # attribute over the last `window` days. Fall back to full-series β with
+    # gap `beta_est_overlaps_window` when pre-window sample < 15 points.
     mkt_rets: list[float] | None = None
     beta: float | None = None
     r2: float | None = None
+    win = min(window, len(stock_rets))
     if mkt_by_date:
         mkt_closes = [float(mkt_by_date[d]["close"]) for d in common]
         mkt_rets_full = _daily_rets(mkt_closes)
-        # Align lengths: returns are one shorter than closes.
         n = min(len(stock_rets), len(mkt_rets_full))
-        if n >= 15:
+        est_stock = stock_rets[:-win] if win < n else []
+        est_mkt = mkt_rets_full[:-win] if win < n else []
+        est_n = min(len(est_stock), len(est_mkt))
+        if est_n >= 15:
+            beta_val, r2_val = _ols_beta(est_stock[-est_n:], est_mkt[-est_n:])
+            beta, r2 = beta_val, r2_val
+            mkt_rets = mkt_rets_full[-n:]
+        elif n >= 15:
+            gaps.append("beta_est_overlaps_window")
+            partial = True
             beta_val, r2_val = _ols_beta(stock_rets[-n:], mkt_rets_full[-n:])
             beta, r2 = beta_val, r2_val
             mkt_rets = mkt_rets_full[-n:]
@@ -241,7 +252,6 @@ async def compute_impact(
     gaps.extend(peer_gaps)
 
     # 6. Attribution over the last `window` days of the aligned return series.
-    win = min(window, len(stock_rets))
     stock_win = stock_rets[-win:]
     mkt_win = mkt_rets[-win:] if mkt_rets is not None else None
     ind_win = ind_rets[-win:] if ind_rets is not None else None
@@ -268,7 +278,7 @@ async def compute_impact(
         stock_return_pct=decomp["stock_return_pct"],
         market_contrib_pct=decomp["market_contrib_pct"],
         industry_contrib_pct=decomp["industry_contrib_pct"] if ind_win is not None else None,
-        idio_return_pct=decomp["idio_return_pct"] if ind_win is not None else None,
+        idio_return_pct=decomp["idio_return_pct"],
         model="two_step_residual_v1;return_agg=sum_simple_pct",
         r_squared=r2,
         market_symbol=market_symbol,

@@ -52,6 +52,36 @@ def test_decompose_window_without_industry() -> None:
     assert out["market_contrib_pct"] == 4.0
     assert out["industry_contrib_pct"] == 0.0
     assert out["idio_return_pct"] == -2.0
+    assert out["idio_return_pct"] == out["stock_return_pct"] - out["market_contrib_pct"]
+
+
+def test_idio_preserved_when_industry_proxy_missing() -> None:
+    """Call-site rule: null industry_contrib only; idio always from decomp."""
+    decomp = _decompose_window([0.03, -0.01], [0.01, 0.01], None, beta=2.0)
+    ind_win = None
+    industry_contrib_pct = decomp["industry_contrib_pct"] if ind_win is not None else None
+    idio_return_pct = decomp["idio_return_pct"]
+    assert industry_contrib_pct is None
+    assert idio_return_pct == -2.0
+    assert idio_return_pct == decomp["stock_return_pct"] - decomp["market_contrib_pct"]
+
+
+def test_ols_beta_pre_window_sample() -> None:
+    """β estimated on pre-window returns does not include attribution window."""
+    # 20 estimation days + 5 attribution days; y = 1.5 * x on estimation slice.
+    est_x = [0.01 * (i % 3 - 1) for i in range(20)]
+    est_y = [1.5 * v for v in est_x]
+    attr_x = [0.02, -0.01, 0.03, 0.0, -0.02]
+    attr_y = [0.99 * v for v in attr_x]  # deliberately off-beta in window
+    x = est_x + attr_x
+    y = est_y + attr_y
+    win = 5
+    beta, _ = _ols_beta(y[:-win], x[:-win])
+    assert abs(beta - 1.5) < 1e-9
+    decomp = _decompose_window(y[-win:], x[-win:], None, beta=beta)
+    assert decomp["idio_return_pct"] == round(
+        decomp["stock_return_pct"] - decomp["market_contrib_pct"], 4
+    )
 
 
 def test_decompose_window_rounds_to_four_decimals() -> None:
