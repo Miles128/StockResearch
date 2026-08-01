@@ -1,4 +1,5 @@
 import type { AshareFactor, DebateResult, NumericFactor, ResearchReport } from "./api";
+import { DeepAnalysisBlock } from "./DeepAnalysisBlock";
 import { DimensionCards, dimensionItemsFromResults } from "./DimensionCards";
 import { MarkdownContent } from "./MarkdownContent";
 import { ResearchTrustStrip } from "./ResearchTrustStrip";
@@ -285,6 +286,9 @@ export function ResearchReportDetails({
             localizeAgentDisplay(key, agent, t),
           )}
         />
+      )}
+      {report.deep_analysis?.impact && (
+        <DeepAnalysisBlock report={report} />
       )}
       {showDebate && report.debate && (
         <details className="research-debate-details">

@@ -879,6 +879,61 @@ export interface BatchResearch {
   notes?: string[];
 }
 
+export interface ImpactPeakDayOut {
+  date: string;
+  idio_return_pct: number;
+  event_title?: string | null;
+  event_kind?: "earnings" | "risk" | "other" | null;
+  event_fwd_return_5d_pct?: number | null;
+  unexplained?: boolean;
+}
+
+export interface ImpactOut {
+  window_trading_days: number;
+  stock_return_pct?: number | null;
+  market_contrib_pct?: number | null;
+  industry_contrib_pct?: number | null;
+  idio_return_pct?: number | null;
+  model?: string;
+  r_squared?: number | null;
+  market_symbol?: string;
+  industry_proxy?: string;
+  partial?: boolean;
+  gaps?: string[];
+  peak_days?: ImpactPeakDayOut[];
+  point_in_time?: boolean;
+}
+
+export interface PricingBridgeOut {
+  window_label?: string;
+  price_change_pct?: number | null;
+  earnings_contrib_pct?: number | null;
+  multiple_contrib_pct?: number | null;
+  pe_start?: number | null;
+  pe_end?: number | null;
+  implied_growth_pct?: number | null;
+  factor_keys_used?: string[];
+  partial?: boolean;
+  gaps?: string[];
+  point_in_time?: boolean;
+}
+
+export interface ThesisOut {
+  claim: string;
+  evidence_ids?: string[];
+  monitors?: string[];
+  invalidate_if?: string[];
+  horizon?: string;
+  scenarios?: Record<string, string> | null;
+  partial?: boolean;
+}
+
+export interface DeepAnalysisOut {
+  impact?: ImpactOut | null;
+  pricing?: PricingBridgeOut | null;
+  thesis?: ThesisOut | null;
+}
+
 export interface ResearchReport {
   id?: number | null;
   symbol: string;
@@ -905,6 +960,7 @@ export interface ResearchReport {
   dimensions?: Record<string, DimensionResult>;
   debate?: DebateResult | null;
   master_commentary?: MasterCommentaryItem[];
+  deep_analysis?: DeepAnalysisOut | null;
   disclaimer?: string;
   cached?: boolean;
 }

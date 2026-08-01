@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, type ResearchReport } from "./api";
+import { DeepAnalysisBlock } from "./DeepAnalysisBlock";
 import { DimensionCards, dimensionItemsFromResults } from "./DimensionCards";
 import { useI18n } from "./i18n";
 import type { AppMode } from "./modeSettings";
@@ -165,6 +166,9 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
             { brief },
           )}
         />
+      )}
+      {report.deep_analysis?.impact && !brief && (
+        <DeepAnalysisBlock report={report} compact />
       )}
       {report.data_gaps && report.data_gaps.length > 0 && !brief && (
         <p className="muted light-research-gaps">
