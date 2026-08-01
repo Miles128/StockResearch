@@ -226,7 +226,12 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
       {!brief && (
         <details className="light-research-details">
           <summary>{isExpert ? t("card.expandSources") : t("card.expandProfessional")}</summary>
-          <ResearchReportDetails report={report} showDimensions={false} showDebate={isExpert} />
+          <ResearchReportDetails
+            report={report}
+            showDimensions={false}
+            showDebate={isExpert}
+            showDeepAnalysis={false}
+          />
         </details>
       )}
     </div>

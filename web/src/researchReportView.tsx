@@ -225,10 +225,12 @@ export function ResearchReportDetails({
   report,
   showDimensions = true,
   showDebate = true,
+  showDeepAnalysis = true,
 }: {
   report: ResearchReport;
   showDimensions?: boolean;
   showDebate?: boolean;
+  showDeepAnalysis?: boolean;
 }) {
   const { t } = useI18n();
   const settings = loadModeSettings();
@@ -287,7 +289,7 @@ export function ResearchReportDetails({
           )}
         />
       )}
-      {report.deep_analysis?.impact && (
+      {showDeepAnalysis && report.deep_analysis?.impact && (
         <DeepAnalysisBlock report={report} />
       )}
       {showDebate && report.debate && (
