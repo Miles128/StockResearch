@@ -17,9 +17,10 @@ from __future__ import annotations
 
 import logging
 
-from stockresearch.core.schemas import ImpactOut
+from stockresearch.core.schemas import EventStudyEventOut, ImpactOut, ImpactPeakDayOut
 from stockresearch.data.providers.market import TechnicalDataProvider
 from stockresearch.services.daily_bars import get_bars_meta_for_symbol
+from stockresearch.services.event_study import compute_event_study
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +122,103 @@ def _peer_ew_returns(
         vals = [pr[d] for pr in peer_rets if d in pr]
         out.append(sum(vals) / len(vals)) if vals else out.append(0.0)
     return out
+
+
+def _normalize_event_for_peak(
+    ev: dict[str, object] | EventStudyEventOut,
+) -> dict[str, object]:
+    if isinstance(ev, EventStudyEventOut):
+        return {
+            "date": ev.event_date[:10],
+            "title": ev.title,
+            "kind": ev.event_kind,
+            "fwd_5d": ev.returns.get("5"),
+        }
+    return {
+        "date": str(ev.get("date", ""))[:10],
+        "title": ev.get("title"),
+        "kind": ev.get("kind"),
+        "fwd_5d": ev.get("fwd_5d"),
+    }
+
+
+def _attach_peaks_from_events(
+    peaks: list[ImpactPeakDayOut],
+    events: list[dict[str, object] | EventStudyEventOut],
+) -> list[ImpactPeakDayOut]:
+    """Map announcement events to idio peak days by exact calendar date (±0)."""
+    by_date: dict[str, dict[str, object]] = {}
+    for ev in events:
+        norm = _normalize_event_for_peak(ev)
+        d = str(norm.get("date", ""))
+        if d and d not in by_date:
+            by_date[d] = norm
+
+    out: list[ImpactPeakDayOut] = []
+    for peak in peaks:
+        matched = by_date.get(peak.date[:10])
+        if matched is None:
+            out.append(
+                peak.model_copy(
+                    update={"unexplained": True, "event_title": None},
+                )
+            )
+            continue
+        fwd = matched.get("fwd_5d")
+        out.append(
+            peak.model_copy(
+                update={
+                    "unexplained": False,
+                    "event_title": matched.get("title"),
+                    "event_kind": matched.get("kind"),
+                    "event_fwd_return_5d_pct": (
+                        float(fwd) if isinstance(fwd, (int, float)) else None
+                    ),
+                }
+            )
+        )
+    return out
+
+
+def _top_idio_peak_days(
+    dates: list[str],
+    stock_rets: list[float],
+    mkt_rets: list[float],
+    ind_rets: list[float] | None,
+    beta: float,
+    *,
+    top_n: int = 3,
+) -> list[ImpactPeakDayOut]:
+    """Pick the top-|idio| trading days in the attribution window."""
+    peaks: list[ImpactPeakDayOut] = []
+    for i, d in enumerate(dates):
+        ind_r = ind_rets[i] if ind_rets is not None else 0.0
+        idio_pct = (stock_rets[i] - beta * mkt_rets[i] - ind_r) * 100.0
+        peaks.append(
+            ImpactPeakDayOut(date=d, idio_return_pct=round(idio_pct, 4))
+        )
+    peaks.sort(key=lambda p: abs(p.idio_return_pct), reverse=True)
+    return peaks[:top_n]
+
+
+async def _attach_peaks_from_event_study(
+    symbol: str,
+    peaks: list[ImpactPeakDayOut],
+) -> list[ImpactPeakDayOut]:
+    try:
+        study = await compute_event_study(symbol, event_filter="all")
+        return _attach_peaks_from_events(peaks, study.events)
+    except Exception as exc:  # pragma: no cover - network path
+        logger.warning("event study failed for impact peaks %s: %s", symbol, exc)
+        return _attach_peaks_from_events(peaks, [])
+
+
+async def attach_impact_events(impact: ImpactOut, symbol: str) -> ImpactOut:
+    """Attach event-study titles to existing peak_days (exact date match)."""
+    if not impact.peak_days:
+        return impact
+    peak_days = await _attach_peaks_from_event_study(symbol, impact.peak_days)
+    return impact.model_copy(update={"peak_days": peak_days})
 
 
 async def _load_peer_ew_returns(
@@ -273,6 +371,11 @@ async def compute_impact(
         )
 
     decomp = _decompose_window(stock_win, mkt_win, ind_win, beta=beta)
+    win_dates = common[-win:]
+    peak_candidates = _top_idio_peak_days(
+        win_dates, stock_win, mkt_win, ind_win, beta
+    )
+    peak_days = await _attach_peaks_from_event_study(symbol, peak_candidates)
     return ImpactOut(
         window_trading_days=window,
         stock_return_pct=decomp["stock_return_pct"],
@@ -284,4 +387,5 @@ async def compute_impact(
         market_symbol=market_symbol,
         partial=partial,
         gaps=gaps,
+        peak_days=peak_days,
     )

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from stockresearch.services.impact import _decompose_window, _ols_beta
+from stockresearch.core.schemas import ImpactPeakDayOut
+from stockresearch.services.impact import _attach_peaks_from_events, _decompose_window, _ols_beta
 
 
 def test_ols_beta_perfect_line() -> None:
@@ -82,6 +83,21 @@ def test_ols_beta_pre_window_sample() -> None:
     assert decomp["idio_return_pct"] == round(
         decomp["stock_return_pct"] - decomp["market_contrib_pct"], 4
     )
+
+
+def test_attach_peaks_marks_unexplained_without_event() -> None:
+    peaks = [ImpactPeakDayOut(date="2026-06-01", idio_return_pct=3.0)]
+    out = _attach_peaks_from_events(peaks, events=[])
+    assert out[0].unexplained is True
+    assert out[0].event_title is None
+
+
+def test_attach_peaks_links_same_day_event() -> None:
+    peaks = [ImpactPeakDayOut(date="2026-06-01", idio_return_pct=3.0)]
+    events = [{"date": "2026-06-01", "title": "业绩预告", "kind": "earnings", "fwd_5d": 1.2}]
+    out = _attach_peaks_from_events(peaks, events)
+    assert out[0].unexplained is False
+    assert out[0].event_title == "业绩预告"
 
 
 def test_decompose_window_rounds_to_four_decimals() -> None:
