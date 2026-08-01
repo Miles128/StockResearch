@@ -7,7 +7,7 @@ import pytest
 from stockresearch.db.models import DailyBar
 from stockresearch.services.daily_bars import load_bars, upsert_bars
 from stockresearch.services.factors import compute_numeric_factors
-from stockresearch.services.signal_backtest import _factor_tilt
+from stockresearch.services.signal_backtest import _build_sample_bias_note, _factor_tilt
 
 
 def test_upsert_and_load_daily_bars(db_session) -> None:

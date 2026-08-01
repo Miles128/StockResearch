@@ -780,6 +780,7 @@ export interface ResearchTimelineEntry {
   post_hoc: ReportPostHocHorizon[];
   bias_changed?: boolean;
   score_delta?: number | null;
+  thesis_claim?: string | null;
 }
 
 export interface ResearchTimeline {
