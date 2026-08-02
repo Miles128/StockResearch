@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, type ResearchReport } from "./api";
+import { DeepAnalysisBlock } from "./DeepAnalysisBlock";
 import { DimensionCards, dimensionItemsFromResults } from "./DimensionCards";
 import { useI18n } from "./i18n";
 import type { AppMode } from "./modeSettings";
@@ -23,7 +24,7 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
   const isAdvisor = appMode === "advisor";
   const isExpert = appMode === "research";
   const [view, setView] = useState<ReportView>(isAdvisor ? "brief" : "formal");
-  const [downloading, setDownloading] = useState<"md" | "pdf" | null>(null);
+  const [downloading, setDownloading] = useState<"md" | "pdf" | "json" | "csv" | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const dimensions = Object.entries(report.dimensions ?? {});
   const brief = isAdvisor && view === "brief";
@@ -41,11 +42,15 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
         expandHints: researchExpandHintsFromReport(report),
       });
 
-  async function handleDownload(kind: "md" | "pdf") {
+  async function handleDownload(kind: "md" | "pdf" | "json" | "csv") {
     setDownloadError(null);
     setDownloading(kind);
     try {
-      if (report.id != null) {
+      if (kind === "json") {
+        await api.exportReportJson(report);
+      } else if (kind === "csv") {
+        await api.exportReportCsv(report);
+      } else if (report.id != null) {
         if (kind === "md") api.downloadReportMarkdown(report.id);
         else api.downloadReportPdf(report.id);
       } else if (kind === "md") {
@@ -117,6 +122,22 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
           >
             {downloading === "pdf" ? t("card.downloading") : t("card.downloadPdf")}
           </button>
+          <button
+            type="button"
+            className="example-chip"
+            disabled={downloading != null}
+            onClick={() => void handleDownload("json")}
+          >
+            {downloading === "json" ? t("card.downloading") : t("card.downloadJson")}
+          </button>
+          <button
+            type="button"
+            className="example-chip"
+            disabled={downloading != null}
+            onClick={() => void handleDownload("csv")}
+          >
+            {downloading === "csv" ? t("card.downloading") : t("card.downloadCsv")}
+          </button>
         </div>
       </div>
       {downloadError ? <p className="muted light-research-gaps">{downloadError}</p> : null}
@@ -146,6 +167,10 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
           )}
         />
       )}
+      {(report.deep_analysis?.impact ||
+        report.deep_analysis?.pricing ||
+        report.deep_analysis?.thesis) &&
+        !brief && <DeepAnalysisBlock report={report} compact />}
       {report.data_gaps && report.data_gaps.length > 0 && !brief && (
         <p className="muted light-research-gaps">
           <strong>{t("card.dataGaps")}：</strong>
@@ -202,7 +227,12 @@ export function LightResearchCard({ report, appMode, onFollowUp }: LightResearch
       {!brief && (
         <details className="light-research-details">
           <summary>{isExpert ? t("card.expandSources") : t("card.expandProfessional")}</summary>
-          <ResearchReportDetails report={report} showDimensions={false} showDebate={isExpert} />
+          <ResearchReportDetails
+            report={report}
+            showDimensions={false}
+            showDebate={isExpert}
+            showDeepAnalysis={false}
+          />
         </details>
       )}
     </div>

@@ -1,7 +1,9 @@
 """Research routes."""
 
 import json
+import logging
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import PlainTextResponse, Response, StreamingResponse
@@ -14,22 +16,45 @@ from stockresearch.api.deps import get_current_user
 from stockresearch.api.llm_deps import llm_from_headers
 from stockresearch.core.exceptions import NotFoundError
 from stockresearch.core.schemas import (
+    BatchResearchItemOut,
+    BatchResearchOut,
+    BatchResearchRequest,
+    CompareRequest,
+    CompareTableOut,
+    EventStudyBatchOut,
+    EventStudyBatchRequest,
+    EventStudyOut,
+    HypothesisVerifyOut,
+    HypothesisVerifyRequest,
     IndustryResearchRequest,
     MemorySearchOut,
     ReportPostHocOut,
     ResearchReportListItem,
     ResearchReportOut,
+    ResearchTimelineOut,
     SignalBacktestOut,
 )
 from stockresearch.db.models import ResearchReport, User
 from stockresearch.db.session import get_db
 from stockresearch.agents.research.budget import resolve_analysis_depth
 from stockresearch.services.cache import CacheService
-from stockresearch.services.report_export import report_to_markdown, report_to_pdf
+from stockresearch.services.compare_table import build_compare_table, flatten_compare_csv
+from stockresearch.services.event_study import compute_event_study, compute_event_study_batch
+from stockresearch.services.hypothesis_verify import HYPOTHESIS_PRESETS, verify_hypothesis
+from stockresearch.services.report_export import (
+    report_to_csv,
+    report_to_json,
+    report_to_markdown,
+    report_to_pdf,
+)
 from stockresearch.services.research_memory import search_research_memory
+from stockresearch.services.research_timeline import compute_research_timeline
 from stockresearch.services.signal_backtest import compute_report_post_hoc, compute_signal_backtest
 from stockresearch.services.user_preferences import get_mode_settings
 from stockresearch.utils.llm import LLMClient
+from stockresearch.utils.symbols import resolve_name
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/research", tags=["research"])
 
@@ -225,6 +250,34 @@ def export_report_pdf_body(
     )
 
 
+@router.post("/export/json", response_class=PlainTextResponse)
+def export_report_json_body(
+    report: ResearchReportOut,
+    user: User = Depends(get_current_user),
+) -> PlainTextResponse:
+    _ = user
+    filename = f"stockresearch-{report.symbol}-export.json"
+    return PlainTextResponse(
+        content=report_to_json(report),
+        media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/export/csv", response_class=PlainTextResponse)
+def export_report_csv_body(
+    report: ResearchReportOut,
+    user: User = Depends(get_current_user),
+) -> PlainTextResponse:
+    _ = user
+    filename = f"stockresearch-{report.symbol}-factors.csv"
+    return PlainTextResponse(
+        content=report_to_csv(report),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/reports/{report_id}", response_model=ResearchReportOut)
 def get_report(
     report_id: int,
@@ -348,6 +401,23 @@ async def signal_backtest(
     return await compute_signal_backtest(db, user.id)
 
 
+@router.get("/timeline", response_model=ResearchTimelineOut)
+async def research_timeline(
+    symbol: str = Query(min_length=6, max_length=6, pattern=r"^\d{6}$"),
+    include_post_hoc: bool = Query(default=True),
+    limit: int = Query(default=20, ge=1, le=50),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ResearchTimelineOut:
+    return await compute_research_timeline(
+        db,
+        user.id,
+        symbol,
+        include_post_hoc=include_post_hoc,
+        limit=limit,
+    )
+
+
 @router.get("/reports/{report_id}/post-hoc", response_model=ReportPostHocOut)
 async def report_post_hoc(
     report_id: int,
@@ -366,6 +436,143 @@ async def report_post_hoc(
         report_id=report_id,
         symbol=row.symbol,
         horizons=horizons,
+        signal_as_of=row.created_at.date().isoformat(),
+        point_in_time=True,
+    )
+
+
+@router.post("/compare", response_model=CompareTableOut)
+async def compare_symbols(
+    payload: CompareRequest,
+    user: User = Depends(get_current_user),
+) -> CompareTableOut:
+    _ = user
+    return await build_compare_table(payload.symbols)
+
+
+@router.post("/compare/csv", response_class=PlainTextResponse)
+async def compare_symbols_csv(
+    payload: CompareRequest,
+    user: User = Depends(get_current_user),
+) -> PlainTextResponse:
+    _ = user
+    table = await build_compare_table(payload.symbols)
+    return PlainTextResponse(
+        content=flatten_compare_csv(table),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="stockresearch-compare.csv"'},
+    )
+
+
+@router.get("/event-study", response_model=EventStudyOut)
+async def event_study(
+    symbol: str = Query(min_length=6, max_length=6, pattern=r"^\d{6}$"),
+    event_filter: str = Query(default="earnings"),
+    user: User = Depends(get_current_user),
+) -> EventStudyOut:
+    _ = user
+    allowed = {"earnings", "risk", "all"}
+    filt = event_filter if event_filter in allowed else "earnings"
+    return await compute_event_study(symbol, event_filter=filt)
+
+
+@router.post("/event-study/batch", response_model=EventStudyBatchOut)
+async def event_study_batch(
+    payload: EventStudyBatchRequest,
+    user: User = Depends(get_current_user),
+) -> EventStudyBatchOut:
+    _ = user
+    items = await compute_event_study_batch(
+        payload.symbols,
+        event_filter=payload.event_filter,
+    )
+    return EventStudyBatchOut(
+        items=items,
+        event_filter=payload.event_filter,
+        as_of=datetime.now(UTC).date().isoformat(),
+        notes=["自选池事件研究批量入口；逐标的独立统计，非组合回测。"],
+        disclaimer=items[0].disclaimer if items else "",
+    )
+
+
+@router.get("/hypothesis/presets")
+def hypothesis_presets(user: User = Depends(get_current_user)) -> dict[str, str]:
+    _ = user
+    return dict(HYPOTHESIS_PRESETS)
+
+
+@router.post("/hypothesis/verify", response_model=HypothesisVerifyOut)
+async def hypothesis_verify(
+    payload: HypothesisVerifyRequest,
+    user: User = Depends(get_current_user),
+) -> HypothesisVerifyOut:
+    _ = user
+    return await verify_hypothesis(
+        payload.symbol,
+        rule=payload.rule,
+        lookback_days=payload.lookback_days,
+    )
+
+
+@router.post("/batch", response_model=BatchResearchOut)
+async def batch_research(
+    payload: BatchResearchRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    llm: LLMClient = Depends(llm_from_headers),
+) -> BatchResearchOut:
+    from datetime import UTC, datetime
+
+    settings = get_mode_settings(db, user.id)
+    depth = resolve_analysis_depth(
+        explicit=payload.analysis_depth,
+        settings_depth=settings.analysis_depth,
+    )
+    items: list[BatchResearchItemOut] = []
+    cleaned: list[str] = []
+    for raw in payload.symbols:
+        sym = str(raw).strip()
+        if len(sym) == 6 and sym.isdigit() and sym not in cleaned:
+            cleaned.append(sym)
+        if len(cleaned) >= 8:
+            break
+    for symbol in cleaned:
+        name = resolve_name(symbol)
+        try:
+            report = await run_research(
+                symbol,
+                llm=llm,
+                with_debate=payload.with_debate,
+                mode_settings=settings,
+                analysis_depth=depth,
+            )
+            row = persist_report(db, user.id, report)
+            stamped = stamp_report_id(report, row.id)
+            items.append(
+                BatchResearchItemOut(
+                    symbol=symbol,
+                    name=name,
+                    report=stamped,
+                    partial=bool(stamped.data_gaps),
+                )
+            )
+        except Exception as exc:
+            logger.warning("batch research failed for %s: %s", symbol, exc, exc_info=True)
+            items.append(
+                BatchResearchItemOut(
+                    symbol=symbol,
+                    name=name,
+                    error=str(exc),
+                    partial=True,
+                )
+            )
+    return BatchResearchOut(
+        items=items,
+        as_of=datetime.now(UTC).date().isoformat(),
+        notes=[
+            f"批量四维（depth={depth}，debate={payload.with_debate}），最多 8 只。",
+            "结果已写入研报历史，可导出 JSON/CSV 或做事后核对。",
+        ],
     )
 
 

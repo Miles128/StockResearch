@@ -21,6 +21,14 @@ uv run python -m stockresearch worker
 cd web && npm run dev   # :5174
 ```
 
+桌面壳（Tauri 2，macOS/Windows；需先 `cd web && npm run build`）：
+
+```bash
+cd desktop && npm install && npm run dev
+```
+
+详见 `desktop/README.md`。
+
 ## Testing
 
 **During development** — run only what you touched:

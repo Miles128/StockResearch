@@ -1,10 +1,14 @@
 """Sector-level dimension prepare/build — policy, capital, valuation, technical, structure."""
 
+import logging
+
 from stockresearch.agents.industry.context import SectorResearchContext
 from stockresearch.agents.research.agents._scoring import as_confidence
 from stockresearch.agents.research.dimension_text import REPORT_DIM_VOICE, finalize_dimension
 from stockresearch.core.constants import CONFIDENCE_LOW, CONFIDENCE_MEDIUM
 from stockresearch.core.schemas import DimensionResult
+
+logger = logging.getLogger(__name__)
 
 _SUFFIX = f"{REPORT_DIM_VOICE} 分析 A 股行业板块。"
 
@@ -90,6 +94,7 @@ async def prepare_valuation(ctx: SectorResearchContext) -> tuple[str, str, dict[
         try:
             val = await provider.get_valuation(ld.symbol)
         except Exception:
+            logger.debug("leader valuation skipped for %s", ld.symbol, exc_info=True)
             continue
         pe = val.get("pe_ttm")
         pb = val.get("pb")

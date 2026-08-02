@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     # 是否在 API 进程内启动定时调度（简报/价格告警）。P1 默认 false，应独立运行 worker。
     run_schedulers_in_api: bool = False
 
+    # Kimi Datasource(经本地 kimi CLI 调用,按次消耗 Kimi Code 会员配额)
+    kimi_cli_enabled: bool = False
+    kimi_cli_path: str = "kimi"
+    kimi_cli_timeout_seconds: int = 120
+    kimi_live_max_calls_per_day: int = 20
+
     @property
     def prompts_path(self) -> Path | None:
         if self.prompts_dir:

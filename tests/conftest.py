@@ -44,10 +44,9 @@ def _reset_test_database() -> None:
 def _clear_provider_cache() -> None:
     engine = db_session_module.engine
     with engine.begin() as conn:
-        try:
-            conn.execute(text("DELETE FROM provider_cache"))
-        except Exception:
-            pass
+        # 迁移幂等(CREATE TABLE IF NOT EXISTS),确保表存在后再清空。
+        _migration_003_provider_cache(conn)
+        conn.execute(text("DELETE FROM provider_cache"))
 
 
 @pytest.fixture(autouse=True)

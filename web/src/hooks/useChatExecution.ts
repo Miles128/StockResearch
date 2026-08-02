@@ -38,10 +38,7 @@ export interface UseChatExecutionOptions {
   focusContext: FocusContext | null;
   knownSymbols: KnownSymbol[];
   appendMessages: (updater: (messages: Message[]) => Message[], threadId?: string) => void;
-  prepareUserTurn: (
-    query: string,
-    knownSymbols: { symbol: string; name: string }[],
-  ) => { threadId: string; sessionId: string | undefined; forked: boolean };
+  prepareUserTurn: (query: string) => { threadId: string; sessionId: string | undefined };
   input: string;
   setInput: (value: string) => void;
   setChatStream: (updater: (prev: StreamState) => StreamState) => void;
@@ -232,10 +229,10 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
       if (!query.trim() || chatLoading) return;
       if (opts?.switchTab) setCopilotOpen(true);
       setInput("");
-      const turn = prepareUserTurn(query, knownSymbols);
+      const turn = prepareUserTurn(query);
       void executeChat(query, undefined, opts?.context, turn);
     },
-    [chatLoading, executeChat, knownSymbols, prepareUserTurn, setCopilotOpen, setInput],
+    [chatLoading, executeChat, prepareUserTurn, setCopilotOpen, setInput],
   );
 
   const sendChat = useCallback(() => {

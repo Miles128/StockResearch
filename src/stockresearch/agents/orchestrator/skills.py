@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -25,6 +26,8 @@ from stockresearch.services.stock_lookup import StockLookupResult
 from stockresearch.utils.llm import LLMClient
 from stockresearch.utils.symbols import resolve_name
 
+logger = logging.getLogger(__name__)
+
 EventCallback = Callable[[dict[str, object]], Awaitable[None]]
 
 
@@ -47,9 +50,11 @@ PACKAGED_SKILLS: tuple[PackagedSkill, ...] = (
         "skill_stock_research",
         "个股四维投研",
         "基本面/技术面/情绪/筹码四维分析；可选多空辩论；"
-        "analysis_depth=standard|comprehensive|deep（标准/综合/深度预算）",
+        "analysis_depth=standard|comprehensive|deep（标准/综合/深度预算）；"
+        "用户说「只补缺口再跑/补充数据」时必须调用本 Skill，"
+        "analysis_depth≥comprehensive，并在 context 列出待补缺口",
         '{"symbol": "600519", "with_debate": false, "analysis_depth": "comprehensive", '
-        '"context": "可选：结合前文的补充说明"}',
+        '"context": "可选：缺口列表或前文补充说明"}',
     ),
     PackagedSkill(
         "skill_market_research",
@@ -159,6 +164,7 @@ class SkillRunner:
             else:
                 result = SkillRunResult(summary=f"未知 Skill: {skill_id}", error="unknown_skill")
         except Exception as exc:
+            logger.warning("skill %s failed: %s", skill_id, exc, exc_info=True)
             result = SkillRunResult(summary=f"Skill {label} 执行失败: {exc}", error=str(exc))
 
         await self._emit(

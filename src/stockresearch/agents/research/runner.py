@@ -1,6 +1,7 @@
 """Research sub-agents orchestration — delegates to isolated ReAct agents."""
 
 import asyncio
+import logging
 from typing import Literal
 
 from stockresearch.agents.research.agents import AGENT_BY_ID, DIMENSION_AGENTS
@@ -32,6 +33,8 @@ from stockresearch.services.factors import factor_alignment_note
 from stockresearch.services.text_factor import build_news_text_factor, fetch_symbol_news_snippets
 from stockresearch.utils.llm import LLMClient, get_llm_client
 from stockresearch.utils.symbols import resolve_name
+
+logger = logging.getLogger(__name__)
 
 BiasLevel = Literal["bullish", "bearish", "neutral"]
 ConfidenceLevel = Literal["high", "medium", "low"]
@@ -107,6 +110,7 @@ async def run_research(
             symbol, factor_keys=budget.factor_keys
         )
     except Exception:
+        logger.warning("numeric factors failed for %s", symbol, exc_info=True)
         factors = []
 
     debate: DebateResult | None = None
@@ -141,6 +145,49 @@ async def run_research(
         factor_alignment_note=alignment,
         enable_signal_verify_hook=budget.enable_signal_verify_hook,
     )
+
+    if budget.depth in ("deep", "comprehensive"):
+        try:
+            from stockresearch.core.schemas import DeepAnalysisOut
+            from stockresearch.services.impact import compute_impact
+
+            impact = await compute_impact(symbol)
+            if report.deep_analysis is None:
+                report.deep_analysis = DeepAnalysisOut(impact=impact)
+            else:
+                report.deep_analysis.impact = impact
+        except Exception:
+            logger.warning("impact failed for %s", symbol, exc_info=True)
+
+    # Pricing bridge is deep-only: comprehensive keeps Impact per PRD.
+    if budget.depth == "deep":
+        try:
+            from stockresearch.services.pricing_bridge import compute_pricing_bridge
+
+            pricing = await compute_pricing_bridge(symbol, report.factors)
+            if report.deep_analysis is None:
+                from stockresearch.core.schemas import DeepAnalysisOut
+
+                report.deep_analysis = DeepAnalysisOut(pricing=pricing)
+            else:
+                report.deep_analysis.pricing = pricing
+        except Exception:
+            logger.warning("pricing bridge failed for %s", symbol, exc_info=True)
+
+    # Thesis is deep-only and runs AFTER impact + pricing so it can cite them.
+    if budget.depth == "deep":
+        try:
+            from stockresearch.services.thesis_build import build_thesis
+
+            thesis = build_thesis(report)
+            if report.deep_analysis is None:
+                from stockresearch.core.schemas import DeepAnalysisOut
+
+                report.deep_analysis = DeepAnalysisOut(thesis=thesis)
+            else:
+                report.deep_analysis.thesis = thesis
+        except Exception:
+            logger.warning("thesis build failed for %s", symbol, exc_info=True)
 
     if enable_master_commentary and mode_settings is not None:
         masters = master_ids or resolve_master_ids(mode_settings)

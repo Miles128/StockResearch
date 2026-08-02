@@ -1,4 +1,5 @@
 import type { AshareFactor, DebateResult, NumericFactor, ResearchReport } from "./api";
+import { DeepAnalysisBlock } from "./DeepAnalysisBlock";
 import { DimensionCards, dimensionItemsFromResults } from "./DimensionCards";
 import { MarkdownContent } from "./MarkdownContent";
 import { ResearchTrustStrip } from "./ResearchTrustStrip";
@@ -224,10 +225,12 @@ export function ResearchReportDetails({
   report,
   showDimensions = true,
   showDebate = true,
+  showDeepAnalysis = true,
 }: {
   report: ResearchReport;
   showDimensions?: boolean;
   showDebate?: boolean;
+  showDeepAnalysis?: boolean;
 }) {
   const { t } = useI18n();
   const settings = loadModeSettings();
@@ -286,6 +289,12 @@ export function ResearchReportDetails({
           )}
         />
       )}
+      {showDeepAnalysis &&
+        (report.deep_analysis?.impact ||
+          report.deep_analysis?.pricing ||
+          report.deep_analysis?.thesis) && (
+          <DeepAnalysisBlock report={report} />
+        )}
       {showDebate && report.debate && (
         <details className="research-debate-details">
           <summary>{t("card.debateSection")}</summary>

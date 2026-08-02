@@ -57,6 +57,7 @@ ORCHESTRATOR_SYSTEM = """你是「StockResearch」的编排 Agent。由你决定
 简单新闻/快讯：get_news + get_stock_quote，不要启动 Skill。
 走势/涨跌/原因类（用户未要求深度投研）：先 get_stock_quote + get_news(symbol=...) 或 get_market_data + get_news，结合相关新闻解读可能驱动因素，不要启动 Skill。
 个股/市场分析：不要调用 skill_risk_checkup / get_risk_summary；个股「有什么风险」属于投研，用 skill_stock_research 或报价/新闻即可。
+用户说「只补缺口再跑 / 补充数据并重新投研 / 补充数据：…」时：必须调用 skill_stock_research（勿只口头回答）；analysis_depth 至少 comprehensive，并在 context 列出待补缺口。
 仅当用户明确说持仓风控、组合体检、止损、回撤、我的持仓风险时，才做风控体检。
 
 {context_rules}
@@ -357,16 +358,34 @@ class OrchestratorAgent:
     async def _run_skill(self, skill_id: str, args: dict[str, Any]) -> str:
         if skill_id == "skill_stock_research" and not args.get("with_debate"):
             args = {**args, "with_debate": self._debate_default}
-        if skill_id == "skill_stock_research" and not args.get("analysis_depth"):
-            from stockresearch.agents.research.budget import parse_depth_from_text
-
-            cue = parse_depth_from_text(self._user_message) or parse_depth_from_text(
-                str(args.get("context") or args.get("query") or "")
+        if skill_id == "skill_stock_research":
+            from stockresearch.agents.research.budget import (
+                is_gap_close_utterance,
+                parse_depth_from_text,
             )
-            if cue:
-                args = {**args, "analysis_depth": cue}
-            elif not args.get("utterance"):
-                args = {**args, "utterance": self._user_message}
+
+            gap_blob = " ".join(
+                [
+                    self._user_message,
+                    str(args.get("context") or ""),
+                    str(args.get("query") or ""),
+                ]
+            )
+            if is_gap_close_utterance(gap_blob):
+                # Gap close-the-loop: prefer thicker evidence budget; keep explicit deep.
+                depth = str(args.get("analysis_depth") or "")
+                if depth not in ("comprehensive", "deep"):
+                    args = {**args, "analysis_depth": "comprehensive"}
+                if not str(args.get("context") or "").strip():
+                    args = {**args, "context": self._user_message}
+            elif not args.get("analysis_depth"):
+                cue = parse_depth_from_text(self._user_message) or parse_depth_from_text(
+                    str(args.get("context") or args.get("query") or "")
+                )
+                if cue:
+                    args = {**args, "analysis_depth": cue}
+                elif not args.get("utterance"):
+                    args = {**args, "utterance": self._user_message}
         result = await self._skills().run(skill_id, args)
         for card in result.cards:
             ctype = card.get("type")

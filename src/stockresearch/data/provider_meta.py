@@ -27,6 +27,15 @@ PROVIDER_CATALOG: dict[str, ProviderMeta] = {
     "akshare_gdhs": ProviderMeta("akshare_gdhs", "股东户数", "L2", "akshare", "chips", 86400),
     "akshare_lockup": ProviderMeta("akshare_lockup", "限售解禁", "L2", "akshare", "chips", 86400),
     "akshare_financials": ProviderMeta("akshare_financials", "财务与估值", "L2", "akshare", "fundamental", 86400),
+    "kimi_macro": ProviderMeta("kimi_macro", "Kimi 宏观与行业数据", "L2", "kimi", "macro", 86400),
+    "kimi_wind": ProviderMeta(
+        "kimi_wind",
+        "Kimi Wind 深度数据",
+        "L2",
+        "kimi",
+        "fundamental",
+        21600,
+    ),
     "news_text_factor": ProviderMeta("news_text_factor", "新闻文本因子", "L1", "news", "sentiment", 1800),
     "tushare_pro": ProviderMeta(
         "tushare_pro",

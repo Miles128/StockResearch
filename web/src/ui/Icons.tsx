@@ -172,5 +172,6 @@ export function SignalIcon({ type, severity }: { type: string; severity: string 
   if (type === "news") return <IconNews />;
   if (type === "price") return <IconChart />;
   if (type === "market") return <IconGlobe />;
+  if (type === "research") return <IconList />;
   return <IconList />;
 }

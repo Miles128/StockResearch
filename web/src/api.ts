@@ -248,6 +248,11 @@ export const api = {
         event.type === "done" && event.response ? (event.response as ChatResponse) : undefined,
     }),
   holdings: () => request<Holding[]>("/portfolio/holdings"),
+  allocationDeviation: (targets: Record<string, number>) =>
+    request<AllocationDeviation>("/portfolio/allocation/deviation", {
+      method: "POST",
+      body: JSON.stringify({ targets }),
+    }),
   holdingsEnriched: (opts?: { forceRefresh?: boolean }) => {
     const qs = opts?.forceRefresh ? "?force_refresh=true" : "";
     return request<HoldingEnriched[]>(`/portfolio/holdings/enriched${qs}`);
@@ -365,9 +370,52 @@ export const api = {
   exportReportPdf: async (report: ResearchReport) => {
     await downloadReportBlob("/research/export/pdf", report, `${report.symbol}-report.pdf`);
   },
+  exportReportJson: async (report: ResearchReport) => {
+    await downloadReportBlob("/research/export/json", report, `${report.symbol}-report.json`);
+  },
+  exportReportCsv: async (report: ResearchReport) => {
+    await downloadReportBlob("/research/export/csv", report, `${report.symbol}-factors.csv`);
+  },
   signalBacktest: () => request<SignalBacktest>("/research/signal-backtest"),
+  researchTimeline: (symbol: string, includePostHoc = true) =>
+    request<ResearchTimeline>(
+      `/research/timeline?symbol=${encodeURIComponent(symbol)}&include_post_hoc=${includePostHoc}`,
+    ),
   reportPostHoc: (id: number) =>
     request<ReportPostHoc>(`/research/reports/${id}/post-hoc`),
+  compareSymbols: (symbols: string[]) =>
+    request<CompareTable>("/research/compare", {
+      method: "POST",
+      body: JSON.stringify({ symbols }),
+    }),
+  eventStudy: (symbol: string, eventFilter: "earnings" | "risk" | "all" = "earnings") =>
+    request<EventStudy>(
+      `/research/event-study?symbol=${encodeURIComponent(symbol)}&event_filter=${eventFilter}`,
+    ),
+  eventStudyBatch: (symbols: string[], eventFilter: "earnings" | "risk" | "all" = "earnings") =>
+    request<EventStudyBatch>("/research/event-study/batch", {
+      method: "POST",
+      body: JSON.stringify({ symbols, event_filter: eventFilter }),
+    }),
+  hypothesisPresets: () => request<Record<string, string>>("/research/hypothesis/presets"),
+  hypothesisVerify: (symbol: string, rule: string, lookbackDays = 240) =>
+    request<HypothesisVerify>("/research/hypothesis/verify", {
+      method: "POST",
+      body: JSON.stringify({ symbol, rule, lookback_days: lookbackDays }),
+    }),
+  batchResearch: (symbols: string[], analysisDepth?: AnalysisDepth) =>
+    requestWithLlm<BatchResearch>(
+      "/research/batch",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          symbols,
+          analysis_depth: analysisDepth ?? loadModeSettings().analysisDepth,
+          with_debate: false,
+        }),
+      },
+      300_000,
+    ),
   searchMemory: (q: string) =>
     request<MemorySearchResult>(`/research/memory/search?q=${encodeURIComponent(q)}`),
   generateBriefing: (kind: "premarket" | "intraday" | "postmarket") =>
@@ -707,6 +755,184 @@ export interface ReportPostHoc {
   horizons: ReportPostHocHorizon[];
   disclaimer?: string;
   label?: string;
+  point_in_time?: boolean;
+  signal_as_of?: string | null;
+  pit_note?: string;
+}
+
+export interface ResearchTimelineFactorSnap {
+  key: string;
+  label: string;
+  value?: number | null;
+  percentile?: number | null;
+  partial?: boolean;
+}
+
+export interface ResearchTimelineEntry {
+  report_id: number;
+  created_at: string;
+  bias: string;
+  composite_score: number;
+  analysis_depth?: string;
+  summary?: string;
+  factor_alignment_note?: string | null;
+  factors: ResearchTimelineFactorSnap[];
+  post_hoc: ReportPostHocHorizon[];
+  bias_changed?: boolean;
+  score_delta?: number | null;
+  thesis_claim?: string | null;
+}
+
+export interface ResearchTimeline {
+  symbol: string;
+  name: string;
+  entries: ResearchTimelineEntry[];
+  point_in_time?: boolean;
+  notes?: string[];
+  disclaimer?: string;
+}
+
+export interface CompareRow {
+  symbol: string;
+  name: string;
+  factors: NumericFactor[];
+  bars_adjust: string;
+  bars_source: string;
+  bars_as_of?: string | null;
+  partial: boolean;
+  note?: string | null;
+}
+
+export interface CompareTable {
+  rows: CompareRow[];
+  as_of: string;
+  point_in_time?: boolean;
+  notes?: string[];
+}
+
+export interface EventStudyWindow {
+  days: number;
+  sample_count: number;
+  avg_return_pct?: number | null;
+  positive_rate_pct?: number | null;
+}
+
+export interface EventStudyEvent {
+  title: string;
+  event_kind: string;
+  event_date: string;
+  returns: Record<string, number | null>;
+  partial?: boolean;
+  note?: string | null;
+  url?: string | null;
+}
+
+export interface EventStudy {
+  symbol: string;
+  name: string;
+  event_filter: string;
+  events: EventStudyEvent[];
+  windows: EventStudyWindow[];
+  kind_counts?: Record<string, number>;
+  bars_adjust?: string;
+  notes?: string[];
+  point_in_time?: boolean;
+}
+
+export interface EventStudyBatch {
+  items: EventStudy[];
+  event_filter: string;
+  as_of?: string | null;
+  notes?: string[];
+  disclaimer?: string;
+}
+
+export interface HypothesisWindow {
+  days: number;
+  sample_count: number;
+  avg_return_pct?: number | null;
+  hit_rate_pct?: number | null;
+}
+
+export interface HypothesisVerify {
+  symbol: string;
+  name: string;
+  rule: string;
+  rule_label: string;
+  windows: HypothesisWindow[];
+  sample_count: number;
+  point_in_time?: boolean;
+  notes?: string[];
+  partial?: boolean;
+}
+
+export interface BatchResearchItem {
+  symbol: string;
+  name: string;
+  report?: ResearchReport | null;
+  error?: string | null;
+  partial?: boolean;
+}
+
+export interface BatchResearch {
+  items: BatchResearchItem[];
+  as_of: string;
+  notes?: string[];
+}
+
+export interface ImpactPeakDayOut {
+  date: string;
+  idio_return_pct: number;
+  event_title?: string | null;
+  event_kind?: "earnings" | "risk" | "other" | null;
+  event_fwd_return_5d_pct?: number | null;
+  unexplained?: boolean;
+}
+
+export interface ImpactOut {
+  window_trading_days: number;
+  stock_return_pct?: number | null;
+  market_contrib_pct?: number | null;
+  industry_contrib_pct?: number | null;
+  idio_return_pct?: number | null;
+  model?: string;
+  r_squared?: number | null;
+  market_symbol?: string;
+  industry_proxy?: string;
+  partial?: boolean;
+  gaps?: string[];
+  peak_days?: ImpactPeakDayOut[];
+  point_in_time?: boolean;
+}
+
+export interface PricingBridgeOut {
+  window_label?: string;
+  price_change_pct?: number | null;
+  earnings_contrib_pct?: number | null;
+  multiple_contrib_pct?: number | null;
+  pe_start?: number | null;
+  pe_end?: number | null;
+  implied_growth_pct?: number | null;
+  factor_keys_used?: string[];
+  partial?: boolean;
+  gaps?: string[];
+  point_in_time?: boolean;
+}
+
+export interface ThesisOut {
+  claim: string;
+  evidence_ids?: string[];
+  monitors?: string[];
+  invalidate_if?: string[];
+  horizon?: string;
+  scenarios?: Record<string, string> | null;
+  partial?: boolean;
+}
+
+export interface DeepAnalysisOut {
+  impact?: ImpactOut | null;
+  pricing?: PricingBridgeOut | null;
+  thesis?: ThesisOut | null;
 }
 
 export interface ResearchReport {
@@ -735,6 +961,7 @@ export interface ResearchReport {
   dimensions?: Record<string, DimensionResult>;
   debate?: DebateResult | null;
   master_commentary?: MasterCommentaryItem[];
+  deep_analysis?: DeepAnalysisOut | null;
   disclaimer?: string;
   cached?: boolean;
 }
@@ -830,6 +1057,21 @@ export interface AssetAllocation {
   cash_flow_impact?: string;
   emergency_fund_note?: string;
   disclaimer: string;
+}
+
+export interface AllocationDeviationRow {
+  sector: string;
+  actual: number;
+  target: number;
+  delta: number;
+}
+
+export interface AllocationDeviation {
+  actual: Record<string, number>;
+  targets: Record<string, number>;
+  rows: AllocationDeviationRow[];
+  notes?: string[];
+  disclaimer?: string;
 }
 
 export interface MarketOverview {
@@ -1056,7 +1298,7 @@ export interface BriefingSchedule {
 }
 
 export interface ActionSignal {
-  type: "price" | "news" | "risk" | "fundamental" | "market" | "info";
+  type: "price" | "news" | "risk" | "fundamental" | "market" | "research" | "info";
   severity: "critical" | "warning" | "info";
   title: string;
   detail: string;

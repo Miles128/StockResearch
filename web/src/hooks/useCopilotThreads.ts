@@ -5,11 +5,9 @@ import {
   createThread,
   loadCopilotThreads,
   saveCopilotThreads,
-  shouldForkCopilotThread,
   titleFromMessages,
   touchThread,
   type CopilotThread,
-  type TopicSymbol,
 } from "../copilotThreads";
 import { emptyStreamState, type StreamState } from "../streamEvents";
 
@@ -20,7 +18,6 @@ interface UseCopilotThreadsOptions {
 export interface PrepareUserTurnResult {
   threadId: string;
   sessionId: string | undefined;
-  forked: boolean;
 }
 
 export function useCopilotThreads({ defaultTitle }: UseCopilotThreadsOptions) {
@@ -99,45 +96,29 @@ export function useCopilotThreads({ defaultTitle }: UseCopilotThreadsOptions) {
     [defaultTitle],
   );
 
+  /** Append a user turn to the active thread. Only Plus (`newThread`) starts a new line. */
   const prepareUserTurn = useCallback(
-    (query: string, knownSymbols: TopicSymbol[]): PrepareUserTurnResult => {
+    (query: string): PrepareUserTurnResult => {
       const trimmed = query.trim();
       const current =
         threadsRef.current.find((t) => t.id === activeIdRef.current) ?? threadsRef.current[0];
       if (!current) {
-        const thread = createThread(autoThreadTitle(trimmed, defaultTitle));
-        setThreads([thread]);
-        setActiveId(thread.id);
-        activeIdRef.current = thread.id;
+        const title = autoThreadTitle(trimmed, defaultTitle);
+        const thread = createThread(title);
         const nextMessages: Message[] = [{ role: "user", content: trimmed }];
-        persistThread(thread.id, { messages: nextMessages, title: autoThreadTitle(trimmed, defaultTitle) });
-        return { threadId: thread.id, sessionId: undefined, forked: false };
-      }
-
-      let target = current;
-      let forked = false;
-      if (shouldForkCopilotThread(current.messages, trimmed, knownSymbols)) {
-        const thread = createThread(autoThreadTitle(trimmed, defaultTitle));
-        setThreads((prev) => [thread, ...prev].slice(0, 40));
+        setThreads([{ ...thread, messages: nextMessages, title }]);
         setActiveId(thread.id);
         activeIdRef.current = thread.id;
-        target = thread;
-        forked = true;
-        setChatStream(emptyStreamState());
+        return { threadId: thread.id, sessionId: undefined };
       }
 
-      const nextMessages: Message[] = [...target.messages, { role: "user", content: trimmed }];
+      const nextMessages: Message[] = [...current.messages, { role: "user", content: trimmed }];
       const title = titleFromMessages(nextMessages, defaultTitle);
-      persistThread(target.id, {
-        messages: nextMessages,
-        title,
-        ...(forked ? { sessionId: undefined } : {}),
-      });
+      persistThread(current.id, { messages: nextMessages, title });
 
       return {
-        threadId: target.id,
-        sessionId: forked ? undefined : target.sessionId,
-        forked,
+        threadId: current.id,
+        sessionId: current.sessionId,
       };
     },
     [defaultTitle, persistThread],

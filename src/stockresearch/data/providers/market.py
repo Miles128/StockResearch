@@ -720,23 +720,30 @@ class FinancialDataProvider:
         pe_ttm: float | None,
         pb: float | None,
         pe_series: list[float],
+        pb_series: list[float] | None = None,
         source: str,
     ) -> dict[str, object]:
         pe_pct = (
             self._percentile_rank(pe_series, pe_ttm) if pe_ttm is not None else None
         )
+        pb_hist = pb_series or []
+        pb_pct = self._percentile_rank(pb_hist, pb) if pb is not None else None
         gaps: list[str] = []
         if pe_ttm is None:
             gaps.append("PE 不可用")
         if pb is None:
             gaps.append("PB 不可用")
         if pe_pct is None:
-            gaps.append("估值历史分位不可算")
+            gaps.append("PE 历史分位不可算")
+        if pb is not None and pb_pct is None:
+            gaps.append("PB 历史分位不可算")
         return {
             "pe_ttm": pe_ttm,
             "pb": pb,
             "pe_percentile": pe_pct,
+            "pb_percentile": pb_pct,
             "pe_history_count": len(pe_series),
+            "pb_history_count": len(pb_hist),
             "source": source,
             "partial": bool(gaps),
             "gaps": gaps,
@@ -754,15 +761,25 @@ class FinancialDataProvider:
         pe_ttm = self._optional_float(row.get(pe_col)) if pe_col else None
         pb = self._optional_float(row.get(pb_col)) if pb_col else None
         pe_series: list[float] = []
+        pb_series: list[float] = []
         if pe_col:
             for val in df[pe_col].tolist():
                 fval = self._optional_float(val)
                 if fval is not None and fval > 0:
                     pe_series.append(fval)
+        if pb_col:
+            for val in df[pb_col].tolist():
+                fval = self._optional_float(val)
+                if fval is not None and fval > 0:
+                    pb_series.append(fval)
         if pe_ttm is None and pb is None:
             return None
         return self._valuation_from_series(
-            pe_ttm=pe_ttm, pb=pb, pe_series=pe_series, source="akshare_value_em"
+            pe_ttm=pe_ttm,
+            pb=pb,
+            pe_series=pe_series,
+            pb_series=pb_series,
+            source="akshare_value_em",
         )
 
     def _from_baidu_valuation(
@@ -770,6 +787,7 @@ class FinancialDataProvider:
     ) -> dict[str, object] | None:
         """Parse Baidu stock_zh_valuation_baidu PE/PB series."""
         pe_series: list[float] = []
+        pb_series: list[float] = []
         pe_ttm: float | None = None
         pb: float | None = None
         if pe_df is not None and not getattr(pe_df, "empty", True) and "value" in pe_df.columns:
@@ -780,11 +798,20 @@ class FinancialDataProvider:
             if pe_series:
                 pe_ttm = pe_series[-1]
         if pb_df is not None and not getattr(pb_df, "empty", True) and "value" in pb_df.columns:
-            pb = self._optional_float(pb_df["value"].iloc[-1])
+            for val in pb_df["value"].tolist():
+                fval = self._optional_float(val)
+                if fval is not None and fval > 0:
+                    pb_series.append(fval)
+            if pb_series:
+                pb = pb_series[-1]
         if pe_ttm is None and pb is None:
             return None
         return self._valuation_from_series(
-            pe_ttm=pe_ttm, pb=pb, pe_series=pe_series, source="akshare_baidu"
+            pe_ttm=pe_ttm,
+            pb=pb,
+            pe_series=pe_series,
+            pb_series=pb_series,
+            source="akshare_baidu",
         )
 
     async def get_valuation(self, symbol: str) -> dict[str, float | str | object]:
@@ -793,12 +820,13 @@ class FinancialDataProvider:
                 "pe_ttm": 28.0,
                 "pe_percentile": 0.42,
                 "pb": 8.0,
+                "pb_percentile": 0.55,
                 "source": "mock",
                 "partial": False,
                 "gaps": [],
             }
-        # v4: stock_a_indicator_lg removed in newer akshare; use value_em / baidu.
-        cache_key = f"financials:valuation:v4:{symbol}"
+        # v5: include PB historical percentile alongside PE.
+        cache_key = f"financials:valuation:v5:{symbol}"
         ttl = provider_ttl("akshare_financials")
 
         async def _fetch() -> dict[str, object]:
@@ -831,6 +859,7 @@ class FinancialDataProvider:
                             "pe_ttm": pe,
                             "pb": pb,
                             "pe_percentile": None,
+                            "pb_percentile": None,
                             "source": str(tushare.get("source", "tushare_daily_basic")),
                             "partial": True,
                             "gaps": ["Tushare 仅提供当日估值，无历史分位"],
@@ -861,6 +890,7 @@ class FinancialDataProvider:
                 "pe_ttm": None,
                 "pb": None,
                 "pe_percentile": None,
+                "pb_percentile": None,
                 "source": "none",
                 "partial": True,
                 "gaps": ["估值数据不可用"],
@@ -959,6 +989,7 @@ class FinancialDataProvider:
                 entry["pb"] = val.get("pb")
                 entry["pe_percentile"] = val.get("pe_percentile")
             except Exception:
+                logger.debug("peer valuation attach failed for %s", peer, exc_info=True)
                 continue
         return peers
 
@@ -1712,6 +1743,7 @@ class ChipsDataProvider:
                     df = ak.stock_margin_detail_szse(date=date)
                     code_col = "证券代码"
             except Exception:
+                logger.debug("margin detail fetch failed for %s date=%s", symbol, date, exc_info=True)
                 continue
             if df.empty or code_col not in df.columns:
                 continue

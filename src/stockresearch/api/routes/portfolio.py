@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from stockresearch.api.deps import get_current_user, handle_stockresearch_error
 from stockresearch.core.exceptions import ValidationError
 from stockresearch.core.schemas import (
+    AllocationDeviationOut,
+    AllocationDeviationRequest,
     HoldingConfirmCreate,
     HoldingCreate,
     HoldingEnrichedOut,
@@ -23,6 +25,7 @@ from stockresearch.core.schemas import (
 from stockresearch.data.providers.market_overview import BatchQuoteProvider
 from stockresearch.db.models import Holding, User, WatchlistItem
 from stockresearch.db.session import get_db
+from stockresearch.services.allocation_deviation import build_allocation_deviation
 from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
 from stockresearch.services.user_preferences import get_mode_settings
 from stockresearch.services.holding_metrics import (
@@ -368,6 +371,17 @@ def delete_holding(
     db.delete(holding)
     db.commit()
     return {"status": "deleted"}
+
+
+@router.post("/allocation/deviation", response_model=AllocationDeviationOut)
+def allocation_deviation(
+    payload: AllocationDeviationRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AllocationDeviationOut:
+    """Expert-mode: sector target vs actual weights (display only)."""
+    holdings = db.query(Holding).filter(Holding.user_id == user.id).all()
+    return build_allocation_deviation(holdings, payload.targets)
 
 
 @router.get("/watchlist", response_model=list[WatchlistOut])

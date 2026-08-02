@@ -1,0 +1,16 @@
+{
+  "name": "stockresearch-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Tauri 2 shell for StockResearch (macOS + Windows)",
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "build:web": "npm --prefix ../web run build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.5.0"
+  }
+}

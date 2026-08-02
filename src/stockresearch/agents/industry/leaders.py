@@ -1,5 +1,6 @@
 """Lightweight leader-stock analysis within a sector."""
 
+import logging
 from collections.abc import AsyncIterator
 
 from stockresearch.agents.industry.context import SectorResearchContext
@@ -8,6 +9,8 @@ from stockresearch.agents.voice import AGENT_VOICE
 from stockresearch.core.schemas import SectorLeaderBrief
 from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.data.providers.sector import SectorLeader
+
+logger = logging.getLogger(__name__)
 
 _LEADER_SYSTEM = f"""你是 A 股板块龙头分析师。{AGENT_VOICE}
 用 2-3 句话简述该股在板块中的地位、短线强弱与主要风险。不要给出买卖建议。"""
@@ -20,6 +23,7 @@ async def _quote_for(leader: SectorLeader) -> tuple[float, float]:
         q = await QuoteProvider().get_quote(leader.symbol)
         return q.price, q.change_pct
     except Exception:
+        logger.warning("leader quote failed for %s", leader.symbol, exc_info=True)
         return 0.0, leader.change_pct
 
 

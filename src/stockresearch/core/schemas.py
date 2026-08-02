@@ -321,6 +321,61 @@ class MasterCommentaryItem(BaseModel):
     key_metric: str = ""
 
 
+class ImpactPeakDayOut(BaseModel):
+    date: str
+    idio_return_pct: float
+    event_title: str | None = None
+    event_kind: str | None = None  # earnings | risk | other | None
+    event_fwd_return_5d_pct: float | None = None
+    unexplained: bool = False
+
+
+class ImpactOut(BaseModel):
+    window_trading_days: int = 20
+    stock_return_pct: float | None = None
+    market_contrib_pct: float | None = None
+    industry_contrib_pct: float | None = None
+    idio_return_pct: float | None = None
+    model: str = "two_step_residual_v1"
+    r_squared: float | None = None
+    market_symbol: str = "000300"
+    industry_proxy: str = "peer_ew"  # peer equal-weight basket
+    partial: bool = False
+    gaps: list[str] = Field(default_factory=list)
+    peak_days: list[ImpactPeakDayOut] = Field(default_factory=list)
+    point_in_time: bool = True
+
+
+class PricingBridgeOut(BaseModel):
+    window_label: str = ""
+    price_change_pct: float | None = None
+    earnings_contrib_pct: float | None = None
+    multiple_contrib_pct: float | None = None
+    pe_start: float | None = None
+    pe_end: float | None = None
+    implied_growth_pct: float | None = None
+    factor_keys_used: list[str] = Field(default_factory=list)
+    partial: bool = False
+    gaps: list[str] = Field(default_factory=list)
+    point_in_time: bool = True
+
+
+class ThesisOut(BaseModel):
+    claim: str
+    evidence_ids: list[str] = Field(default_factory=list)
+    monitors: list[str] = Field(default_factory=list)
+    invalidate_if: list[str] = Field(default_factory=list)
+    horizon: str = ""
+    scenarios: dict[str, str] | None = None
+    partial: bool = False
+
+
+class DeepAnalysisOut(BaseModel):
+    impact: ImpactOut | None = None
+    pricing: PricingBridgeOut | None = None
+    thesis: ThesisOut | None = None
+
+
 class ResearchReportOut(BaseModel):
     symbol: str
     name: str
@@ -344,6 +399,7 @@ class ResearchReportOut(BaseModel):
     dimension_weights: dict[str, float] = Field(default_factory=dict)
     master_commentary: list[MasterCommentaryItem] = Field(default_factory=list)
     analysis_depth: Literal["standard", "comprehensive", "deep"] = "standard"
+    deep_analysis: DeepAnalysisOut | None = None
     factors_expanded: bool = False
     factor_alignment_note: str | None = None
     enable_signal_verify_hook: bool = False
@@ -778,6 +834,11 @@ class SignalBacktestOut(BaseModel):
     unique_symbols: int = 0
     bias_sample_count: int = 0
     factor_tilt_sample_count: int = 0
+    point_in_time: bool = True
+    pit_note: str = (
+        "点-in-time：验证仅使用报告落库时保存的 bias/factors 快照 + 之后的前复权日线；"
+        "不重拉事后财务。"
+    )
 
 
 class ReportPostHocHorizon(BaseModel):
@@ -795,6 +856,159 @@ class ReportPostHocOut(BaseModel):
     horizons: list[ReportPostHocHorizon]
     disclaimer: str = DISCLAIMER
     label: str = "单报告事后核对"
+    point_in_time: bool = True
+    signal_as_of: str | None = None
+    pit_note: str = (
+        "点-in-time：信号时点为报告创建日；收益仅用创建日及之后的前复权收盘价。"
+    )
+
+
+class ResearchTimelineFactorSnap(BaseModel):
+    key: str
+    label: str
+    value: float | None = None
+    percentile: float | None = None
+    partial: bool = False
+
+
+class ResearchTimelineEntryOut(BaseModel):
+    report_id: int
+    created_at: datetime
+    bias: str
+    composite_score: float
+    analysis_depth: str = "standard"
+    summary: str = ""
+    factor_alignment_note: str | None = None
+    factors: list[ResearchTimelineFactorSnap] = Field(default_factory=list)
+    post_hoc: list[ReportPostHocHorizon] = Field(default_factory=list)
+    bias_changed: bool = False
+    score_delta: float | None = None
+    thesis_claim: str | None = None
+
+
+class ResearchTimelineOut(BaseModel):
+    symbol: str
+    name: str
+    entries: list[ResearchTimelineEntryOut] = Field(default_factory=list)
+    point_in_time: bool = True
+    notes: list[str] = Field(default_factory=list)
+    disclaimer: str = DISCLAIMER
+
+
+class CompareRowOut(BaseModel):
+    symbol: str
+    name: str
+    factors: list[NumericFactorOut] = Field(default_factory=list)
+    bars_adjust: str = "none"
+    bars_source: str = ""
+    bars_as_of: str | None = None
+    partial: bool = False
+    note: str | None = None
+
+
+class CompareTableOut(BaseModel):
+    rows: list[CompareRowOut]
+    as_of: str
+    point_in_time: bool = True
+    notes: list[str] = Field(default_factory=list)
+
+
+class CompareRequest(BaseModel):
+    symbols: list[str] = Field(default_factory=list, max_length=12)
+
+
+class EventStudyWindowOut(BaseModel):
+    days: int
+    sample_count: int
+    avg_return_pct: float | None = None
+    positive_rate_pct: float | None = None
+
+
+class EventStudyEventOut(BaseModel):
+    title: str
+    event_kind: str
+    event_date: str
+    returns: dict[str, float | None] = Field(default_factory=dict)
+    partial: bool = False
+    note: str | None = None
+    url: str | None = None
+
+
+class EventStudyOut(BaseModel):
+    symbol: str
+    name: str
+    event_filter: str
+    events: list[EventStudyEventOut]
+    windows: list[EventStudyWindowOut]
+    kind_counts: dict[str, int] = Field(default_factory=dict)
+    bars_adjust: str = "none"
+    bars_source: str = ""
+    notes: list[str] = Field(default_factory=list)
+    disclaimer: str = DISCLAIMER
+    as_of: str | None = None
+    point_in_time: bool = True
+
+
+class EventStudyBatchRequest(BaseModel):
+    symbols: list[str] = Field(default_factory=list, max_length=8)
+    event_filter: Literal["earnings", "risk", "all"] = "earnings"
+
+
+class EventStudyBatchOut(BaseModel):
+    items: list[EventStudyOut] = Field(default_factory=list)
+    event_filter: str = "earnings"
+    as_of: str | None = None
+    notes: list[str] = Field(default_factory=list)
+    disclaimer: str = DISCLAIMER
+
+
+class HypothesisWindowOut(BaseModel):
+    days: int
+    sample_count: int
+    avg_return_pct: float | None = None
+    hit_rate_pct: float | None = None
+
+
+class HypothesisVerifyOut(BaseModel):
+    symbol: str
+    name: str
+    rule: str
+    rule_label: str
+    windows: list[HypothesisWindowOut]
+    sample_count: int = 0
+    bars_adjust: str = "none"
+    bars_source: str = ""
+    point_in_time: bool = True
+    as_of: str | None = None
+    notes: list[str] = Field(default_factory=list)
+    partial: bool = False
+    disclaimer: str = DISCLAIMER
+
+
+class HypothesisVerifyRequest(BaseModel):
+    symbol: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+    rule: str = "momentum_positive"
+    lookback_days: int = Field(default=240, ge=60, le=800)
+
+
+class BatchResearchRequest(BaseModel):
+    symbols: list[str] = Field(default_factory=list, max_length=8)
+    analysis_depth: Literal["standard", "comprehensive", "deep"] = "standard"
+    with_debate: bool = False
+
+
+class BatchResearchItemOut(BaseModel):
+    symbol: str
+    name: str
+    report: ResearchReportOut | None = None
+    error: str | None = None
+    partial: bool = False
+
+
+class BatchResearchOut(BaseModel):
+    items: list[BatchResearchItemOut]
+    as_of: str
+    notes: list[str] = Field(default_factory=list)
 
 
 class MemorySearchHit(BaseModel):
@@ -873,7 +1087,7 @@ class NewsAnalysisOut(BaseModel):
 
 
 class ActionSignal(BaseModel):
-    type: Literal["price", "news", "risk", "fundamental", "market"] = "fundamental"
+    type: Literal["price", "news", "risk", "fundamental", "market", "research"] = "fundamental"
     severity: Literal["critical", "warning", "info"] = "info"
     title: str
     detail: str = ""
@@ -911,6 +1125,27 @@ class AssetAllocationOut(BaseModel):
     rationale: str = Field(description="为什么这样配置的解释（投顾模式用大白话）")
     cash_flow_impact: str | None = Field(default=None, description="现金流影响分析（有月收入时）")
     emergency_fund_note: str | None = Field(default=None, description="应急资金建议（有月收入时）")
+    disclaimer: str = DISCLAIMER
+
+
+class AllocationDeviationRequest(BaseModel):
+    """Expert-mode sector targets (fractions or percents). Display only."""
+
+    targets: dict[str, float] = Field(default_factory=dict, max_length=30)
+
+
+class AllocationDeviationRow(BaseModel):
+    sector: str
+    actual: float
+    target: float
+    delta: float
+
+
+class AllocationDeviationOut(BaseModel):
+    actual: dict[str, float] = Field(default_factory=dict)
+    targets: dict[str, float] = Field(default_factory=dict)
+    rows: list[AllocationDeviationRow] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
     disclaimer: str = DISCLAIMER
 
 

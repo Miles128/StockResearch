@@ -140,6 +140,7 @@ def finalize_cards(cards: list[dict[str, object]]) -> list[dict[str, object]]:
             try:
                 report = ResearchReportOut.model_validate(data)
             except Exception:
+                logger.debug("research card finalize skipped; invalid payload", exc_info=True)
                 finalized.append(card)
                 continue
             marked = finalize_research_report(report)

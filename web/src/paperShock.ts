@@ -29,8 +29,8 @@ export function computePaperShock(
   const total = priced.reduce((sum, h) => sum + marketValue(h), 0);
   if (total <= 0) return null;
 
-  let key = "";
-  let label = "";
+  let key: string;
+  let label: string;
   if (target === "top_holding") {
     const top = priced.reduce((a, b) => (marketValue(a) >= marketValue(b) ? a : b));
     key = top.symbol;

@@ -1,6 +1,7 @@
 """News routes."""
 
 import json
+import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -27,6 +28,8 @@ from stockresearch.services.news_interests import (
     save_user_sectors,
 )
 from stockresearch.utils.llm import LLMClient
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/news", tags=["news"])
 
@@ -129,6 +132,7 @@ async def analyze_news_stream(
             ):
                 yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
         except Exception as exc:
+            logger.warning("news deep analysis stream failed: %s", exc, exc_info=True)
             payload = {
                 "type": "error",
                 "code": "news_stream_failed",

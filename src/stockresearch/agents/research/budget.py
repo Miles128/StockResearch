@@ -21,6 +21,8 @@ QUALITY_FACTOR_KEYS: tuple[str, ...] = (
     "revenue_yoy",
     "np_yoy",
     "pb_percentile",
+    "peer_rel_momentum_20d",
+    "peer_rel_pe_percentile",
 )
 
 _DEPTH_ALIASES: dict[str, AnalysisDepth] = {
@@ -39,6 +41,10 @@ _DEEP_RE = re.compile(
 )
 _COMPREHENSIVE_RE = re.compile(
     r"(综合分析|综合研究|综合看看|全面分析|comprehensive)",
+    re.IGNORECASE,
+)
+_GAP_CLOSE_RE = re.compile(
+    r"(只补缺口|补缺口再跑|补充数据并重新投研|补充数据[：:])",
     re.IGNORECASE,
 )
 
@@ -80,6 +86,13 @@ def parse_depth_from_text(text: str | None) -> AnalysisDepth | None:
     if _COMPREHENSIVE_RE.search(blob):
         return "comprehensive"
     return None
+
+
+def is_gap_close_utterance(text: str | None) -> bool:
+    """True when user asks to refill evidence gaps and re-run research."""
+    if not text or not str(text).strip():
+        return False
+    return _GAP_CLOSE_RE.search(str(text)) is not None
 
 
 def resolve_analysis_depth(

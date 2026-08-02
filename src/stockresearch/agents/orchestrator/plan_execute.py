@@ -468,6 +468,7 @@ class PlanExecuteAgent:
                     r = await self._tool_executor(tc_name, tc.get("args", {}))
                     results.append(r)
                 except Exception as exc:
+                    logger.warning("tool %s failed: %s", tc_name, exc, exc_info=True)
                     results.append(f"工具 {tc['tool']} 失败: {exc}")
             return "\n".join(results)
 
