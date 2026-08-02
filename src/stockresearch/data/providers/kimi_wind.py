@@ -39,6 +39,9 @@ class KimiWindProvider:
             logger.warning("Kimi Wind 数据获取失败: %s", exc)
             return {}
         payload = result.payload
+        # 空壳 payload(缺关键字段)视为无数据,不写缓存
+        if not (payload.get("announcements") or payload.get("research_reports")):
+            return {}
         payload.setdefault("source", "kimi")
         return payload
 

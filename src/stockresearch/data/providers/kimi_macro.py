@@ -42,6 +42,9 @@ class KimiMacroProvider:
             logger.warning("Kimi 宏观数据获取失败: %s", exc)
             return {}
         payload = result.payload
+        # 空壳 payload(缺关键字段)视为无数据,不写缓存
+        if not (payload.get("indicators") or payload.get("industry_highlights")):
+            return {}
         payload.setdefault("source", "kimi")
         return payload
 

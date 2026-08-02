@@ -68,3 +68,27 @@ async def test_wind_digest_caches_result() -> None:
     result = await provider.get_daily_digest()
     assert result["announcements"] == [{"title": "t"}]
     assert get_sqlite_cached(WIND_CACHE_KEY) is not None
+
+
+async def test_macro_empty_shell_not_cached() -> None:
+    # 空壳 payload(只有 as_of,无 indicators/industry_highlights)不应写缓存
+    client = FakeClient(payload={"as_of": "2026-08-01"})
+    provider = KimiMacroProvider(client=client)  # type: ignore[arg-type]
+    assert await provider.get_macro_snapshot() == {}
+    assert get_sqlite_cached(MACRO_CACHE_KEY) is None
+
+
+async def test_wind_empty_shell_not_cached() -> None:
+    # 空壳 payload(只有 as_of,无 announcements/research_reports)不应写缓存
+    client = FakeClient(payload={"as_of": "2026-08-01"})
+    provider = KimiWindProvider(client=client)  # type: ignore[arg-type]
+    assert await provider.get_daily_digest() == {}
+    assert get_sqlite_cached(WIND_CACHE_KEY) is None
+
+
+async def test_wind_empty_shell_not_cached_on_refresh() -> None:
+    # refresh=True 走 _fetch_and_store 路径,同样不应写空壳缓存
+    client = FakeClient(payload={"as_of": "2026-08-01"})
+    provider = KimiWindProvider(client=client)  # type: ignore[arg-type]
+    assert await provider.get_daily_digest(refresh=True) == {}
+    assert get_sqlite_cached(WIND_CACHE_KEY) is None

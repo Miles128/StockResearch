@@ -142,8 +142,10 @@ def _collect_kimi_block() -> str:
         lines.append(f"【宏观数据(Kimi, {macro.get('as_of', '?')})】")
         for ind in macro.get("indicators") or []:
             if isinstance(ind, dict):
+                trend = ind.get("trend")
+                trend_str = f" 趋势:{trend}" if trend else ""
                 lines.append(
-                    f"- {ind.get('name')}: {ind.get('value')}({ind.get('period')}){ind.get('comment', '')}"
+                    f"- {ind.get('name')}: {ind.get('value')}({ind.get('period')}){trend_str}{ind.get('comment', '')}"
                 )
         for hl in macro.get("industry_highlights") or []:
             if isinstance(hl, dict):
@@ -232,6 +234,7 @@ def _fallback_sections(
     market_news: list[NewsItemOut],
     market_block: str,
     alerts: list[RiskAlertRecord],
+    kimi_block: str = "",
 ) -> tuple[str, list[BriefingSection]]:
     news_content = "\n\n".join(
         [
@@ -256,6 +259,9 @@ def _fallback_sections(
             ),
         ),
     ]
+    # 降级简报同样展示 Kimi 预取的宏观/市场数据块
+    if kimi_block:
+        sections.append(BriefingSection(title="宏观与市场动态(Kimi)", content=kimi_block))
     phase = {"premarket": "盘前", "intraday": "盘中", "postmarket": "盘后"}[kind]
     if kind == "premarket":
         summary = f"{phase}简报：已汇总隔夜新闻、行业/市场要闻及持仓盘前参考信息，开盘前请关注下方方向。"
@@ -331,6 +337,7 @@ async def generate_briefing(
             market_news=market_news,
             market_block=market_block,
             alerts=alerts,
+            kimi_block=kimi_block,
         )
         if llm is not None:
             try:
