@@ -25,7 +25,7 @@ from stockresearch.data.providers.market_overview import MarketOverviewProvider
 from stockresearch.db.models import Holding, NewsItem
 from stockresearch.i18n.status_events import status_event
 from stockresearch.prompts import load_prompt
-from stockresearch.services.chat_scope import PORTFOLIO_TOOL_NAMES
+from stockresearch.services.chat_scope import PORTFOLIO_TOOL_NAMES, ChatContextScope
 from stockresearch.utils.llm import LLMClient
 from stockresearch.utils.symbols import resolve_name
 
@@ -172,6 +172,7 @@ class OrchestratorAgent:
         confirmed_symbol: str | None = None,
         confirmed_name: str | None = None,
         page_context_kind: str | None = None,
+        scope: ChatContextScope | None = None,
     ) -> None:
         self._db = db
         self._llm = llm
@@ -187,6 +188,7 @@ class OrchestratorAgent:
         self._confirmed_symbol = confirmed_symbol
         self._confirmed_name = confirmed_name
         self._page_context_kind = page_context_kind
+        self._scope = scope
         self._quote_cache_ttl = quote_cache_ttl_seconds(mode_settings)
         self._cards: list[dict[str, Any]] = []
         self._on_progress: Any = None
@@ -208,7 +210,7 @@ class OrchestratorAgent:
                 db=self._db,
                 llm=self._llm,
                 user_id=self._user_id,
-                holdings=self._holdings,
+                holdings=self._scope.skill_holdings if self._scope is not None else self._holdings,
                 mode_settings=settings,
                 debate_default=self._debate_default,
                 master_default=self._master_default,
@@ -474,7 +476,16 @@ class OrchestratorAgent:
             })
             return factor
 
-        news = await get_news_for_user(self._db, self._user_id, related_only=False, limit=8)
+        news_scope = self._scope.news_scope if self._scope is not None else "personalized"
+        industry = self._scope.intent.subject_industry if self._scope is not None else None
+        news = await get_news_for_user(
+            self._db,
+            self._user_id,
+            related_only=False,
+            limit=8,
+            news_scope=news_scope,
+            industry=industry,
+        )
         if not news:
             return "暂无最新新闻"
         self._cards.append({

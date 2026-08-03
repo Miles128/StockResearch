@@ -95,6 +95,7 @@ async def execute_chat_turn(
             on_progress=on_progress,
             portfolio_context=turn_scope.portfolio_tools,
             page_context_kind=page_kind,
+            scope=turn_scope,
         )
 
     return await _run_react_sync(
@@ -175,6 +176,7 @@ async def _run_plan_execute_sync(
     on_progress: ProgressCallback | None,
     portfolio_context: bool = False,
     page_context_kind: str | None = None,
+    scope: ChatContextScope | None = None,
 ) -> ChatExecuteResult:
     if on_progress:
         from stockresearch.i18n.status_events import status_event
@@ -194,6 +196,7 @@ async def _run_plan_execute_sync(
         confirmed_symbol=confirmed_symbol,
         confirmed_name=confirmed_name,
         page_context_kind=page_context_kind,
+        scope=scope,
     )
     if on_progress:
         react_agent.set_progress_callback(on_progress)
@@ -267,6 +270,7 @@ async def _run_react_sync(
         confirmed_symbol=confirmed_symbol,
         confirmed_name=confirmed_name,
         page_context_kind=page_context_kind,
+        scope=scope,
     )
     if on_progress:
         agent.set_progress_callback(on_progress)
