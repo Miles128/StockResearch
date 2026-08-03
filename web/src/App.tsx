@@ -53,6 +53,7 @@ import { DemoBanner } from "./DemoBanner";
 import { BackendHealthBanner } from "./BackendHealthBanner";
 import { ActionCenter } from "./ActionCenter";
 import { HoldingTradeModal, type TradeDraft } from "./HoldingTradeModal";
+import { BatchResearchModal } from "./BatchResearchModal";
 import { useI18n } from "./i18n";
 import { formatHeaderUsage, formatLlmUsage } from "./llmUsageFormat";
 import { indexSymbolKey, localizeIndexName } from "./indexLabels";
@@ -127,6 +128,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [dataDetailsOpen, setDataDetailsOpen] = useState(false);
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
+  const [batchResearchOpen, setBatchResearchOpen] = useState(false);
   const [tradeModalSeed, setTradeModalSeed] =
     useState<Partial<TradeDraft> | null>(null);
   const [inlineTradeOpen, setInlineTradeOpen] = useState(false);
@@ -715,6 +717,13 @@ export default function App() {
           }}
           initialRow={tradeModalSeed}
         />
+        {batchResearchOpen && (
+          <BatchResearchModal
+            symbols={watchlist.map((w) => w.symbol)}
+            appMode={modeSettings.mode}
+            onClose={() => setBatchResearchOpen(false)}
+          />
+        )}
 
         <div
           className={`app-body tri-shell lists-${listsMode}${!copilotOpen ? " copilot-collapsed" : ""}${settingsRequired ? " app-locked" : ""}`}
@@ -755,6 +764,7 @@ export default function App() {
               onSelectWatchlist={selectWatchlistItem}
               onAddWatchlist={addWatchlistItem}
               onRemoveWatchlist={(id) => void removeWatchlistItem(id)}
+              onBatchResearch={() => setBatchResearchOpen(true)}
               onListsResizeStart={startListsResize}
               listsWidth={layoutSettings.listsWidth}
             />
