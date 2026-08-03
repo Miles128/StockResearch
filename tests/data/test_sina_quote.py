@@ -2,15 +2,16 @@
 
 import pytest
 
-from stockresearch.data.providers import market as market_mod
 from stockresearch.data.providers.market import MarketRuleProvider, QuoteProvider
+from stockresearch.data.providers.market import quotes as quotes_mod
+from stockresearch.data.providers.market import rules as rules_mod
 from stockresearch.data.providers.sina_quote import QuoteRow
 
 
 @pytest.fixture(autouse=True)
 def noop_sqlite_quote_cache(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(market_mod, "get_sqlite_cached", lambda _key: None)
-    monkeypatch.setattr(market_mod, "set_sqlite_cached", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(quotes_mod, "get_sqlite_cached", lambda _key: None)
+    monkeypatch.setattr(quotes_mod, "set_sqlite_cached", lambda *_args, **_kwargs: None)
 
 
 @pytest.mark.asyncio
@@ -34,11 +35,9 @@ async def test_batch_quotes_use_sina_only(
             for sym in symbols
         }
 
-    monkeypatch.setattr(market_mod, "fetch_sina_quotes", fake_sina)
+    monkeypatch.setattr(quotes_mod, "fetch_sina_quotes", fake_sina)
 
-    quotes = await QuoteProvider().get_quotes(
-        ["600519", "300750", "600519"], force_refresh=True
-    )
+    quotes = await QuoteProvider().get_quotes(["600519", "300750", "600519"], force_refresh=True)
     assert set(quotes) == {"600519", "300750"}
     assert quotes["600519"].price == 10.0
 
@@ -67,9 +66,9 @@ async def test_quotes_fallback_to_akshare_when_sina_fails(
             for sym in symbols
         }
 
-    monkeypatch.setattr(market_mod, "fetch_sina_quotes", sina_fail)
-    monkeypatch.setattr(market_mod, "fetch_efinance_quotes", lambda _s: {})
-    monkeypatch.setattr(market_mod, "fetch_akshare_hist_quotes", fake_ak)
+    monkeypatch.setattr(quotes_mod, "fetch_sina_quotes", sina_fail)
+    monkeypatch.setattr(quotes_mod, "fetch_efinance_quotes", lambda _s: {})
+    monkeypatch.setattr(quotes_mod, "fetch_akshare_hist_quotes", fake_ak)
 
     quotes = await QuoteProvider().get_quotes(["600519"], force_refresh=True)
     assert quotes["600519"].price == 99.0
@@ -117,9 +116,9 @@ async def test_quotes_sync_fill_missing_on_partial_sina(
             }
         }
 
-    monkeypatch.setattr(market_mod, "fetch_sina_quotes", fake_sina)
-    monkeypatch.setattr(market_mod, "fetch_efinance_quotes", fake_ef)
-    monkeypatch.setattr(market_mod, "fetch_akshare_hist_quotes", fake_ak)
+    monkeypatch.setattr(quotes_mod, "fetch_sina_quotes", fake_sina)
+    monkeypatch.setattr(quotes_mod, "fetch_efinance_quotes", fake_ef)
+    monkeypatch.setattr(quotes_mod, "fetch_akshare_hist_quotes", fake_ak)
 
     quotes = await QuoteProvider().get_quotes(["600519", "300750"], force_refresh=True)
     assert quotes["600519"].price == 10.0
@@ -149,7 +148,7 @@ async def test_trading_rules_detect_limit_up(
             }
         }
 
-    monkeypatch.setattr(market_mod, "fetch_sina_quotes", fake_sina)
+    monkeypatch.setattr(rules_mod, "fetch_sina_quotes", fake_sina)
 
     rules = await MarketRuleProvider().get_trading_rules("600519")
     assert rules["verified"] is True
@@ -180,7 +179,7 @@ async def test_trading_rules_detect_st_and_suspended(
             }
         }
 
-    monkeypatch.setattr(market_mod, "fetch_sina_quotes", fake_sina)
+    monkeypatch.setattr(rules_mod, "fetch_sina_quotes", fake_sina)
 
     rules = await MarketRuleProvider().get_trading_rules("600000")
     assert rules["is_st"] is True
