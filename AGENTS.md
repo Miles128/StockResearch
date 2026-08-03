@@ -44,7 +44,7 @@ pytest tests/agents/                               # one directory
 pytest && cd web && npm run build
 ```
 
-`pre-push` hook runs full `pytest` and `npm run build` automatically.
+Git hooks are declared in `.pre-commit-config.yaml` (ruff/prettier on commit; full `pytest` + `npm run build` on pre-push) but are **not installed by default** — activate them once with `pre-commit install --hook-type pre-commit --hook-type pre-push` (requires the `pre-commit` tool). Otherwise run the full suite + build above manually before every push; remote CI is the only otherwise-enforced gate.
 
 ## Documentation
 
@@ -60,6 +60,6 @@ Center tabs: **focus | market | risk | news**. Copilot is global right rail.
 
 Cron (briefings, price alerts) runs in a separate `stockresearch worker` process; API lifespan only starts schedulers when `RUN_SCHEDULERS_IN_API=true`.
 
-## Active branch note
+## Branching
 
-Latest UI is on `codex/ai-native-mvp-canvas` (may be ahead of `main`). Prefer that branch for tri-shell work.
+`main` is the integration branch; day-to-day work happens on `feat/**` and `fix/**` branches, which (together with `main`) are the branches CI runs on. Merge back to `main` via PR. Before reusing any long-lived branch, check its freshness against `main` (e.g. `git rev-list --left-right --count main...<branch>`) — do not base new work on a stale branch.

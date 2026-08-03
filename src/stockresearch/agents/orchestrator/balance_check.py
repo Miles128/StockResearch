@@ -19,9 +19,7 @@ _NEGATIVE_SIGNALS = re.compile(
 _POSITIVE_SIGNALS = re.compile(
     r"上涨|涨|涨停|盈利|机会|利好|看多|偏多|bullish|买入|加仓|支撑|强势|改善|流入"
 )
-_PREDICTIVE_PATTERNS = re.compile(
-    r"预计|预期|将会|可能达到|有望|或将|或迎"
-)
+_PREDICTIVE_PATTERNS = re.compile(r"预计|预期|将会|可能达到|有望|或将|或迎")
 _DIMENSION_LABELS = re.compile(r"(基本面|技术面|情绪面|筹码面|宏观|行业)")
 
 
@@ -38,9 +36,7 @@ def check_balance(text: str) -> str:
 
     # 1. Negative dominance check
     if total > 0 and neg_count / total > 0.6:
-        appendages.append(
-            "同时注意到，市场环境存在多空交织因素，单一方向判断需审慎。"
-        )
+        appendages.append("同时注意到，市场环境存在多空交织因素，单一方向判断需审慎。")
 
     # 2. Single-dimension check
     dimensions_found = set(_DIMENSION_LABELS.findall(text))

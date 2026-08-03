@@ -81,7 +81,8 @@ function migrateCustomGlossary(raw: unknown): CustomGlossaryTerm[] {
     const row = item as Partial<CustomGlossaryTerm & { def?: string }>;
     const short = typeof row.short === "string" ? row.short.trim() : "";
     const def = typeof row.def === "string" ? row.def.trim() : "";
-    const id = typeof row.id === "string" && row.id.trim() ? row.id.trim() : short;
+    const id =
+      typeof row.id === "string" && row.id.trim() ? row.id.trim() : short;
     if (!id || !short || def.length < 2) continue;
     out.push({
       id,
@@ -105,11 +106,16 @@ function migrateFromLegacyAnalysis(): Partial<ModeSettings> {
       outputTone?: string;
     }>;
     const partial: Partial<ModeSettings> = {};
-    if (typeof parsed.enableDebate === "boolean") partial.enableDebate = parsed.enableDebate;
+    if (typeof parsed.enableDebate === "boolean")
+      partial.enableDebate = parsed.enableDebate;
     if (typeof parsed.enableMasterCommentary === "boolean") {
       partial.enableMasterCommentary = parsed.enableMasterCommentary;
     }
-    if (parsed.readingMode === "professional" || parsed.readingMode === "friendly" || parsed.readingMode === "standard") {
+    if (
+      parsed.readingMode === "professional" ||
+      parsed.readingMode === "friendly" ||
+      parsed.readingMode === "standard"
+    ) {
       partial.readingMode = parsed.readingMode;
     } else if (parsed.outputTone === "professional") {
       partial.readingMode = "professional";
@@ -159,34 +165,48 @@ function migrateModeSettings(parsed: unknown): Partial<ModeSettings> {
       partial.readingMode === "friendly" ||
       partial.readingMode === "standard"
         ? partial.readingMode
-        : legacy.readingMode ?? preset.readingMode,
+        : (legacy.readingMode ?? preset.readingMode),
     analysisDepth:
       partial.analysisDepth === "standard" ||
       partial.analysisDepth === "comprehensive" ||
       partial.analysisDepth === "deep"
         ? partial.analysisDepth
-        : (partial as { analysis_depth?: AnalysisDepth }).analysis_depth === "standard" ||
-            (partial as { analysis_depth?: AnalysisDepth }).analysis_depth === "comprehensive" ||
-            (partial as { analysis_depth?: AnalysisDepth }).analysis_depth === "deep"
+        : (partial as { analysis_depth?: AnalysisDepth }).analysis_depth ===
+              "standard" ||
+            (partial as { analysis_depth?: AnalysisDepth }).analysis_depth ===
+              "comprehensive" ||
+            (partial as { analysis_depth?: AnalysisDepth }).analysis_depth ===
+              "deep"
           ? (partial as { analysis_depth: AnalysisDepth }).analysis_depth
           : preset.analysisDepth,
     enableDebate:
       typeof partial.enableDebate === "boolean"
         ? partial.enableDebate
-        : legacy.enableDebate ?? preset.enableDebate,
+        : (legacy.enableDebate ?? preset.enableDebate),
     enableGlossary:
-      typeof partial.enableGlossary === "boolean" ? partial.enableGlossary : preset.enableGlossary,
-    maxSignals: typeof partial.maxSignals === "number" ? partial.maxSignals : preset.maxSignals,
-    onboarded: typeof partial.onboarded === "boolean" ? partial.onboarded : false,
+      typeof partial.enableGlossary === "boolean"
+        ? partial.enableGlossary
+        : preset.enableGlossary,
+    maxSignals:
+      typeof partial.maxSignals === "number"
+        ? partial.maxSignals
+        : preset.maxSignals,
+    onboarded:
+      typeof partial.onboarded === "boolean" ? partial.onboarded : false,
     enableMasterCommentary:
       typeof partial.enableMasterCommentary === "boolean"
         ? partial.enableMasterCommentary
         : typeof partial.enable_master_commentary === "boolean"
           ? partial.enable_master_commentary
-          : legacy.enableMasterCommentary ?? preset.enableMasterCommentary,
-    selectedMasters: selectedMasters.length > 0 ? selectedMasters : [...BUILTIN_MASTER_IDS],
-    customMasters: migrateCustomMasters(partial.customMasters ?? partial.custom_masters),
-    customGlossary: migrateCustomGlossary(partial.customGlossary ?? partial.custom_glossary),
+          : (legacy.enableMasterCommentary ?? preset.enableMasterCommentary),
+    selectedMasters:
+      selectedMasters.length > 0 ? selectedMasters : [...BUILTIN_MASTER_IDS],
+    customMasters: migrateCustomMasters(
+      partial.customMasters ?? partial.custom_masters,
+    ),
+    customGlossary: migrateCustomGlossary(
+      partial.customGlossary ?? partial.custom_glossary,
+    ),
     holdingsView:
       partial.holdingsView === "cards" || partial.holdingsView === "table"
         ? partial.holdingsView
@@ -194,16 +214,25 @@ function migrateModeSettings(parsed: unknown): Partial<ModeSettings> {
     quoteRefreshMinutes:
       typeof partial.quoteRefreshMinutes === "number"
         ? Math.min(120, Math.max(1, partial.quoteRefreshMinutes))
-        : typeof (partial as { quote_refresh_minutes?: number }).quote_refresh_minutes === "number"
+        : typeof (partial as { quote_refresh_minutes?: number })
+              .quote_refresh_minutes === "number"
           ? Math.min(
               120,
-              Math.max(1, (partial as { quote_refresh_minutes: number }).quote_refresh_minutes),
+              Math.max(
+                1,
+                (partial as { quote_refresh_minutes: number })
+                  .quote_refresh_minutes,
+              ),
             )
           : preset.quoteRefreshMinutes,
     briefingAutoEnabled:
-      typeof partial.briefingAutoEnabled === "boolean" ? partial.briefingAutoEnabled : true,
+      typeof partial.briefingAutoEnabled === "boolean"
+        ? partial.briefingAutoEnabled
+        : true,
     uiPollingEnabled:
-      typeof partial.uiPollingEnabled === "boolean" ? partial.uiPollingEnabled : false,
+      typeof partial.uiPollingEnabled === "boolean"
+        ? partial.uiPollingEnabled
+        : false,
   };
 }
 
@@ -294,7 +323,12 @@ export function presetForMode(
   current: ModeSettings,
 ): Pick<
   ModeSettings,
-  "mode" | "readingMode" | "analysisDepth" | "enableDebate" | "enableGlossary" | "maxSignals"
+  | "mode"
+  | "readingMode"
+  | "analysisDepth"
+  | "enableDebate"
+  | "enableGlossary"
+  | "maxSignals"
 > {
   const preset = mode === "advisor" ? ADVISOR_PRESET : RESEARCH_PRESET;
   return {
@@ -326,7 +360,9 @@ export function saveModeSettings(settings: ModeSettings): void {
   modeSettingsStore.save(settings);
 }
 
-export function modeSettingsToApiPayload(settings: ModeSettings): ModeSettingsApiPayload {
+export function modeSettingsToApiPayload(
+  settings: ModeSettings,
+): ModeSettingsApiPayload {
   return {
     mode: settings.mode,
     risk_tolerance: settings.riskTolerance,
@@ -357,7 +393,9 @@ export function modeSettingsToApiPayload(settings: ModeSettings): ModeSettingsAp
   };
 }
 
-export function modeSettingsFromApiPayload(payload: Partial<ModeSettingsApiPayload>): ModeSettings {
+export function modeSettingsFromApiPayload(
+  payload: Partial<ModeSettingsApiPayload>,
+): ModeSettings {
   const mode: AppMode = payload.mode === "research" ? "research" : "advisor";
   const preset = mode === "advisor" ? ADVISOR_PRESET : RESEARCH_PRESET;
   return {
@@ -385,18 +423,26 @@ export function modeSettingsFromApiPayload(payload: Partial<ModeSettingsApiPaylo
         ? payload.analysis_depth
         : preset.analysisDepth,
     enableDebate:
-      typeof payload.enable_debate === "boolean" ? payload.enable_debate : preset.enableDebate,
+      typeof payload.enable_debate === "boolean"
+        ? payload.enable_debate
+        : preset.enableDebate,
     enableGlossary:
-      typeof payload.enable_glossary === "boolean" ? payload.enable_glossary : preset.enableGlossary,
+      typeof payload.enable_glossary === "boolean"
+        ? payload.enable_glossary
+        : preset.enableGlossary,
     maxSignals:
-      typeof payload.max_signals === "number" ? payload.max_signals : preset.maxSignals,
-    onboarded: typeof payload.onboarded === "boolean" ? payload.onboarded : false,
+      typeof payload.max_signals === "number"
+        ? payload.max_signals
+        : preset.maxSignals,
+    onboarded:
+      typeof payload.onboarded === "boolean" ? payload.onboarded : false,
     enableMasterCommentary:
       typeof payload.enable_master_commentary === "boolean"
         ? payload.enable_master_commentary
         : preset.enableMasterCommentary,
     selectedMasters:
-      Array.isArray(payload.selected_masters) && payload.selected_masters.length > 0
+      Array.isArray(payload.selected_masters) &&
+      payload.selected_masters.length > 0
         ? payload.selected_masters
         : [...BUILTIN_MASTER_IDS],
     customMasters: migrateCustomMasters(payload.custom_masters),
@@ -411,11 +457,16 @@ export function modeSettingsFromApiPayload(payload: Partial<ModeSettingsApiPaylo
         ? payload.briefing_auto_enabled
         : true,
     uiPollingEnabled:
-      typeof payload.ui_polling_enabled === "boolean" ? payload.ui_polling_enabled : false,
+      typeof payload.ui_polling_enabled === "boolean"
+        ? payload.ui_polling_enabled
+        : false,
   };
 }
 
-export function switchMode(settings: ModeSettings, mode: AppMode): ModeSettings {
+export function switchMode(
+  settings: ModeSettings,
+  mode: AppMode,
+): ModeSettings {
   const preset = presetForMode(mode, settings);
   return {
     ...settings,
@@ -424,14 +475,21 @@ export function switchMode(settings: ModeSettings, mode: AppMode): ModeSettings 
 }
 
 export function isCashFlowEnabled(settings: ModeSettings): boolean {
-  return settings.mode === "advisor" && typeof settings.monthlyIncome === "number" && settings.monthlyIncome > 0;
+  return (
+    settings.mode === "advisor" &&
+    typeof settings.monthlyIncome === "number" &&
+    settings.monthlyIncome > 0
+  );
 }
 
 export function isRiskToleranceEnabled(settings: ModeSettings): boolean {
   return settings.mode === "advisor";
 }
 
-export function lossToIncomeRatio(lossAmount: number, settings: ModeSettings): string | null {
+export function lossToIncomeRatio(
+  lossAmount: number,
+  settings: ModeSettings,
+): string | null {
   if (!isCashFlowEnabled(settings) || !settings.monthlyIncome) return null;
   const ratio = (lossAmount / settings.monthlyIncome) * 100;
   return `${ratio.toFixed(1)}%`;

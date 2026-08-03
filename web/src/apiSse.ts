@@ -67,12 +67,17 @@ async function consumeSse<E extends SseEvent>(
       const readPromise = reader.read();
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => {
-          reject(new Error("SSE connection timed out — no data received for 60s"));
+          reject(
+            new Error("SSE connection timed out — no data received for 60s"),
+          );
         }, timeoutMs);
       });
 
       try {
-        const { done, value } = await Promise.race([readPromise, timeoutPromise]);
+        const { done, value } = await Promise.race([
+          readPromise,
+          timeoutPromise,
+        ]);
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");

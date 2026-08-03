@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { finalizeStreamState, hasProcessContent, emptyStreamState } from "../streamEvents";
+import {
+  finalizeStreamState,
+  hasProcessContent,
+  emptyStreamState,
+} from "../streamEvents";
 
 describe("streamEvents finalize", () => {
   it("marks stream done and clears live status lines", () => {
@@ -7,7 +11,14 @@ describe("streamEvents finalize", () => {
       ...emptyStreamState(),
       streamStatus: "分析中…",
       streamLog: ["正在思考…", "获取行情"],
-      agentSteps: [{ agent_id: "a1", agent_name: "Research", role: "research", status: "done" as const }],
+      agentSteps: [
+        {
+          agent_id: "a1",
+          agent_name: "Research",
+          role: "research",
+          status: "done" as const,
+        },
+      ],
     };
     const done = finalizeStreamState(state, "分析完成");
     expect(done.streamStatus).toBe("分析完成");

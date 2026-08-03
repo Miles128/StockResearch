@@ -1,6 +1,10 @@
 """Provider metadata catalog tests."""
 
-from stockresearch.data.provider_meta import PROVIDER_CATALOG, get_provider_meta, list_provider_catalog
+from stockresearch.data.provider_meta import (
+    PROVIDER_CATALOG,
+    get_provider_meta,
+    list_provider_catalog,
+)
 
 
 def test_provider_catalog_has_core_entries() -> None:

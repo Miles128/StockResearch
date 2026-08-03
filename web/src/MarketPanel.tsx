@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, type IndexIntraday, type MarketOverview, type NewsItem, type SectorBoard } from "./api";
+import {
+  api,
+  type IndexIntraday,
+  type MarketOverview,
+  type NewsItem,
+  type SectorBoard,
+} from "./api";
 import { IndexSparkCard } from "./IndexSparkCard";
 import { signedClass } from "./holdingDisplay";
 import { useI18n } from "./i18n";
@@ -78,7 +84,9 @@ export function MarketPanel({
   const marketNews = useMemo(
     () =>
       news
-        .filter((item) => item.category === "market" || item.category === "sector")
+        .filter(
+          (item) => item.category === "market" || item.category === "sector",
+        )
         .slice(0, 16),
     [news],
   );
@@ -100,10 +108,18 @@ export function MarketPanel({
   return (
     <div className="panel market-panel">
       <div className="panel-actions-row">
-        <button className="btn btn-primary" onClick={onRefreshOverview} disabled={overviewLoading}>
+        <button
+          className="btn btn-primary"
+          onClick={onRefreshOverview}
+          disabled={overviewLoading}
+        >
           {overviewLoading ? t("market.loading") : t("market.refresh")}
         </button>
-        <button className="btn btn-ghost" onClick={onLoadNews} disabled={newsLoading}>
+        <button
+          className="btn btn-ghost"
+          onClick={onLoadNews}
+          disabled={newsLoading}
+        >
           {newsLoading ? t("news.loading") : t("market.refreshNews")}
         </button>
       </div>
@@ -133,38 +149,47 @@ export function MarketPanel({
             </div>
           </>
         )}
-        {overview && (overview.advancers != null || overview.decliners != null) && (
-          <div className="market-breadth">
-            <span className="muted">{t("market.breadth")}</span>
-            <div className="market-breadth-bar" aria-hidden="true">
-              <span
-                className="market-breadth-up"
-                style={{
-                  flex: overview.advancers ?? 0,
-                }}
-              />
-              <span
-                className="market-breadth-down"
-                style={{
-                  flex: overview.decliners ?? 0,
-                }}
-              />
+        {overview &&
+          (overview.advancers != null || overview.decliners != null) && (
+            <div className="market-breadth">
+              <span className="muted">{t("market.breadth")}</span>
+              <div className="market-breadth-bar" aria-hidden="true">
+                <span
+                  className="market-breadth-up"
+                  style={{
+                    flex: overview.advancers ?? 0,
+                  }}
+                />
+                <span
+                  className="market-breadth-down"
+                  style={{
+                    flex: overview.decliners ?? 0,
+                  }}
+                />
+              </div>
+              <span className="mono muted">
+                {t("ticker.breadth", {
+                  up: overview.advancers ?? "—",
+                  down: overview.decliners ?? "—",
+                })}
+              </span>
             </div>
-            <span className="mono muted">
-              {t("ticker.breadth", { up: overview.advancers ?? "—", down: overview.decliners ?? "—" })}
-            </span>
-          </div>
-        )}
+          )}
         {overview?.northbound_net_yi != null && (
           <p className="muted market-northbound">
-            {t("ticker.northbound", { v: overview.northbound_net_yi.toFixed(1) })}
+            {t("ticker.northbound", {
+              v: overview.northbound_net_yi.toFixed(1),
+            })}
           </p>
         )}
       </section>
 
       <section className="market-section">
         <h3 className="market-section-title">{t("sentiment.marketTitle")}</h3>
-        <SentimentGauge variant="market" pollingEnabled={loadModeSettings().uiPollingEnabled} />
+        <SentimentGauge
+          variant="market"
+          pollingEnabled={loadModeSettings().uiPollingEnabled}
+        />
       </section>
 
       <section className="market-section">
@@ -192,16 +217,21 @@ export function MarketPanel({
             {marketNews.map((item) => (
               <li key={item.id} className="market-news-item">
                 <div className="market-news-head">
-                  <span className={`market-news-sentiment ${signedClass(item.sentiment === "bullish" ? 1 : item.sentiment === "bearish" ? -1 : 0)}`}>
+                  <span
+                    className={`market-news-sentiment ${signedClass(item.sentiment === "bullish" ? 1 : item.sentiment === "bearish" ? -1 : 0)}`}
+                  >
                     {localizeSentiment(item.sentiment, t)}
                   </span>
                   <time className="muted market-news-time">
-                    {new Date(item.published_at).toLocaleString(locale === "zh" ? "zh-CN" : "en-US", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      month: "numeric",
-                      day: "numeric",
-                    })}
+                    {new Date(item.published_at).toLocaleString(
+                      locale === "zh" ? "zh-CN" : "en-US",
+                      {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        month: "numeric",
+                        day: "numeric",
+                      },
+                    )}
                   </time>
                 </div>
                 <button
@@ -217,7 +247,9 @@ export function MarketPanel({
                 >
                   {item.title}
                 </button>
-                {item.summary ? <p className="muted market-news-summary">{item.summary}</p> : null}
+                {item.summary ? (
+                  <p className="muted market-news-summary">{item.summary}</p>
+                ) : null}
               </li>
             ))}
           </ul>

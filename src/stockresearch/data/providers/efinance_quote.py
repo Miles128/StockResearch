@@ -53,9 +53,7 @@ def fetch_efinance_quotes(symbols: list[str]) -> dict[str, dict[str, float | str
             prev = df.iloc[-2] if len(df) > 1 else last
             price = float(last["收盘"])
             prev_close = float(prev["收盘"])
-            change_pct = (
-                round((price - prev_close) / prev_close * 100, 2) if prev_close else 0.0
-            )
+            change_pct = round((price - prev_close) / prev_close * 100, 2) if prev_close else 0.0
             results[symbol] = {
                 "symbol": symbol,
                 "name": str(last.get("股票名称", "") or resolve_name(symbol)),

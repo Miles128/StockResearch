@@ -49,29 +49,38 @@ function validateSellQuantities(
     const left = available.get(tx.symbol) ?? 0;
     if (qty > left) {
       const label = tx.name || tx.symbol;
-      return t("portfolio.tradeSellExceeds").replace("{name}", label).replace("{n}", String(left));
+      return t("portfolio.tradeSellExceeds")
+        .replace("{name}", label)
+        .replace("{n}", String(left));
     }
     available.set(tx.symbol, left - qty);
   }
   return null;
 }
 
-function validateDraftRows(rows: TradeDraft[], t: (key: string) => string): string | null {
+function validateDraftRows(
+  rows: TradeDraft[],
+  t: (key: string) => string,
+): string | null {
   if (rows.length === 0) return t("portfolio.tradeEmpty");
   for (const row of rows) {
     const lots = parseInt(row.lots, 10);
     if (!row.query.trim()) return t("portfolio.tradeSymbolRequired");
-    if (!Number.isFinite(lots) || lots <= 0) return t("portfolio.tradeLotsRequired");
+    if (!Number.isFinite(lots) || lots <= 0)
+      return t("portfolio.tradeLotsRequired");
     if (row.side === "buy") {
       const cost = parseFloat(row.costPrice);
-      if (!Number.isFinite(cost) || cost <= 0) return t("portfolio.invalidCost");
+      if (!Number.isFinite(cost) || cost <= 0)
+        return t("portfolio.invalidCost");
       if (!row.tradeDate) return t("portfolio.tradeDateRequired");
     }
   }
   return null;
 }
 
-async function buildPayload(rows: TradeDraft[]): Promise<HoldingTransactionItem[]> {
+async function buildPayload(
+  rows: TradeDraft[],
+): Promise<HoldingTransactionItem[]> {
   const payload: HoldingTransactionItem[] = [];
   for (const row of rows) {
     const lots = parseInt(row.lots, 10);
@@ -124,7 +133,8 @@ export function HoldingTradeModal({
         ? {
             ...base,
             ...initialRow,
-            query: initialRow.query ?? initialRow.name ?? initialRow.symbol ?? "",
+            query:
+              initialRow.query ?? initialRow.name ?? initialRow.symbol ?? "",
           }
         : base;
       setRows([seed]);
@@ -135,7 +145,9 @@ export function HoldingTradeModal({
   if (!open) return null;
 
   function updateRow(key: string, patch: Partial<TradeDraft>) {
-    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+    setRows((prev) =>
+      prev.map((r) => (r.key === key ? { ...r, ...patch } : r)),
+    );
   }
 
   function addRow() {
@@ -143,7 +155,9 @@ export function HoldingTradeModal({
   }
 
   function removeRow(key: string) {
-    setRows((prev) => (prev.length <= 1 ? prev : prev.filter((r) => r.key !== key)));
+    setRows((prev) =>
+      prev.length <= 1 ? prev : prev.filter((r) => r.key !== key),
+    );
   }
 
   async function submit() {
@@ -183,92 +197,149 @@ export function HoldingTradeModal({
       >
         <header className="modal-header">
           <h3 id="holding-trade-title">{t("portfolio.tradeModalTitle")}</h3>
-          <button type="button" className="modal-close" onClick={onClose} aria-label={t("settings.close")}>
+          <button
+            type="button"
+            className="modal-close"
+            onClick={onClose}
+            aria-label={t("settings.close")}
+          >
             ×
           </button>
         </header>
         <div className="modal-body">
-          <p className="muted holding-trade-hint">{t("portfolio.tradeModalHint")}</p>
+          <p className="muted holding-trade-hint">
+            {t("portfolio.tradeModalHint")}
+          </p>
           <div className="holding-trade-rows">
             {rows.map((row, index) => (
               <div key={row.key} className="holding-trade-row">
                 <div className="holding-trade-row-head">
-                  <span className="field-label">{t("portfolio.tradeRow", { n: String(index + 1) })}</span>
+                  <span className="field-label">
+                    {t("portfolio.tradeRow", { n: String(index + 1) })}
+                  </span>
                   {rows.length > 1 && (
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeRow(row.key)}>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => removeRow(row.key)}
+                    >
                       {t("portfolio.tradeRemoveRow")}
                     </button>
                   )}
                 </div>
                 <div className="holding-trade-fields">
                   <label className="field">
-                    <span className="field-label">{t("portfolio.tradeSide")}</span>
+                    <span className="field-label">
+                      {t("portfolio.tradeSide")}
+                    </span>
                     <select
                       value={row.side}
-                      onChange={(e) => updateRow(row.key, { side: e.target.value as "buy" | "sell" })}
+                      onChange={(e) =>
+                        updateRow(row.key, {
+                          side: e.target.value as "buy" | "sell",
+                        })
+                      }
                     >
                       <option value="buy">{t("portfolio.tradeSideBuy")}</option>
-                      <option value="sell">{t("portfolio.tradeSideSell")}</option>
+                      <option value="sell">
+                        {t("portfolio.tradeSideSell")}
+                      </option>
                     </select>
                   </label>
                   <label className="field field-wide">
-                    <span className="field-label">{t("portfolio.tradeSymbol")}</span>
+                    <span className="field-label">
+                      {t("portfolio.tradeSymbol")}
+                    </span>
                     <input
                       placeholder={t("portfolio.symbolPh")}
                       value={row.query}
-                      onChange={(e) => updateRow(row.key, { query: e.target.value, symbol: "", name: "" })}
+                      onChange={(e) =>
+                        updateRow(row.key, {
+                          query: e.target.value,
+                          symbol: "",
+                          name: "",
+                        })
+                      }
                     />
                   </label>
                   {row.side === "buy" && (
                     <>
                       <label className="field">
-                        <span className="field-label">{t("portfolio.tradeDate")}</span>
+                        <span className="field-label">
+                          {t("portfolio.tradeDate")}
+                        </span>
                         <input
                           type="date"
                           required
                           max={new Date().toISOString().slice(0, 10)}
                           value={row.tradeDate}
-                          onChange={(e) => updateRow(row.key, { tradeDate: e.target.value })}
+                          onChange={(e) =>
+                            updateRow(row.key, { tradeDate: e.target.value })
+                          }
                         />
                       </label>
                       <label className="field">
-                        <span className="field-label">{t("portfolio.tradeCost")}</span>
+                        <span className="field-label">
+                          {t("portfolio.tradeCost")}
+                        </span>
                         <input
                           type="number"
                           min="0"
                           step="0.01"
                           placeholder="0.00"
                           value={row.costPrice}
-                          onChange={(e) => updateRow(row.key, { costPrice: e.target.value })}
+                          onChange={(e) =>
+                            updateRow(row.key, { costPrice: e.target.value })
+                          }
                         />
                       </label>
                     </>
                   )}
                   <label className="field">
-                    <span className="field-label">{t("portfolio.tradeLots")}</span>
+                    <span className="field-label">
+                      {t("portfolio.tradeLots")}
+                    </span>
                     <input
                       type="number"
                       min="1"
                       step="1"
                       value={row.lots}
-                      onChange={(e) => updateRow(row.key, { lots: e.target.value })}
+                      onChange={(e) =>
+                        updateRow(row.key, { lots: e.target.value })
+                      }
                     />
                   </label>
                 </div>
               </div>
             ))}
           </div>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={addRow}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={addRow}
+          >
             {t("portfolio.tradeAddRow")}
           </button>
           {error && <p className="error holding-trade-error">{error}</p>}
         </div>
         <footer className="modal-footer">
-          <button type="button" className="btn btn-ghost" onClick={onClose} disabled={submitting}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={onClose}
+            disabled={submitting}
+          >
             {t("settings.cancel")}
           </button>
-          <button type="button" className="btn btn-primary" onClick={() => void submit()} disabled={submitting}>
-            {submitting ? t("portfolio.tradeSubmitting") : t("portfolio.tradeSubmit")}
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void submit()}
+            disabled={submitting}
+          >
+            {submitting
+              ? t("portfolio.tradeSubmitting")
+              : t("portfolio.tradeSubmit")}
           </button>
         </footer>
       </div>

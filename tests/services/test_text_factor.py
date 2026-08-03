@@ -1,5 +1,6 @@
 """Text factor compression tests."""
 
+from stockresearch.core.schemas import DimensionResult
 from stockresearch.services.text_factor import (
     NewsSnippet,
     build_dimension_text_factor,
@@ -7,7 +8,6 @@ from stockresearch.services.text_factor import (
     build_text_factor_summary,
     news_from_title,
 )
-from stockresearch.core.schemas import DimensionResult
 
 
 def test_build_news_text_factor_groups_and_sentiment() -> None:

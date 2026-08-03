@@ -27,7 +27,9 @@ def _resolve_user_id(db, user_id: int | None) -> int:
 
 
 def _print_json(payload: object) -> int:
-    text = payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False, indent=2)
+    text = (
+        payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False, indent=2)
+    )
     sys.stdout.write(text if text.endswith("\n") else text + "\n")
     return 0
 

@@ -25,16 +25,16 @@ from stockresearch.core.schemas import (
     SentimentOut,
     StockQuoteOut,
 )
-from stockresearch.data.providers.sina_kline import fetch_sina_intraday
-from stockresearch.services.sentiment import SentimentService
 from stockresearch.data.provider_meta import list_provider_catalog
 from stockresearch.data.providers.market import TechnicalDataProvider
 from stockresearch.data.providers.market_overview import BatchQuoteProvider, MarketOverviewProvider
 from stockresearch.data.providers.sector import SectorDataProvider
+from stockresearch.data.providers.sina_kline import fetch_sina_intraday
 from stockresearch.data.registry import ProviderSnapshot, get_quote_conflicts, get_snapshots
 from stockresearch.db.models import Holding, User
 from stockresearch.db.session import get_db
 from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
+from stockresearch.services.sentiment import SentimentService
 from stockresearch.services.user_preferences import get_mode_settings
 
 logger = logging.getLogger(__name__)
@@ -189,9 +189,13 @@ async def data_source_status(
 
 
 def _provider_status(snapshot: ProviderSnapshot) -> ProviderStatusOut:
-    confidence: Literal["verified", "single_source", "delayed", "cached", "conflict", "missing"] = "single_source"
+    confidence: Literal["verified", "single_source", "delayed", "cached", "conflict", "missing"] = (
+        "single_source"
+    )
     if snapshot.degraded:
-        confidence = "missing" if snapshot.fallback_count == 0 and snapshot.tertiary_count == 0 else "cached"
+        confidence = (
+            "missing" if snapshot.fallback_count == 0 and snapshot.tertiary_count == 0 else "cached"
+        )
     return ProviderStatusOut(
         domain=snapshot.domain,
         primary=snapshot.primary,
@@ -275,7 +279,11 @@ def _data_source_details(
             )
         )
     else:
-        source = overview.primary if not overview.fallback else f"{overview.primary} + {overview.fallback}"
+        source = (
+            overview.primary
+            if not overview.fallback
+            else f"{overview.primary} + {overview.fallback}"
+        )
         details.append(
             DataSourceDetailOut(
                 domain=overview.domain,
@@ -379,7 +387,10 @@ async def market_sentiment(
     return SentimentOut(
         score=result.score,
         label=result.label,
-        drivers=[SentimentDriverOut(label=d.label, value=d.value, impact=d.impact) for d in result.drivers],
+        drivers=[
+            SentimentDriverOut(label=d.label, value=d.value, impact=d.impact)
+            for d in result.drivers
+        ],
         source=result.source,
     )
 
@@ -393,7 +404,10 @@ async def sector_sentiment(
     return SentimentOut(
         score=result.score,
         label=result.label,
-        drivers=[SentimentDriverOut(label=d.label, value=d.value, impact=d.impact) for d in result.drivers],
+        drivers=[
+            SentimentDriverOut(label=d.label, value=d.value, impact=d.impact)
+            for d in result.drivers
+        ],
         source=result.source,
     )
 
@@ -408,6 +422,9 @@ async def stock_sentiment(
     return SentimentOut(
         score=result.score,
         label=result.label,
-        drivers=[SentimentDriverOut(label=d.label, value=d.value, impact=d.impact) for d in result.drivers],
+        drivers=[
+            SentimentDriverOut(label=d.label, value=d.value, impact=d.impact)
+            for d in result.drivers
+        ],
         source=result.source,
     )

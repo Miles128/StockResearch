@@ -40,11 +40,7 @@ def build_ashare_factor_checklist(
     factor as verified when the current report already contains a matching data
     source or explicit text evidence; otherwise it records what is missing.
     """
-    sources = {
-        source
-        for dim in dimensions.values()
-        for source in dim.data_sources
-    }
+    sources = {source for dim in dimensions.values() for source in dim.data_sources}
 
     return [
         _source_factor(

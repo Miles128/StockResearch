@@ -35,7 +35,10 @@ interface DimensionCardsProps {
 
 function confidenceLabel(
   raw: string,
-  labels: Pick<DimensionCardsProps["labels"], "confidenceHigh" | "confidenceMedium" | "confidenceLow">,
+  labels: Pick<
+    DimensionCardsProps["labels"],
+    "confidenceHigh" | "confidenceMedium" | "confidenceLow"
+  >,
 ): string {
   const key = raw.trim().toLowerCase();
   const map: Record<string, string> = {
@@ -74,20 +77,25 @@ export function dimensionItemsFromResults(
 function hasDetail(item: DimensionCardItem): boolean {
   return Boolean(
     item.body ||
-      (item.highlights?.length ?? 0) > 0 ||
-      (item.risks?.length ?? 0) > 0 ||
-      (item.evidence?.length ?? 0) > 0 ||
-      (item.gaps?.length ?? 0) > 0 ||
-      (item.status === "running" && item.streaming),
+    (item.highlights?.length ?? 0) > 0 ||
+    (item.risks?.length ?? 0) > 0 ||
+    (item.evidence?.length ?? 0) > 0 ||
+    (item.gaps?.length ?? 0) > 0 ||
+    (item.status === "running" && item.streaming),
   );
 }
 
-export function DimensionCards({ items, labels, defaultOpen = false }: DimensionCardsProps) {
+export function DimensionCards({
+  items,
+  labels,
+  defaultOpen = false,
+}: DimensionCardsProps) {
   if (!items.length) return null;
   return (
     <div className="dimension-cards-grid">
       {items.map((item) => {
-        const open = defaultOpen || (item.status === "running" && item.streaming);
+        const open =
+          defaultOpen || (item.status === "running" && item.streaming);
         const expandable = hasDetail(item) || item.status === "running";
         return (
           <details
@@ -97,12 +105,18 @@ export function DimensionCards({ items, labels, defaultOpen = false }: Dimension
           >
             <summary className="dimension-card-summary">
               <span className="dimension-card-title">
-                {expandable ? <span className="dimension-card-chevron" aria-hidden /> : null}
+                {expandable ? (
+                  <span className="dimension-card-chevron" aria-hidden />
+                ) : null}
                 {item.title}
               </span>
               <span className="dimension-card-meta">
                 {item.statusLabel ? (
-                  <span className={`dimension-status dimension-status-${item.status}`}>{item.statusLabel}</span>
+                  <span
+                    className={`dimension-status dimension-status-${item.status}`}
+                  >
+                    {item.statusLabel}
+                  </span>
                 ) : null}
                 {item.score != null ? (
                   <span className="stat-pill">
@@ -116,25 +130,36 @@ export function DimensionCards({ items, labels, defaultOpen = false }: Dimension
               </span>
             </summary>
             <div className="dimension-card-body">
-              {item.status === "running" && !item.body && !item.highlights?.length && labels.analyzing ? (
+              {item.status === "running" &&
+              !item.body &&
+              !item.highlights?.length &&
+              labels.analyzing ? (
                 <p className="muted dimension-card-hint">{labels.analyzing}</p>
               ) : null}
               {item.body ? (
                 <div className="stream-msg-body">
                   <MarkdownContent text={item.body} />
-                  {item.streaming ? <span className="stream-cursor">▍</span> : null}
+                  {item.streaming ? (
+                    <span className="stream-cursor">▍</span>
+                  ) : null}
                 </div>
               ) : null}
               {(item.highlights?.length ?? 0) > 0 && (
                 <div className="dimension-highlights">
                   <strong>{labels.highlights}：</strong>
-                  <MarkdownContent className="markdown-inline" text={item.highlights!.join("；")} />
+                  <MarkdownContent
+                    className="markdown-inline"
+                    text={item.highlights!.join("；")}
+                  />
                 </div>
               )}
               {(item.risks?.length ?? 0) > 0 && (
                 <div className="dimension-risks muted">
                   <strong>{labels.risks}：</strong>
-                  <MarkdownContent className="markdown-inline" text={item.risks!.join("；")} />
+                  <MarkdownContent
+                    className="markdown-inline"
+                    text={item.risks!.join("；")}
+                  />
                 </div>
               )}
               {(item.evidence?.length ?? 0) > 0 && labels.evidence ? (

@@ -12,7 +12,10 @@ import { useI18n } from "./i18n";
 import { translateRouteOption, translateRouteReason } from "./streamI18n";
 import { localizeDebateAgentName, localizeRating } from "./uiLabels";
 import { MarkdownContent } from "./MarkdownContent";
-import { normalizeResearchConclusion, researchExpandHintsFromReport } from "./researchText";
+import {
+  normalizeResearchConclusion,
+  researchExpandHintsFromReport,
+} from "./researchText";
 import { StockChart } from "./StockChart";
 
 export function RouteChoiceCardView({
@@ -34,19 +37,19 @@ export function RouteChoiceCardView({
         {data.options.map((opt) => {
           const { label, description } = translateRouteOption(opt, t);
           return (
-          <button
-            key={opt.id}
-            type="button"
-            className="btn btn-ghost route-choice-btn"
-            disabled={disabled || picked}
-            onClick={() => {
-              setPicked(true);
-              onConfirm(data.original_message, opt.id);
-            }}
-          >
-            <span className="route-choice-label">{label}</span>
-            <span className="route-choice-desc muted">{description}</span>
-          </button>
+            <button
+              key={opt.id}
+              type="button"
+              className="btn btn-ghost route-choice-btn"
+              disabled={disabled || picked}
+              onClick={() => {
+                setPicked(true);
+                onConfirm(data.original_message, opt.id);
+              }}
+            >
+              <span className="route-choice-label">{label}</span>
+              <span className="route-choice-desc muted">{description}</span>
+            </button>
           );
         })}
       </div>
@@ -164,111 +167,139 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
     return null;
   }
   if (card.type === "research" && card.data && "composite_score" in card.data) {
-      const d = card.data as unknown as ResearchReport;
-      return (
-        <div className="card">
-          <h4>
-            {t("card.research")} · {d.name} ({d.symbol})
-          </h4>
-          <div className="stat-row">
-            <span className="stat-pill">
-              {t("card.score")} {d.composite_score}/10
-            </span>
-            <span className="stat-pill">
-              {t("card.bias")} {d.bias}
-            </span>
-          </div>
-          <div className="light-research-summary">
+    const d = card.data as unknown as ResearchReport;
+    return (
+      <div className="card">
+        <h4>
+          {t("card.research")} · {d.name} ({d.symbol})
+        </h4>
+        <div className="stat-row">
+          <span className="stat-pill">
+            {t("card.score")} {d.composite_score}/10
+          </span>
+          <span className="stat-pill">
+            {t("card.bias")} {d.bias}
+          </span>
+        </div>
+        <div className="light-research-summary">
+          <MarkdownContent
+            text={normalizeResearchConclusion(d.summary, {
+              expandHints: researchExpandHintsFromReport(d),
+            })}
+          />
+        </div>
+        {/^\d{6}$/.test(d.symbol) && (
+          <StockChart key={d.symbol} symbol={d.symbol} compact />
+        )}
+      </div>
+    );
+  }
+  if (card.type === "risk" && card.data && "portfolio_summary" in card.data) {
+    const d = card.data as unknown as RiskCheckup;
+    return (
+      <div className="card">
+        <h4>{t("card.riskCheckup")}</h4>
+        <MarkdownContent text={d.portfolio_summary} />
+        {d.alerts?.slice(0, 3).map((a, i) => (
+          <p key={i} className={`alert-${a.severity}`}>
+            {a.human_message}
+          </p>
+        ))}
+        {d.llm_analysis && (
+          <div>
+            <strong>{t("card.aiBrief")}:</strong>{" "}
             <MarkdownContent
-              text={normalizeResearchConclusion(d.summary, {
-                expandHints: researchExpandHintsFromReport(d),
-              })}
+              className="markdown-inline"
+              text={d.llm_analysis.risk_narrative}
             />
           </div>
-          {/^\d{6}$/.test(d.symbol) && <StockChart key={d.symbol} symbol={d.symbol} compact />}
-        </div>
-      );
-    }
-    if (card.type === "risk" && card.data && "portfolio_summary" in card.data) {
-      const d = card.data as unknown as RiskCheckup;
-      return (
-        <div className="card">
-          <h4>{t("card.riskCheckup")}</h4>
-          <MarkdownContent text={d.portfolio_summary} />
-          {d.alerts?.slice(0, 3).map((a, i) => (
-            <p key={i} className={`alert-${a.severity}`}>
-              {a.human_message}
+        )}
+      </div>
+    );
+  }
+  if (card.type === "news" && card.data && "items" in card.data) {
+    const items = (card.data as { items: NewsItem[] }).items || [];
+    if (!items.length) return null;
+    return (
+      <details className="card news-card-fold">
+        <summary className="news-card-summary">
+          {t("card.relatedNews")} ({items.length})
+        </summary>
+        <div className="news-card-body">
+          {items.slice(0, 5).map((n, i) => (
+            <p key={i}>
+              <strong>{n.title}</strong>
+              {n.summary ? ` — ${n.summary}` : ""}
             </p>
           ))}
-          {d.llm_analysis && (
-            <div>
-              <strong>{t("card.aiBrief")}:</strong>{" "}
-              <MarkdownContent className="markdown-inline" text={d.llm_analysis.risk_narrative} />
-            </div>
-          )}
         </div>
-      );
-    }
-    if (card.type === "news" && card.data && "items" in card.data) {
-      const items = (card.data as { items: NewsItem[] }).items || [];
-      if (!items.length) return null;
-      return (
-        <details className="card news-card-fold">
-          <summary className="news-card-summary">
-            {t("card.relatedNews")} ({items.length})
-          </summary>
-          <div className="news-card-body">
-            {items.slice(0, 5).map((n, i) => (
-              <p key={i}>
-                <strong>{n.title}</strong>
-                {n.summary ? ` — ${n.summary}` : ""}
-              </p>
-            ))}
-          </div>
-        </details>
-      );
-    }
-    if (card.type === "debate" && card.data && "positions" in card.data) {
-      const d = card.data as {
-        positions: { agent: string; stance: string; arguments: string }[];
-        vote_tally: Record<string, number>;
-        final_bias: string;
-        synthesis: string;
-        symbol: string;
-        name: string;
-      };
-      const biasLabel: Record<string, string> = {
-        bullish: t("card.bullish"),
-        bearish: t("card.bearish"),
-        neutral: t("card.neutral"),
-      };
-      const stanceColor: Record<string, string> = {
-        看多: "up",
-        看空: "down",
-        中性: "",
-        Long: "up",
-        Short: "down",
-        Neutral: "",
-        bullish: "up",
-        bearish: "down",
-      };
-      const stanceLabel = (s: string) =>
-        ({ 看多: t("card.long"), 看空: t("card.short"), 中性: t("card.neutral"), Long: t("card.long"), Short: t("card.short"), Neutral: t("card.neutral"), bullish: t("card.long"), bearish: t("card.short") } as Record<string, string>)[s] ?? s;
-      return (
-        <details className="card debate-card-fold">
-          <summary className="news-card-summary">
-            {t("card.debate")} · {d.name}({d.symbol})
-          </summary>
-          <div className="news-card-body">
+      </details>
+    );
+  }
+  if (card.type === "debate" && card.data && "positions" in card.data) {
+    const d = card.data as {
+      positions: { agent: string; stance: string; arguments: string }[];
+      vote_tally: Record<string, number>;
+      final_bias: string;
+      synthesis: string;
+      symbol: string;
+      name: string;
+    };
+    const biasLabel: Record<string, string> = {
+      bullish: t("card.bullish"),
+      bearish: t("card.bearish"),
+      neutral: t("card.neutral"),
+    };
+    const stanceColor: Record<string, string> = {
+      看多: "up",
+      看空: "down",
+      中性: "",
+      Long: "up",
+      Short: "down",
+      Neutral: "",
+      bullish: "up",
+      bearish: "down",
+    };
+    const stanceLabel = (s: string) =>
+      (
+        ({
+          看多: t("card.long"),
+          看空: t("card.short"),
+          中性: t("card.neutral"),
+          Long: t("card.long"),
+          Short: t("card.short"),
+          Neutral: t("card.neutral"),
+          bullish: t("card.long"),
+          bearish: t("card.short"),
+        }) as Record<string, string>
+      )[s] ?? s;
+    return (
+      <details className="card debate-card-fold">
+        <summary className="news-card-summary">
+          {t("card.debate")} · {d.name}({d.symbol})
+        </summary>
+        <div className="news-card-body">
           <div className="stat-row">
             <span className="stat-pill">
-              {t("card.long")} {(d.vote_tally["看多"] || d.vote_tally["Long"] || d.vote_tally["bullish"] || 0)}
+              {t("card.long")}{" "}
+              {d.vote_tally["看多"] ||
+                d.vote_tally["Long"] ||
+                d.vote_tally["bullish"] ||
+                0}
             </span>
             <span className="stat-pill">
-              {t("card.short")} {(d.vote_tally["看空"] || d.vote_tally["Short"] || d.vote_tally["bearish"] || 0)}
+              {t("card.short")}{" "}
+              {d.vote_tally["看空"] ||
+                d.vote_tally["Short"] ||
+                d.vote_tally["bearish"] ||
+                0}
             </span>
             <span className="stat-pill">
-              {t("card.neutral")} {(d.vote_tally["中性"] || d.vote_tally["Neutral"] || d.vote_tally["neutral"] || 0)}
+              {t("card.neutral")}{" "}
+              {d.vote_tally["中性"] ||
+                d.vote_tally["Neutral"] ||
+                d.vote_tally["neutral"] ||
+                0}
             </span>
             <span
               className={`stat-pill ${d.final_bias === "bullish" ? "up" : d.final_bias === "bearish" ? "down" : ""}`}
@@ -277,11 +308,14 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
             </span>
           </div>
           {d.positions.map((p, i) => (
-            <div key={i} className={`debate-position ${stanceColor[p.stance] || ""}`}>
-              <strong>
-                {localizeDebateAgentName(p.agent, t)}
-              </strong>{" "}
-              <span className={`stat-pill ${stanceColor[p.stance]}`}>{stanceLabel(p.stance)}</span>
+            <div
+              key={i}
+              className={`debate-position ${stanceColor[p.stance] || ""}`}
+            >
+              <strong>{localizeDebateAgentName(p.agent, t)}</strong>{" "}
+              <span className={`stat-pill ${stanceColor[p.stance]}`}>
+                {stanceLabel(p.stance)}
+              </span>
               <p className="muted" style={{ marginTop: 2 }}>
                 {p.arguments.slice(0, 200)}
                 {p.arguments.length > 200 ? "..." : ""}
@@ -289,31 +323,42 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
             </div>
           ))}
           {d.synthesis && (
-            <div style={{ marginTop: 8, borderTop: "1px solid var(--bbg-border)", paddingTop: 8 }}>
+            <div
+              style={{
+                marginTop: 8,
+                borderTop: "1px solid var(--bbg-border)",
+                paddingTop: 8,
+              }}
+            >
               <strong>{t("card.judge")}</strong>
               <div style={{ marginTop: 4 }}>
                 <MarkdownContent text={d.synthesis} />
               </div>
             </div>
           )}
-          </div>
-        </details>
-      );
-    }
-    if (card.type === "financial" && card.data && "ratios" in card.data) {
-      const d = card.data as {
-        symbol: string;
+        </div>
+      </details>
+    );
+  }
+  if (card.type === "financial" && card.data && "ratios" in card.data) {
+    const d = card.data as {
+      symbol: string;
+      name: string;
+      ratios: {
         name: string;
-        ratios: { name: string; value: string; reference: string; assessment: string }[];
-        summary: string;
-      };
-      return (
-        <details className="card financial-card-fold">
-          <summary className="news-card-summary">
-            {t("card.financial")} · {d.name}({d.symbol})
-          </summary>
-          <div className="news-card-body">
-            <table className="metrics-table">
+        value: string;
+        reference: string;
+        assessment: string;
+      }[];
+      summary: string;
+    };
+    return (
+      <details className="card financial-card-fold">
+        <summary className="news-card-summary">
+          {t("card.financial")} · {d.name}({d.symbol})
+        </summary>
+        <div className="news-card-body">
+          <table className="metrics-table">
             <thead>
               <tr>
                 <th>{t("card.metric")}</th>
@@ -332,7 +377,8 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
                     className={
                       r.assessment.includes("高") || r.assessment.includes("过")
                         ? "down"
-                        : r.assessment.includes("优") || r.assessment.includes("良")
+                        : r.assessment.includes("优") ||
+                            r.assessment.includes("良")
                           ? "up"
                           : ""
                     }
@@ -348,18 +394,18 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
               <MarkdownContent text={d.summary} />
             </div>
           )}
-          </div>
-        </details>
-      );
-    }
-    if (card.type === "text" && card.data && "content" in card.data) {
-      const content = String((card.data as { content: string }).content || "");
-      if (!content) return null;
-      return (
-        <div className="card">
-          <MarkdownContent text={content} />
         </div>
-      );
+      </details>
+    );
+  }
+  if (card.type === "text" && card.data && "content" in card.data) {
+    const content = String((card.data as { content: string }).content || "");
+    if (!content) return null;
+    return (
+      <div className="card">
+        <MarkdownContent text={content} />
+      </div>
+    );
   }
   return null;
 }

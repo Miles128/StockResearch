@@ -9,7 +9,12 @@ from sqlalchemy.orm import Session
 
 from stockresearch.core.constants import DISCLAIMER
 from stockresearch.data.providers.market_overview import BatchQuoteProvider
-from stockresearch.db.models import Holding, PriceAlertNotification, PriceAlertSetting, WatchlistItem
+from stockresearch.db.models import (
+    Holding,
+    PriceAlertNotification,
+    PriceAlertSetting,
+    WatchlistItem,
+)
 
 logger = logging.getLogger(__name__)
 

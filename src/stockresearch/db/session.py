@@ -116,18 +116,14 @@ def _migrate_sqlite_schema() -> None:
             )
         )
         applied = {
-            int(row[0])
-            for row in conn.execute(text("SELECT version FROM schema_migrations"))
+            int(row[0]) for row in conn.execute(text("SELECT version FROM schema_migrations"))
         }
         for version, name, migration in _SQLITE_MIGRATIONS:
             if version in applied:
                 continue
             migration(conn)
             conn.execute(
-                text(
-                    "INSERT INTO schema_migrations(version, name) "
-                    "VALUES (:version, :name)"
-                ),
+                text("INSERT INTO schema_migrations(version, name) " "VALUES (:version, :name)"),
                 {"version": version, "name": name},
             )
 

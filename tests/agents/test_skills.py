@@ -9,7 +9,12 @@ import pytest
 from sqlalchemy.orm import Session
 
 from stockresearch.agents.orchestrator.skills import PACKAGED_SKILLS, SKILL_IDS, SkillRunner
-from stockresearch.core.schemas import DebateResult, DimensionResult, ModeSettingsOut, ResearchReportOut
+from stockresearch.core.schemas import (
+    DebateResult,
+    DimensionResult,
+    ModeSettingsOut,
+    ResearchReportOut,
+)
 from stockresearch.db.models import Holding, User
 from stockresearch.utils.llm import MockLLMClient
 
@@ -118,8 +123,15 @@ async def test_skill_risk_checkup_forwards_substream(
     db_session.add(holding)
     db_session.commit()
 
-    async def fake_risk_stream(*_args: object, **_kwargs: object) -> AsyncIterator[dict[str, object]]:
-        yield {"type": "agent_start", "agent_id": "risk_rule", "agent_name": "规则", "role": "analyst"}
+    async def fake_risk_stream(
+        *_args: object, **_kwargs: object
+    ) -> AsyncIterator[dict[str, object]]:
+        yield {
+            "type": "agent_start",
+            "agent_id": "risk_rule",
+            "agent_name": "规则",
+            "role": "analyst",
+        }
         async for event in _stream_done({"alerts": [], "portfolio_summary": "组合风险可控"}):
             yield event
 
@@ -136,7 +148,11 @@ async def test_skill_risk_checkup_forwards_substream(
     assert result.cards[0]["type"] == "risk"
     assert result.summary == "组合风险可控"
     run_id = events[0]["skill_run_id"]
-    nested = [e for e in events if e.get("skill_run_id") == run_id and e["type"] not in ("skill_start", "skill_done")]
+    nested = [
+        e
+        for e in events
+        if e.get("skill_run_id") == run_id and e["type"] not in ("skill_start", "skill_done")
+    ]
     assert any(e["type"] == "agent_start" for e in nested)
 
 
@@ -150,8 +166,15 @@ async def test_skill_stock_research_forwards_substream(
     db_session.commit()
     db_session.refresh(user)
 
-    async def fake_research_stream(*_args: object, **_kwargs: object) -> AsyncIterator[dict[str, object]]:
-        yield {"type": "dimension_ready", "agent_id": "fundamental", "agent_name": "基本面", "content": "ok"}
+    async def fake_research_stream(
+        *_args: object, **_kwargs: object
+    ) -> AsyncIterator[dict[str, object]]:
+        yield {
+            "type": "dimension_ready",
+            "agent_id": "fundamental",
+            "agent_name": "基本面",
+            "content": "ok",
+        }
         async for event in _stream_done(_research_payload()):
             yield event
 
@@ -213,7 +236,9 @@ async def test_skill_market_research(db_session: Session, monkeypatch: pytest.Mo
     db_session.commit()
     db_session.refresh(user)
 
-    async def fake_market_stream(*_args: object, **_kwargs: object) -> AsyncIterator[dict[str, object]]:
+    async def fake_market_stream(
+        *_args: object, **_kwargs: object
+    ) -> AsyncIterator[dict[str, object]]:
         async for event in _stream_done(_research_payload(symbol="000001", name="上证指数")):
             yield event
 
@@ -230,13 +255,17 @@ async def test_skill_market_research(db_session: Session, monkeypatch: pytest.Mo
 
 
 @pytest.mark.asyncio
-async def test_skill_industry_research(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_skill_industry_research(
+    db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
     user = User(username="skill-industry", password_hash="")
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
 
-    async def fake_industry_stream(*_args: object, **_kwargs: object) -> AsyncIterator[dict[str, object]]:
+    async def fake_industry_stream(
+        *_args: object, **_kwargs: object
+    ) -> AsyncIterator[dict[str, object]]:
         payload = _research_payload(symbol="688981", name="半导体板块")
         payload["sector"] = "半导体"
         async for event in _stream_done(payload):
@@ -279,7 +308,9 @@ async def test_skill_bull_bear_debate_enables_debate(
 
     captured: dict[str, Any] = {}
 
-    async def fake_research_stream(_symbol: str, **kwargs: object) -> AsyncIterator[dict[str, object]]:
+    async def fake_research_stream(
+        _symbol: str, **kwargs: object
+    ) -> AsyncIterator[dict[str, object]]:
         captured["with_debate"] = kwargs.get("with_debate")
         async for event in _stream_done(_research_payload()):
             yield event
@@ -319,7 +350,9 @@ async def test_skill_master_commentary_forwards_events(
     db_session.commit()
     db_session.refresh(user)
 
-    async def fake_commentary(*_args: object, **_kwargs: object) -> AsyncIterator[dict[str, object]]:
+    async def fake_commentary(
+        *_args: object, **_kwargs: object
+    ) -> AsyncIterator[dict[str, object]]:
         yield {
             "type": "master_commentary",
             "commentary": [

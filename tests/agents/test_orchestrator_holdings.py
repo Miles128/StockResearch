@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from stockresearch.agents.orchestrator.graph import Orchestrator
 from stockresearch.db.models import Holding, User
 
+
 @pytest.mark.asyncio
 async def test_chat_risk_sees_user_holdings(db_session: Session) -> None:
     user = User(username="holdings_user", password_hash="")

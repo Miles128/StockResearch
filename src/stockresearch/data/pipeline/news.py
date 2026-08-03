@@ -151,10 +151,7 @@ class NewsPipeline:
         limit: int = 20,
     ) -> list[tuple[NewsItem, bool, str]]:
         candidates = (
-            db.query(NewsItem)
-            .order_by(NewsItem.published_at.desc())
-            .limit(limit * 8)
-            .all()
+            db.query(NewsItem).order_by(NewsItem.published_at.desc()).limit(limit * 8).all()
         )
         ranked = filter_and_rank(
             candidates,

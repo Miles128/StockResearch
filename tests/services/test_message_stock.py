@@ -2,7 +2,7 @@
 
 import pytest
 
-from stockresearch.services.message_stock import extract_stock_query, resolve_message_stock
+from stockresearch.services.chat.message_stock import extract_stock_query, resolve_message_stock
 
 
 def test_extract_stock_query_from_code() -> None:

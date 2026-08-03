@@ -1,6 +1,6 @@
 """Market-wide research context (no single stock symbol)."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from stockresearch.core.schemas import MarketOverviewOut
 from stockresearch.utils.llm import LLMClient
@@ -15,3 +15,6 @@ class MarketResearchContext:
     llm: LLMClient
     overview: MarketOverviewOut
     overview_text: str
+    global_text: str = ""
+    macro_text: str = ""
+    global_changes: list[float] = field(default_factory=list)

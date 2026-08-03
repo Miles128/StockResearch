@@ -10,6 +10,7 @@ from fastapi.responses import PlainTextResponse, Response, StreamingResponse
 from sqlalchemy.orm import Session
 
 from stockresearch.agents.industry.research import run_industry_research
+from stockresearch.agents.research.budget import resolve_analysis_depth
 from stockresearch.agents.research.runner import run_research
 from stockresearch.agents.research.stream import run_research_stream
 from stockresearch.api.deps import get_current_user
@@ -36,7 +37,6 @@ from stockresearch.core.schemas import (
 )
 from stockresearch.db.models import ResearchReport, User
 from stockresearch.db.session import get_db
-from stockresearch.agents.research.budget import resolve_analysis_depth
 from stockresearch.services.cache import CacheService
 from stockresearch.services.compare_table import build_compare_table, flatten_compare_csv
 from stockresearch.services.event_study import compute_event_study, compute_event_study_batch
@@ -136,9 +136,7 @@ async def analyze_stock(
     if cached:
         report = ResearchReportOut.model_validate({**cached, "cached": True})
     else:
-        report = await run_research(
-            symbol, llm=llm, mode_settings=settings, analysis_depth=depth
-        )
+        report = await run_research(symbol, llm=llm, mode_settings=settings, analysis_depth=depth)
         cache.set_json(cache_key, report.model_dump(mode="json"), ttl_seconds=86400)
 
     row = persist_report(db, user.id, report)

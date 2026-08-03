@@ -51,12 +51,13 @@ def _make_overview(
 async def test_index_surge_signal():
     """指数大涨 >= +2% 触发 market 信号。"""
     overview = _make_overview(index_change=_INDEX_SURGE_PCT)
-    with patch(
-        "stockresearch.services.action_center.MarketOverviewProvider"
-    ) as provider_cls, patch(
-        "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
-        new_callable=AsyncMock,
-        return_value=SentimentResult(score=50, label="中性", drivers=[], source="composite"),
+    with (
+        patch("stockresearch.services.action_center.MarketOverviewProvider") as provider_cls,
+        patch(
+            "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
+            new_callable=AsyncMock,
+            return_value=SentimentResult(score=50, label="中性", drivers=[], source="composite"),
+        ),
     ):
         provider_cls.return_value.get_overview = AsyncMock(return_value=overview)
         signals = await _collect_market_signals()
@@ -72,12 +73,13 @@ async def test_index_surge_signal():
 async def test_index_plunge_signal():
     """指数大跌 <= -2% 触发 warning 信号。"""
     overview = _make_overview(index_change=_INDEX_PLUNGE_PCT)
-    with patch(
-        "stockresearch.services.action_center.MarketOverviewProvider"
-    ) as provider_cls, patch(
-        "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
-        new_callable=AsyncMock,
-        return_value=SentimentResult(score=50, label="中性", drivers=[], source="composite"),
+    with (
+        patch("stockresearch.services.action_center.MarketOverviewProvider") as provider_cls,
+        patch(
+            "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
+            new_callable=AsyncMock,
+            return_value=SentimentResult(score=50, label="中性", drivers=[], source="composite"),
+        ),
     ):
         provider_cls.return_value.get_overview = AsyncMock(return_value=overview)
         signals = await _collect_market_signals()
@@ -91,12 +93,13 @@ async def test_index_plunge_signal():
 async def test_breadth_extreme_bull():
     """普涨：上涨家数占比 >= 70% 触发信号。"""
     overview = _make_overview(advancers=3500, decliners=1000)
-    with patch(
-        "stockresearch.services.action_center.MarketOverviewProvider"
-    ) as provider_cls, patch(
-        "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
-        new_callable=AsyncMock,
-        return_value=SentimentResult(score=50, label="中性", drivers=[], source="composite"),
+    with (
+        patch("stockresearch.services.action_center.MarketOverviewProvider") as provider_cls,
+        patch(
+            "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
+            new_callable=AsyncMock,
+            return_value=SentimentResult(score=50, label="中性", drivers=[], source="composite"),
+        ),
     ):
         provider_cls.return_value.get_overview = AsyncMock(return_value=overview)
         signals = await _collect_market_signals()
@@ -110,12 +113,13 @@ async def test_breadth_extreme_bull():
 async def test_breadth_extreme_bear():
     """普跌：上涨家数占比 <= 30% 触发 warning 信号。"""
     overview = _make_overview(advancers=1000, decliners=3500)
-    with patch(
-        "stockresearch.services.action_center.MarketOverviewProvider"
-    ) as provider_cls, patch(
-        "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
-        new_callable=AsyncMock,
-        return_value=SentimentResult(score=50, label="中性", drivers=[], source="composite"),
+    with (
+        patch("stockresearch.services.action_center.MarketOverviewProvider") as provider_cls,
+        patch(
+            "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
+            new_callable=AsyncMock,
+            return_value=SentimentResult(score=50, label="中性", drivers=[], source="composite"),
+        ),
     ):
         provider_cls.return_value.get_overview = AsyncMock(return_value=overview)
         signals = await _collect_market_signals()
@@ -129,12 +133,13 @@ async def test_breadth_extreme_bear():
 async def test_northbound_large_outflow():
     """北向大幅净流出 <= -50亿 触发 warning 信号。"""
     overview = _make_overview(northbound=_NORTHBOUND_LARGE_OUTFLOW)
-    with patch(
-        "stockresearch.services.action_center.MarketOverviewProvider"
-    ) as provider_cls, patch(
-        "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
-        new_callable=AsyncMock,
-        return_value=SentimentResult(score=50, label="中性", drivers=[], source="composite"),
+    with (
+        patch("stockresearch.services.action_center.MarketOverviewProvider") as provider_cls,
+        patch(
+            "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
+            new_callable=AsyncMock,
+            return_value=SentimentResult(score=50, label="中性", drivers=[], source="composite"),
+        ),
     ):
         provider_cls.return_value.get_overview = AsyncMock(return_value=overview)
         signals = await _collect_market_signals()
@@ -148,12 +153,13 @@ async def test_northbound_large_outflow():
 async def test_northbound_large_inflow():
     """北向大幅净流入 >= +80亿 触发 info 信号。"""
     overview = _make_overview(northbound=_NORTHBOUND_LARGE_INFLOW)
-    with patch(
-        "stockresearch.services.action_center.MarketOverviewProvider"
-    ) as provider_cls, patch(
-        "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
-        new_callable=AsyncMock,
-        return_value=SentimentResult(score=50, label="中性", drivers=[], source="composite"),
+    with (
+        patch("stockresearch.services.action_center.MarketOverviewProvider") as provider_cls,
+        patch(
+            "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
+            new_callable=AsyncMock,
+            return_value=SentimentResult(score=50, label="中性", drivers=[], source="composite"),
+        ),
     ):
         provider_cls.return_value.get_overview = AsyncMock(return_value=overview)
         signals = await _collect_market_signals()
@@ -168,12 +174,13 @@ async def test_sentiment_extreme_fear():
     """市场情绪极度恐慌 (score <= 20) 触发 warning 信号。"""
     overview = _make_overview()
     fear_result = SentimentResult(score=15, label="极度恐慌", drivers=[], source="composite")
-    with patch(
-        "stockresearch.services.action_center.MarketOverviewProvider"
-    ) as provider_cls, patch(
-        "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
-        new_callable=AsyncMock,
-        return_value=fear_result,
+    with (
+        patch("stockresearch.services.action_center.MarketOverviewProvider") as provider_cls,
+        patch(
+            "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
+            new_callable=AsyncMock,
+            return_value=fear_result,
+        ),
     ):
         provider_cls.return_value.get_overview = AsyncMock(return_value=overview)
         signals = await _collect_market_signals()
@@ -188,12 +195,13 @@ async def test_sentiment_extreme_greed():
     """市场情绪极度乐观 (score >= 80) 触发 info 信号。"""
     overview = _make_overview()
     greed_result = SentimentResult(score=85, label="极度乐观", drivers=[], source="composite")
-    with patch(
-        "stockresearch.services.action_center.MarketOverviewProvider"
-    ) as provider_cls, patch(
-        "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
-        new_callable=AsyncMock,
-        return_value=greed_result,
+    with (
+        patch("stockresearch.services.action_center.MarketOverviewProvider") as provider_cls,
+        patch(
+            "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
+            new_callable=AsyncMock,
+            return_value=greed_result,
+        ),
     ):
         provider_cls.return_value.get_overview = AsyncMock(return_value=overview)
         signals = await _collect_market_signals()
@@ -208,12 +216,13 @@ async def test_no_market_signals_on_neutral():
     """中性市场不产生 market 信号。"""
     overview = _make_overview(index_change=0.5, northbound=10.0, advancers=2500, decliners=2500)
     neutral_result = SentimentResult(score=50, label="中性", drivers=[], source="composite")
-    with patch(
-        "stockresearch.services.action_center.MarketOverviewProvider"
-    ) as provider_cls, patch(
-        "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
-        new_callable=AsyncMock,
-        return_value=neutral_result,
+    with (
+        patch("stockresearch.services.action_center.MarketOverviewProvider") as provider_cls,
+        patch(
+            "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
+            new_callable=AsyncMock,
+            return_value=neutral_result,
+        ),
     ):
         provider_cls.return_value.get_overview = AsyncMock(return_value=overview)
         signals = await _collect_market_signals()
@@ -224,31 +233,36 @@ async def test_no_market_signals_on_neutral():
 @pytest.mark.asyncio
 async def test_generate_daily_actions_includes_market_signals(db_session, user):
     """完整流程：持仓 + 市场级信号同时存在时，market 信号参与排序。"""
-    db_session.add(Holding(
-        user_id=user.id,
-        symbol="600519",
-        name="贵州茅台",
-        cost_price=1000,
-        quantity=100,
-        sector="白酒",
-    ))
+    db_session.add(
+        Holding(
+            user_id=user.id,
+            symbol="600519",
+            name="贵州茅台",
+            cost_price=1000,
+            quantity=100,
+            sector="白酒",
+        )
+    )
     db_session.commit()
 
     overview = _make_overview(index_change=_INDEX_PLUNGE_PCT, northbound=_NORTHBOUND_LARGE_OUTFLOW)
     quote = MagicMock(symbol="600519", name="贵州茅台", price=1000, change_pct=0)
 
-    with patch(
-        "stockresearch.services.action_center.MarketOverviewProvider"
-    ) as overview_cls, patch(
-        "stockresearch.services.action_center.QuoteProvider"
-    ) as quote_cls, patch(
-        "stockresearch.agents.news.agent.get_news_for_user",
-        new_callable=AsyncMock,
-        return_value=[],
-    ), patch(
-        "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
-        new_callable=AsyncMock,
-        return_value=SentimentResult(score=15, label="极度恐慌", drivers=[], source="composite"),
+    with (
+        patch("stockresearch.services.action_center.MarketOverviewProvider") as overview_cls,
+        patch("stockresearch.services.action_center.QuoteProvider") as quote_cls,
+        patch(
+            "stockresearch.agents.news.agent.get_news_for_user",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
+            new_callable=AsyncMock,
+            return_value=SentimentResult(
+                score=15, label="极度恐慌", drivers=[], source="composite"
+            ),
+        ),
     ):
         overview_cls.return_value.get_overview = AsyncMock(return_value=overview)
         quote_cls.return_value.get_quotes = AsyncMock(return_value={"600519": quote})
@@ -262,14 +276,17 @@ async def test_generate_daily_actions_includes_market_signals(db_session, user):
 @pytest.mark.asyncio
 async def test_market_signals_resilient_on_provider_failure():
     """数据源失败时不抛异常，返回空列表。"""
-    with patch(
-        "stockresearch.services.action_center.MarketOverviewProvider"
-    ) as provider_cls, patch(
-        "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
-        new_callable=AsyncMock,
-        side_effect=RuntimeError("network error"),
+    with (
+        patch("stockresearch.services.action_center.MarketOverviewProvider") as provider_cls,
+        patch(
+            "stockresearch.services.sentiment.SentimentService.compute_market_sentiment",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("network error"),
+        ),
     ):
-        provider_cls.return_value.get_overview = AsyncMock(side_effect=RuntimeError("network error"))
+        provider_cls.return_value.get_overview = AsyncMock(
+            side_effect=RuntimeError("network error")
+        )
         signals = await _collect_market_signals()
 
     assert signals == []

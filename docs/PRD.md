@@ -240,10 +240,10 @@ Phase 2：`stockresearch worker` 独立 Cron + 可选 launchd 示例。
 
 用 **Tauri 2** 包本机壳，不重做业务 UI：窗口加载已由 FastAPI 托管的 `web/dist`（`http://127.0.0.1:8000`）。
 
-1. **双端壳**：`desktop/` Tauri 工程；目标平台 macOS + Windows  
-2. **进程编排**：启动时拉起 `uv run uvicorn … --app-dir src`；可选拉起 `stockresearch worker`（默认关，`STOCKRESEARCH_DESKTOP_WORKER=1` 开启）；退出时回收子进程  
-3. **就绪门闩**：轮询 `/health` 后再显示主窗；若端口已有健康服务则复用、不重复拉起  
-4. **工程约定**：打包不捆绑 Python 运行时（MVP）；要求本机已 `uv sync` + `web` 已 `npm run build`；可用 `STOCKRESEARCH_ROOT` 指向仓库根  
+1. **双端壳**：`desktop/` Tauri 工程；目标平台 macOS + Windows
+2. **进程编排**：启动时拉起 `uv run uvicorn … --app-dir src`；可选拉起 `stockresearch worker`（默认关，`STOCKRESEARCH_DESKTOP_WORKER=1` 开启）；退出时回收子进程
+3. **就绪门闩**：轮询 `/health` 后再显示主窗；若端口已有健康服务则复用、不重复拉起
+4. **工程约定**：打包不捆绑 Python 运行时（MVP）；要求本机已 `uv sync` + `web` 已 `npm run build`；可用 `STOCKRESEARCH_ROOT` 指向仓库根
 5. **非目标**：移动端 App；把 AkShare/模型打进安装包；Electron
 
 **产品验收**：macOS / Windows 上 `npm run tauri dev`（或等价）能打开窗口并完成登录/持仓/对话一条主路径；退出后 8000 端口无残留本壳拉起的 uvicorn（复用外部已有服务时不杀）。
@@ -317,11 +317,11 @@ type ChartOverlaySet = {
 
 **deep 报告块顺序**（`analysis_depth=deep` 必出 L1–L3；`comprehensive` 可出简化 L1，L2/L3 可选）：
 
-1. 四维证据（现有，不扩平行维）  
-2. Impact  
-3. Pricing（因子数字只在此呈现一次，不另开因子秀）  
-4. Thesis（旁路「验证这条」与「历史结论/时间线」）  
-5. 导出含 `deep_analysis` + PIT 戳记  
+1. 四维证据（现有，不扩平行维）
+2. Impact
+3. Pricing（因子数字只在此呈现一次，不另开因子秀）
+4. Thesis（旁路「验证这条」与「历史结论/时间线」）
+5. 导出含 `deep_analysis` + PIT 戳记
 
 Copilot：深度档默认先答「为何动」，再答观点与主张。
 
@@ -329,14 +329,14 @@ Copilot：深度档默认先答「为何动」，再答观点与主张。
 
 **计算**
 
-- 窗口默认近 **20** 个交易日（可配置，须写入报告元数据）。  
-- 个股超额近似：对市场指数与行业指数做收益分解，得到 **市场贡献 / 行业贡献 / 特异收益**（单因子或两步残差即可；模型名与 R² 写入 payload）。  
-- 特异收益绝对值最高的交易日（默认 top **3**）尝试挂载同期公告/事件；有则附事件研究窗收益摘要，无则显式 `unexplained`（流动性/情绪等，禁止编造原因）。  
+- 窗口默认近 **20** 个交易日（可配置，须写入报告元数据）。
+- 个股超额近似：对市场指数与行业指数做收益分解，得到 **市场贡献 / 行业贡献 / 特异收益**（单因子或两步残差即可；模型名与 R² 写入 payload）。
+- 特异收益绝对值最高的交易日（默认 top **3**）尝试挂载同期公告/事件；有则附事件研究窗收益摘要，无则显式 `unexplained`（流动性/情绪等，禁止编造原因）。
 - 复用/延伸 `GET /research/event-study`；主界面与报告共用同一计算结果。
 
 **准确性**
 
-- 仅前复权日线；估计窗与事件窗分离（防前视）。  
+- 仅前复权日线；估计窗与事件窗分离（防前视）。
 - 缺行业指数或样本不足 → `partial=true` + 缺口说明，**禁止硬凑 β**。
 
 **验收**：焦点股 deep 报告可见三分解；至少一处特异高峰有事件挂载或明确 `unexplained`；导出含 `deep_analysis.impact`。
@@ -345,14 +345,14 @@ Copilot：深度档默认先答「为何动」，再答观点与主张。
 
 **计算**
 
-- 在可得财务/估值序列上分解近期涨跌中的 **盈利变化贡献 vs 倍数变化贡献**（窗口与口径戳记必写）。  
-- 可选：在简化假设下给出 **隐含增速**（反向推演）；数据不足则整段 `partial`，不输出假精确。  
-- **不做**完整三表会计引擎 / 产品化 DCF / 自造目标价。  
+- 在可得财务/估值序列上分解近期涨跌中的 **盈利变化贡献 vs 倍数变化贡献**（窗口与口径戳记必写）。
+- 可选：在简化假设下给出 **隐含增速**（反向推演）；数据不足则整段 `partial`，不输出假精确。
+- **不做**完整三表会计引擎 / 产品化 DCF / 自造目标价。
 - PE/PB 分位、质量/成长因子与 Pricing **同源**；报告内禁止出现两套不一致的 PE。
 
 **准确性**
 
-- 无历史序列则不分位、不填默认 0.5。  
+- 无历史序列则不分位、不填默认 0.5。
 - 口径（TTM/LYR、前复权）与因子条、导出一致。
 
 **验收**：deep 报告有定价桥或明确 partial；因子数值与 Pricing 引用一致；无目标价。
@@ -374,21 +374,21 @@ type Thesis = {
 
 **验证与复盘（Thesis 的两面，不另开产品）**
 
-- `hypothesis/verify` 规则加厚（估值×动量、ROE/成长等），用于压测主张相关假设；文案称「研究验证」。  
-- `timeline` 展示同标的历史结论 / Thesis 变更，可挂事后收益（PIT）。  
+- `hypothesis/verify` 规则加厚（估值×动量、ROE/成长等），用于压测主张相关假设；文案称「研究验证」。
+- `timeline` 展示同标的历史结论 / Thesis 变更，可挂事后收益（PIT）。
 - 辩论/大师点评若开启：对 Thesis 加压，不替代 Thesis 块。
 
 **准确性**
 
-- 验证与事后核对：`point_in_time=true`，只用报告快照因子 + 之后 qfq 日线，不重拉事后财务。  
+- 验证与事后核对：`point_in_time=true`，只用报告快照因子 + 之后 qfq 日线，不重拉事后财务。
 - 禁止伪装精确目标价与买卖指令（§六）。
 
 **验收**：deep 报告必有 Thesis 四要素（claim / evidence_ids / monitors / invalidate_if）；至少一条研究型假设规则可跑；同标的 ≥2 份报告时时间线可见且可挂事后收益。
 
 #### 10.4 横切与非目标
 
-- **导出**：`stockresearch.report.v1` 增加 `deep_analysis: { impact, pricing, thesis }`；MD/PDF 同步摘要。  
-- **PIT**：Impact 事件窗、Thesis 验证、时间线事后核对共用纪律。  
+- **导出**：`stockresearch.report.v1` 增加 `deep_analysis: { impact, pricing, thesis }`；MD/PDF 同步摘要。
+- **PIT**：Impact 事件窗、Thesis 验证、时间线事后核对共用纪律。
 - **非目标**：Qlib 依赖；vectorbt 级策略回测 UI；完整 DCF；BUY/SELL 北极星；为深度分析新开第四套 Shell；compare/batch 塞进主叙事。
 
 #### 10.5 落地波次

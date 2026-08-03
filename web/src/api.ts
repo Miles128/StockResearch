@@ -18,7 +18,11 @@ import { createJsonSseStream } from "./apiSse";
 export type { LlmSettingsMeta };
 
 /** Build-time optional origin, e.g. https://api.example.com (no trailing slash). */
-const API_ORIGIN = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+const API_ORIGIN =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(
+    /\/$/,
+    "",
+  ) ?? "";
 const API = API_ORIGIN ? `${API_ORIGIN}/api/v1` : "/api/v1";
 
 function apiUrl(path: string): string {
@@ -29,7 +33,11 @@ function formatApiDetail(detail: unknown): string {
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) {
     return detail
-      .map((item) => (typeof item === "object" && item && "msg" in item ? String(item.msg) : String(item)))
+      .map((item) =>
+        typeof item === "object" && item && "msg" in item
+          ? String(item.msg)
+          : String(item),
+      )
       .join("; ");
   }
   return "";
@@ -39,7 +47,11 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 const RETRY_COUNT = 2;
 const RETRY_DELAY_MS = 1000;
 
-async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -74,7 +86,10 @@ async function fetchWithRetry(
   throw lastError;
 }
 
-async function requestPlain<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function requestPlain<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
@@ -115,7 +130,12 @@ async function requestWithLlm<T>(
     ...(options.headers as Record<string, string>),
   };
 
-  const resp = await fetchWithRetry(`${API}${path}`, { ...options, headers }, RETRY_COUNT, timeoutMs);
+  const resp = await fetchWithRetry(
+    `${API}${path}`,
+    { ...options, headers },
+    RETRY_COUNT,
+    timeoutMs,
+  );
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ detail: resp.statusText }));
     throw new Error(formatApiDetail(err.detail) || "请求失败");
@@ -245,7 +265,9 @@ export const api = {
       },
       onEvent,
       extractResult: (event) =>
-        event.type === "done" && event.response ? (event.response as ChatResponse) : undefined,
+        event.type === "done" && event.response
+          ? (event.response as ChatResponse)
+          : undefined,
     }),
   holdings: () => request<Holding[]>("/portfolio/holdings"),
   allocationDeviation: (targets: Record<string, number>) =>
@@ -279,10 +301,14 @@ export const api = {
       body: JSON.stringify({ sectors }),
     }),
   ingestNews: async () => {
-    const accepted = await request<NewsIngestAccepted>("/news/ingest?limit=10", { method: "POST" });
+    const accepted = await request<NewsIngestAccepted>(
+      "/news/ingest?limit=10",
+      { method: "POST" },
+    );
     return waitForNewsIngestJob(accepted.job_id);
   },
-  newsIngestJob: (jobId: string) => request<NewsIngestJob>(`/news/ingest/${encodeURIComponent(jobId)}`),
+  newsIngestJob: (jobId: string) =>
+    request<NewsIngestJob>(`/news/ingest/${encodeURIComponent(jobId)}`),
   research: (symbol: string, analysisDepth?: AnalysisDepth) => {
     const depth = analysisDepth ?? loadModeSettings().analysisDepth;
     const params = new URLSearchParams({ symbol, analysis_depth: depth });
@@ -300,7 +326,9 @@ export const api = {
       headers: llmRequestHeaders(),
       onEvent,
       extractResult: (event) =>
-        event.type === "done" && event.result ? (event.result as unknown as ResearchReport) : undefined,
+        event.type === "done" && event.result
+          ? (event.result as unknown as ResearchReport)
+          : undefined,
     });
   },
   riskCheckup: () =>
@@ -325,7 +353,9 @@ export const api = {
       timeoutMs: 120_000,
       onEvent,
       extractResult: (event) =>
-        event.type === "done" && event.result ? (event.result as unknown as RiskCheckup) : undefined,
+        event.type === "done" && event.result
+          ? (event.result as unknown as RiskCheckup)
+          : undefined,
     }),
   advisorAllocation: (
     riskTolerance: "conservative" | "moderate" | "aggressive",
@@ -357,24 +387,48 @@ export const api = {
   },
   listReports: () => request<ResearchReportListItem[]>("/research/reports"),
   downloadReportMarkdown: (id: number) => {
-    window.open(apiUrl(`/research/reports/${id}/markdown`), "_blank", "noopener,noreferrer");
+    window.open(
+      apiUrl(`/research/reports/${id}/markdown`),
+      "_blank",
+      "noopener,noreferrer",
+    );
   },
   downloadReportPdf: (id: number) => {
-    window.open(apiUrl(`/research/reports/${id}/pdf`), "_blank", "noopener,noreferrer");
+    window.open(
+      apiUrl(`/research/reports/${id}/pdf`),
+      "_blank",
+      "noopener,noreferrer",
+    );
   },
   /** Download formal report from in-memory card payload (Markdown). */
   exportReportMarkdown: async (report: ResearchReport) => {
-    await downloadReportBlob("/research/export/markdown", report, `${report.symbol}-report.md`);
+    await downloadReportBlob(
+      "/research/export/markdown",
+      report,
+      `${report.symbol}-report.md`,
+    );
   },
   /** Download formal report from in-memory card payload (PDF). */
   exportReportPdf: async (report: ResearchReport) => {
-    await downloadReportBlob("/research/export/pdf", report, `${report.symbol}-report.pdf`);
+    await downloadReportBlob(
+      "/research/export/pdf",
+      report,
+      `${report.symbol}-report.pdf`,
+    );
   },
   exportReportJson: async (report: ResearchReport) => {
-    await downloadReportBlob("/research/export/json", report, `${report.symbol}-report.json`);
+    await downloadReportBlob(
+      "/research/export/json",
+      report,
+      `${report.symbol}-report.json`,
+    );
   },
   exportReportCsv: async (report: ResearchReport) => {
-    await downloadReportBlob("/research/export/csv", report, `${report.symbol}-factors.csv`);
+    await downloadReportBlob(
+      "/research/export/csv",
+      report,
+      `${report.symbol}-factors.csv`,
+    );
   },
   signalBacktest: () => request<SignalBacktest>("/research/signal-backtest"),
   researchTimeline: (symbol: string, includePostHoc = true) =>
@@ -388,16 +442,23 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ symbols }),
     }),
-  eventStudy: (symbol: string, eventFilter: "earnings" | "risk" | "all" = "earnings") =>
+  eventStudy: (
+    symbol: string,
+    eventFilter: "earnings" | "risk" | "all" = "earnings",
+  ) =>
     request<EventStudy>(
       `/research/event-study?symbol=${encodeURIComponent(symbol)}&event_filter=${eventFilter}`,
     ),
-  eventStudyBatch: (symbols: string[], eventFilter: "earnings" | "risk" | "all" = "earnings") =>
+  eventStudyBatch: (
+    symbols: string[],
+    eventFilter: "earnings" | "risk" | "all" = "earnings",
+  ) =>
     request<EventStudyBatch>("/research/event-study/batch", {
       method: "POST",
       body: JSON.stringify({ symbols, event_filter: eventFilter }),
     }),
-  hypothesisPresets: () => request<Record<string, string>>("/research/hypothesis/presets"),
+  hypothesisPresets: () =>
+    request<Record<string, string>>("/research/hypothesis/presets"),
   hypothesisVerify: (symbol: string, rule: string, lookbackDays = 240) =>
     request<HypothesisVerify>("/research/hypothesis/verify", {
       method: "POST",
@@ -417,7 +478,9 @@ export const api = {
       300_000,
     ),
   searchMemory: (q: string) =>
-    request<MemorySearchResult>(`/research/memory/search?q=${encodeURIComponent(q)}`),
+    request<MemorySearchResult>(
+      `/research/memory/search?q=${encodeURIComponent(q)}`,
+    ),
   generateBriefing: (kind: "premarket" | "intraday" | "postmarket") =>
     requestWithLlm<Briefing>(`/briefing/generate?kind=${kind}`, {
       method: "POST",
@@ -425,32 +488,55 @@ export const api = {
     }),
   latestBriefing: (kind: "premarket" | "intraday" | "postmarket") =>
     request<Briefing | null>(`/briefing/latest?kind=${kind}`),
-  briefingHistory: (kind: "premarket" | "intraday" | "postmarket" | "all" = "all", limit = 10) =>
-    request<Briefing[]>(`/briefing/history?kind=${kind}&limit=${limit}`),
+  briefingHistory: (
+    kind: "premarket" | "intraday" | "postmarket" | "all" = "all",
+    limit = 10,
+  ) => request<Briefing[]>(`/briefing/history?kind=${kind}&limit=${limit}`),
   briefingSchedule: () => request<BriefingSchedule>("/briefing/schedule"),
   setBriefingSchedule: (enabled: boolean) =>
-    request<BriefingSchedule>(`/briefing/schedule?enabled=${enabled}`, { method: "PUT" }),
-  loadDemo: () => request<{ status: string; count: number; demo: boolean }>("/portfolio/demo", { method: "POST" }),
-  clearDemo: () => request<{ status: string; deleted: number }>("/portfolio/demo", { method: "DELETE" }),
+    request<BriefingSchedule>(`/briefing/schedule?enabled=${enabled}`, {
+      method: "PUT",
+    }),
+  loadDemo: () =>
+    request<{ status: string; count: number; demo: boolean }>(
+      "/portfolio/demo",
+      { method: "POST" },
+    ),
+  clearDemo: () =>
+    request<{ status: string; deleted: number }>("/portfolio/demo", {
+      method: "DELETE",
+    }),
   demoStatus: () => request<{ demo: boolean }>("/portfolio/demo/status"),
   dailyActions: () => request<DailyActionCenter>("/action-center/daily"),
   watchlist: () => request<WatchlistItem[]>("/portfolio/watchlist"),
   addWatchlist: (payload: { symbol: string; name: string }) =>
-    request<WatchlistItem>("/portfolio/watchlist", { method: "POST", body: JSON.stringify(payload) }),
+    request<WatchlistItem>("/portfolio/watchlist", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   deleteWatchlist: (id: number) =>
     request(`/portfolio/watchlist/${id}`, { method: "DELETE" }),
-  sectorMovers: (limit = 8) => request<SectorMovers>(`/market/sectors?limit=${limit}`),
+  sectorMovers: (limit = 8) =>
+    request<SectorMovers>(`/market/sectors?limit=${limit}`),
   sectorBoardsAll: () => request<SectorBoardsAll>(`/market/sectors?all=true`),
   indexIntraday: (symbols: string[]) =>
     request<IndexIntraday[]>(`/market/intraday?symbols=${symbols.join(",")}`),
   priceAlertSettings: () => request<PriceAlertSettings>("/alerts/settings"),
   updatePriceAlertSettings: (payload: Partial<PriceAlertSettings>) =>
-    request<PriceAlertSettings>("/alerts/settings", { method: "PUT", body: JSON.stringify(payload) }),
+    request<PriceAlertSettings>("/alerts/settings", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
   priceAlertNotifications: (unreadOnly = false) =>
-    request<PriceAlertNotification[]>(`/alerts/notifications?unread_only=${unreadOnly}`),
+    request<PriceAlertNotification[]>(
+      `/alerts/notifications?unread_only=${unreadOnly}`,
+    ),
   markPriceAlertRead: (id: number) =>
     request(`/alerts/notifications/${id}/read`, { method: "POST" }),
-  markAllPriceAlertsRead: () => request<{ updated: number }>("/alerts/notifications/read-all", { method: "POST" }),
+  markAllPriceAlertsRead: () =>
+    request<{ updated: number }>("/alerts/notifications/read-all", {
+      method: "POST",
+    }),
   analyzeNews: (
     newsId: number,
     symbol: string,
@@ -463,14 +549,20 @@ export const api = {
       signal,
       onEvent,
       extractResult: (event) =>
-        event.type === "done" && event.result ? (event.result as unknown as NewsAnalysis) : undefined,
+        event.type === "done" && event.result
+          ? (event.result as unknown as NewsAnalysis)
+          : undefined,
     }),
   glossary: () => requestPlain<GlossaryTerm[]>("/glossary"),
   marketSentiment: () => request<SentimentData>("/market/sentiment"),
   sectorSentiment: (name: string) =>
-    request<SentimentData>(`/market/sector-sentiment?name=${encodeURIComponent(name)}`),
+    request<SentimentData>(
+      `/market/sector-sentiment?name=${encodeURIComponent(name)}`,
+    ),
   stockSentiment: (symbol: string, name?: string) =>
-    request<SentimentData>(`/market/stock-sentiment?symbol=${symbol}&name=${encodeURIComponent(name ?? "")}`),
+    request<SentimentData>(
+      `/market/stock-sentiment?symbol=${symbol}&name=${encodeURIComponent(name ?? "")}`,
+    ),
 };
 
 /** 词库条目，供投顾模式 TermPopover 渲染可点击弹窗。 */
@@ -640,10 +732,15 @@ export interface NewsIngestJob {
   error?: string | null;
 }
 
-async function waitForNewsIngestJob(jobId: string, timeoutMs = 60_000): Promise<NewsIngestJob> {
+async function waitForNewsIngestJob(
+  jobId: string,
+  timeoutMs = 60_000,
+): Promise<NewsIngestJob> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const job = await requestPlain<NewsIngestJob>(`/news/ingest/${encodeURIComponent(jobId)}`);
+    const job = await requestPlain<NewsIngestJob>(
+      `/news/ingest/${encodeURIComponent(jobId)}`,
+    );
     if (job.status === "completed") return job;
     if (job.status === "failed") {
       throw new Error(job.error || job.message || "News ingest failed");
@@ -674,7 +771,6 @@ export interface DimensionResult {
   partial?: boolean;
 }
 
-
 export interface DebateRoundResult {
   round: number;
   bull_argument: string;
@@ -696,7 +792,13 @@ export interface AshareFactor {
   category: string;
   name: string;
   status: "verified" | "partial" | "missing";
-  impact: "liquidity" | "sentiment" | "fundamental" | "valuation" | "event" | "technical";
+  impact:
+    | "liquidity"
+    | "sentiment"
+    | "fundamental"
+    | "valuation"
+    | "event"
+    | "technical";
   evidence: string[];
   missing: string[];
   source_details: {
@@ -966,7 +1068,11 @@ export interface ResearchReport {
   cached?: boolean;
 }
 
-async function downloadReportBlob(path: string, report: ResearchReport, filename: string): Promise<void> {
+async function downloadReportBlob(
+  path: string,
+  report: ResearchReport,
+  filename: string,
+): Promise<void> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...dataSourceRequestHeaders(),
@@ -990,7 +1096,6 @@ async function downloadReportBlob(path: string, report: ResearchReport, filename
   anchor.remove();
   URL.revokeObjectURL(url);
 }
-
 
 export interface PortfolioMetrics {
   sharpe_ratio: number;
@@ -1027,7 +1132,12 @@ export interface StressResult {
 
 export interface RiskCheckup {
   portfolio_summary: string;
-  alerts: { rule_id: string; severity: string; human_message: string; symbol?: string | null }[];
+  alerts: {
+    rule_id: string;
+    severity: string;
+    human_message: string;
+    symbol?: string | null;
+  }[];
   llm_analysis?: {
     market_assessment: string;
     correlation_analysis: string;
@@ -1043,7 +1153,12 @@ export interface RiskCheckup {
     var_pct: number;
     cvar_value: number;
     cvar_pct: number;
-    holdings_var: { name: string; symbol?: string; weight: number; var_value: number }[];
+    holdings_var: {
+      name: string;
+      symbol?: string;
+      weight: number;
+      var_value: number;
+    }[];
   };
   stress_results?: StressResult[];
   master_commentary?: MasterCommentaryItem[];
@@ -1075,7 +1190,12 @@ export interface AllocationDeviation {
 }
 
 export interface MarketOverview {
-  indices: { name: string; symbol?: string; price: number; change_pct: number }[];
+  indices: {
+    name: string;
+    symbol?: string;
+    price: number;
+    change_pct: number;
+  }[];
   northbound_net_yi: number | null;
   advancers: number | null;
   decliners: number | null;
@@ -1113,9 +1233,11 @@ export interface ProviderStatus {
   confidence?: DataConfidence;
 }
 
-export type DataConfidence = "verified" | "single_source" | "delayed" | "cached" | "conflict" | "missing";
+export type DataConfidence =
+  "verified" | "single_source" | "delayed" | "cached" | "conflict" | "missing";
 
-export type DataSourceDetailStatus = "ok" | "degraded" | "missing" | "mock" | "configured" | "not_configured";
+export type DataSourceDetailStatus =
+  "ok" | "degraded" | "missing" | "mock" | "configured" | "not_configured";
 
 export interface DataSourceDetail {
   domain: string;
@@ -1298,7 +1420,8 @@ export interface BriefingSchedule {
 }
 
 export interface ActionSignal {
-  type: "price" | "news" | "risk" | "fundamental" | "market" | "research" | "info";
+  type:
+    "price" | "news" | "risk" | "fundamental" | "market" | "research" | "info";
   severity: "critical" | "warning" | "info";
   title: string;
   detail: string;

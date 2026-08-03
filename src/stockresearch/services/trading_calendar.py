@@ -49,9 +49,7 @@ def validate_buy_date(buy_date: date | None) -> None:
     except Exception as exc:
         logger.warning("Trading calendar check failed: %s", exc)
         if buy_date.weekday() >= 5:
-            raise ValidationError(
-                f"{buy_date.isoformat()} 为周末，不是交易日，请重新选择"
-            ) from exc
+            raise ValidationError(f"{buy_date.isoformat()} 为周末，不是交易日，请重新选择") from exc
         from stockresearch.core.config import get_settings
 
         if get_settings().use_mock_market_data:

@@ -7,7 +7,11 @@ import logging
 from sqlalchemy.orm import Session
 
 from stockresearch.agents.orchestrator.balance_check import check_balance
-from stockresearch.agents.output_style import get_custom_glossary, get_enable_glossary, get_reading_mode
+from stockresearch.agents.output_style import (
+    get_custom_glossary,
+    get_enable_glossary,
+    get_reading_mode,
+)
 from stockresearch.core.schemas import (
     CardPayload,
     ChatResponse,
@@ -16,8 +20,8 @@ from stockresearch.core.schemas import (
     ResearchReportOut,
 )
 from stockresearch.db.models import Conversation
-from stockresearch.services.conversation_memory import MAX_STORED_MESSAGES
-from stockresearch.services.follow_up import build_follow_up_questions
+from stockresearch.services.chat.conversation_memory import MAX_STORED_MESSAGES
+from stockresearch.services.chat.follow_up import build_follow_up_questions
 from stockresearch.services.glossary import mark_terms, merge_glossary
 from stockresearch.services.neutral_guard import neutral_guard
 from stockresearch.services.rotation_signal_guard import ensure_rotation_signals
@@ -60,8 +64,7 @@ def _finalize_dimension(dim: DimensionResult) -> DimensionResult:
     applies to the whole UI, including evidence bars).
     """
     evidence = [
-        ev.model_copy(update={"snippet": _finalize_text(ev.snippet)})
-        for ev in dim.evidence
+        ev.model_copy(update={"snippet": _finalize_text(ev.snippet)}) for ev in dim.evidence
     ]
     return dim.model_copy(
         update={
@@ -107,7 +110,9 @@ def finalize_research_report(report: ResearchReportOut) -> ResearchReportOut:
         item.model_copy(
             update={
                 "reasoning": _finalize_text(item.reasoning),
-                "key_metric": _finalize_text(item.key_metric) if item.key_metric else item.key_metric,
+                "key_metric": _finalize_text(item.key_metric)
+                if item.key_metric
+                else item.key_metric,
             }
         )
         for item in report.master_commentary
@@ -115,7 +120,9 @@ def finalize_research_report(report: ResearchReportOut) -> ResearchReportOut:
     return report.model_copy(
         update={
             "summary": _finalize_text(report.summary),
-            "brief_summary": _finalize_text(report.brief_summary) if report.brief_summary else report.brief_summary,
+            "brief_summary": _finalize_text(report.brief_summary)
+            if report.brief_summary
+            else report.brief_summary,
             "viewpoints": {key: _finalize_text(value) for key, value in report.viewpoints.items()},
             "text_factor_summary": _finalize_text(report.text_factor_summary or "")
             if report.text_factor_summary
@@ -215,9 +222,7 @@ def save_conversation(
 ) -> None:
     """Persist a bounded conversation history without breaking the response."""
     try:
-        conversation = (
-            db.query(Conversation).filter(Conversation.session_id == session_id).first()
-        )
+        conversation = db.query(Conversation).filter(Conversation.session_id == session_id).first()
         if conversation is None:
             conversation = Conversation(
                 user_id=user_id,

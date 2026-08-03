@@ -10,8 +10,12 @@ from stockresearch.services.hypothesis_verify import (
 )
 
 
-def _factors(pe_percentile: float | None = None, pe_partial: bool = True,
-             roe_ttm: float | None = None, roe_partial: bool = True):
+def _factors(
+    pe_percentile: float | None = None,
+    pe_partial: bool = True,
+    roe_ttm: float | None = None,
+    roe_partial: bool = True,
+):
     return {
         "pe_percentile": pe_percentile,
         "pe_percentile_partial": pe_partial,
@@ -119,20 +123,36 @@ async def test_verify_valuation_momentum_now_partial_when_pe_unavailable(monkeyp
 
     async def fake_factors(symbol, *, factor_keys=None):
         # Return a pe_percentile factor marked partial with None value.
-        from stockresearch.core.schemas import NumericFactorOut, BarsProvenanceOut
+        from stockresearch.core.schemas import BarsProvenanceOut, NumericFactorOut
+
         pe = NumericFactorOut(
-            key="pe_percentile", label="PE历史分位", value=None,
-            as_of="2026-08-01", unit="%", partial=True,
-            note="PE不可用", bars_source="test", bars_adjust="qfq",
+            key="pe_percentile",
+            label="PE历史分位",
+            value=None,
+            as_of="2026-08-01",
+            unit="%",
+            partial=True,
+            note="PE不可用",
+            bars_source="test",
+            bars_adjust="qfq",
         )
         mom = NumericFactorOut(
-            key="momentum_20d", label="20日动量", value=2.0,
-            as_of="2026-08-01", unit="%", partial=False,
-            note=None, bars_source="test", bars_adjust="qfq",
+            key="momentum_20d",
+            label="20日动量",
+            value=2.0,
+            as_of="2026-08-01",
+            unit="%",
+            partial=False,
+            note=None,
+            bars_source="test",
+            bars_adjust="qfq",
         )
         return [pe, mom], BarsProvenanceOut(
-            source="test", adjust="qfq", as_of="2026-08-01",
-            partial=False, note=None,
+            source="test",
+            adjust="qfq",
+            as_of="2026-08-01",
+            partial=False,
+            note=None,
         )
 
     monkeypatch.setattr(hv, "compute_numeric_factors", fake_factors)
@@ -146,23 +166,39 @@ async def test_verify_valuation_momentum_now_partial_when_pe_unavailable(monkeyp
 @pytest.mark.asyncio
 async def test_verify_valuation_momentum_now_signal_fires_at_last_bar(monkeypatch):
     """When PE<60 and momentum>0, signal fires once at last bar; forward returns pending."""
+    from stockresearch.core.schemas import BarsProvenanceOut, NumericFactorOut
     from stockresearch.services import hypothesis_verify as hv
-    from stockresearch.core.schemas import NumericFactorOut, BarsProvenanceOut
 
     async def fake_factors(symbol, *, factor_keys=None):
         pe = NumericFactorOut(
-            key="pe_percentile", label="PE历史分位", value=40.0, percentile=0.4,
-            as_of="2026-08-01", unit="%", partial=False,
-            note=None, bars_source="test", bars_adjust="qfq",
+            key="pe_percentile",
+            label="PE历史分位",
+            value=40.0,
+            percentile=0.4,
+            as_of="2026-08-01",
+            unit="%",
+            partial=False,
+            note=None,
+            bars_source="test",
+            bars_adjust="qfq",
         )
         mom = NumericFactorOut(
-            key="momentum_20d", label="20日动量", value=3.0,
-            as_of="2026-08-01", unit="%", partial=False,
-            note=None, bars_source="test", bars_adjust="qfq",
+            key="momentum_20d",
+            label="20日动量",
+            value=3.0,
+            as_of="2026-08-01",
+            unit="%",
+            partial=False,
+            note=None,
+            bars_source="test",
+            bars_adjust="qfq",
         )
         return [pe, mom], BarsProvenanceOut(
-            source="test", adjust="qfq", as_of="2026-08-01",
-            partial=False, note=None,
+            source="test",
+            adjust="qfq",
+            as_of="2026-08-01",
+            partial=False,
+            note=None,
         )
 
     monkeypatch.setattr(hv, "compute_numeric_factors", fake_factors)
@@ -176,23 +212,39 @@ async def test_verify_valuation_momentum_now_signal_fires_at_last_bar(monkeypatc
 @pytest.mark.asyncio
 async def test_verify_valuation_momentum_now_condition_not_met(monkeypatch):
     """When PE>=60, condition not met; sample_count=0, not partial."""
+    from stockresearch.core.schemas import BarsProvenanceOut, NumericFactorOut
     from stockresearch.services import hypothesis_verify as hv
-    from stockresearch.core.schemas import NumericFactorOut, BarsProvenanceOut
 
     async def fake_factors(symbol, *, factor_keys=None):
         pe = NumericFactorOut(
-            key="pe_percentile", label="PE历史分位", value=70.0, percentile=0.7,
-            as_of="2026-08-01", unit="%", partial=False,
-            note=None, bars_source="test", bars_adjust="qfq",
+            key="pe_percentile",
+            label="PE历史分位",
+            value=70.0,
+            percentile=0.7,
+            as_of="2026-08-01",
+            unit="%",
+            partial=False,
+            note=None,
+            bars_source="test",
+            bars_adjust="qfq",
         )
         mom = NumericFactorOut(
-            key="momentum_20d", label="20日动量", value=3.0,
-            as_of="2026-08-01", unit="%", partial=False,
-            note=None, bars_source="test", bars_adjust="qfq",
+            key="momentum_20d",
+            label="20日动量",
+            value=3.0,
+            as_of="2026-08-01",
+            unit="%",
+            partial=False,
+            note=None,
+            bars_source="test",
+            bars_adjust="qfq",
         )
         return [pe, mom], BarsProvenanceOut(
-            source="test", adjust="qfq", as_of="2026-08-01",
-            partial=False, note=None,
+            source="test",
+            adjust="qfq",
+            as_of="2026-08-01",
+            partial=False,
+            note=None,
         )
 
     monkeypatch.setattr(hv, "compute_numeric_factors", fake_factors)

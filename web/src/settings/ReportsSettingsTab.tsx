@@ -31,21 +31,36 @@ export function ReportsSettingsTab({
   onMemorySearch,
 }: ReportsSettingsTabProps) {
   const { t, locale } = useI18n();
-  const [postHocById, setPostHocById] = useState<Record<number, ReportPostHoc | "loading" | "error">>({});
+  const [postHocById, setPostHocById] = useState<
+    Record<number, ReportPostHoc | "loading" | "error">
+  >({});
   const [toolSymbol, setToolSymbol] = useState("600519");
   const [timelineSymbol, setTimelineSymbol] = useState("600519");
-  const [timeline, setTimeline] = useState<ResearchTimeline | "loading" | "error" | null>(null);
+  const [timeline, setTimeline] = useState<
+    ResearchTimeline | "loading" | "error" | null
+  >(null);
   const [compareSymbols, setCompareSymbols] = useState("600519,000858");
-  const [compare, setCompare] = useState<CompareTable | "loading" | "error" | null>(null);
-  const [eventStudy, setEventStudy] = useState<EventStudy | "loading" | "error" | null>(null);
-  const [eventBatch, setEventBatch] = useState<EventStudyBatch | "loading" | "error" | null>(null);
-  const [hypothesis, setHypothesis] = useState<HypothesisVerify | "loading" | "error" | null>(null);
+  const [compare, setCompare] = useState<
+    CompareTable | "loading" | "error" | null
+  >(null);
+  const [eventStudy, setEventStudy] = useState<
+    EventStudy | "loading" | "error" | null
+  >(null);
+  const [eventBatch, setEventBatch] = useState<
+    EventStudyBatch | "loading" | "error" | null
+  >(null);
+  const [hypothesis, setHypothesis] = useState<
+    HypothesisVerify | "loading" | "error" | null
+  >(null);
   const [presets, setPresets] = useState<Record<string, string>>({});
   const [rule, setRule] = useState("momentum_positive");
   const [batchStatus, setBatchStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    void api.hypothesisPresets().then(setPresets).catch(() => {});
+    void api
+      .hypothesisPresets()
+      .then(setPresets)
+      .catch(() => {});
   }, []);
 
   async function loadPostHoc(id: number) {
@@ -128,9 +143,16 @@ export function ReportsSettingsTab({
     try {
       const result = await api.batchResearch(symbols);
       const ok = result.items.filter((i) => i.report).length;
-      setBatchStatus(t("settings.batchDone", { ok: String(ok), n: String(result.items.length) }));
+      setBatchStatus(
+        t("settings.batchDone", {
+          ok: String(ok),
+          n: String(result.items.length),
+        }),
+      );
     } catch (err) {
-      setBatchStatus(err instanceof Error ? err.message : t("settings.batchFailed"));
+      setBatchStatus(
+        err instanceof Error ? err.message : t("settings.batchFailed"),
+      );
     }
   }
 
@@ -152,10 +174,14 @@ export function ReportsSettingsTab({
                   </strong>
                   <span className="settings-muted">
                     {r.composite_score}/10 ·{" "}
-                    {r.has_debate ? t("settings.reportDebate") : t("settings.reportResearchOnly")}
+                    {r.has_debate
+                      ? t("settings.reportDebate")
+                      : t("settings.reportResearchOnly")}
                   </span>
                   <span className="settings-muted report-history-time">
-                    {new Date(r.created_at).toLocaleString(locale === "zh" ? "zh-CN" : "en-US")}
+                    {new Date(r.created_at).toLocaleString(
+                      locale === "zh" ? "zh-CN" : "en-US",
+                    )}
                   </span>
                   {post && post !== "loading" && post !== "error" ? (
                     <p className="settings-muted">
@@ -165,14 +191,19 @@ export function ReportsSettingsTab({
                             .map((h) =>
                               t("card.postHocRow", {
                                 days: String(h.days),
-                                ret: h.return_pct != null ? String(h.return_pct) : "—",
+                                ret:
+                                  h.return_pct != null
+                                    ? String(h.return_pct)
+                                    : "—",
                               }),
                             )
                             .join(" · ")
                         : t("card.postHocEmpty")}
                     </p>
                   ) : null}
-                  {post === "error" ? <p className="settings-muted">{t("card.postHocEmpty")}</p> : null}
+                  {post === "error" ? (
+                    <p className="settings-muted">{t("card.postHocEmpty")}</p>
+                  ) : null}
                 </div>
                 <div className="report-history-actions">
                   <button
@@ -204,7 +235,9 @@ export function ReportsSettingsTab({
         </ul>
       )}
 
-      <h4 className="settings-section-title">{t("settings.researchTimeline")}</h4>
+      <h4 className="settings-section-title">
+        {t("settings.researchTimeline")}
+      </h4>
       <p className="settings-hint">{t("settings.researchTimelineHint")}</p>
       <div className="settings-row" style={{ gap: 8, flexWrap: "wrap" }}>
         <input
@@ -223,30 +256,43 @@ export function ReportsSettingsTab({
           {timeline === "loading" ? "…" : t("settings.researchTimelineBtn")}
         </button>
       </div>
-      {timeline === "error" ? <p className="settings-muted">{t("settings.researchTimelineFailed")}</p> : null}
+      {timeline === "error" ? (
+        <p className="settings-muted">{t("settings.researchTimelineFailed")}</p>
+      ) : null}
       {timeline && timeline !== "loading" && timeline !== "error" ? (
         timeline.entries.length === 0 ? (
-          <p className="settings-muted">{t("settings.researchTimelineEmpty")}</p>
+          <p className="settings-muted">
+            {t("settings.researchTimelineEmpty")}
+          </p>
         ) : (
           <ul className="report-history-list">
             {timeline.entries.map((e) => (
               <li key={e.report_id} className="report-history-item">
                 <div className="report-history-main">
                   <strong>
-                    {timeline.name} · {e.bias} · {e.composite_score}/10 · {e.analysis_depth}
+                    {timeline.name} · {e.bias} · {e.composite_score}/10 ·{" "}
+                    {e.analysis_depth}
                   </strong>
                   <span className="settings-muted report-history-time">
-                    {new Date(e.created_at).toLocaleString(locale === "zh" ? "zh-CN" : "en-US")}
+                    {new Date(e.created_at).toLocaleString(
+                      locale === "zh" ? "zh-CN" : "en-US",
+                    )}
                   </span>
                   {e.bias_changed ? (
-                    <span className="settings-muted"> · {t("settings.researchTimelineBiasChanged")}</span>
+                    <span className="settings-muted">
+                      {" "}
+                      · {t("settings.researchTimelineBiasChanged")}
+                    </span>
                   ) : null}
                   {e.score_delta != null ? (
                     <span className="settings-muted">
                       {" "}
                       ·{" "}
                       {t("settings.researchTimelineScoreDelta", {
-                        delta: e.score_delta > 0 ? `+${e.score_delta}` : String(e.score_delta),
+                        delta:
+                          e.score_delta > 0
+                            ? `+${e.score_delta}`
+                            : String(e.score_delta),
                       })}
                     </span>
                   ) : null}
@@ -256,7 +302,9 @@ export function ReportsSettingsTab({
                   {e.factors.length > 0 ? (
                     <p className="settings-muted">
                       {e.factors
-                        .map((f) => `${f.label}=${f.value ?? f.percentile ?? "—"}`)
+                        .map(
+                          (f) => `${f.label}=${f.value ?? f.percentile ?? "—"}`,
+                        )
                         .join(" · ")}
                     </p>
                   ) : null}
@@ -273,7 +321,9 @@ export function ReportsSettingsTab({
                         .join(" · ")}
                     </p>
                   ) : null}
-                  {e.summary ? <p className="settings-muted">{e.summary}</p> : null}
+                  {e.summary ? (
+                    <p className="settings-muted">{e.summary}</p>
+                  ) : null}
                 </div>
               </li>
             ))}
@@ -286,7 +336,9 @@ export function ReportsSettingsTab({
       {backtest?.sample_bias_note ? (
         <p className="settings-muted">{backtest.sample_bias_note}</p>
       ) : null}
-      {backtest && (backtest.unique_symbols != null || backtest.bias_sample_count != null) ? (
+      {backtest &&
+      (backtest.unique_symbols != null ||
+        backtest.bias_sample_count != null) ? (
         <p className="settings-muted">
           {t("settings.signalBacktestMeta", {
             symbols: String(backtest.unique_symbols ?? 0),
@@ -307,19 +359,43 @@ export function ReportsSettingsTab({
               {t("settings.signalBacktestRow", {
                 days: String(h.days),
                 n: String(h.sample_count),
-                bull: h.bullish_avg_return_pct != null ? String(h.bullish_avg_return_pct) : "—",
-                bullMed: h.bullish_median_return_pct != null ? String(h.bullish_median_return_pct) : "—",
-                bear: h.bearish_avg_return_pct != null ? String(h.bearish_avg_return_pct) : "—",
-                bearMed: h.bearish_median_return_pct != null ? String(h.bearish_median_return_pct) : "—",
-                spread: h.spread_avg_return_pct != null ? String(h.spread_avg_return_pct) : "—",
-                bullHit: h.bullish_positive_rate_pct != null ? String(h.bullish_positive_rate_pct) : "—",
-                bearHit: h.bearish_negative_rate_pct != null ? String(h.bearish_negative_rate_pct) : "—",
+                bull:
+                  h.bullish_avg_return_pct != null
+                    ? String(h.bullish_avg_return_pct)
+                    : "—",
+                bullMed:
+                  h.bullish_median_return_pct != null
+                    ? String(h.bullish_median_return_pct)
+                    : "—",
+                bear:
+                  h.bearish_avg_return_pct != null
+                    ? String(h.bearish_avg_return_pct)
+                    : "—",
+                bearMed:
+                  h.bearish_median_return_pct != null
+                    ? String(h.bearish_median_return_pct)
+                    : "—",
+                spread:
+                  h.spread_avg_return_pct != null
+                    ? String(h.spread_avg_return_pct)
+                    : "—",
+                bullHit:
+                  h.bullish_positive_rate_pct != null
+                    ? String(h.bullish_positive_rate_pct)
+                    : "—",
+                bearHit:
+                  h.bearish_negative_rate_pct != null
+                    ? String(h.bearish_negative_rate_pct)
+                    : "—",
               })}
-              {(h.bias_bullish_avg_return_pct != null || h.factor_tilt_bullish_avg_return_pct != null) && (
+              {(h.bias_bullish_avg_return_pct != null ||
+                h.factor_tilt_bullish_avg_return_pct != null) && (
                 <span>
                   {" "}
-                  · bias {h.bias_bullish_avg_return_pct ?? "—"}/{h.bias_bearish_avg_return_pct ?? "—"} · tilt{" "}
-                  {h.factor_tilt_bullish_avg_return_pct ?? "—"}/{h.factor_tilt_bearish_avg_return_pct ?? "—"}
+                  · bias {h.bias_bullish_avg_return_pct ?? "—"}/
+                  {h.bias_bearish_avg_return_pct ?? "—"} · tilt{" "}
+                  {h.factor_tilt_bullish_avg_return_pct ?? "—"}/
+                  {h.factor_tilt_bearish_avg_return_pct ?? "—"}
                 </span>
               )}
             </li>
@@ -376,7 +452,11 @@ export function ReportsSettingsTab({
       <p className="settings-hint">{t("settings.verifyToolsHint")}</p>
       <label className="settings-field">
         <span>{t("settings.verifySymbol")}</span>
-        <input value={toolSymbol} onChange={(e) => setToolSymbol(e.target.value.trim())} maxLength={6} />
+        <input
+          value={toolSymbol}
+          onChange={(e) => setToolSymbol(e.target.value.trim())}
+          maxLength={6}
+        />
       </label>
       <label className="settings-field">
         <span>{t("settings.compareSymbols")}</span>
@@ -387,16 +467,32 @@ export function ReportsSettingsTab({
         />
       </label>
       <div className="settings-memory-row">
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => void runCompare()}>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          onClick={() => void runCompare()}
+        >
           {compare === "loading" ? "…" : t("settings.compareBtn")}
         </button>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => void runBatch()}>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          onClick={() => void runBatch()}
+        >
           {t("settings.batchBtn")}
         </button>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => void runEventStudy()}>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          onClick={() => void runEventStudy()}
+        >
           {eventStudy === "loading" ? "…" : t("settings.eventStudyBtn")}
         </button>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => void runEventStudyBatch()}>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          onClick={() => void runEventStudyBatch()}
+        >
           {eventBatch === "loading" ? "…" : t("settings.eventStudyBatchBtn")}
         </button>
       </div>
@@ -416,13 +512,17 @@ export function ReportsSettingsTab({
                 {row.factors
                   .slice(0, 6)
                   .map((f) => `${f.label}:${f.value ?? "—"}`)
-                  .join(" · ") || row.note || "—"}
+                  .join(" · ") ||
+                  row.note ||
+                  "—"}
               </p>
             </li>
           ))}
         </ul>
       ) : null}
-      {compare === "error" ? <p className="settings-muted">{t("settings.verifyFailed")}</p> : null}
+      {compare === "error" ? (
+        <p className="settings-muted">{t("settings.verifyFailed")}</p>
+      ) : null}
 
       <label className="settings-field">
         <span>{t("settings.hypothesisRule")}</span>
@@ -434,7 +534,11 @@ export function ReportsSettingsTab({
           ))}
         </select>
       </label>
-      <button type="button" className="btn btn-ghost btn-sm" onClick={() => void runHypothesis()}>
+      <button
+        type="button"
+        className="btn btn-ghost btn-sm"
+        onClick={() => void runHypothesis()}
+      >
         {hypothesis === "loading" ? "…" : t("settings.hypothesisBtn")}
       </button>
       {hypothesis && hypothesis !== "loading" && hypothesis !== "error" ? (
@@ -445,13 +549,16 @@ export function ReportsSettingsTab({
           </li>
           {hypothesis.windows.map((w) => (
             <li key={w.days} className="settings-muted">
-              {w.days}d · avg {w.avg_return_pct ?? "—"}% · hit {w.hit_rate_pct ?? "—"}% · n=
+              {w.days}d · avg {w.avg_return_pct ?? "—"}% · hit{" "}
+              {w.hit_rate_pct ?? "—"}% · n=
               {w.sample_count}
             </li>
           ))}
         </ul>
       ) : null}
-      {hypothesis === "error" ? <p className="settings-muted">{t("settings.verifyFailed")}</p> : null}
+      {hypothesis === "error" ? (
+        <p className="settings-muted">{t("settings.verifyFailed")}</p>
+      ) : null}
 
       {eventStudy && eventStudy !== "loading" && eventStudy !== "error" ? (
         <ul className="report-history-list">
@@ -470,7 +577,10 @@ export function ReportsSettingsTab({
                 days: String(w.days),
                 n: String(w.sample_count),
                 avg: w.avg_return_pct != null ? String(w.avg_return_pct) : "—",
-                pos: w.positive_rate_pct != null ? String(w.positive_rate_pct) : "—",
+                pos:
+                  w.positive_rate_pct != null
+                    ? String(w.positive_rate_pct)
+                    : "—",
               })}
             </li>
           ))}
@@ -481,7 +591,9 @@ export function ReportsSettingsTab({
           ))}
         </ul>
       ) : null}
-      {eventStudy === "error" ? <p className="settings-muted">{t("settings.verifyFailed")}</p> : null}
+      {eventStudy === "error" ? (
+        <p className="settings-muted">{t("settings.verifyFailed")}</p>
+      ) : null}
       {eventBatch && eventBatch !== "loading" && eventBatch !== "error" ? (
         <ul className="report-history-list">
           {eventBatch.items.map((item) => (
@@ -501,7 +613,9 @@ export function ReportsSettingsTab({
           ))}
         </ul>
       ) : null}
-      {eventBatch === "error" ? <p className="settings-muted">{t("settings.verifyFailed")}</p> : null}
+      {eventBatch === "error" ? (
+        <p className="settings-muted">{t("settings.verifyFailed")}</p>
+      ) : null}
     </>
   );
 }

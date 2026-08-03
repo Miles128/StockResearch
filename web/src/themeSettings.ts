@@ -3,7 +3,11 @@ export type AppTheme = "institutional-light" | "institutional-dark";
 const STORAGE_KEY = "stockresearch.theme";
 const LEGACY_KEYS = ["stockbuddy.theme", "invesbao.theme"];
 
-const LEGACY_DARK = new Set(["orange-black", "slate-modern", "institutional-dark"]);
+const LEGACY_DARK = new Set([
+  "orange-black",
+  "slate-modern",
+  "institutional-dark",
+]);
 const LEGACY_LIGHT = new Set([
   "wine-red-white",
   "dark-red-white",
@@ -15,7 +19,9 @@ const LEGACY_LIGHT = new Set([
 function normalizeLegacyTheme(raw: string): AppTheme | null {
   if (LEGACY_DARK.has(raw)) return "institutional-dark";
   if (LEGACY_LIGHT.has(raw)) {
-    return raw === "dark-red-white" ? "institutional-light" : "institutional-light";
+    return raw === "dark-red-white"
+      ? "institutional-light"
+      : "institutional-light";
   }
   return null;
 }

@@ -28,7 +28,9 @@ def _fake_quotes(symbols: list[str]) -> dict[str, Quote]:
     }
 
 
-async def _collect_events(holdings: list[Holding], monkeypatch: pytest.MonkeyPatch) -> list[dict[str, object]]:
+async def _collect_events(
+    holdings: list[Holding], monkeypatch: pytest.MonkeyPatch
+) -> list[dict[str, object]]:
     async def fake_get_quotes(self, symbols: list[str], **kwargs: object) -> dict[str, Quote]:
         return _fake_quotes(symbols)
 

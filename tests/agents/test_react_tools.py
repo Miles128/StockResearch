@@ -10,7 +10,9 @@ from stockresearch.utils.llm import MockLLMClient
 
 
 @pytest.mark.asyncio
-async def test_debate_stock_skill_alias(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_debate_stock_skill_alias(
+    db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
     user = User(username="react-tool", password_hash="")
     db_session.add(user)
     db_session.commit()

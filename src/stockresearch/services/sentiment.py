@@ -7,8 +7,8 @@ from dataclasses import dataclass, field
 
 from stockresearch.data.providers.market import SentimentDataProvider
 from stockresearch.data.providers.market_overview import MarketOverviewProvider
-from stockresearch.data.providers.sector import SectorDataProvider
 from stockresearch.data.providers.news import NewsProvider
+from stockresearch.data.providers.sector import SectorDataProvider
 from stockresearch.utils.format import arrow_for_change, news_score_to_label
 
 logger = logging.getLogger(__name__)
@@ -60,11 +60,17 @@ class SentimentService:
             index_score = max(-20, min(20, avg_change * 4))  # -20 ~ +20
             score += index_score * 0.75  # weight 30% → *1.5 → *0.75 to get 0-30 range
             arrow = arrow_for_change(avg_change)
-            drivers.append(SentimentDriver(
-                label="主要指数",
-                value=f"{arrow} {avg_change:+.2f}%",
-                impact="positive" if avg_change > 0.3 else "negative" if avg_change < -0.3 else "neutral",
-            ))
+            drivers.append(
+                SentimentDriver(
+                    label="主要指数",
+                    value=f"{arrow} {avg_change:+.2f}%",
+                    impact="positive"
+                    if avg_change > 0.3
+                    else "negative"
+                    if avg_change < -0.3
+                    else "neutral",
+                )
+            )
 
         # 2. 涨跌家数比 (30%)
         adv = overview.advancers
@@ -73,11 +79,17 @@ class SentimentService:
             bull_ratio = adv / (adv + dec)
             breadth_score = (bull_ratio - 0.5) * 30  # -15 ~ +15
             score += breadth_score
-            drivers.append(SentimentDriver(
-                label="涨跌家数",
-                value=f"{adv}涨 / {dec}跌",
-                impact="positive" if bull_ratio > 0.55 else "negative" if bull_ratio < 0.45 else "neutral",
-            ))
+            drivers.append(
+                SentimentDriver(
+                    label="涨跌家数",
+                    value=f"{adv}涨 / {dec}跌",
+                    impact="positive"
+                    if bull_ratio > 0.55
+                    else "negative"
+                    if bull_ratio < 0.45
+                    else "neutral",
+                )
+            )
 
         # 3. 北向资金 (15%)
         north = overview.northbound_net_yi
@@ -85,11 +97,13 @@ class SentimentService:
             north_score = max(-10, min(10, north * 2))  # -10 ~ +10
             score += north_score
             direction = "净流入" if north > 0 else "净流出"
-            drivers.append(SentimentDriver(
-                label="北向资金",
-                value=f"{direction} {abs(north):.1f}亿",
-                impact="positive" if north > 0 else "negative",
-            ))
+            drivers.append(
+                SentimentDriver(
+                    label="北向资金",
+                    value=f"{direction} {abs(north):.1f}亿",
+                    impact="positive" if north > 0 else "negative",
+                )
+            )
 
         # 4. 市场新闻情感 (25%)
         try:
@@ -100,11 +114,17 @@ class SentimentService:
             # news_score: -1 ~ +1 → -12.5 ~ +12.5
             score += news_score * 12.5
             label = news_score_to_label(news_score)
-            drivers.append(SentimentDriver(
-                label="新闻情感",
-                value=f"{len(titles)}条新闻 {label}",
-                impact="positive" if news_score > 0.2 else "negative" if news_score < -0.2 else "neutral",
-            ))
+            drivers.append(
+                SentimentDriver(
+                    label="新闻情感",
+                    value=f"{len(titles)}条新闻 {label}",
+                    impact="positive"
+                    if news_score > 0.2
+                    else "negative"
+                    if news_score < -0.2
+                    else "neutral",
+                )
+            )
         except Exception as exc:
             logger.warning("Market news sentiment failed: %s", exc)
 
@@ -124,16 +144,24 @@ class SentimentService:
         # 1. 板块涨跌幅
         try:
             boards = await SectorDataProvider().fetch_industry_boards()
-            target = next((b for b in boards if sector_name in b.name or b.name in sector_name), None)
+            target = next(
+                (b for b in boards if sector_name in b.name or b.name in sector_name), None
+            )
             if target:
                 change = target.change_pct
                 score += max(-20, min(20, change * 4))
                 arrow = arrow_for_change(change)
-                drivers.append(SentimentDriver(
-                    label="板块涨跌",
-                    value=f"{arrow} {change:+.2f}%",
-                    impact="positive" if change > 0.5 else "negative" if change < -0.5 else "neutral",
-                ))
+                drivers.append(
+                    SentimentDriver(
+                        label="板块涨跌",
+                        value=f"{arrow} {change:+.2f}%",
+                        impact="positive"
+                        if change > 0.5
+                        else "negative"
+                        if change < -0.5
+                        else "neutral",
+                    )
+                )
         except Exception as exc:
             logger.warning("Sector data for sentiment failed: %s", exc)
 
@@ -145,11 +173,17 @@ class SentimentService:
             news_score = SentimentDataProvider().score_titles(titles)
             score += news_score * 15
             label = news_score_to_label(news_score)
-            drivers.append(SentimentDriver(
-                label="板块新闻",
-                value=f"{len(titles)}条 {label}",
-                impact="positive" if news_score > 0.2 else "negative" if news_score < -0.2 else "neutral",
-            ))
+            drivers.append(
+                SentimentDriver(
+                    label="板块新闻",
+                    value=f"{len(titles)}条 {label}",
+                    impact="positive"
+                    if news_score > 0.2
+                    else "negative"
+                    if news_score < -0.2
+                    else "neutral",
+                )
+            )
         except Exception as exc:
             logger.warning("Sector news sentiment failed: %s", exc)
 
@@ -176,11 +210,17 @@ class SentimentService:
             available = bool(hot.get("available", True))
             if available:
                 score += (bull_ratio - 0.5) * 30  # -15 ~ +15
-                drivers.append(SentimentDriver(
-                    label="雪球多空比",
-                    value=f"{bull_ratio:.0%}看多 · 热度{heat_score} · {post_count}帖",
-                    impact="positive" if bull_ratio > 0.55 else "negative" if bull_ratio < 0.45 else "neutral",
-                ))
+                drivers.append(
+                    SentimentDriver(
+                        label="雪球多空比",
+                        value=f"{bull_ratio:.0%}看多 · 热度{heat_score} · {post_count}帖",
+                        impact="positive"
+                        if bull_ratio > 0.55
+                        else "negative"
+                        if bull_ratio < 0.45
+                        else "neutral",
+                    )
+                )
         except Exception as exc:
             logger.warning("Xueqiu hot for %s failed: %s", symbol, exc)
 
@@ -191,11 +231,17 @@ class SentimentService:
             news_score = provider.score_titles(titles)
             score += news_score * 15  # -15 ~ +15
             label = news_score_to_label(news_score)
-            drivers.append(SentimentDriver(
-                label="个股新闻",
-                value=f"{len(titles)}条 {label}",
-                impact="positive" if news_score > 0.2 else "negative" if news_score < -0.2 else "neutral",
-            ))
+            drivers.append(
+                SentimentDriver(
+                    label="个股新闻",
+                    value=f"{len(titles)}条 {label}",
+                    impact="positive"
+                    if news_score > 0.2
+                    else "negative"
+                    if news_score < -0.2
+                    else "neutral",
+                )
+            )
         except Exception as exc:
             logger.warning("Stock news sentiment for %s failed: %s", symbol, exc)
 

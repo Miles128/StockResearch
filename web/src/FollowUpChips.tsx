@@ -8,7 +8,12 @@ export function FollowUpChips({ questions, onSelect }: FollowUpChipsProps) {
   return (
     <div className="follow-up-row">
       {questions.map((question) => (
-        <button key={question} type="button" className="example-chip" onClick={() => onSelect(question)}>
+        <button
+          key={question}
+          type="button"
+          className="example-chip"
+          onClick={() => onSelect(question)}
+        >
           {question}
         </button>
       ))}

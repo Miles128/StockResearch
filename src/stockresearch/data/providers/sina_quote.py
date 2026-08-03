@@ -2,7 +2,6 @@
 
 import logging
 from datetime import UTC, datetime
-from typing import TypeAlias
 
 import httpx
 
@@ -12,7 +11,7 @@ from stockresearch.utils.symbols import resolve_name
 logger = logging.getLogger(__name__)
 
 _SINA_TIMEOUT_SEC = 5.0
-QuoteRow: TypeAlias = dict[str, float | str | datetime]
+type QuoteRow = dict[str, float | str | datetime]
 
 
 def _sina_code(symbol: str) -> str:

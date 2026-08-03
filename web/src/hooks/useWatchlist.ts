@@ -13,29 +13,34 @@ export interface WatchlistState {
 
 export function useWatchlist(onError?: (msg: string) => void): WatchlistState {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
-  const [watchlistQuotes, setWatchlistQuotes] = useState<Record<string, StockQuoteOut>>({});
+  const [watchlistQuotes, setWatchlistQuotes] = useState<
+    Record<string, StockQuoteOut>
+  >({});
   const [watchlistLoading, setWatchlistLoading] = useState(false);
 
-  const refreshWatchlistQuotes = useCallback(async (opts?: { silent?: boolean }) => {
-    if (watchlist.length === 0) {
-      setWatchlistQuotes({});
-      return;
-    }
-    if (!opts?.silent) setWatchlistLoading(true);
-    try {
-      const quotes = await api.stockQuotes(
-        watchlist.map((i) => i.symbol).join(","),
-        { forceRefresh: opts?.silent },
-      );
-      const map: Record<string, StockQuoteOut> = {};
-      for (const q of quotes) map[q.symbol] = q;
-      setWatchlistQuotes(map);
-    } catch {
-      // keep last quotes on transient failures
-    } finally {
-      if (!opts?.silent) setWatchlistLoading(false);
-    }
-  }, [watchlist]);
+  const refreshWatchlistQuotes = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (watchlist.length === 0) {
+        setWatchlistQuotes({});
+        return;
+      }
+      if (!opts?.silent) setWatchlistLoading(true);
+      try {
+        const quotes = await api.stockQuotes(
+          watchlist.map((i) => i.symbol).join(","),
+          { forceRefresh: opts?.silent },
+        );
+        const map: Record<string, StockQuoteOut> = {};
+        for (const q of quotes) map[q.symbol] = q;
+        setWatchlistQuotes(map);
+      } catch {
+        // keep last quotes on transient failures
+      } finally {
+        if (!opts?.silent) setWatchlistLoading(false);
+      }
+    },
+    [watchlist],
+  );
 
   const loadWatchlist = useCallback(async () => {
     try {
@@ -46,7 +51,9 @@ export function useWatchlist(onError?: (msg: string) => void): WatchlistState {
         setWatchlistQuotes({});
         return;
       }
-      const quotes = await api.stockQuotes(items.map((i) => i.symbol).join(","));
+      const quotes = await api.stockQuotes(
+        items.map((i) => i.symbol).join(","),
+      );
       const map: Record<string, StockQuoteOut> = {};
       for (const q of quotes) map[q.symbol] = q;
       setWatchlistQuotes(map);

@@ -7,17 +7,22 @@ export interface KnownSymbol {
   name: string;
 }
 
-function researchFromCards(cards: ChatResponse["cards"] | undefined): KnownSymbol | null {
+function researchFromCards(
+  cards: ChatResponse["cards"] | undefined,
+): KnownSymbol | null {
   if (!cards) return null;
   for (const card of cards) {
     if (card.type !== "research") continue;
     const data = card.data as { symbol?: string; name?: string };
-    if (data.symbol && data.name) return { symbol: data.symbol, name: data.name };
+    if (data.symbol && data.name)
+      return { symbol: data.symbol, name: data.name };
   }
   return null;
 }
 
-function symbolFromCards(cards: ChatResponse["cards"] | undefined): KnownSymbol | null {
+function symbolFromCards(
+  cards: ChatResponse["cards"] | undefined,
+): KnownSymbol | null {
   if (!cards) return null;
   for (const card of cards) {
     const data = card.data as { symbol?: string; name?: string };
@@ -28,7 +33,10 @@ function symbolFromCards(cards: ChatResponse["cards"] | undefined): KnownSymbol 
   return null;
 }
 
-function resolveSymbolFromQuery(query: string, known: KnownSymbol[]): KnownSymbol | null {
+function resolveSymbolFromQuery(
+  query: string,
+  known: KnownSymbol[],
+): KnownSymbol | null {
   const codeMatch = query.match(/\b(\d{6})\b/);
   if (codeMatch) {
     const symbol = codeMatch[1];
@@ -98,7 +106,8 @@ export function buildKnownSymbols(
 ): KnownSymbol[] {
   const map = new Map<string, KnownSymbol>();
   for (const item of [...holdings, ...watchlist]) {
-    if (item.symbol && item.name) map.set(item.symbol, { symbol: item.symbol, name: item.name });
+    if (item.symbol && item.name)
+      map.set(item.symbol, { symbol: item.symbol, name: item.name });
   }
   return [...map.values()];
 }

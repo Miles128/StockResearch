@@ -88,9 +88,11 @@ class MarketOverviewProvider:
                     degraded=True,
                     message="新浪不可用，已切换 AkShare 指数",
                 )
-                return overview.model_copy(update={
-                    "message": "新浪不可用，已切换 AkShare 指数",
-                })
+                return overview.model_copy(
+                    update={
+                        "message": "新浪不可用，已切换 AkShare 指数",
+                    }
+                )
         except TimeoutError:
             logger.warning("AkShare market overview timed out")
         except Exception as exc:
@@ -207,10 +209,7 @@ class BatchQuoteProvider:
         if include_sector:
             sector_symbols = [symbol for symbol in unique if symbol in quote_map]
             sector_values = await asyncio.gather(
-                *[
-                    resolve_stock_sector(symbol, quote_map[symbol].name)
-                    for symbol in sector_symbols
-                ]
+                *[resolve_stock_sector(symbol, quote_map[symbol].name) for symbol in sector_symbols]
             )
             sectors = dict(zip(sector_symbols, sector_values, strict=True))
 

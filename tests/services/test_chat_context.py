@@ -1,9 +1,10 @@
+from datetime import UTC, datetime
+
 import pytest
-from datetime import datetime, timezone
 
 from stockresearch.core.schemas import ChatUserContext, ModeSettingsOut
 from stockresearch.data.providers.market import Quote, QuoteProvider
-from stockresearch.services.chat_context import build_long_term_context, format_user_context_block
+from stockresearch.services.chat.context import build_long_term_context, format_user_context_block
 
 
 @pytest.mark.asyncio
@@ -29,7 +30,7 @@ async def test_build_long_term_context_includes_holdings(monkeypatch: pytest.Mon
                 high=1690.0,
                 low=1670.0,
                 volume=1000.0,
-                updated_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(UTC),
             )
         }
 
@@ -46,7 +47,9 @@ async def test_build_long_term_context_includes_holdings(monkeypatch: pytest.Mon
 
 
 @pytest.mark.asyncio
-async def test_build_long_term_context_advisor_plain_language(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_build_long_term_context_advisor_plain_language(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     async def _fake_quotes(
         _self: QuoteProvider,
         _symbols: list[str],

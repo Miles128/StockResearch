@@ -17,7 +17,7 @@ async def test_get_financials_fail_without_fabricating(
     """Both THS and indicator failing must return None metrics + gaps, not 0.0."""
     provider = FinancialDataProvider()
     monkeypatch.setattr(
-        "stockresearch.data.providers.market._use_mock_market_data",
+        "stockresearch.data.providers.market.financial._use_mock_market_data",
         lambda: False,
     )
 
@@ -25,7 +25,7 @@ async def test_get_financials_fail_without_fabricating(
         return fallback if fallback is not None else None
 
     monkeypatch.setattr(
-        "stockresearch.data.providers.market.run_sync_fetch",
+        "stockresearch.data.providers.market.financial.run_sync_fetch",
         fake_run_sync_fetch,
     )
 
@@ -33,7 +33,7 @@ async def test_get_financials_fail_without_fabricating(
         return await factory()
 
     monkeypatch.setattr(
-        "stockresearch.data.providers.market.get_or_set_cached_dict",
+        "stockresearch.data.providers.market.financial.get_or_set_cached_dict",
         no_cache,
     )
 
@@ -57,7 +57,7 @@ async def test_get_financials_prefers_ths_over_indicator(
 ) -> None:
     provider = FinancialDataProvider()
     monkeypatch.setattr(
-        "stockresearch.data.providers.market._use_mock_market_data",
+        "stockresearch.data.providers.market.financial._use_mock_market_data",
         lambda: False,
     )
 
@@ -86,7 +86,7 @@ async def test_get_financials_prefers_ths_over_indicator(
         raise AssertionError("indicator should not be called when THS succeeds")
 
     monkeypatch.setattr(
-        "stockresearch.data.providers.market.run_sync_fetch",
+        "stockresearch.data.providers.market.financial.run_sync_fetch",
         fake_run_sync_fetch,
     )
 
@@ -94,7 +94,7 @@ async def test_get_financials_prefers_ths_over_indicator(
         return await factory()
 
     monkeypatch.setattr(
-        "stockresearch.data.providers.market.get_or_set_cached_dict",
+        "stockresearch.data.providers.market.financial.get_or_set_cached_dict",
         no_cache,
     )
 
@@ -119,7 +119,7 @@ async def test_get_valuation_no_default_pe(
 ) -> None:
     provider = FinancialDataProvider()
     monkeypatch.setattr(
-        "stockresearch.data.providers.market._use_mock_market_data",
+        "stockresearch.data.providers.market.financial._use_mock_market_data",
         lambda: False,
     )
 
@@ -127,7 +127,7 @@ async def test_get_valuation_no_default_pe(
         return None
 
     monkeypatch.setattr(
-        "stockresearch.data.providers.market.run_sync_fetch",
+        "stockresearch.data.providers.market.financial.run_sync_fetch",
         fake_run_sync_fetch,
     )
 
@@ -135,7 +135,7 @@ async def test_get_valuation_no_default_pe(
         return await factory()
 
     monkeypatch.setattr(
-        "stockresearch.data.providers.market.get_or_set_cached_dict",
+        "stockresearch.data.providers.market.financial.get_or_set_cached_dict",
         no_cache,
     )
 
@@ -152,7 +152,7 @@ async def test_get_valuation_from_value_em(
 ) -> None:
     provider = FinancialDataProvider()
     monkeypatch.setattr(
-        "stockresearch.data.providers.market._use_mock_market_data",
+        "stockresearch.data.providers.market.financial._use_mock_market_data",
         lambda: False,
     )
     em = pd.DataFrame(
@@ -169,7 +169,7 @@ async def test_get_valuation_from_value_em(
         raise AssertionError(f"unexpected fetch: {name}")
 
     monkeypatch.setattr(
-        "stockresearch.data.providers.market.run_sync_fetch",
+        "stockresearch.data.providers.market.financial.run_sync_fetch",
         fake_run_sync_fetch,
     )
 
@@ -180,7 +180,7 @@ async def test_get_valuation_from_value_em(
         return result
 
     monkeypatch.setattr(
-        "stockresearch.data.providers.market.get_or_set_cached_dict",
+        "stockresearch.data.providers.market.financial.get_or_set_cached_dict",
         no_cache,
     )
 
@@ -198,7 +198,7 @@ async def test_get_valuation_falls_back_to_baidu(
 ) -> None:
     provider = FinancialDataProvider()
     monkeypatch.setattr(
-        "stockresearch.data.providers.market._use_mock_market_data",
+        "stockresearch.data.providers.market.financial._use_mock_market_data",
         lambda: False,
     )
     pe = pd.DataFrame({"date": ["2024-01-01", "2024-01-02"], "value": [25.0, 18.2]})
@@ -214,7 +214,7 @@ async def test_get_valuation_falls_back_to_baidu(
         return None
 
     monkeypatch.setattr(
-        "stockresearch.data.providers.market.run_sync_fetch",
+        "stockresearch.data.providers.market.financial.run_sync_fetch",
         fake_run_sync_fetch,
     )
 
@@ -222,7 +222,7 @@ async def test_get_valuation_falls_back_to_baidu(
         return await factory()
 
     monkeypatch.setattr(
-        "stockresearch.data.providers.market.get_or_set_cached_dict",
+        "stockresearch.data.providers.market.financial.get_or_set_cached_dict",
         no_cache,
     )
 
@@ -238,7 +238,7 @@ async def test_seed_peers_marked_as_seed(
 ) -> None:
     provider = FinancialDataProvider()
     monkeypatch.setattr(
-        "stockresearch.data.providers.market._use_mock_market_data",
+        "stockresearch.data.providers.market.financial._use_mock_market_data",
         lambda: False,
     )
 
@@ -248,7 +248,7 @@ async def test_seed_peers_marked_as_seed(
         return fallback if fallback is not None else None
 
     monkeypatch.setattr(
-        "stockresearch.data.providers.market.run_sync_fetch",
+        "stockresearch.data.providers.market.financial.run_sync_fetch",
         fake_run_sync_fetch,
     )
 
@@ -256,7 +256,7 @@ async def test_seed_peers_marked_as_seed(
         return await factory()
 
     monkeypatch.setattr(
-        "stockresearch.data.providers.market.get_or_set_cached_dict",
+        "stockresearch.data.providers.market.financial.get_or_set_cached_dict",
         no_cache,
     )
 

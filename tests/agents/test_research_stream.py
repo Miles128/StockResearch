@@ -78,9 +78,7 @@ async def test_attach_deep_analysis_builds_thesis_for_deep(
             partial=False,
         )
 
-    monkeypatch.setattr(
-        "stockresearch.services.impact.compute_impact", fake_impact
-    )
+    monkeypatch.setattr("stockresearch.services.impact.compute_impact", fake_impact)
     monkeypatch.setattr(
         "stockresearch.services.pricing_bridge.compute_pricing_bridge",
         fake_pricing,
@@ -105,9 +103,7 @@ async def test_attach_deep_analysis_skips_thesis_for_comprehensive(
     async def fake_impact(symbol: str) -> ImpactOut:
         return ImpactOut(window_trading_days=20, partial=False, gaps=[])
 
-    monkeypatch.setattr(
-        "stockresearch.services.impact.compute_impact", fake_impact
-    )
+    monkeypatch.setattr("stockresearch.services.impact.compute_impact", fake_impact)
 
     report = _deep_report()
     await _attach_deep_analysis(report, "comprehensive", "600519")

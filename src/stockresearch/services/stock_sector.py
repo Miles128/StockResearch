@@ -121,9 +121,7 @@ async def backfill_holding_sectors(holdings: list[Holding]) -> tuple[int, int]:
     if not targets:
         return 0, skipped
 
-    sectors = await asyncio.gather(
-        *[resolve_stock_sector(h.symbol, h.name) for h in targets]
-    )
+    sectors = await asyncio.gather(*[resolve_stock_sector(h.symbol, h.name) for h in targets])
     updated = 0
     for holding, sector in zip(targets, sectors, strict=True):
         if sector != "未知" and holding.sector != sector:

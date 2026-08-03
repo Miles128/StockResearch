@@ -60,9 +60,7 @@ def stock_choice_card(original_message: str, result: StockLookupResult) -> dict[
         "data": {
             "message": result.message,
             "status": result.status,
-            "candidates": [
-                {"symbol": c.symbol, "name": c.name} for c in result.candidates
-            ],
+            "candidates": [{"symbol": c.symbol, "name": c.name} for c in result.candidates],
             "original_message": original_message,
         },
     }

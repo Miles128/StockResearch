@@ -30,9 +30,7 @@ async def build_compare_table(
     for symbol in cleaned:
         name = resolve_name(symbol)
         try:
-            factors, provenance = await compute_numeric_factors(
-                symbol, factor_keys=factor_keys
-            )
+            factors, provenance = await compute_numeric_factors(symbol, factor_keys=factor_keys)
             rows.append(
                 CompareRowOut(
                     symbol=symbol,

@@ -20,7 +20,9 @@ export function CollapsibleSection({
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   return (
-    <section className={`flat-section collapsible-section${collapsed ? " collapsed" : ""}${className ? ` ${className}` : ""}`}>
+    <section
+      className={`flat-section collapsible-section${collapsed ? " collapsed" : ""}${className ? ` ${className}` : ""}`}
+    >
       <div className="collapsible-section-head">
         <button
           type="button"
@@ -28,9 +30,15 @@ export function CollapsibleSection({
           onClick={() => setCollapsed((v) => !v)}
           aria-expanded={!collapsed}
         >
-          <span className={`collapsible-chevron${collapsed ? " collapsed" : ""}`}>▾</span>
+          <span
+            className={`collapsible-chevron${collapsed ? " collapsed" : ""}`}
+          >
+            ▾
+          </span>
           <span className="flat-section-title">{title}</span>
-          {summary ? <span className="collapsible-summary">{summary}</span> : null}
+          {summary ? (
+            <span className="collapsible-summary">{summary}</span>
+          ) : null}
         </button>
         {headerExtra}
       </div>

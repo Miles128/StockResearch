@@ -35,12 +35,12 @@ cd web && npm run build
 cd ../desktop && npm run build
 ```
 
-产物在 `desktop/src-tauri/target/release/bundle/`（`.dmg` / `.msi` 等）。  
+产物在 `desktop/src-tauri/target/release/bundle/`（`.dmg` / `.msi` 等）。
 MVP **不**捆绑 Python：目标机器仍需可访问同一仓库 + `uv`。
 
 ## 应用图标
 
-源图：`branding/app-icon.png`（金融研究终端：K 线 + 研究取景，海军蓝/青绿底 + 琥珀高点）。  
+源图：`branding/app-icon.png`（金融研究终端：K 线 + 研究取景，海军蓝/青绿底 + 琥珀高点）。
 重新生成各尺寸：
 
 ```bash

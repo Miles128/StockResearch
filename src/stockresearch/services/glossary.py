@@ -20,8 +20,25 @@ _GLOSSARY_PATH = Path(__file__).resolve().parent.parent / "data" / "glossary.jso
 
 # Terms that should NOT be matched inside other words (e.g. "PE" inside "TYPE")
 # We use word-boundary matching for these short abbreviations.
-_SHORT_TERMS = {"PE", "PB", "ROE", "ROA", "EPS", "VaR", "CVaR", "MACD", "RSI", "KDJ",
-                "BOLL", "EMA", "MA", "PEG", "Beta", "Alpha", "VaR 95%"}
+_SHORT_TERMS = {
+    "PE",
+    "PB",
+    "ROE",
+    "ROA",
+    "EPS",
+    "VaR",
+    "CVaR",
+    "MACD",
+    "RSI",
+    "KDJ",
+    "BOLL",
+    "EMA",
+    "MA",
+    "PEG",
+    "Beta",
+    "Alpha",
+    "VaR 95%",
+}
 
 
 class GlossaryTerm:

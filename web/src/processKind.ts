@@ -26,7 +26,9 @@ const RESEARCH_SKILL_IDS = new Set([
 
 function primarySkill(process: StreamState): SkillStep | undefined {
   if (process.activeSkillRunId) {
-    return process.skillSteps.find((s) => s.skillRunId === process.activeSkillRunId);
+    return process.skillSteps.find(
+      (s) => s.skillRunId === process.activeSkillRunId,
+    );
   }
   return process.skillSteps[process.skillSteps.length - 1];
 }
@@ -58,7 +60,9 @@ function inferDimensionKind(process: StreamState): DimensionKind {
   const defs = detectDimensionSet(process.agentSteps, statusText);
   if (defs.length >= 5 || statusText.includes("五维")) return "industry";
   if (
-    process.agentSteps.some((s) => s.agent_id === "macro" || s.agent_id === "industry") ||
+    process.agentSteps.some(
+      (s) => s.agent_id === "macro" || s.agent_id === "industry",
+    ) ||
     (statusText.includes("市场") && statusText.includes("四维"))
   ) {
     return "market";
@@ -67,7 +71,11 @@ function inferDimensionKind(process: StreamState): DimensionKind {
 }
 
 function sliceHasDebate(slice: SkillStreamSlice): boolean {
-  return slice.debateRounds.length > 0 || slice.judgeVerdict != null || slice.voteTally != null;
+  return (
+    slice.debateRounds.length > 0 ||
+    slice.judgeVerdict != null ||
+    slice.voteTally != null
+  );
 }
 
 function looksLikePlanExecute(process: StreamState): boolean {
@@ -100,7 +108,9 @@ export function detectProcessFlow(process: StreamState): ProcessFlow {
     process.voteTally != null ||
     process.skillSteps.some((s) => sliceHasDebate(s.nested))
   ) {
-    const hasResearchSkill = process.skillSteps.some((s) => RESEARCH_SKILL_IDS.has(s.skillId));
+    const hasResearchSkill = process.skillSteps.some((s) =>
+      RESEARCH_SKILL_IDS.has(s.skillId),
+    );
     if (!hasResearchSkill) return "debate";
   }
 
@@ -162,4 +172,3 @@ export function skillStepLabel(skill: SkillStep, t: TFn): string {
   if (flow) return flowLabel(flow, skill.status === "running", t);
   return skill.label;
 }
-

@@ -49,6 +49,7 @@ def _compact_message(message: str) -> str:
     msg = message.strip().lower().replace("Ａ", "a")
     return re.sub(r"\s+", "", msg)
 
+
 # Simple patterns that can be answered directly (skipped when deep intent present)
 _SIMPLE_PATTERNS = [
     r"^(你好|嗨|hi|hello|谢谢|感谢)",
@@ -74,7 +75,8 @@ _STOCK_NAMES = f"({STOCK_NAME_ALTERNATION})"
 
 _DEBATE_PATTERNS = [
     r"\d{6}.*?(分析|研究|看法|观点|辩论|持有|还能|继续|值得|买卖)",
-    _STOCK_NAMES + r".{0,8}(分析|研究|看法|观点|辩论|持有|还能|继续|值得|买卖|怎么样|如何|行不行|好不好)",
+    _STOCK_NAMES
+    + r".{0,8}(分析|研究|看法|观点|辩论|持有|还能|继续|值得|买卖|怎么样|如何|行不行|好不好)",
     r"(这只|这个|那只|那只).{0,4}(股票|股).{0,4}(怎么样|如何|值不值得|能不能买|还能|持有|继续)",
     r"\d{6}.*?(财报|比率|PE|PB|ROE|毛利率|净利率|市盈率|市净率|估值)",
     _STOCK_NAMES + r".{0,6}(财报|比率|PE|PB|ROE|毛利率|净利率|市盈率|市净率|估值)",

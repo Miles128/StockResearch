@@ -19,9 +19,7 @@ def _coerce_mode_settings(raw: object) -> ModeSettingsOut:
     if "analysis_depth" not in data:
         from stockresearch.agents.research.budget import default_depth_for_mode
 
-        data["analysis_depth"] = default_depth_for_mode(
-            str(data.get("mode") or "advisor")
-        )
+        data["analysis_depth"] = default_depth_for_mode(str(data.get("mode") or "advisor"))
     try:
         return ModeSettingsOut.model_validate(data)
     except Exception:

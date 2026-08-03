@@ -5,7 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from stockresearch.agents.orchestrator.skills import PACKAGED_SKILLS, SKILL_IDS, format_skills_for_prompt
+from stockresearch.agents.orchestrator.skills import (
+    PACKAGED_SKILLS,
+    SKILL_IDS,
+    format_skills_for_prompt,
+)
 
 ToolCategory = Literal["market", "quote", "news", "portfolio", "risk", "output", "skill"]
 
@@ -80,9 +84,7 @@ ORCHESTRATOR_TOOLS: tuple[OrchestratorTool, ...] = (
     ),
 )
 
-FINANCE_TOOLS: frozenset[str] = frozenset(
-    t.name for t in ORCHESTRATOR_TOOLS if t.finance_only
-)
+FINANCE_TOOLS: frozenset[str] = frozenset(t.name for t in ORCHESTRATOR_TOOLS if t.finance_only)
 RESEARCH_SKILL_TOOLS: frozenset[str] = SKILL_IDS
 
 _TOOL_BY_NAME: dict[str, OrchestratorTool] = {t.name: t for t in ORCHESTRATOR_TOOLS}

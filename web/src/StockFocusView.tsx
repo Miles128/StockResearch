@@ -23,7 +23,9 @@ function filterNews(focus: FocusContext, news: NewsItem[]): NewsItem[] {
   if (focus.kind === "stock") {
     return news.filter(
       (n) =>
-        n.entities.some((e) => e.includes(focus.symbol) || e.includes(focus.name)) ||
+        n.entities.some(
+          (e) => e.includes(focus.symbol) || e.includes(focus.name),
+        ) ||
         n.title.includes(focus.name) ||
         n.title.includes(focus.symbol) ||
         n.summary.includes(focus.name) ||
@@ -66,25 +68,40 @@ export function StockFocusView({
 }: StockFocusViewProps) {
   const { t } = useI18n();
   const filteredNews = useMemo(() => filterNews(focus, news), [focus, news]);
-  const changeClass = signedClass(focus.kind === "stock" ? (focus.change_pct ?? 0) : 0);
+  const changeClass = signedClass(
+    focus.kind === "stock" ? (focus.change_pct ?? 0) : 0,
+  );
 
   return (
     <div className="stock-focus-view">
       {focus.kind === "stock" && (
         <>
-          <CollapsibleSection title={t("stockFocus.quote")} summary={focus.symbol}>
+          <CollapsibleSection
+            title={t("stockFocus.quote")}
+            summary={focus.symbol}
+          >
             <div className="stock-focus-metrics">
               <span className={`mono stock-focus-price ${changeClass}`}>
                 {focus.price != null ? formatPrice(focus.price) : "—"}
               </span>
               <span className={`mono ${changeClass}`}>
-                {focus.change_pct != null ? formatSignedPct(focus.change_pct) : ""}
+                {focus.change_pct != null
+                  ? formatSignedPct(focus.change_pct)
+                  : ""}
               </span>
-              <button type="button" className="icon-btn" onClick={onAnalyze} title={t("portfolio.analyze")} aria-label={t("portfolio.analyze")}>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={onAnalyze}
+                title={t("portfolio.analyze")}
+                aria-label={t("portfolio.analyze")}
+              >
                 <IconExternalLink />
               </button>
             </div>
-            <p className="muted stock-focus-financial-hint">{t("stockFocus.financialHint")}</p>
+            <p className="muted stock-focus-financial-hint">
+              {t("stockFocus.financialHint")}
+            </p>
           </CollapsibleSection>
 
           <CollapsibleSection title={t("chart.price")}>
@@ -95,7 +112,11 @@ export function StockFocusView({
 
       {focus.kind === "index" && (
         <CollapsibleSection title={t("chart.price")} summary={focus.name}>
-          <MarketChart key={focus.symbol} symbol={focus.symbol} variant="index" />
+          <MarketChart
+            key={focus.symbol}
+            symbol={focus.symbol}
+            variant="index"
+          />
         </CollapsibleSection>
       )}
 
@@ -121,7 +142,14 @@ export function StockFocusView({
         summary={filteredNews.length ? String(filteredNews.length) : undefined}
       >
         <div className="stock-focus-news-actions">
-          <button type="button" className="icon-btn" onClick={onLoadNews} disabled={newsLoading} title={t("news.refresh")} aria-label={t("news.refresh")}>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={onLoadNews}
+            disabled={newsLoading}
+            title={t("news.refresh")}
+            aria-label={t("news.refresh")}
+          >
             <IconRefresh />
           </button>
         </div>
@@ -133,8 +161,11 @@ export function StockFocusView({
             <li key={n.id} className="stock-focus-news-item">
               <div className="stock-focus-news-title">{n.title}</div>
               <p className="muted">{n.summary}</p>
-              <span className={`stat-pill ${n.sentiment === "bullish" ? "up" : n.sentiment === "bearish" ? "down" : ""}`}>
-                {localizeSentiment(n.sentiment, t)} · {localizeImpactLevel(n.impact_level, t)}
+              <span
+                className={`stat-pill ${n.sentiment === "bullish" ? "up" : n.sentiment === "bearish" ? "down" : ""}`}
+              >
+                {localizeSentiment(n.sentiment, t)} ·{" "}
+                {localizeImpactLevel(n.impact_level, t)}
               </span>
             </li>
           ))}

@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from stockresearch.agents.master_commentary.context import build_risk_context
+from stockresearch.agents.master_commentary.registry import resolve_master_ids
 from stockresearch.agents.master_commentary.stream import stream_master_commentary
 from stockresearch.agents.research.debate import (
     iter_triangular_debate_events,
@@ -21,17 +22,17 @@ from stockresearch.agents.risk.engine import (
     _parse_rule_alerts,
     run_risk_checkup,
 )
-from stockresearch.agents.risk.metrics import (
-    HoldingQuote,
-    calculate_portfolio_metrics,
-    calculate_var,
-    run_stress_presets,
-)
 from stockresearch.agents.risk.judge import (
     JudgeVerdict,
     format_judge_display,
     parse_judge,
     portfolio_summary_text,
+)
+from stockresearch.agents.risk.metrics import (
+    HoldingQuote,
+    calculate_portfolio_metrics,
+    calculate_var,
+    run_stress_presets,
 )
 from stockresearch.agents.stream_typewriter import (
     AgentStreamItem,
@@ -40,11 +41,6 @@ from stockresearch.agents.stream_typewriter import (
     iter_merged_agent_streams_from_tasks,
 )
 from stockresearch.agents.voice import JUDGE_VOICE
-from stockresearch.services.compliance_language import (
-    normalize_position_action,
-    scrub_forbidden_position_language,
-)
-from stockresearch.agents.master_commentary.registry import resolve_master_ids
 from stockresearch.core.schemas import (
     LLMRiskAnalysis,
     MasterCommentaryItem,
@@ -58,6 +54,10 @@ from stockresearch.core.schemas import (
 from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.db.models import Holding
 from stockresearch.i18n.status_events import status_event
+from stockresearch.services.compliance_language import (
+    normalize_position_action,
+    scrub_forbidden_position_language,
+)
 from stockresearch.utils.llm import LLMClient, get_llm_client
 
 logger = logging.getLogger(__name__)
@@ -194,9 +194,7 @@ async def run_risk_checkup_stream(
         "role": "rules",
     }
     quote_provider = QuoteProvider()
-    quote_map = (
-        await quote_provider.get_quotes([h.symbol for h in holdings]) if holdings else {}
-    )
+    quote_map = await quote_provider.get_quotes([h.symbol for h in holdings]) if holdings else {}
     quotes = [quote_map[h.symbol] for h in holdings if h.symbol in quote_map]
     if holdings and len(quotes) != len(holdings):
         missing = [h.symbol for h in holdings if h.symbol not in quote_map]
@@ -393,7 +391,6 @@ async def run_risk_checkup_stream(
         "role": "judge",
         "content": judge_display,
     }
-
 
     llm_analysis = LLMRiskAnalysis(
         market_assessment=analysis["market"],

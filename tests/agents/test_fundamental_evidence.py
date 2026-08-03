@@ -19,7 +19,11 @@ def test_fundamental_build_attaches_evidence_and_gaps() -> None:
             "debt_ratio": 0.4,
             "partial": False,
         },
-        "akshare_valuation": {"pe_percentile": None, "partial": True, "gaps": ["估值历史分位不可算"]},
+        "akshare_valuation": {
+            "pe_percentile": None,
+            "partial": True,
+            "gaps": ["估值历史分位不可算"],
+        },
         "akshare_peers": {"peers": [], "partial": True},
         "ths_ratio_snapshot": {"ratios": [], "partial": True},
         "cninfo_announcements": {
@@ -91,6 +95,7 @@ def test_fundamental_build_treats_missing_roe_as_gap() -> None:
 
 
 def test_numeric_factor_schema() -> None:
-    factor = NumericFactorOut(key="momentum_20d", label="20日动量", value=3.2, unit="%", partial=False)
+    factor = NumericFactorOut(
+        key="momentum_20d", label="20日动量", value=3.2, unit="%", partial=False
+    )
     assert factor.key == "momentum_20d"
-

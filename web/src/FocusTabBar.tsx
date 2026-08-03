@@ -17,12 +17,21 @@ function tabMono(context: FocusContext): string | null {
   return null;
 }
 
-export function FocusTabBar({ tabs, activeId, onSelect, onClose }: FocusTabBarProps) {
+export function FocusTabBar({
+  tabs,
+  activeId,
+  onSelect,
+  onClose,
+}: FocusTabBarProps) {
   const { t } = useI18n();
   if (tabs.length === 0) return null;
 
   return (
-    <div className="focus-tab-bar" role="tablist" aria-label={t("focus.tabsAria")}>
+    <div
+      className="focus-tab-bar"
+      role="tablist"
+      aria-label={t("focus.tabsAria")}
+    >
       {tabs.map((tab) => (
         <div
           key={tab.id}
@@ -30,9 +39,15 @@ export function FocusTabBar({ tabs, activeId, onSelect, onClose }: FocusTabBarPr
           aria-selected={tab.id === activeId}
           className={`focus-tab${tab.id === activeId ? " active" : ""}`}
         >
-          <button type="button" className="focus-tab-label" onClick={() => onSelect(tab.id)}>
+          <button
+            type="button"
+            className="focus-tab-label"
+            onClick={() => onSelect(tab.id)}
+          >
             <span>{focusTabLabel(tab.context)}</span>
-            {tabMono(tab.context) && <span className="mono muted">{tabMono(tab.context)}</span>}
+            {tabMono(tab.context) && (
+              <span className="mono muted">{tabMono(tab.context)}</span>
+            )}
           </button>
           <button
             type="button"

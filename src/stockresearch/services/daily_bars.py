@@ -236,9 +236,7 @@ async def _refresh_one_symbol(
     symbol: str,
     days: int,
 ) -> int:
-    bars, source, adjust = await provider.get_kline_bars_meta(
-        symbol, days=days, prefer_qfq=True
-    )
+    bars, source, adjust = await provider.get_kline_bars_meta(symbol, days=days, prefer_qfq=True)
     if bars and adjust == "qfq":
         return upsert_bars(db, symbol, bars, adj="qfq", source=source)
     logger.warning(

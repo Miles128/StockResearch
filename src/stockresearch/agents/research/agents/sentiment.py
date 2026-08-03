@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from stockresearch.agents.research.agents._scoring import as_confidence
 from stockresearch.agents.research.context import ResearchContext
-from stockresearch.agents.research.react import DimensionAgent, ResearchTool
 from stockresearch.agents.research.dimension_text import REPORT_DIM_VOICE, finalize_dimension
+from stockresearch.agents.research.react import DimensionAgent, ResearchTool
 from stockresearch.core.constants import CONFIDENCE_LOW, CONFIDENCE_MEDIUM
 from stockresearch.core.schemas import DimensionEvidence, DimensionResult
 from stockresearch.data.providers.market import SentimentDataProvider
@@ -66,11 +66,20 @@ async def _tool_news(ctx: ResearchContext) -> dict[str, object]:
     if budget.news_deep_cross_check > 0:
         from stockresearch.data.providers.web_fetch import fetch_url_excerpt
 
-        candidates = clusters if clusters else [
-            {"title": n.get("title"), "url": n.get("url"), "source": n.get("source"), "count": 1}
-            for n in news
-            if isinstance(n, dict)
-        ]
+        candidates = (
+            clusters
+            if clusters
+            else [
+                {
+                    "title": n.get("title"),
+                    "url": n.get("url"),
+                    "source": n.get("source"),
+                    "count": 1,
+                }
+                for n in news
+                if isinstance(n, dict)
+            ]
+        )
         for cluster in candidates[: budget.news_deep_cross_check]:
             url = str(cluster.get("url") or "").strip()
             title = str(cluster.get("title") or "").strip()

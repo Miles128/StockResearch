@@ -116,9 +116,7 @@ def _contribs(
             residual = abs(price_change_pct - (multiple + earnings))
             if residual > _IDENTITY_TOLERANCE_PP:
                 partial = True
-                gaps.append(
-                    f"价格分解残差 {residual:.1f}pp > {_IDENTITY_TOLERANCE_PP:.0f}pp"
-                )
+                gaps.append(f"价格分解残差 {residual:.1f}pp > {_IDENTITY_TOLERANCE_PP:.0f}pp")
     else:
         partial = True
         if pe_start is None:
@@ -151,14 +149,10 @@ async def compute_pricing_bridge(
 
     # 1) price_change_pct from qfq bars (~60d).
     meta = await get_bars_meta_for_symbol(symbol, days=_WINDOW + 1)
-    closes = [
-        float(b["close"]) for b in meta.bars if b.get("close") is not None
-    ]
+    closes = [float(b["close"]) for b in meta.bars if b.get("close") is not None]
     price_change_pct, window_label, price_gap = _price_change_pct(closes)
     if window_label:
-        window_label = (
-            f"{window_label}（未复权）" if meta.adjust != "qfq" else window_label
-        )
+        window_label = f"{window_label}（未复权）" if meta.adjust != "qfq" else window_label
     else:
         window_label = f"{_WINDOW}d qfq"
     if price_gap:
@@ -184,7 +178,7 @@ async def compute_pricing_bridge(
         logger.warning("valuation fetch failed for %s", symbol, exc_info=True)
         valuation = {}
     raw_pe = valuation.get("pe_ttm")
-    if isinstance(raw_pe, (int, float)) and float(raw_pe) > 0:
+    if isinstance(raw_pe, int | float) and float(raw_pe) > 0:
         pe_end = round(float(raw_pe), 2)
     pe_start: float | None = None  # never fabricated
 

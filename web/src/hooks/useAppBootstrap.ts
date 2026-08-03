@@ -19,8 +19,12 @@ export interface AppBootstrapState {
 }
 
 export function useAppBootstrap(): AppBootstrapState {
-  const [modeSettings, setModeSettings] = useState<ModeSettings>(() => loadModeSettings());
-  const [onboardingOpen, setOnboardingOpen] = useState(() => !loadModeSettings().onboarded);
+  const [modeSettings, setModeSettings] = useState<ModeSettings>(() =>
+    loadModeSettings(),
+  );
+  const [onboardingOpen, setOnboardingOpen] = useState(
+    () => !loadModeSettings().onboarded,
+  );
   const [glossary, setGlossary] = useState<Record<string, GlossaryTerm>>({});
 
   const persistModeSettings = useCallback((next: ModeSettings) => {

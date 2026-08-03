@@ -15,7 +15,11 @@ interface AnalysisSettingsTabProps {
   onRemoveCustomMaster: (masterId: string) => void;
 }
 
-const DEPTH_OPTIONS: { id: AnalysisDepth; labelKey: string; hintKey: string }[] = [
+const DEPTH_OPTIONS: {
+  id: AnalysisDepth;
+  labelKey: string;
+  hintKey: string;
+}[] = [
   {
     id: "standard",
     labelKey: "settings.analysisDepthStandard",
@@ -77,7 +81,9 @@ export function AnalysisSettingsTab({
         <span>{t("settings.enableDebate")}</span>
       </label>
       <p className="settings-muted settings-analysis-note">
-        {modeSettings.enableDebate ? t("settings.debateOnNote") : t("settings.debateOffNote")}
+        {modeSettings.enableDebate
+          ? t("settings.debateOnNote")
+          : t("settings.debateOffNote")}
       </p>
 
       <label className="settings-check">
@@ -94,7 +100,9 @@ export function AnalysisSettingsTab({
           : t("settings.masterCommentaryOffNote")}
       </p>
 
-      <h4 className="settings-section-title">{t("settings.masterSelection")}</h4>
+      <h4 className="settings-section-title">
+        {t("settings.masterSelection")}
+      </h4>
       <p className="settings-hint">{t("settings.masterSelectionHint")}</p>
       <div className="settings-master-list">
         {BUILTIN_MASTER_IDS.map((id) => (
@@ -109,11 +117,16 @@ export function AnalysisSettingsTab({
           </label>
         ))}
         {modeSettings.customMasters.map((master) => (
-          <label key={master.id} className="settings-check settings-custom-master-row">
+          <label
+            key={master.id}
+            className="settings-check settings-custom-master-row"
+          >
             <input
               type="checkbox"
               checked={modeSettings.selectedMasters.includes(master.id)}
-              onChange={(e) => onToggleMasterSelection(master.id, e.target.checked)}
+              onChange={(e) =>
+                onToggleMasterSelection(master.id, e.target.checked)
+              }
               disabled={!modeSettings.enableMasterCommentary}
             />
             <span>{master.name}</span>

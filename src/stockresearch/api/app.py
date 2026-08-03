@@ -129,7 +129,9 @@ def create_app() -> FastAPI:
             clear_data_source_context()
 
     @app.exception_handler(StockResearchError)
-    async def stockresearch_exception_handler(_request: Request, exc: StockResearchError) -> JSONResponse:
+    async def stockresearch_exception_handler(
+        _request: Request, exc: StockResearchError
+    ) -> JSONResponse:
         if isinstance(exc, NotFoundError):
             status = 404
             code = "not_found"

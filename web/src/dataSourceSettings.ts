@@ -25,9 +25,13 @@ export function loadDataSourceSettings(): DataSourceUserSettings {
     const parsed = JSON.parse(raw) as Partial<DataSourceUserSettings>;
     _cachedSettings = {
       tushareToken:
-        typeof parsed.tushareToken === "string" ? parsed.tushareToken : DEFAULTS.tushareToken,
+        typeof parsed.tushareToken === "string"
+          ? parsed.tushareToken
+          : DEFAULTS.tushareToken,
       bochaApiKey:
-        typeof parsed.bochaApiKey === "string" ? parsed.bochaApiKey : DEFAULTS.bochaApiKey,
+        typeof parsed.bochaApiKey === "string"
+          ? parsed.bochaApiKey
+          : DEFAULTS.bochaApiKey,
     };
     return _cachedSettings;
   } catch {

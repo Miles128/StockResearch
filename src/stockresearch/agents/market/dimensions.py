@@ -23,6 +23,16 @@ def format_overview_snapshot(overview: MarketOverviewOut) -> str:
     return "\n".join(lines) if lines else "市场数据暂不可用"
 
 
+def format_enrichment_block(global_text: str, macro_text: str) -> str:
+    """外围市场 + 宏观数据附录块；均缺失时返回空串。"""
+    blocks: list[str] = []
+    if global_text:
+        blocks.append(f"【外围市场】\n{global_text}")
+    if macro_text:
+        blocks.append(macro_text)
+    return "\n".join(blocks)
+
+
 def _avg_index_change(data: dict[str, object]) -> float:
     changes = data.get("index_changes", [])
     if not isinstance(changes, list) or not changes:
@@ -32,11 +42,31 @@ def _avg_index_change(data: dict[str, object]) -> float:
 
 async def prepare_macro(ctx: MarketResearchContext) -> tuple[str, str, dict[str, object]]:
     text = ctx.overview_text
-    system = f"你是 A 股宏观策略分析师，关注指数、资金面与政策预期。{_SYSTEM_SUFFIX}"
-    user = f"用户问题：{ctx.query}\n\n市场快照：\n{text}"
+    blocks = [f"市场快照：\n{text}"]
+    enrichment = format_enrichment_block(ctx.global_text, ctx.macro_text)
+    if enrichment:
+        blocks.append(enrichment)
+    else:
+        blocks.append(
+            "宏观指标与外围市场数据暂不可用，请在分析中说明该数据缺口，并结合资金面与政策面判断。"
+        )
+    system = (
+        "你是 A 股宏观策略分析师，关注指数、资金面、政策预期、宏观经济指标"
+        f"（CPI/PMI/LPR/社融等）与海外市场联动。{_SYSTEM_SUFFIX}"
+    )
+    user = f"用户问题：{ctx.query}\n\n" + "\n\n".join(blocks)
     north = ctx.overview.northbound_net_yi
     changes = [idx.change_pct for idx in ctx.overview.indices]
-    return system, user, {"index_changes": changes, "northbound_net_yi": north, "advancers": ctx.overview.advancers}
+    return (
+        system,
+        user,
+        {
+            "index_changes": changes,
+            "northbound_net_yi": north,
+            "advancers": ctx.overview.advancers,
+            "global_changes": list(ctx.global_changes),
+        },
+    )
 
 
 def build_macro(data: dict[str, object], analysis: str) -> DimensionResult:
@@ -47,9 +77,9 @@ def build_macro(data: dict[str, object], analysis: str) -> DimensionResult:
         score += 1.0
     if avg < -0.5:
         score -= 1.0
-    if isinstance(north, (int, float)) and north > 0:
+    if isinstance(north, int | float) and north > 0:
         score += 0.5
-    if isinstance(north, (int, float)) and north < 0:
+    if isinstance(north, int | float) and north < 0:
         score -= 0.5
     score = max(1.0, min(10.0, score))
     return finalize_dimension(
@@ -57,9 +87,9 @@ def build_macro(data: dict[str, object], analysis: str) -> DimensionResult:
         score=score,
         confidence=as_confidence(CONFIDENCE_MEDIUM),
         raw_analysis=analysis,
-        data_sources=["market_overview"],
+        data_sources=["market_overview", "global_indices", "kimi_macro"],
         fallback_highlights=[f"主要指数均涨跌幅约 {avg:+.2f}%"],
-        fallback_risks=["宏观数据滞后，需结合政策与海外市场"],
+        fallback_risks=["宏观指标月频滞后，需结合外围市场、政策与资金面交叉验证"],
     )
 
 
@@ -119,7 +149,9 @@ def build_technical(data: dict[str, object], analysis: str) -> DimensionResult:
         confidence=as_confidence(CONFIDENCE_MEDIUM),
         raw_analysis=analysis,
         data_sources=["index_quotes"],
-        fallback_highlights=[f"指数综合方向 {'偏多' if avg > 0 else '偏空' if avg < 0 else '震荡'}"],
+        fallback_highlights=[
+            f"指数综合方向 {'偏多' if avg > 0 else '偏空' if avg < 0 else '震荡'}"
+        ],
         fallback_risks=["指数技术面易受权重蓝筹扰动"],
     )
 
@@ -130,7 +162,11 @@ async def prepare_sentiment(ctx: MarketResearchContext) -> tuple[str, str, dict[
     dec = ctx.overview.decliners or 0
     system = f"你是 A 股市场情绪分析师，从涨跌家数、北向与指数波动判断情绪温度。{_SYSTEM_SUFFIX}"
     user = f"用户问题：{ctx.query}\n\n情绪相关数据：\n{text}"
-    return system, user, {"advancers": adv, "decliners": dec, "northbound_net_yi": ctx.overview.northbound_net_yi}
+    return (
+        system,
+        user,
+        {"advancers": adv, "decliners": dec, "northbound_net_yi": ctx.overview.northbound_net_yi},
+    )
 
 
 def build_sentiment(data: dict[str, object], analysis: str) -> DimensionResult:
@@ -142,9 +178,9 @@ def build_sentiment(data: dict[str, object], analysis: str) -> DimensionResult:
         bull_ratio = adv / total
         score = 4.0 + bull_ratio * 6
     north = data.get("northbound_net_yi")
-    if isinstance(north, (int, float)) and north < 0:
+    if isinstance(north, int | float) and north < 0:
         score -= 0.5
-    if isinstance(north, (int, float)) and north > 0:
+    if isinstance(north, int | float) and north > 0:
         score += 0.5
     score = max(1.0, min(10.0, score))
     return finalize_dimension(

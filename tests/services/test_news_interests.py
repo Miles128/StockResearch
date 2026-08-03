@@ -26,7 +26,9 @@ def test_unrelated_news_without_entities_is_excluded() -> None:
         content_hash="abc0",
         published_at=datetime.now(UTC),
     )
-    interests = UserNewsInterests(symbols=("600519",), names=("贵州茅台",), sectors=frozenset({"白酒"}))
+    interests = UserNewsInterests(
+        symbols=("600519",), names=("贵州茅台",), sectors=frozenset({"白酒"})
+    )
     assert classify_news(item, interests) is None
 
 

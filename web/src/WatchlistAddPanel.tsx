@@ -73,18 +73,33 @@ export function WatchlistAddPanel({ onAdd, onCancel }: WatchlistAddPanelProps) {
           disabled={loading}
           autoFocus
         />
-        <button type="submit" className="btn btn-primary btn-sm" disabled={loading || !query.trim()}>
+        <button
+          type="submit"
+          className="btn btn-primary btn-sm"
+          disabled={loading || !query.trim()}
+        >
           {loading ? t("search.searching") : t("lists.watchlistAdd")}
         </button>
         {onCancel && (
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel} disabled={loading}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={onCancel}
+            disabled={loading}
+          >
             {t("settings.cancel")}
           </button>
         )}
       </form>
       {lookup?.status === "ambiguous" && lookup.candidates.length > 0 && (
-        <div className="lists-watchlist-candidates" role="listbox" aria-label={t("lists.watchlistPick")}>
-          <p className="muted lists-watchlist-candidates-hint">{lookup.message || t("lists.watchlistPick")}</p>
+        <div
+          className="lists-watchlist-candidates"
+          role="listbox"
+          aria-label={t("lists.watchlistPick")}
+        >
+          <p className="muted lists-watchlist-candidates-hint">
+            {lookup.message || t("lists.watchlistPick")}
+          </p>
           {lookup.candidates.map((c) => (
             <button
               key={c.symbol}

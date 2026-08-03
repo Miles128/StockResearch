@@ -11,8 +11,7 @@ in llm.py, which reads the current reading_mode from the ContextVar.
 
 # ── Agent voice: structural constraints only ──
 AGENT_VOICE = (
-    "撰写 3～5 句话，引用上文具体数据与指标，"
-    "表述客观、克制，禁止 markdown。不要建议买卖。"
+    "撰写 3～5 句话，引用上文具体数据与指标，" "表述客观、克制，禁止 markdown。不要建议买卖。"
 )
 
 # ── Debate voice: structural format ──
@@ -23,10 +22,7 @@ DEBATE_VOICE = (
 )
 
 # ── Judge voice: structural format ──
-JUDGE_VOICE = (
-    "以裁判口径说明结论、判定理由、分歧程度（大/中等/小）及分歧焦点。"
-    "不要建议买卖。"
-)
+JUDGE_VOICE = "以裁判口径说明结论、判定理由、分歧程度（大/中等/小）及分歧焦点。" "不要建议买卖。"
 
 DEBATE_UTTERANCE_MAX = 220
 JUDGE_FIELD_MAX = 180

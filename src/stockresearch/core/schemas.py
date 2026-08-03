@@ -194,6 +194,7 @@ class NewsIngestOut(BaseModel):
 
 class AnnouncementItemOut(BaseModel):
     """巨潮公告条目。"""
+
     title: str
     announcement_type: str
     announcement_time: datetime
@@ -205,6 +206,7 @@ class AnnouncementItemOut(BaseModel):
 
 class ResearchReportItemOut(BaseModel):
     """东方财富机构研报条目。"""
+
     title: str
     institution: str = ""
     analyst: str = ""
@@ -409,6 +411,7 @@ class ResearchReportOut(BaseModel):
     # Optional post-hoc verification for this report (filled by API when requested)
     post_hoc: list[dict[str, object]] = Field(default_factory=list)
 
+
 class RiskAlertOut(BaseModel):
     rule_id: str
     severity: str
@@ -438,6 +441,7 @@ class LLMRiskAnalysis(BaseModel):
 
 class PortfolioMetricsOut(BaseModel):
     """组合风险指标."""
+
     sharpe_ratio: float = Field(description="夏普比率")
     sortino_ratio: float = Field(description="索提诺比率")
     max_drawdown: float = Field(description="最大回撤(%)")
@@ -459,6 +463,7 @@ class PortfolioMetricsOut(BaseModel):
 
 class VaRResultOut(BaseModel):
     """VaR 风险价值."""
+
     confidence_level: float = Field(description="置信水平")
     time_horizon_days: int = Field(description="时间跨度(天)")
     var_value: float = Field(description="VaR 绝对值(元)")
@@ -486,7 +491,6 @@ class RiskCheckupOut(BaseModel):
     stress_results: list[StressResultOut] = Field(default_factory=list)
     master_commentary: list[MasterCommentaryItem] = Field(default_factory=list)
     disclaimer: str = DISCLAIMER
-
 
 
 class ChatMessage(BaseModel):
@@ -539,9 +543,7 @@ class ModeSettingsOut(BaseModel):
     max_signals: int = Field(default=5, ge=1, le=50)
     onboarded: bool = False
     enable_master_commentary: bool = False
-    selected_masters: list[str] = Field(
-        default_factory=lambda: ["buffett", "munger", "burry"]
-    )
+    selected_masters: list[str] = Field(default_factory=lambda: ["buffett", "munger", "burry"])
     custom_masters: list[CustomMasterOut] = Field(default_factory=list)
     custom_glossary: list[CustomGlossaryTermOut] = Field(default_factory=list)
     quote_refresh_minutes: int = Field(default=10, ge=1, le=120)
@@ -695,7 +697,9 @@ class ProviderStatusOut(BaseModel):
     is_cached: bool = False
     is_mock: bool = False
     degraded_reason: str | None = None
-    confidence: Literal["verified", "single_source", "delayed", "cached", "conflict", "missing"] = "single_source"
+    confidence: Literal["verified", "single_source", "delayed", "cached", "conflict", "missing"] = (
+        "single_source"
+    )
 
 
 class DataSourceDetailOut(BaseModel):
@@ -709,7 +713,9 @@ class DataSourceDetailOut(BaseModel):
     is_mock: bool = False
     degraded: bool = False
     degraded_reason: str | None = None
-    confidence: Literal["verified", "single_source", "delayed", "cached", "conflict", "missing"] = "single_source"
+    confidence: Literal["verified", "single_source", "delayed", "cached", "conflict", "missing"] = (
+        "single_source"
+    )
     conflict_with: list[str] = Field(default_factory=list)
     status: Literal["ok", "degraded", "missing", "mock", "configured", "not_configured"] = "ok"
 
@@ -828,9 +834,7 @@ class SignalBacktestOut(BaseModel):
     disclaimer: str
     label: str = "研究信号验证"
     notes: list[str] = Field(default_factory=list)
-    sample_bias_note: str = (
-        "样本来自本机历史研报，存在选择偏差；未计入交易成本与冲击成本。"
-    )
+    sample_bias_note: str = "样本来自本机历史研报，存在选择偏差；未计入交易成本与冲击成本。"
     unique_symbols: int = 0
     bias_sample_count: int = 0
     factor_tilt_sample_count: int = 0
@@ -858,9 +862,7 @@ class ReportPostHocOut(BaseModel):
     label: str = "单报告事后核对"
     point_in_time: bool = True
     signal_as_of: str | None = None
-    pit_note: str = (
-        "点-in-time：信号时点为报告创建日；收益仅用创建日及之后的前复权收盘价。"
-    )
+    pit_note: str = "点-in-time：信号时点为报告创建日；收益仅用创建日及之后的前复权收盘价。"
 
 
 class ResearchTimelineFactorSnap(BaseModel):
@@ -1111,7 +1113,9 @@ class AssetAllocationRequest(BaseModel):
     """投顾模式专属：根据风险等级 + 现金流给出资产配置参考。"""
 
     risk_tolerance: Literal["conservative", "moderate", "aggressive"]
-    monthly_income: float | None = Field(default=None, gt=0, description="月收入（元），用于现金流换算")
+    monthly_income: float | None = Field(
+        default=None, gt=0, description="月收入（元），用于现金流换算"
+    )
     reading_mode: Literal["friendly", "standard", "professional"] | None = None
     output_locale: Literal["zh", "en"] | None = None
 
@@ -1120,7 +1124,7 @@ class AssetAllocationOut(BaseModel):
     risk_tolerance: Literal["conservative", "moderate", "aggressive"]
     risk_label: str = Field(description="风险等级中文标签：保守/稳健/进取")
     allocation: dict[str, float] = Field(
-        description="参考配置比例，如 {\"股票\": 0.5, \"债券\": 0.35, \"现金\": 0.15}"
+        description='参考配置比例，如 {"股票": 0.5, "债券": 0.35, "现金": 0.15}'
     )
     rationale: str = Field(description="为什么这样配置的解释（投顾模式用大白话）")
     cash_flow_impact: str | None = Field(default=None, description="现金流影响分析（有月收入时）")

@@ -19,13 +19,13 @@ from stockresearch.agents.orchestrator.tools_registry import (
 )
 from stockresearch.core.constants import DISCLAIMER
 from stockresearch.core.schemas import ModeSettingsOut
-from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
 from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.data.providers.market_overview import MarketOverviewProvider
 from stockresearch.db.models import Holding, NewsItem
 from stockresearch.i18n.status_events import status_event
 from stockresearch.prompts import load_prompt
-from stockresearch.services.chat_scope import PORTFOLIO_TOOL_NAMES
+from stockresearch.services.chat.scope import PORTFOLIO_TOOL_NAMES, ChatContextScope
+from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
 from stockresearch.utils.llm import LLMClient
 from stockresearch.utils.symbols import resolve_name
 
@@ -56,6 +56,7 @@ ORCHESTRATOR_SYSTEM = """你是「StockResearch」的编排 Agent。由你决定
 
 简单新闻/快讯：get_news + get_stock_quote，不要启动 Skill。
 走势/涨跌/原因类（用户未要求深度投研）：先 get_stock_quote + get_news(symbol=...) 或 get_market_data + get_news，结合相关新闻解读可能驱动因素，不要启动 Skill。
+大盘归因纪律：解读大盘走势必须综合宏观经济、政策、资金面、海外市场与板块结构；单一公司新闻（尤其未落地/未证实事项，如未完成的收购、传闻）不得作为大盘确定性主驱动，引用时须注明“尚未落地、影响不确定”，并考虑该公司在指数中的权重。
 个股/市场分析：不要调用 skill_risk_checkup / get_risk_summary；个股「有什么风险」属于投研，用 skill_stock_research 或报价/新闻即可。
 用户说「只补缺口再跑 / 补充数据并重新投研 / 补充数据：…」时：必须调用 skill_stock_research（勿只口头回答）；analysis_depth 至少 comprehensive，并在 context 列出待补缺口。
 仅当用户明确说持仓风控、组合体检、止损、回撤、我的持仓风险时，才做风控体检。
@@ -88,6 +89,7 @@ def _build_orchestrator_system(tools_list: str, skills_note: str) -> str:
         .replace("{skills_note}", skills_note)
         .replace("{disclaimer}", DISCLAIMER)
     )
+
 
 _RESEARCH_SKILL_BLOCK = frozenset(
     {
@@ -172,6 +174,7 @@ class OrchestratorAgent:
         confirmed_symbol: str | None = None,
         confirmed_name: str | None = None,
         page_context_kind: str | None = None,
+        scope: ChatContextScope | None = None,
     ) -> None:
         self._db = db
         self._llm = llm
@@ -187,6 +190,7 @@ class OrchestratorAgent:
         self._confirmed_symbol = confirmed_symbol
         self._confirmed_name = confirmed_name
         self._page_context_kind = page_context_kind
+        self._scope = scope
         self._quote_cache_ttl = quote_cache_ttl_seconds(mode_settings)
         self._cards: list[dict[str, Any]] = []
         self._on_progress: Any = None
@@ -208,7 +212,7 @@ class OrchestratorAgent:
                 db=self._db,
                 llm=self._llm,
                 user_id=self._user_id,
-                holdings=self._holdings,
+                holdings=self._scope.skill_holdings if self._scope is not None else self._holdings,
                 mode_settings=settings,
                 debate_default=self._debate_default,
                 master_default=self._master_default,
@@ -318,10 +322,7 @@ class OrchestratorAgent:
             return f"工具 {name} 已禁用：当前问题与股票投资无关，请直接基于知识回答。"
         skill_name = _LEGACY_SKILL_ALIASES.get(name, name)
         if skill_name in PORTFOLIO_TOOL_NAMES and not self._portfolio_context:
-            return (
-                f"工具 {name} 不可用：当前问题未涉及持仓组合，"
-                "请勿调用持仓相关工具。"
-            )
+            return f"工具 {name} 不可用：当前问题未涉及持仓组合，请勿调用持仓相关工具。"
         if self._news_explain_only and skill_name in _RESEARCH_SKILL_BLOCK:
             return (
                 f"工具 {name} 不可用：当前为新闻解读问题，"
@@ -408,6 +409,24 @@ class OrchestratorAgent:
         if overview.advancers is not None and overview.decliners is not None:
             lines.append(f"涨跌家数: {overview.advancers}涨 / {overview.decliners}跌")
         lines.append(f"数据状态: {overview.data_status}")
+        try:
+            from stockresearch.data.providers.global_markets import (
+                GlobalMarketsProvider,
+                format_global_snapshot,
+            )
+            from stockresearch.services.macro_snapshot import format_macro_snapshot
+
+            global_text = format_global_snapshot(
+                await GlobalMarketsProvider().get_indices(cache_ttl_seconds=self._quote_cache_ttl)
+            )
+            if global_text:
+                lines.append("外围市场:")
+                lines.extend(global_text.splitlines())
+            macro_text = format_macro_snapshot()
+            if macro_text:
+                lines.append(macro_text)
+        except Exception:  # noqa: BLE001 — 外围/宏观为可选增强，失败静默降级
+            logger.warning("global/macro enrichment failed", exc_info=True)
         return "\n".join(lines) if lines else "市场数据暂不可用"
 
     async def _tool_stock_quote(self, symbol: str) -> str:
@@ -442,8 +461,7 @@ class OrchestratorAgent:
         lines = [f"{result.get('name', symbol)}({symbol}) 财报比率分析"]
         for r in ratios:
             lines.append(
-                f"  {r['name']}: {r['value']} (参考: {r['reference']}, "
-                f"评价: {r['assessment']})"
+                f"  {r['name']}: {r['value']} (参考: {r['reference']}, 评价: {r['assessment']})"
             )
         return "\n".join(lines)
 
@@ -463,24 +481,37 @@ class OrchestratorAgent:
             if not snippets:
                 return f"暂无与 {display}({symbol}) 相关的最新新闻"
             factor = build_news_text_factor(snippets, subject=f"{display}({symbol}) 相关新闻")
-            self._cards.append({
-                "type": "news",
-                "data": {
-                    "items": [
-                        {"title": s.title, "summary": s.summary, "source": s.source}
-                        for s in snippets
-                    ],
-                },
-            })
+            self._cards.append(
+                {
+                    "type": "news",
+                    "data": {
+                        "items": [
+                            {"title": s.title, "summary": s.summary, "source": s.source}
+                            for s in snippets
+                        ],
+                    },
+                }
+            )
             return factor
 
-        news = await get_news_for_user(self._db, self._user_id, related_only=False, limit=8)
+        news_scope = self._scope.news_scope if self._scope is not None else "personalized"
+        industry = self._scope.intent.subject_industry if self._scope is not None else None
+        news = await get_news_for_user(
+            self._db,
+            self._user_id,
+            related_only=False,
+            limit=8,
+            news_scope=news_scope,
+            industry=industry,
+        )
         if not news:
             return "暂无最新新闻"
-        self._cards.append({
-            "type": "news",
-            "data": {"items": [n.model_dump(mode="json") for n in news]},
-        })
+        self._cards.append(
+            {
+                "type": "news",
+                "data": {"items": [n.model_dump(mode="json") for n in news]},
+            }
+        )
         return build_news_text_factor(
             [news_from_out(n) for n in news],
             subject="财经快讯",
@@ -496,8 +527,7 @@ class OrchestratorAgent:
         if not rows:
             return f"持仓中暂无「{sector}」板块标的"
         lines = [
-            f"- {h.name}({h.symbol}) 成本{h.float_cost_price:.2f} · {h.quantity}股"
-            for h in rows
+            f"- {h.name}({h.symbol}) 成本{h.float_cost_price:.2f} · {h.quantity}股" for h in rows
         ]
         return f"「{sector}」板块持仓：\n" + "\n".join(lines)
 
@@ -505,12 +535,7 @@ class OrchestratorAgent:
         sector = str(args.get("sector", "")).strip()
         if not sector:
             return "请提供板块名称"
-        candidates = (
-            self._db.query(NewsItem)
-            .order_by(NewsItem.published_at.desc())
-            .limit(80)
-            .all()
-        )
+        candidates = self._db.query(NewsItem).order_by(NewsItem.published_at.desc()).limit(80).all()
         matched = [
             n
             for n in candidates
@@ -531,12 +556,12 @@ class OrchestratorAgent:
         self._cards.append({"type": "portfolio", "data": brief})
         lines = [f"持仓 {len(self._holdings)} 只，总成本 ¥{brief['total_cost']:.0f}"]
         if brief.get("sectors"):
-            sector_line = "、".join(
-                f"{s['name']}({s['count']}只)" for s in brief["sectors"][:5]
-            )
+            sector_line = "、".join(f"{s['name']}({s['count']}只)" for s in brief["sectors"][:5])
             lines.append(f"行业分布: {sector_line}")
         for h in brief["holdings"][:6]:
-            lines.append(f"- {h['name']}({h['symbol']}) {h['quantity']}股 成本{h['cost_price']:.2f}")
+            lines.append(
+                f"- {h['name']}({h['symbol']}) {h['quantity']}股 成本{h['cost_price']:.2f}"
+            )
         if len(brief["holdings"]) > 6:
             lines.append(f"…等共 {len(brief['holdings'])} 只")
         return "\n".join(lines)
@@ -553,10 +578,7 @@ class OrchestratorAgent:
             .all()
         )
         if not recent:
-            return (
-                "暂无风控告警记录。"
-                "如需风控体检，请调用 skill_risk_checkup 工具执行完整分析。"
-            )
+            return "暂无风控告警记录。如需风控体检，请调用 skill_risk_checkup 工具执行完整分析。"
         lines = [f"最近 {len(recent)} 条风控告警："]
         for r in recent:
             sev = r.severity
@@ -585,18 +607,20 @@ class OrchestratorAgent:
         else:
             result = await service.compute_market_sentiment()
 
-        self._cards.append({
-            "type": "sentiment",
-            "data": {
-                "scope": scope,
-                "score": result.score,
-                "label": result.label,
-                "drivers": [
-                    {"label": d.label, "value": d.value, "impact": d.impact}
-                    for d in result.drivers
-                ],
-            },
-        })
+        self._cards.append(
+            {
+                "type": "sentiment",
+                "data": {
+                    "scope": scope,
+                    "score": result.score,
+                    "label": result.label,
+                    "drivers": [
+                        {"label": d.label, "value": d.value, "impact": d.impact}
+                        for d in result.drivers
+                    ],
+                },
+            }
+        )
         lines = [f"情绪指数: {result.score:.0f} ({result.label})"]
         if result.drivers:
             lines.append("驱动因素:")
@@ -649,5 +673,6 @@ def _clean_reply(text: str) -> str:
     """Clean LLM response when no tool calls are found — just return the text as-is."""
     # Remove any stray ```tool blocks that weren't parsed
     import re
+
     text = re.sub(r"```tool\s*.*?```", "", text, flags=re.DOTALL).strip()
     return text if text else "抱歉，我暂时无法回答，请稍后再试。"

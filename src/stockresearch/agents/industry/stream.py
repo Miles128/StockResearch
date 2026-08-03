@@ -21,6 +21,7 @@ from stockresearch.agents.industry.dimensions import (
 )
 from stockresearch.agents.industry.leaders import iter_leader_analysis_events
 from stockresearch.agents.master_commentary.context import build_research_context
+from stockresearch.agents.master_commentary.registry import resolve_master_ids
 from stockresearch.agents.master_commentary.stream import stream_master_commentary
 from stockresearch.agents.research.debate import (
     iter_battle_vote_events,
@@ -37,7 +38,6 @@ from stockresearch.agents.stream_typewriter import (
 )
 from stockresearch.agents.structured_output import ResearchJudgeOut
 from stockresearch.agents.voice import DEBATE_ROUNDS, DEBATE_VOICE, JUDGE_VOICE
-from stockresearch.agents.master_commentary.registry import resolve_master_ids
 from stockresearch.core.schemas import (
     DebateResult,
     DebateRound,
@@ -88,20 +88,12 @@ async def _load_context(
         provider.get_sector_leaders(sector, limit=3),
     )
     holdings = (
-        db.query(Holding)
-        .filter(Holding.user_id == user_id, Holding.sector.contains(sector))
-        .all()
+        db.query(Holding).filter(Holding.user_id == user_id, Holding.sector.contains(sector)).all()
     )
     holding_lines = [
-        f"{h.name}({h.symbol}) 成本{h.float_cost_price:.2f} · {h.quantity}股"
-        for h in holdings
+        f"{h.name}({h.symbol}) 成本{h.float_cost_price:.2f} · {h.quantity}股" for h in holdings
     ]
-    news_rows = (
-        db.query(NewsItem)
-        .order_by(NewsItem.published_at.desc())
-        .limit(60)
-        .all()
-    )
+    news_rows = db.query(NewsItem).order_by(NewsItem.published_at.desc()).limit(60).all()
     news_snippets = [
         n.title
         for n in news_rows
@@ -224,7 +216,9 @@ async def run_industry_research_stream(
         debate_transcript = transcript_from_rounds(debate_rounds)
         vote_tally: dict[str, int] | None = None
         vote_summary = ""
-        async for event in iter_battle_vote_events(client, dimensions, _AGENT_LABELS, debate_transcript):
+        async for event in iter_battle_vote_events(
+            client, dimensions, _AGENT_LABELS, debate_transcript
+        ):
             yield event
             if event.get("type") == "vote_tally":
                 vote_tally = {
@@ -234,11 +228,15 @@ async def run_industry_research_stream(
                 }
                 vote_summary = str(event.get("message", ""))
         manager_thesis = ""
-        async for event in iter_research_manager_events(client, situation, debate_transcript, vote_summary):
+        async for event in iter_research_manager_events(
+            client, situation, debate_transcript, vote_summary
+        ):
             yield event
             if event.get("type") == "manager":
                 manager_thesis = str(event.get("content", ""))
-        judge_user = f"{debate_transcript}\n\n{vote_summary}\n\nResearch Manager：\n{manager_thesis}"
+        judge_user = (
+            f"{debate_transcript}\n\n{vote_summary}\n\nResearch Manager：\n{manager_thesis}"
+        )
         judge_raw = ""
         async for event in iter_llm_stream_events(
             stream_id="sector_judge",

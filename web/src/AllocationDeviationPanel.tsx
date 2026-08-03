@@ -23,14 +23,22 @@ function saveTargets(targets: Record<string, number>) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(targets));
 }
 
-export function AllocationDeviationPanel({ holdings }: { holdings: HoldingEnriched[] }) {
+export function AllocationDeviationPanel({
+  holdings,
+}: {
+  holdings: HoldingEnriched[];
+}) {
   const { t } = useI18n();
   const sectors = useMemo(() => {
-    const set = new Set(holdings.map((h) => h.sector || t("allocation.unknownSector")));
+    const set = new Set(
+      holdings.map((h) => h.sector || t("allocation.unknownSector")),
+    );
     return Array.from(set).sort();
   }, [holdings, t]);
   const [draft, setDraft] = useState<Record<string, string>>({});
-  const [result, setResult] = useState<AllocationDeviation | "loading" | "error" | null>(null);
+  const [result, setResult] = useState<
+    AllocationDeviation | "loading" | "error" | null
+  >(null);
 
   useEffect(() => {
     const saved = loadTargets();
@@ -79,7 +87,11 @@ export function AllocationDeviationPanel({ holdings }: { holdings: HoldingEnrich
           <h3 className="allocation-title">{t("allocation.deviationTitle")}</h3>
           <p className="allocation-subtitle">{t("allocation.deviationHint")}</p>
         </div>
-        <button type="button" className="btn btn-secondary allocation-refresh-btn" onClick={() => void runCompare()}>
+        <button
+          type="button"
+          className="btn btn-secondary allocation-refresh-btn"
+          onClick={() => void runCompare()}
+        >
           {result === "loading" ? "…" : t("allocation.deviationCompare")}
         </button>
       </div>
@@ -94,19 +106,24 @@ export function AllocationDeviationPanel({ holdings }: { holdings: HoldingEnrich
               min={0}
               max={100}
               value={draft[sector] ?? ""}
-              onChange={(e) => setDraft((prev) => ({ ...prev, [sector]: e.target.value }))}
+              onChange={(e) =>
+                setDraft((prev) => ({ ...prev, [sector]: e.target.value }))
+              }
               placeholder="%"
             />
           </label>
         ))}
       </div>
-      {result === "error" ? <p className="settings-muted">{t("allocation.deviationFailed")}</p> : null}
+      {result === "error" ? (
+        <p className="settings-muted">{t("allocation.deviationFailed")}</p>
+      ) : null}
       {result && result !== "loading" && result !== "error" ? (
         <ul className="report-history-list">
           {result.rows.map((row) => (
             <li key={row.sector} className="settings-muted">
-              {row.sector}：{t("allocation.actual")} {(row.actual * 100).toFixed(1)}% ·{" "}
-              {t("allocation.target")} {(row.target * 100).toFixed(1)}% · Δ{" "}
+              {row.sector}：{t("allocation.actual")}{" "}
+              {(row.actual * 100).toFixed(1)}% · {t("allocation.target")}{" "}
+              {(row.target * 100).toFixed(1)}% · Δ{" "}
               {(row.delta * 100).toFixed(1)}pp
             </li>
           ))}

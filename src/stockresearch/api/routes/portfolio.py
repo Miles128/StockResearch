@@ -26,8 +26,6 @@ from stockresearch.data.providers.market_overview import BatchQuoteProvider
 from stockresearch.db.models import Holding, User, WatchlistItem
 from stockresearch.db.session import get_db
 from stockresearch.services.allocation_deviation import build_allocation_deviation
-from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
-from stockresearch.services.user_preferences import get_mode_settings
 from stockresearch.services.holding_metrics import (
     annualized_return_pct,
     profit_amount,
@@ -38,9 +36,11 @@ from stockresearch.services.market_session import (
     a_share_market_session,
     price_label_for_session,
 )
+from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
 from stockresearch.services.stock_lookup import lookup_stock
 from stockresearch.services.stock_sector import backfill_holding_sectors, resolve_stock_sector
 from stockresearch.services.symbol_resolver import resolve_stock_query
+from stockresearch.services.user_preferences import get_mode_settings
 from stockresearch.utils.llm import get_llm_client
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
@@ -61,9 +61,7 @@ def _upsert_holding(
     commit: bool = True,
 ) -> Holding:
     existing = (
-        db.query(Holding)
-        .filter(Holding.user_id == user_id, Holding.symbol == symbol)
-        .first()
+        db.query(Holding).filter(Holding.user_id == user_id, Holding.symbol == symbol).first()
     )
     if existing is not None:
         total_qty = existing.quantity + quantity
@@ -108,11 +106,7 @@ def _sell_holding(
     name: str | None = None,
     commit: bool = True,
 ) -> None:
-    holding = (
-        db.query(Holding)
-        .filter(Holding.user_id == user_id, Holding.symbol == symbol)
-        .first()
-    )
+    holding = db.query(Holding).filter(Holding.user_id == user_id, Holding.symbol == symbol).first()
     label = name or (holding.name if holding else symbol)
     if holding is None or holding.quantity < quantity:
         available = holding.quantity if holding else 0
@@ -417,7 +411,11 @@ def delete_watchlist(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
-    item = db.query(WatchlistItem).filter(WatchlistItem.id == item_id, WatchlistItem.user_id == user.id).first()
+    item = (
+        db.query(WatchlistItem)
+        .filter(WatchlistItem.id == item_id, WatchlistItem.user_id == user.id)
+        .first()
+    )
     if item is None:
         raise HTTPException(status_code=404, detail="Watchlist item not found")
     db.delete(item)
@@ -426,6 +424,7 @@ def delete_watchlist(
 
 
 # ── Demo holdings ────────────────────────────────────────
+
 
 @router.post("/demo")
 def load_demo(

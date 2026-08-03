@@ -41,7 +41,10 @@ def _dim_section(key: str, dim: DimensionResult) -> list[str]:
 
 
 def _debate_section(debate: DebateResult) -> list[str]:
-    lines = ["## 多空辩论", f"**裁判倾向**：{_BIAS_LABEL.get(debate.final_bias, debate.final_bias)}"]
+    lines = [
+        "## 多空辩论",
+        f"**裁判倾向**：{_BIAS_LABEL.get(debate.final_bias, debate.final_bias)}",
+    ]
     lines.append(f"- 共识：{debate.consensus}")
     lines.append(f"- 核心分歧：{debate.core_divergence}")
     if debate.vote_tally:
@@ -432,7 +435,9 @@ def report_to_pdf(report: ResearchReportOut) -> bytes:
             write_line("风险：" + "；".join(dim.risks))
     if report.debate:
         write_line("多空辩论", size=13, bold=True)
-        write_line(f"裁判倾向：{_BIAS_LABEL.get(report.debate.final_bias, report.debate.final_bias)}")
+        write_line(
+            f"裁判倾向：{_BIAS_LABEL.get(report.debate.final_bias, report.debate.final_bias)}"
+        )
         write_line(f"共识：{report.debate.consensus}")
         write_line(f"裁判结论：{report.debate.judge_verdict}")
     if report.leaders:

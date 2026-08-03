@@ -4,7 +4,12 @@ import pytest
 from starlette.requests import Request
 
 from stockresearch.api.app import create_app
-from stockresearch.core.exceptions import AgentError, DataProviderError, LLMConfigError, StockResearchError
+from stockresearch.core.exceptions import (
+    AgentError,
+    DataProviderError,
+    LLMConfigError,
+    StockResearchError,
+)
 
 
 @pytest.fixture()

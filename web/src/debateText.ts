@@ -33,7 +33,10 @@ export function parseDebateSpeech(text: string): ParsedDebateSpeech {
     return { summary: full, detail: "", full, collapsible: false };
   }
 
-  const paragraphs = full.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+  const paragraphs = full
+    .split(/\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
   const summary = paragraphs[0] ?? full.slice(0, 100);
   const detail = paragraphs.slice(1).join("\n").trim();
   const collapsible = detail.length >= COLLAPSE_MIN_DETAIL;
@@ -49,7 +52,11 @@ export function formatManagerContent(raw: string): string {
   let parsed: Record<string, string> | null = null;
   try {
     const candidate = JSON.parse(trimmed);
-    if (typeof candidate === "object" && candidate !== null && !Array.isArray(candidate)) {
+    if (
+      typeof candidate === "object" &&
+      candidate !== null &&
+      !Array.isArray(candidate)
+    ) {
       parsed = candidate as Record<string, string>;
     }
   } catch {

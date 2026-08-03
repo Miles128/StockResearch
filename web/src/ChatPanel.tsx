@@ -1,20 +1,24 @@
-import type { ExecutionPreference, HoldingEnriched, StockChoiceCardData } from "./api";
+import type {
+  ExecutionPreference,
+  HoldingEnriched,
+  StockChoiceCardData,
+} from "./api";
 import type { Message } from "./appTypes";
 import type { AppMode } from "./modeSettings";
 import { CardView, PlanCardsFold, StockChoiceCardView } from "./chatCards";
 import { FollowUpChips } from "./FollowUpChips";
 import { LightResearchCard } from "./LightResearchCard";
-import {
-  findResearchReport,
-  FollowUpQuestions,
-} from "./researchReportView";
+import { findResearchReport, FollowUpQuestions } from "./researchReportView";
 import { isResearchTurn } from "./disclaimerText";
 import { useI18n } from "./i18n";
 import { MarkdownContent } from "./MarkdownContent";
 import { ProcessTrail } from "./ProcessTrail";
 import { skillStepLabel } from "./processKind";
 import { CollapsibleSection } from "./CollapsibleSection";
-import { cardsWithoutReplyDuplicate, shouldHideReplyBubble } from "./replyCardDedup";
+import {
+  cardsWithoutReplyDuplicate,
+  shouldHideReplyBubble,
+} from "./replyCardDedup";
 import { StreamFeed } from "./StreamFeed";
 import type { StreamState } from "./streamEvents";
 import { hasLiveProcessContent, hasProcessContent } from "./streamEvents";
@@ -32,8 +36,15 @@ interface ChatPanelProps {
   onStartQuery: (query: string) => void;
   onSend: () => void;
   onAnalyzeHolding: (h: HoldingEnriched) => void;
-  onConfirmStock: (originalMessage: string, symbol: string, name: string) => void;
-  onConfirmRoute: (originalMessage: string, preference: ExecutionPreference) => void;
+  onConfirmStock: (
+    originalMessage: string,
+    symbol: string,
+    name: string,
+  ) => void;
+  onConfirmRoute: (
+    originalMessage: string,
+    preference: ExecutionPreference,
+  ) => void;
 }
 
 function ProcessStreamFeed({
@@ -78,7 +89,7 @@ function ProcessStreamFeed({
             summary={
               skill.status === "running"
                 ? "…"
-                : skill.summary?.slice(0, 80) ?? t("chat.processDone")
+                : (skill.summary?.slice(0, 80) ?? t("chat.processDone"))
             }
             defaultCollapsed={skill.status === "done"}
             className="skill-process-block"
@@ -135,7 +146,8 @@ export function ChatPanel({
   function renderAssistantConclusion(m: Message) {
     const researchReport = findResearchReport(m.cards);
     const hideReply = shouldHideReplyBubble(m.cards);
-    const showConclusionShell = isResearchTurn(m.cards, m.intent) && !researchReport;
+    const showConclusionShell =
+      isResearchTurn(m.cards, m.intent) && !researchReport;
 
     if (hideReply || !m.content.trim()) return null;
 
@@ -163,7 +175,12 @@ export function ChatPanel({
             <p className="chat-empty-label">{t("chat.emptyHint")}</p>
             <div className="chat-example-row">
               {chatExamples.map((ex) => (
-                <button key={ex.label} type="button" className="example-chip" onClick={() => onStartQuery(ex.query)}>
+                <button
+                  key={ex.label}
+                  type="button"
+                  className="example-chip"
+                  onClick={() => onStartQuery(ex.query)}
+                >
                   {ex.label}
                 </button>
               ))}
@@ -172,7 +189,12 @@ export function ChatPanel({
               <div className="research-quick-picks" style={{ marginTop: 8 }}>
                 <span className="muted">{t("chat.holdingsQuick")}</span>
                 {holdings.map((h) => (
-                  <button key={h.id ?? h.symbol} type="button" className="holdings-pill" onClick={() => onAnalyzeHolding(h)}>
+                  <button
+                    key={h.id ?? h.symbol}
+                    type="button"
+                    className="holdings-pill"
+                    onClick={() => onAnalyzeHolding(h)}
+                  >
                     {h.name}
                   </button>
                 ))}
@@ -191,7 +213,10 @@ export function ChatPanel({
                 {renderAssistantConclusion(m)}
                 {(() => {
                   const researchReport = findResearchReport(m.cards);
-                  const visibleCards = cardsWithoutReplyDuplicate(m.cards, m.content);
+                  const visibleCards = cardsWithoutReplyDuplicate(
+                    m.cards,
+                    m.content,
+                  );
                   if (researchReport) {
                     return (
                       <LightResearchCard
@@ -205,26 +230,34 @@ export function ChatPanel({
                     <>
                       {visibleCards && <PlanCardsFold cards={visibleCards} />}
                       {visibleCards?.map((c, j) =>
-                    c.type === "stock_choice" ? (
-                      <StockChoiceCardView
-                        key={j}
-                        data={c.data as unknown as StockChoiceCardData}
-                        disabled={loading}
-                        onConfirm={onConfirmStock}
-                      />
-                    ) : (
-                      <CardView key={j} card={c} />
-                    ),
-                  )}
+                        c.type === "stock_choice" ? (
+                          <StockChoiceCardView
+                            key={j}
+                            data={c.data as unknown as StockChoiceCardData}
+                            disabled={loading}
+                            onConfirm={onConfirmStock}
+                          />
+                        ) : (
+                          <CardView key={j} card={c} />
+                        ),
+                      )}
                     </>
                   );
                 })()}
                 {hasProcessContent(m.process) && m.process && (
-                  <ProcessStreamFeed process={m.process} statusMsg={statusMsg} />
+                  <ProcessStreamFeed
+                    process={m.process}
+                    statusMsg={statusMsg}
+                  />
                 )}
-                {!findResearchReport(m.cards) && m.followUpQuestions && m.followUpQuestions.length > 0 && (
-                  <FollowUpChips questions={m.followUpQuestions} onSelect={onStartQuery} />
-                )}
+                {!findResearchReport(m.cards) &&
+                  m.followUpQuestions &&
+                  m.followUpQuestions.length > 0 && (
+                    <FollowUpChips
+                      questions={m.followUpQuestions}
+                      onSelect={onStartQuery}
+                    />
+                  )}
                 {m.role === "assistant" && (
                   <p className="turn-disclaimer">{t("chat.turnDisclaimer")}</p>
                 )}
@@ -233,7 +266,9 @@ export function ChatPanel({
                   findResearchReport(m.cards) != null &&
                   (() => {
                     const fr = findResearchReport(m.cards);
-                    return fr ? <FollowUpQuestions report={fr} onAsk={onStartQuery} /> : null;
+                    return fr ? (
+                      <FollowUpQuestions report={fr} onAsk={onStartQuery} />
+                    ) : null;
                   })()}
               </>
             )}
@@ -241,7 +276,11 @@ export function ChatPanel({
         ))}
         {loading && (hasLiveProcessContent(chatStream) || statusMsg) && (
           <div className="message assistant stream-live-panel">
-            <ProcessStreamFeed process={chatStream} statusMsg={statusMsg} live />
+            <ProcessStreamFeed
+              process={chatStream}
+              statusMsg={statusMsg}
+              live
+            />
           </div>
         )}
       </div>
@@ -268,7 +307,13 @@ export function ChatPanel({
             title={loading ? t("chat.sending") : t("chat.send")}
             aria-label={t("chat.send")}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+            >
               <path
                 d="M5 12h14M13 6l6 6-6 6"
                 stroke="currentColor"

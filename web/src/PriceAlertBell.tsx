@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import { api, type PriceAlertNotification, type PriceAlertSettings } from "./api";
+import {
+  api,
+  type PriceAlertNotification,
+  type PriceAlertSettings,
+} from "./api";
 import { useI18n } from "./i18n";
 import { IconBell } from "./ui/Icons";
 
@@ -75,20 +79,33 @@ export function PriceAlertBell({
               </span>
             )}
             {unread > 0 && (
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => void markAllRead()}>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => void markAllRead()}
+              >
                 {t("alerts.markAllRead")}
               </button>
             )}
           </div>
-          {items.length === 0 && <p className="muted flat-empty">{t("alerts.empty")}</p>}
+          {items.length === 0 && (
+            <p className="muted flat-empty">{t("alerts.empty")}</p>
+          )}
           <ul className="alert-bell-list">
             {items.map((item) => (
               <li key={item.id}>
-                <button type="button" className="alert-bell-item" onClick={() => void openItem(item)}>
+                <button
+                  type="button"
+                  className="alert-bell-item"
+                  onClick={() => void openItem(item)}
+                >
                   <span className="alert-bell-item-title">
                     {item.name} · {item.symbol}
                   </span>
-                  <span className="mono">{item.change_pct > 0 ? "+" : ""}{item.change_pct.toFixed(2)}%</span>
+                  <span className="mono">
+                    {item.change_pct > 0 ? "+" : ""}
+                    {item.change_pct.toFixed(2)}%
+                  </span>
                 </button>
               </li>
             ))}

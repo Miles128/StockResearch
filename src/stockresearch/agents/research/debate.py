@@ -38,9 +38,7 @@ def _dimension_summary(dimensions: dict[str, DimensionResult]) -> str:
     lines: list[str] = []
     for key, dim in dimensions.items():
         evidence_bits = [
-            (e.snippet or "")[:60]
-            for e in (dim.evidence or [])[:2]
-            if (e.snippet or "").strip()
+            (e.snippet or "")[:60] for e in (dim.evidence or [])[:2] if (e.snippet or "").strip()
         ]
         evidence_part = f" 证据:{' | '.join(evidence_bits)}" if evidence_bits else ""
         lines.append(
@@ -110,11 +108,7 @@ def _bull_prompt(context: str, round_num: int, transcript: list[str], side_label
     if round_num == 1:
         return f"{context}\n第1轮：{theme}"
     history = "\n".join(transcript)
-    return (
-        f"{context}\n"
-        f"此前交锋：\n{history}\n"
-        f"第{round_num}轮：{theme}"
-    )
+    return f"{context}\n" f"此前交锋：\n{history}\n" f"第{round_num}轮：{theme}"
 
 
 def _bear_prompt(
@@ -352,9 +346,7 @@ async def iter_triangular_debate_events(
                 agent_id = str(event["agent_id"])
                 content = str(event.get("content", ""))
                 round_texts[agent_id] = content
-                side_label = next(
-                    label for aid, _, _, _, label in agents if aid == agent_id
-                )
+                side_label = next(label for aid, _, _, _, label in agents if aid == agent_id)
                 transcript.append(f"第{round_num}轮{side_label}：{content}")
             yield event
         await asyncio.gather(*pumps)
@@ -471,9 +463,7 @@ async def iter_multi_round_debate_events(
             role="bear",
             llm=llm,
             system=bear_system,
-            user=_bear_prompt(
-                context, round_num, transcript[:-1], bull_text, bull_side_label
-            ),
+            user=_bear_prompt(context, round_num, transcript[:-1], bull_text, bull_side_label),
         ):
             yield event
             if event.get("type") == "agent_done":
