@@ -43,9 +43,14 @@ def test_parse_skips_malformed_lines() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_indices_mock_mode() -> None:
-    # 测试环境 USE_MOCK_MARKET_DATA=true — 返回固定 mock 数据
+async def test_get_indices_mock_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    # 目录级 conftest 会全局关闭 mock；本用例显式打开，不依赖执行顺序。
+    monkeypatch.setenv("USE_MOCK_MARKET_DATA", "true")
+    from stockresearch.core.config import get_settings
+
+    get_settings.cache_clear()
     rows = await GlobalMarketsProvider().get_indices()
+    get_settings.cache_clear()
     assert len(rows) == 5
     assert any(row.name == "恒生指数" for row in rows)
 
