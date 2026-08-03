@@ -28,6 +28,18 @@ def _llm_model_name(client: LLMClient) -> str:
     return str(getattr(client, "_model", "") or "")
 
 
+def _describe_request_error(exc: httpx.RequestError) -> str:
+    """把 httpx 网络错误转成可诊断的一句话:异常类型 + 目标主机(不含路径/密钥)。"""
+    kind = type(exc).__name__
+    try:
+        url = exc.request.url
+    except RuntimeError:
+        # httpx 的 request property 在未绑定请求时抛 RuntimeError
+        return kind
+    host = url.host or ""
+    return f"{kind}({host})" if host else kind
+
+
 def _resolve_master_on(
     request_flag: bool | None,
     settings: ModeSettingsOut,
@@ -197,18 +209,19 @@ async def _run_chat_stream_body(
             )
         except httpx.RequestError as exc:
             logger.exception("LLM request failed: %s", exc)
-            reply = "网络或 LLM 服务暂时不可用，请稍后重试。"
+            detail = _describe_request_error(exc)
+            reply = f"无法连接 LLM 服务（{detail}）。请检查网络或代理设置后重试。"
             partial = True
             await on_progress(
                 {
                     "type": "error",
                     "code": "llm_request_failed",
-                    "message": str(exc),
+                    "message": detail,
                 }
             )
         except Exception as exc:
             logger.exception("Chat stream turn failed: %s", exc)
-            reply = "抱歉，分析过程出错，请稍后重试。"
+            reply = f"分析过程出错（{type(exc).__name__}），请稍后重试。详细错误已记录到服务端日志。"
             partial = True
             await on_progress(
                 {
