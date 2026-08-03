@@ -130,6 +130,43 @@ def _collect_market_block(overview) -> str:
     return "\n".join(lines)
 
 
+async def _collect_sector_block(kind: BriefingKind, holdings: list[Holding]) -> str:
+    """全市场行业板块涨跌榜，持仓相关行业单独标注。
+
+    盘前（未开盘）沿用上一交易日数据；盘中/盘后为当日数据。
+    """
+    from stockresearch.data.providers.sector import SectorDataProvider
+
+    label = "上一交易日" if kind == "premarket" else "今日"
+    try:
+        boards = await SectorDataProvider().fetch_industry_boards()
+    except Exception as exc:
+        logger.warning("Sector board fetch failed for briefing: %s", exc)
+        boards = []
+    if not boards:
+        return f"【行业板块（{label}）】\n行业板块数据暂不可用"
+
+    ranked = sorted(boards, key=lambda b: b.change_pct, reverse=True)
+    lines = [f"【行业板块（{label}）】", "涨幅居前："]
+    for b in ranked[:4]:
+        leader = f"，领涨 {b.leader_name}" if b.leader_name and b.leader_name != "—" else ""
+        lines.append(f"- {b.name} {b.change_pct:+.2f}%{leader}")
+    lines.append("跌幅居前：")
+    for b in ranked[-4:]:
+        lines.append(f"- {b.name} {b.change_pct:+.2f}%")
+
+    held_sectors = sorted({h.sector for h in holdings if h.sector})
+    hits: list[str] = []
+    for sector in held_sectors:
+        for b in boards:
+            if sector in b.name or b.name in sector:
+                hits.append(f"{b.name} {b.change_pct:+.2f}%")
+                break
+    if hits:
+        lines.append("持仓相关行业：" + "；".join(hits[:6]))
+    return "\n".join(lines)
+
+
 def _collect_kimi_block() -> str:
     """读取 Kimi 预取的宏观/Wind 缓存，格式化为简报 prompt 块。无数据返回空串。"""
     from stockresearch.data.providers.kimi_wind import WIND_CACHE_KEY
@@ -170,7 +207,7 @@ def _split_news(
     return holding, sector, market
 
 
-def _briefing_system_prompt(kind: BriefingKind) -> str:
+def _briefing_system_prompt(kind: BriefingKind, *, has_premarket_view: bool = False) -> str:
     phase = {"premarket": "盘前", "intraday": "盘中", "postmarket": "盘后"}[kind]
     if kind == "premarket":
         focus = (
@@ -180,16 +217,27 @@ def _briefing_system_prompt(kind: BriefingKind) -> str:
     elif kind == "intraday":
         focus = "侧重实时涨跌、盘中已发生事件对持仓的影响，以及新闻与行情的联动。"
     else:
-        focus = "侧重全天表现回顾、新闻脉络梳理，以及收盘后值得跟踪的风险点。"
+        focus = "侧重全天表现回顾、行业板块强弱梳理、新闻脉络梳理，以及收盘后值得跟踪的风险点。"
+
+    extra_rules = ""
+    if kind == "premarket":
+        extra_rules = (
+            "4. 结合行业板块强弱与相关新闻，在「持仓表现」段为每只持仓点出一句"
+            "「今日关注」（舆情/事件/所属板块强弱），只提示关注点，不给买卖建议\n"
+        )
+    elif kind == "postmarket" and has_premarket_view:
+        extra_rules = (
+            "4. 上下文提供了今日盘前简报观点，复盘时必须逐条对照：盘前提示的方向/关注点"
+            "今日是否兑现、偏差在哪里，并在结论中明说；盘前观点仅作参考，不逐字重复\n"
+        )
 
     return (
         f"你是A股持仓{phase}简报编辑。请根据下方事实数据撰写简报。\n"
         f"{focus}\n"
         "写作要求：\n"
-        "1. 必须综合：持仓表现、持仓相关新闻、大盘新闻、行业新闻，形成有深度的结论\n"
+        "1. 必须综合：持仓表现、行业板块强弱、持仓相关新闻、大盘新闻、行业新闻，形成有深度的结论\n"
         "2. 先摆事实，再给判断；结论要说清「对谁有利/不利、接下来关注什么」\n"
-        "3. 不荐股、不给具体买卖价位\n"
-        "4. 仅输出 JSON，不要 markdown 代码块：\n"
+        "3. 不荐股、不给具体买卖价位\n" + extra_rules + "仅输出 JSON，不要 markdown 代码块：\n"
         '{"summary":"80-150字开篇总览","sections":[{"title":"持仓表现","content":"..."},'
         '{"title":"新闻脉络","content":"..."},{"title":"综合结论","content":"..."}]}\n'
         "sections 固定 3 段，content 允许换行。"
@@ -227,6 +275,7 @@ def _fallback_sections(
     market_block: str,
     alerts: list[RiskAlertRecord],
     kimi_block: str = "",
+    sector_block: str = "",
 ) -> tuple[str, list[BriefingSection]]:
     news_content = "\n\n".join(
         [
@@ -237,7 +286,16 @@ def _fallback_sections(
     )
     sections = [
         BriefingSection(title="持仓表现", content=holdings_block.replace("【持仓表现】\n", "")),
-        BriefingSection(title="新闻脉络", content=news_content),
+    ]
+    if sector_block:
+        sections.append(
+            BriefingSection(
+                title="行业板块",
+                content=sector_block.split("\n", 1)[1] if "\n" in sector_block else sector_block,
+            )
+        )
+    sections.append(BriefingSection(title="新闻脉络", content=news_content))
+    sections.append(
         BriefingSection(
             title="综合结论",
             content=(
@@ -248,8 +306,8 @@ def _fallback_sections(
                     else "暂无新增风控提醒，建议继续跟踪持仓波动与相关新闻。"
                 )
             ),
-        ),
-    ]
+        )
+    )
     # 降级简报同样展示 Kimi 预取的宏观/市场数据块
     if kimi_block:
         sections.append(BriefingSection(title="宏观与市场动态(Kimi)", content=kimi_block))
@@ -269,7 +327,9 @@ async def generate_briefing(
     kind: str,
     *,
     llm: LLMClient | None = None,
+    premarket_view: str | None = None,
 ) -> BriefingOut:
+    """Generate a briefing; postmarket callers may pass the morning premarket view for recap."""
     normalized = normalize_briefing_kind(kind)
     title = briefing_title(normalized)
 
@@ -287,12 +347,14 @@ async def generate_briefing(
     holding_news, sector_news, market_news = _split_news(news)
     holdings_block = await _collect_holdings_block(holdings, normalized)
     market_block = _collect_market_block(overview)
+    sector_block = await _collect_sector_block(normalized, holdings)
     kimi_block = _collect_kimi_block()
 
     context_parts = [
         f"简报类型：{title}",
         holdings_block,
         market_block,
+        sector_block,
     ]
     if kimi_block:
         context_parts.append(kimi_block)
@@ -307,6 +369,9 @@ async def generate_briefing(
         context_parts.append(
             "【风控提醒】\n" + "\n".join(f"- [{a.severity}] {a.message}" for a in alerts)
         )
+    has_premarket_view = bool(premarket_view and premarket_view.strip())
+    if normalized == "postmarket" and has_premarket_view:
+        context_parts.append("【今日盘前简报观点（复盘对照用）】\n" + premarket_view.strip()[:1200])
     context = "\n\n".join(context_parts)
 
     summary: str | None = None
@@ -314,7 +379,10 @@ async def generate_briefing(
 
     if llm is not None:
         try:
-            raw = await llm.complete(_briefing_system_prompt(normalized), context)
+            raw = await llm.complete(
+                _briefing_system_prompt(normalized, has_premarket_view=has_premarket_view),
+                context,
+            )
             parsed = _parse_llm_briefing(raw)
             if parsed:
                 summary, sections = parsed
@@ -331,6 +399,7 @@ async def generate_briefing(
             market_block=market_block,
             alerts=alerts,
             kimi_block=kimi_block,
+            sector_block=sector_block,
         )
         if llm is not None:
             try:
