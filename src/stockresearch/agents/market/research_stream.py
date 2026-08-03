@@ -10,6 +10,7 @@ from stockresearch.agents.market.dimensions import (
     build_macro,
     build_sentiment,
     build_technical,
+    format_enrichment_block,
     format_overview_snapshot,
     prepare_industry,
     prepare_macro,
@@ -17,6 +18,7 @@ from stockresearch.agents.market.dimensions import (
     prepare_technical,
 )
 from stockresearch.agents.master_commentary.context import build_market_context
+from stockresearch.agents.master_commentary.registry import resolve_master_ids
 from stockresearch.agents.master_commentary.stream import stream_master_commentary
 from stockresearch.agents.research.debate import (
     iter_battle_vote_events,
@@ -36,10 +38,20 @@ from stockresearch.agents.stream_typewriter import (
     pump_dimension_llm_stream,
 )
 from stockresearch.agents.voice import DEBATE_ROUNDS, DEBATE_VOICE
-from stockresearch.agents.master_commentary.registry import resolve_master_ids
-from stockresearch.core.schemas import DebateResult, DebateRound, DimensionResult, MasterCommentaryItem, ModeSettingsOut
+from stockresearch.core.schemas import (
+    DebateResult,
+    DebateRound,
+    DimensionResult,
+    MasterCommentaryItem,
+    ModeSettingsOut,
+)
+from stockresearch.data.providers.global_markets import (
+    GlobalMarketsProvider,
+    format_global_snapshot,
+)
 from stockresearch.data.providers.market_overview import MarketOverviewProvider
 from stockresearch.i18n.status_events import status_event
+from stockresearch.services.macro_snapshot import format_macro_snapshot
 from stockresearch.services.text_factor import build_news_text_factor, fetch_market_news_snippets
 from stockresearch.utils.llm import LLMClient, get_llm_client
 
@@ -73,13 +85,22 @@ async def run_market_research_stream(
     """Market deep research with the same bull/bear + judge flow as stock research."""
     client = llm or get_llm_client()
     provider = MarketOverviewProvider()
-    overview = await provider.get_overview()
+    global_provider = GlobalMarketsProvider()
+    overview, global_rows = await asyncio.gather(
+        provider.get_overview(),
+        global_provider.get_indices(),
+    )
     overview_text = format_overview_snapshot(overview)
+    global_text = format_global_snapshot(global_rows)
+    macro_text = format_macro_snapshot()
     ctx = MarketResearchContext(
         query=query,
         llm=client,
         overview=overview,
         overview_text=overview_text,
+        global_text=global_text,
+        macro_text=macro_text,
+        global_changes=[row.change_pct for row in global_rows],
     )
 
     yield status_event("status.market.research.start")
@@ -125,7 +146,10 @@ async def run_market_research_stream(
     situation = summarize_situation(dimensions)
     yield status_event("status.market.research.battle_start")
 
+    enrichment = format_enrichment_block(ctx.global_text, ctx.macro_text)
     debate_context = f"{MARKET_NAME}\n用户关切：{query}\n作战情摘要：\n{situation}"
+    if enrichment:
+        debate_context += f"\n\n{enrichment}"
     debate_rounds: list[DebateRound] = []
     async for event in iter_multi_round_debate_events(
         client,

@@ -18,15 +18,28 @@ class ProviderMeta:
 
 PROVIDER_CATALOG: dict[str, ProviderMeta] = {
     "sina_quote": ProviderMeta("sina_quote", "实时行情", "L1", "sina", "quotes", 5),
-    "sina_trading_rules": ProviderMeta("sina_trading_rules", "涨跌停 / ST / 停复牌", "L1", "sina", "quotes", 5),
-    "akshare_kline": ProviderMeta("akshare_kline", "K 线与技术指标", "L2", "akshare", "technical", 3600),
+    "sina_global_indices": ProviderMeta(
+        "sina_global_indices", "外围市场指数", "L1", "sina", "global", 600
+    ),
+    "sina_trading_rules": ProviderMeta(
+        "sina_trading_rules", "涨跌停 / ST / 停复牌", "L1", "sina", "quotes", 5
+    ),
+    "akshare_kline": ProviderMeta(
+        "akshare_kline", "K 线与技术指标", "L2", "akshare", "technical", 3600
+    ),
     "akshare_lhb": ProviderMeta("akshare_lhb", "龙虎榜", "L2", "akshare", "chips", 86400),
-    "akshare_fund_flow": ProviderMeta("akshare_fund_flow", "主力资金流向", "L2", "akshare", "chips", 3600),
-    "akshare_northbound": ProviderMeta("akshare_northbound", "北向资金", "L2", "akshare", "chips", 3600),
+    "akshare_fund_flow": ProviderMeta(
+        "akshare_fund_flow", "主力资金流向", "L2", "akshare", "chips", 3600
+    ),
+    "akshare_northbound": ProviderMeta(
+        "akshare_northbound", "北向资金", "L2", "akshare", "chips", 3600
+    ),
     "akshare_margin": ProviderMeta("akshare_margin", "融资融券", "L2", "akshare", "chips", 86400),
     "akshare_gdhs": ProviderMeta("akshare_gdhs", "股东户数", "L2", "akshare", "chips", 86400),
     "akshare_lockup": ProviderMeta("akshare_lockup", "限售解禁", "L2", "akshare", "chips", 86400),
-    "akshare_financials": ProviderMeta("akshare_financials", "财务与估值", "L2", "akshare", "fundamental", 86400),
+    "akshare_financials": ProviderMeta(
+        "akshare_financials", "财务与估值", "L2", "akshare", "fundamental", 86400
+    ),
     "kimi_macro": ProviderMeta("kimi_macro", "Kimi 宏观与行业数据", "L2", "kimi", "macro", 86400),
     "kimi_wind": ProviderMeta(
         "kimi_wind",
@@ -36,7 +49,9 @@ PROVIDER_CATALOG: dict[str, ProviderMeta] = {
         "fundamental",
         21600,
     ),
-    "news_text_factor": ProviderMeta("news_text_factor", "新闻文本因子", "L1", "news", "sentiment", 1800),
+    "news_text_factor": ProviderMeta(
+        "news_text_factor", "新闻文本因子", "L1", "news", "sentiment", 1800
+    ),
     "tushare_pro": ProviderMeta(
         "tushare_pro",
         "Tushare Pro（估值 / 日线 qfq 兜底）",

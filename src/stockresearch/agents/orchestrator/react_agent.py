@@ -56,6 +56,7 @@ ORCHESTRATOR_SYSTEM = """你是「StockResearch」的编排 Agent。由你决定
 
 简单新闻/快讯：get_news + get_stock_quote，不要启动 Skill。
 走势/涨跌/原因类（用户未要求深度投研）：先 get_stock_quote + get_news(symbol=...) 或 get_market_data + get_news，结合相关新闻解读可能驱动因素，不要启动 Skill。
+大盘归因纪律：解读大盘走势必须综合宏观经济、政策、资金面、海外市场与板块结构；单一公司新闻（尤其未落地/未证实事项，如未完成的收购、传闻）不得作为大盘确定性主驱动，引用时须注明“尚未落地、影响不确定”，并考虑该公司在指数中的权重。
 个股/市场分析：不要调用 skill_risk_checkup / get_risk_summary；个股「有什么风险」属于投研，用 skill_stock_research 或报价/新闻即可。
 用户说「只补缺口再跑 / 补充数据并重新投研 / 补充数据：…」时：必须调用 skill_stock_research（勿只口头回答）；analysis_depth 至少 comprehensive，并在 context 列出待补缺口。
 仅当用户明确说持仓风控、组合体检、止损、回撤、我的持仓风险时，才做风控体检。
@@ -408,6 +409,24 @@ class OrchestratorAgent:
         if overview.advancers is not None and overview.decliners is not None:
             lines.append(f"涨跌家数: {overview.advancers}涨 / {overview.decliners}跌")
         lines.append(f"数据状态: {overview.data_status}")
+        try:
+            from stockresearch.data.providers.global_markets import (
+                GlobalMarketsProvider,
+                format_global_snapshot,
+            )
+            from stockresearch.services.macro_snapshot import format_macro_snapshot
+
+            global_text = format_global_snapshot(
+                await GlobalMarketsProvider().get_indices(cache_ttl_seconds=self._quote_cache_ttl)
+            )
+            if global_text:
+                lines.append("外围市场:")
+                lines.extend(global_text.splitlines())
+            macro_text = format_macro_snapshot()
+            if macro_text:
+                lines.append(macro_text)
+        except Exception:  # noqa: BLE001 — 外围/宏观为可选增强，失败静默降级
+            logger.warning("global/macro enrichment failed", exc_info=True)
         return "\n".join(lines) if lines else "市场数据暂不可用"
 
     async def _tool_stock_quote(self, symbol: str) -> str:

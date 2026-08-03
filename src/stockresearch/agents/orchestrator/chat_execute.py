@@ -296,7 +296,12 @@ async def _augment_trend_message(
         if on_progress:
             await on_progress(status_event("status.react.news"))
         blocks.append(await agent._execute_tool("get_news", {}))
-        hint = "请结合上述大盘数据与相关新闻解读市场走势及可能驱动因素，无需启动四维投研 Skill。"
+        hint = (
+            "请结合上述大盘数据（含外围市场与宏观指标）与相关新闻解读市场走势及可能驱动因素，"
+            "归因须综合宏观经济、政策、资金面、海外市场与板块结构；"
+            "未落地/未证实的单一公司新闻不得作为大盘确定性主驱动，引用时注明“尚未落地、影响不确定”，"
+            "无需启动四维投研 Skill。"
+        )
     else:
         return message
 

@@ -132,24 +132,14 @@ def _collect_market_block(overview) -> str:
 
 def _collect_kimi_block() -> str:
     """读取 Kimi 预取的宏观/Wind 缓存，格式化为简报 prompt 块。无数据返回空串。"""
-    from stockresearch.data.providers.kimi_macro import MACRO_CACHE_KEY
     from stockresearch.data.providers.kimi_wind import WIND_CACHE_KEY
+    from stockresearch.services.macro_snapshot import format_macro_snapshot
     from stockresearch.services.sqlite_cache import get_sqlite_cached
 
     lines: list[str] = []
-    macro = get_sqlite_cached(MACRO_CACHE_KEY)
-    if macro:
-        lines.append(f"【宏观数据(Kimi, {macro.get('as_of', '?')})】")
-        for ind in macro.get("indicators") or []:
-            if isinstance(ind, dict):
-                trend = ind.get("trend")
-                trend_str = f" 趋势:{trend}" if trend else ""
-                lines.append(
-                    f"- {ind.get('name')}: {ind.get('value')}({ind.get('period')}){trend_str}{ind.get('comment', '')}"
-                )
-        for hl in macro.get("industry_highlights") or []:
-            if isinstance(hl, dict):
-                lines.append(f"- 行业·{hl.get('industry')}: {hl.get('summary')}")
+    macro_block = format_macro_snapshot(max_lines=None)
+    if macro_block:
+        lines.append(macro_block)
     wind = get_sqlite_cached(WIND_CACHE_KEY)
     if wind:
         lines.append(f"【市场公告与研报(Kimi, {wind.get('as_of', '?')})】")
@@ -164,7 +154,9 @@ def _collect_kimi_block() -> str:
     return "\n".join(lines)
 
 
-def _split_news(news: list[NewsItemOut]) -> tuple[list[NewsItemOut], list[NewsItemOut], list[NewsItemOut]]:
+def _split_news(
+    news: list[NewsItemOut],
+) -> tuple[list[NewsItemOut], list[NewsItemOut], list[NewsItemOut]]:
     holding: list[NewsItemOut] = []
     sector: list[NewsItemOut] = []
     market: list[NewsItemOut] = []
@@ -251,8 +243,7 @@ def _fallback_sections(
             content=(
                 f"{market_block.replace('【大盘概况】\n', '')}\n\n"
                 + (
-                    "风控提醒：\n"
-                    + "\n".join(f"- [{a.severity}] {a.message}" for a in alerts[:3])
+                    "风控提醒：\n" + "\n".join(f"- [{a.severity}] {a.message}" for a in alerts[:3])
                     if alerts
                     else "暂无新增风控提醒，建议继续跟踪持仓波动与相关新闻。"
                 )
@@ -264,7 +255,9 @@ def _fallback_sections(
         sections.append(BriefingSection(title="宏观与市场动态(Kimi)", content=kimi_block))
     phase = {"premarket": "盘前", "intraday": "盘中", "postmarket": "盘后"}[kind]
     if kind == "premarket":
-        summary = f"{phase}简报：已汇总隔夜新闻、行业/市场要闻及持仓盘前参考信息，开盘前请关注下方方向。"
+        summary = (
+            f"{phase}简报：已汇总隔夜新闻、行业/市场要闻及持仓盘前参考信息，开盘前请关注下方方向。"
+        )
     else:
         summary = f"{phase}简报：已汇总持仓涨跌、相关新闻及大盘/行业动态，详见下方分段。"
     return summary, sections
