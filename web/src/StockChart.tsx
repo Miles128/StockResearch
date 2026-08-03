@@ -13,9 +13,10 @@ import {
   type LogicalRange,
   type Time,
 } from "lightweight-charts";
-import { api, type KlineChart } from "./api";
+import { api, type ChartOverlaySet, type KlineChart } from "./api";
 import { mergeKlineBars, maSeries, type KlineBar } from "./chartIndicators";
 import { detectTrendLines } from "./chartTrendlines";
+import { subscribeChartOverlays } from "./chartOverlayBus";
 import { useI18n } from "./i18n";
 import { getCachedKline, patchCachedKline, setCachedKline } from "./klineCache";
 import {
@@ -59,6 +60,7 @@ interface ChartRuntime {
   macdSignal?: ISeriesApi<"Line">;
   rsi?: ISeriesApi<"Line">;
   trendLines: ISeriesApi<"Line">[];
+  aiOverlays: ISeriesApi<"Line">[];
   mounted: { el: HTMLElement; chart: IChartApi; h: number }[];
 }
 
@@ -134,6 +136,7 @@ export function MarketChart({
     mounted: [],
     maLines: new Map(),
     trendLines: [],
+    aiOverlays: [],
   });
   const visibleRangeRef = useRef<LogicalRange | null>(null);
   const loadingMoreRef = useRef(false);
@@ -396,6 +399,7 @@ export function MarketChart({
         mounted: [],
         maLines: new Map(),
         trendLines: [],
+        aiOverlays: [],
       };
     };
     dispose();
@@ -603,6 +607,39 @@ export function MarketChart({
     }
     // showMacd/showRsi/compact/variant remount the chart, so re-apply lines then.
   }, [showTrend, data, symbol, variant, t, showMacd, showRsi, compact]);
+
+  const [aiOverlays, setAiOverlays] = useState<ChartOverlaySet | null>(null);
+
+  useEffect(() => subscribeChartOverlays(setAiOverlays), []);
+
+  useEffect(() => {
+    const rt = runtimeRef.current;
+    const chart = rt.mainChart;
+    if (!chart) return;
+    for (const series of rt.aiOverlays) chart.removeSeries(series);
+    rt.aiOverlays = [];
+    if (!aiOverlays || aiOverlays.symbol !== symbol || variant !== "stock")
+      return;
+    const { up, down } = readChartColors();
+    for (const overlay of aiOverlays.overlays) {
+      if (overlay.kind !== "trend" || !overlay.a || !overlay.b) continue;
+      const support = overlay.side === "support";
+      const series = chart.addLineSeries({
+        color: support ? up : down,
+        lineWidth: 2,
+        lineStyle: LineStyle.SparseDotted,
+        title: `${support ? t("chart.trendSupport") : t("chart.trendResistance")} · AI`,
+        lastValueVisible: false,
+        priceLineVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      series.setData([
+        { time: barTime(overlay.a.time), value: overlay.a.price },
+        { time: barTime(overlay.b.time), value: overlay.b.price },
+      ]);
+      rt.aiOverlays.push(series);
+    }
+  }, [aiOverlays, symbol, variant, t, showMacd, showRsi, compact]);
 
   useEffect(() => {
     if (skipDataEffectRef.current) {

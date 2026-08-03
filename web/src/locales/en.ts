@@ -33,6 +33,15 @@ export const en: Dict = {
     priceConflictBody:
       "{count} symbol(s) show >1% Sina/AkShare spread ({preview}) — may be delay or methodology.",
   },
+  overlays: {
+    title: "AI Trendlines",
+    lines: "lines",
+    showOnChart: "Show on chart",
+    applied: "Shown on chart",
+    none: "No significant support/resistance lines detected recently.",
+    support: "Support",
+    resistance: "Resistance",
+  },
   lists: {
     aria: "Lists sidebar",
     expand: "Expand lists",

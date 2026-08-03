@@ -397,3 +397,70 @@ async def test_unknown_skill(db_session: Session) -> None:
     result = await runner.run("skill_not_real", {})
 
     assert result.error == "unknown_skill"
+
+
+@pytest.mark.asyncio
+async def test_skill_chart_overlays_requires_symbol(db_session: Session) -> None:
+    user = User(username="skill-overlays-nosym", password_hash="")
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    runner = _runner(db_session, user.id)
+    result = await runner.run("skill_chart_overlays", {})
+
+    assert result.partial is True
+    assert "股票代码" in result.summary
+
+
+@pytest.mark.asyncio
+async def test_skill_chart_overlays_returns_set(
+    db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from stockresearch.core.schemas import (
+        ChartOverlay,
+        ChartOverlayPoint,
+        ChartOverlaySet,
+    )
+
+    user = User(username="skill-overlays-ok", password_hash="")
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    overlay_set = ChartOverlaySet(
+        symbol="600519",
+        generatedAt="2026-08-04T00:00:00+00:00",
+        overlays=[
+            ChartOverlay(
+                id="trend-support-5-79",
+                kind="trend",
+                a=ChartOverlayPoint(time="2026-04-01", price=100.0),
+                b=ChartOverlayPoint(time="2026-08-01", price=137.0),
+                side="support",
+                strength=1.0,
+                touches=4,
+                source="ai",
+                rationale="支撑线：连接低点，共 4 次触碰。仅为图形描述，不构成交易建议。",
+            )
+        ],
+    )
+
+    async def fake_compute(symbol: str, days: int = 250) -> ChartOverlaySet:
+        assert symbol == "600519"
+        return overlay_set
+
+    monkeypatch.setattr(
+        "stockresearch.services.chart_overlays.compute_chart_overlays", fake_compute
+    )
+
+    events: list[dict[str, object]] = []
+    runner = _runner(db_session, user.id, events=events)
+    result = await runner.run("skill_chart_overlays", {"symbol": "600519"})
+
+    assert result.error is None
+    assert result.cards and result.cards[0]["type"] == "chart_overlays"
+    assert "支撑线" in result.summary
+    assert "不构成交易建议" in result.summary
+    assert events[0]["type"] == "skill_start"
+    assert events[-1]["type"] == "skill_done"

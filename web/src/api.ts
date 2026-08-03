@@ -385,6 +385,10 @@ export const api = {
     if (before) params.set("before", before);
     return request<KlineChart>(`/market/kline?${params.toString()}`);
   },
+  chartOverlays: (symbol: string) =>
+    request<ChartOverlaySet>(
+      `/market/overlays?symbol=${encodeURIComponent(symbol)}`,
+    ),
   listReports: () => request<ResearchReportListItem[]>("/research/reports"),
   downloadReportMarkdown: (id: number) => {
     window.open(
@@ -633,7 +637,8 @@ export interface Card {
     | "plan"
     | "financial"
     | "stock_choice"
-    | "route_choice";
+    | "route_choice"
+    | "chart_overlays";
   data: Record<string, unknown>;
 }
 
@@ -1434,6 +1439,30 @@ export interface ActionSignal {
 export interface DailyActionCenter {
   signals: ActionSignal[];
   summary: string;
+}
+
+export interface ChartOverlayPoint {
+  time: string;
+  price: number;
+}
+
+export interface ChartOverlay {
+  id: string;
+  kind: "trend" | "level";
+  a?: ChartOverlayPoint;
+  b?: ChartOverlayPoint;
+  side?: "support" | "resistance";
+  price?: number;
+  strength: number;
+  touches?: number;
+  source: "algo" | "ai";
+  rationale?: string;
+}
+
+export interface ChartOverlaySet {
+  symbol: string;
+  generatedAt: string;
+  overlays: ChartOverlay[];
 }
 
 export interface KlineChart {
