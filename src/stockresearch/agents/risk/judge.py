@@ -231,9 +231,7 @@ def parse_judge(
 def portfolio_summary_text(verdict: JudgeVerdict) -> str:
     from stockresearch.agents.risk import messages as risk_msg
 
-    action_bits = "；".join(
-        f"{item.name}{item.action}" for item in verdict.holding_actions
-    )
+    action_bits = "；".join(f"{item.name}{item.action}" for item in verdict.holding_actions)
     return risk_msg.portfolio_summary_verdict(
         verdict.risk_level,
         verdict.position_action,

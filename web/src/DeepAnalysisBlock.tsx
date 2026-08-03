@@ -1,4 +1,10 @@
-import type { ImpactOut, ImpactPeakDayOut, PricingBridgeOut, ResearchReport, ThesisOut } from "./api";
+import type {
+  ImpactOut,
+  ImpactPeakDayOut,
+  PricingBridgeOut,
+  ResearchReport,
+  ThesisOut,
+} from "./api";
 import { useI18n } from "./i18n";
 
 function fmtPct(value: number | null | undefined): string {
@@ -27,11 +33,15 @@ function PeakDayRow({
           {day.event_title ?? ""}
         </span>
       ) : (
-        <span className="impact-peak-event muted">{t("card.impactUnexplained")}</span>
+        <span className="impact-peak-event muted">
+          {t("card.impactUnexplained")}
+        </span>
       )}
       {day.event_fwd_return_5d_pct != null && (
         <span className="impact-peak-fwd muted">
-          {t("card.impactFwd5d", { value: fmtPct(day.event_fwd_return_5d_pct) })}
+          {t("card.impactFwd5d", {
+            value: fmtPct(day.event_fwd_return_5d_pct),
+          })}
         </span>
       )}
     </li>
@@ -48,7 +58,10 @@ function ImpactBlock({
   const stats: { label: string; value: string }[] = [
     { label: t("card.impactStock"), value: fmtPct(impact.stock_return_pct) },
     { label: t("card.impactMarket"), value: fmtPct(impact.market_contrib_pct) },
-    { label: t("card.impactIndustry"), value: fmtPct(impact.industry_contrib_pct) },
+    {
+      label: t("card.impactIndustry"),
+      value: fmtPct(impact.industry_contrib_pct),
+    },
     { label: t("card.impactIdio"), value: fmtPct(impact.idio_return_pct) },
   ];
   return (
@@ -66,8 +79,12 @@ function ImpactBlock({
         {impact.r_squared != null
           ? ` · ${t("card.impactRSquared", { value: impact.r_squared!.toFixed(2) })}`
           : ""}
-        {impact.market_symbol ? ` · ${t("card.impactMarketSymbol", { symbol: impact.market_symbol })}` : ""}
-        {impact.industry_proxy ? ` · ${t("card.impactIndustryProxy", { proxy: impact.industry_proxy })}` : ""}
+        {impact.market_symbol
+          ? ` · ${t("card.impactMarketSymbol", { symbol: impact.market_symbol })}`
+          : ""}
+        {impact.industry_proxy
+          ? ` · ${t("card.impactIndustryProxy", { proxy: impact.industry_proxy })}`
+          : ""}
         {impact.partial ? ` · ${t("card.factorPartial")}` : ""}
       </p>
       {impact.peak_days && impact.peak_days.length > 0 && (
@@ -98,9 +115,18 @@ function PricingBlock({
   t: (key: string, params?: Record<string, string | number>) => string;
 }) {
   const stats: { label: string; value: string }[] = [
-    { label: t("card.pricingPriceChange"), value: fmtPct(pricing.price_change_pct) },
-    { label: t("card.pricingEarnings"), value: fmtPct(pricing.earnings_contrib_pct) },
-    { label: t("card.pricingMultiple"), value: fmtPct(pricing.multiple_contrib_pct) },
+    {
+      label: t("card.pricingPriceChange"),
+      value: fmtPct(pricing.price_change_pct),
+    },
+    {
+      label: t("card.pricingEarnings"),
+      value: fmtPct(pricing.earnings_contrib_pct),
+    },
+    {
+      label: t("card.pricingMultiple"),
+      value: fmtPct(pricing.multiple_contrib_pct),
+    },
   ];
   return (
     <div className="pricing-block">
@@ -115,8 +141,12 @@ function PricingBlock({
       </div>
       <p className="muted impact-meta">
         {pricing.window_label ? ` · ${pricing.window_label}` : ""}
-        {pricing.pe_end != null ? ` · PE(TTM) ${pricing.pe_end.toFixed(2)}` : ""}
-        {pricing.pe_start != null ? ` · PE 起 ${pricing.pe_start.toFixed(2)}` : ""}
+        {pricing.pe_end != null
+          ? ` · PE(TTM) ${pricing.pe_end.toFixed(2)}`
+          : ""}
+        {pricing.pe_start != null
+          ? ` · PE 起 ${pricing.pe_start.toFixed(2)}`
+          : ""}
         {pricing.partial ? ` · ${t("card.factorPartial")}` : ""}
       </p>
       {pricing.gaps && pricing.gaps.length > 0 && (
@@ -141,7 +171,9 @@ function ThesisBlock({
       <p className="thesis-title">{t("card.thesisTitle")}</p>
       <p className="thesis-claim">{thesis.claim}</p>
       {thesis.horizon ? (
-        <p className="muted thesis-horizon">{t("card.thesisHorizon", { horizon: thesis.horizon })}</p>
+        <p className="muted thesis-horizon">
+          {t("card.thesisHorizon", { horizon: thesis.horizon })}
+        </p>
       ) : null}
       {thesis.monitors && thesis.monitors.length > 0 && (
         <div className="thesis-list-block">
@@ -169,7 +201,9 @@ function ThesisBlock({
           {thesis.evidence_ids.join(" · ")}
         </p>
       )}
-      {thesis.partial ? <p className="muted thesis-partial">{t("card.factorPartial")}</p> : null}
+      {thesis.partial ? (
+        <p className="muted thesis-partial">{t("card.factorPartial")}</p>
+      ) : null}
     </div>
   );
 }
@@ -187,7 +221,10 @@ export function DeepAnalysisBlock({
   const thesis = report.deep_analysis?.thesis;
   if (!impact && !pricing && !thesis) return null;
   return (
-    <details className={`deep-analysis-block${compact ? " compact" : ""}`} open={!compact}>
+    <details
+      className={`deep-analysis-block${compact ? " compact" : ""}`}
+      open={!compact}
+    >
       <summary>{t("card.deepAnalysisTitle")}</summary>
       {impact ? <ImpactBlock impact={impact} t={t} /> : null}
       {pricing ? <PricingBlock pricing={pricing} t={t} /> : null}

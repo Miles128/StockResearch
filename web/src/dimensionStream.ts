@@ -74,7 +74,10 @@ export function detectDimensionSet(
   ) {
     return INDUSTRY_DIMENSIONS;
   }
-  if (statusText.includes("五维") || (statusText.includes("板块") && statusText.includes("维"))) {
+  if (
+    statusText.includes("五维") ||
+    (statusText.includes("板块") && statusText.includes("维"))
+  ) {
     return INDUSTRY_DIMENSIONS;
   }
   if (steps.some((s) => s.agent_id === "macro" || s.agent_id === "industry")) {
@@ -109,7 +112,9 @@ export function orderedDimensionSteps(
   defs: DimensionDef[],
 ): AgentStep[] {
   const byId = new Map(
-    steps.filter((s) => isDimensionAgent(s.agent_id)).map((s) => [s.agent_id, s]),
+    steps
+      .filter((s) => isDimensionAgent(s.agent_id))
+      .map((s) => [s.agent_id, s]),
   );
   return defs.map(
     (def) =>

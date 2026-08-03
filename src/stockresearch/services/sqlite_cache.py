@@ -12,17 +12,18 @@ from stockresearch.db.session import SessionLocal
 def get_sqlite_cached(key: str) -> dict[str, object] | None:
     with SessionLocal() as db:
         row = db.execute(
-            text(
-                "SELECT payload, expires_at FROM provider_cache "
-                "WHERE cache_key = :key"
-            ),
+            text("SELECT payload, expires_at FROM provider_cache " "WHERE cache_key = :key"),
             {"key": key},
         ).first()
         if row is None:
             return None
         payload_raw, expires_at = row
         if expires_at is not None:
-            expires = expires_at if isinstance(expires_at, datetime) else datetime.fromisoformat(str(expires_at))
+            expires = (
+                expires_at
+                if isinstance(expires_at, datetime)
+                else datetime.fromisoformat(str(expires_at))
+            )
             if expires.tzinfo is None:
                 expires = expires.replace(tzinfo=UTC)
             if datetime.now(UTC) > expires:

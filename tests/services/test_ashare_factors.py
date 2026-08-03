@@ -36,7 +36,9 @@ def test_ashare_factor_checklist_uses_existing_sources_only() -> None:
     assert by_name["雪球/东财情绪"].status == "missing"
     assert by_name["新闻、政策与事件文本"].status == "verified"
     assert not by_name["涨跌停 / ST / 停复牌"].missing
-    trading_sources = {source.key: source for source in by_name["涨跌停 / ST / 停复牌"].source_details}
+    trading_sources = {
+        source.key: source for source in by_name["涨跌停 / ST / 停复牌"].source_details
+    }
     assert trading_sources["sina_trading_rules"].provider == "sina"
     assert trading_sources["sina_trading_rules"].layer == "L1"
     assert trading_sources["sina_trading_rules"].status == "verified"

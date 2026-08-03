@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { isLlmConfiguredLocally, isServerLlmConfigured, type LlmSettingsMeta } from "../llmSettings";
+import {
+  isLlmConfiguredLocally,
+  isServerLlmConfigured,
+  type LlmSettingsMeta,
+} from "../llmSettings";
 
 export interface LlmInitState {
   llmConfigured: boolean;

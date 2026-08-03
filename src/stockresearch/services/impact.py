@@ -99,7 +99,7 @@ def _peer_ew_returns(
         for bar in bars:
             d = str(bar.get("date", ""))[:10]
             close = bar.get("close")
-            if d and isinstance(close, (int, float)) and close > 0:
+            if d and isinstance(close, int | float) and close > 0:
                 by_date[d] = float(close)
         if len(by_date) >= 2:
             peer_series.append(by_date)
@@ -172,7 +172,7 @@ def _attach_peaks_from_events(
                     "event_title": matched.get("title"),
                     "event_kind": matched.get("kind"),
                     "event_fwd_return_5d_pct": (
-                        float(fwd) if isinstance(fwd, (int, float)) else None
+                        float(fwd) if isinstance(fwd, int | float) else None
                     ),
                 }
             )
@@ -194,9 +194,7 @@ def _top_idio_peak_days(
     for i, d in enumerate(dates):
         ind_r = ind_rets[i] if ind_rets is not None else 0.0
         idio_pct = (stock_rets[i] - beta * mkt_rets[i] - ind_r) * 100.0
-        peaks.append(
-            ImpactPeakDayOut(date=d, idio_return_pct=round(idio_pct, 4))
-        )
+        peaks.append(ImpactPeakDayOut(date=d, idio_return_pct=round(idio_pct, 4)))
     peaks.sort(key=lambda p: abs(p.idio_return_pct), reverse=True)
     return peaks[:top_n]
 
@@ -344,9 +342,7 @@ async def compute_impact(
             partial = True
 
     # Peer EW proxy returns aligned to the same dates as the attribution window.
-    ind_rets, peer_gaps = await _load_peer_ew_returns(
-        provider, symbol, common[1:], window
-    )
+    ind_rets, peer_gaps = await _load_peer_ew_returns(provider, symbol, common[1:], window)
     gaps.extend(peer_gaps)
 
     # 6. Attribution over the last `window` days of the aligned return series.
@@ -372,9 +368,7 @@ async def compute_impact(
 
     decomp = _decompose_window(stock_win, mkt_win, ind_win, beta=beta)
     win_dates = common[-win:]
-    peak_candidates = _top_idio_peak_days(
-        win_dates, stock_win, mkt_win, ind_win, beta
-    )
+    peak_candidates = _top_idio_peak_days(win_dates, stock_win, mkt_win, ind_win, beta)
     peak_days = await _attach_peaks_from_event_study(symbol, peak_candidates)
     return ImpactOut(
         window_trading_days=window,

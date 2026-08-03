@@ -40,4 +40,7 @@ async def test_battle_vote_collects_dimension_and_side_votes() -> None:
     votes = [e for e in events if e.get("type") == "vote"]
     assert len(votes) == 4
     tally = next(e for e in events if e.get("type") == "vote_tally")
-    assert int(tally.get("bullish", 0)) + int(tally.get("bearish", 0)) + int(tally.get("neutral", 0)) == 4
+    assert (
+        int(tally.get("bullish", 0)) + int(tally.get("bearish", 0)) + int(tally.get("neutral", 0))
+        == 4
+    )

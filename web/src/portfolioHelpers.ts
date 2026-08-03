@@ -23,7 +23,9 @@ export interface SectorWeight {
   annualizedPct: number | null;
 }
 
-export function computePortfolioSummary(holdings: HoldingEnriched[]): PortfolioSummary {
+export function computePortfolioSummary(
+  holdings: HoldingEnriched[],
+): PortfolioSummary {
   let totalValue = 0;
   let totalCost = 0;
   let totalProfit = 0;
@@ -53,7 +55,8 @@ export function computePortfolioSummary(holdings: HoldingEnriched[]): PortfolioS
   }
 
   const totalProfitPct = totalCost > 0 ? (totalProfit / totalCost) * 100 : null;
-  const annualizedPct = annualizedWeight > 0 ? weightedAnnualized / annualizedWeight : null;
+  const annualizedPct =
+    annualizedWeight > 0 ? weightedAnnualized / annualizedWeight : null;
   const priorValue = totalValue - todayPnl;
   const todayPnlPct = priorValue > 0 ? (todayPnl / priorValue) * 100 : null;
 
@@ -70,10 +73,19 @@ export function computePortfolioSummary(holdings: HoldingEnriched[]): PortfolioS
   };
 }
 
-export function computeSectorConcentration(holdings: HoldingEnriched[]): SectorWeight[] {
+export function computeSectorConcentration(
+  holdings: HoldingEnriched[],
+): SectorWeight[] {
   const bySector = new Map<
     string,
-    { value: number; count: number; todayPnl: number; totalProfit: number; annualizedNum: number; annualizedDen: number }
+    {
+      value: number;
+      count: number;
+      todayPnl: number;
+      totalProfit: number;
+      annualizedNum: number;
+      annualizedDen: number;
+    }
   >();
   let total = 0;
   for (const h of holdings) {
@@ -116,7 +128,10 @@ export function computeSectorConcentration(holdings: HoldingEnriched[]): SectorW
       count: entry.count,
       todayPnl: entry.todayPnl,
       totalProfit: entry.totalProfit,
-      annualizedPct: entry.annualizedDen > 0 ? entry.annualizedNum / entry.annualizedDen : null,
+      annualizedPct:
+        entry.annualizedDen > 0
+          ? entry.annualizedNum / entry.annualizedDen
+          : null,
     }))
     .sort((a, b) => b.pct - a.pct);
 }

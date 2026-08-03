@@ -321,9 +321,7 @@ class PlanExecuteAgent:
         if user_context_text.strip():
             user_query = f"{user_query}\n\n{user_context_text.strip()}"
         if history:
-            hist_text = "\n".join(
-                f"{m['role']}: {m['content']}" for m in history[-8:]
-            )
+            hist_text = "\n".join(f"{m['role']}: {m['content']}" for m in history[-8:])
             user_query = f"【对话历史】\n{hist_text}\n\n【当前问题】\n{user_query}"
 
         # Phase 1: Planning
@@ -358,17 +356,19 @@ class PlanExecuteAgent:
             self._plan_steps = _reindex_steps(raw_steps)
 
         # Plan card
-        cards.append({
-            "type": "plan",
-            "data": {
-                "phase": "plan",
-                "reasoning": reasoning,
-                "steps": [
-                    {"id": s.get("id", i + 1), "description": s.get("description", "")}
-                    for i, s in enumerate(self._plan_steps)
-                ],
-            },
-        })
+        cards.append(
+            {
+                "type": "plan",
+                "data": {
+                    "phase": "plan",
+                    "reasoning": reasoning,
+                    "steps": [
+                        {"id": s.get("id", i + 1), "description": s.get("description", "")}
+                        for i, s in enumerate(self._plan_steps)
+                    ],
+                },
+            }
+        )
 
         # Phase 2: Execute each step
         for step in self._plan_steps:
@@ -386,21 +386,21 @@ class PlanExecuteAgent:
             self._completed.append({"step": step_desc, "result": step_result})
 
             # Add progress card
-            cards.append({
-                "type": "plan",
-                "data": {
-                    "phase": "execute",
-                    "step_id": step_id,
-                    "step": step_desc,
-                    "result_preview": step_result[:200] if step_result else "",
-                },
-            })
+            cards.append(
+                {
+                    "type": "plan",
+                    "data": {
+                        "phase": "execute",
+                        "step_id": step_id,
+                        "step": step_desc,
+                        "result_preview": step_result[:200] if step_result else "",
+                    },
+                }
+            )
 
         # Phase 3: Synthesis
         await self._progress(status_event("status.plan.synthesizing"))
-        results_text = "\n\n".join(
-            f"步骤{c['step']}：\n{c['result']}" for c in self._completed
-        )
+        results_text = "\n\n".join(f"步骤{c['step']}：\n{c['result']}" for c in self._completed)
         synthesis = await self._llm.complete(
             _SYNTHESIS_SYSTEM.format(query=query, results=results_text),
             "请生成最终综合报告。",
@@ -410,14 +410,16 @@ class PlanExecuteAgent:
         if not reply:
             reply = "综合分析完成，但无法生成报告摘要。"
 
-        cards.append({
-            "type": "plan",
-            "data": {
-                "phase": "synthesis",
-                "step_count": len(self._plan_steps),
-                "summary_preview": reply[:400] if reply else "",
-            },
-        })
+        cards.append(
+            {
+                "type": "plan",
+                "data": {
+                    "phase": "synthesis",
+                    "step_count": len(self._plan_steps),
+                    "summary_preview": reply[:400] if reply else "",
+                },
+            }
+        )
 
         return reply, cards
 
@@ -426,10 +428,7 @@ class PlanExecuteAgent:
         tool_name = step.get("tool", "")
         tool_args = step.get("args", {})
 
-        if (
-            not self._finance_tools
-            and tool_name in FINANCE_TOOLS
-        ):
+        if not self._finance_tools and tool_name in FINANCE_TOOLS:
             return f"工具 {tool_name} 已禁用：当前问题与股票投资无关。"
 
         # If tool_executor is available and tool is known, use it directly
@@ -441,9 +440,7 @@ class PlanExecuteAgent:
                 return f"工具 {tool_name} 执行失败: {exc}"
 
         # Otherwise, let LLM decide how to execute
-        completed_desc = "\n".join(
-            f"- {c['step']}: {c['result'][:100]}" for c in self._completed
-        )
+        completed_desc = "\n".join(f"- {c['step']}: {c['result'][:100]}" for c in self._completed)
         current_desc = f"步骤{step.get('id')}: {step.get('description')}"
 
         response = await self._llm.complete(

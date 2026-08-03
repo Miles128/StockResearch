@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import {
   loadLayoutSettings,
   saveLayoutSettings,
@@ -15,7 +21,9 @@ export interface LayoutResizeState {
 }
 
 export function useLayoutResize(): LayoutResizeState {
-  const [layoutSettings, setLayoutSettings] = useState<LayoutSettings>(() => loadLayoutSettings());
+  const [layoutSettings, setLayoutSettings] = useState<LayoutSettings>(() =>
+    loadLayoutSettings(),
+  );
   const resizingRef = useRef(false);
   const resizingAxisRef = useRef<LayoutResizeAxis>("copilot-x");
 
@@ -27,7 +35,10 @@ export function useLayoutResize(): LayoutResizeState {
           const minH = 200;
           const maxH = window.innerHeight - 120;
           const next = window.innerHeight - e.clientY;
-          return { ...prev, copilotHeight: Math.max(minH, Math.min(maxH, next)) };
+          return {
+            ...prev,
+            copilotHeight: Math.max(minH, Math.min(maxH, next)),
+          };
         }
         if (resizingAxisRef.current === "lists") {
           const minW = 280;

@@ -5,9 +5,8 @@ from stockresearch.agents.research.dimension_text import (
     finalize_dimension,
     parse_dimension_analysis,
 )
-from stockresearch.core.schemas import DimensionResult
+from stockresearch.core.schemas import DimensionResult, ResearchReportOut
 from stockresearch.services.report_export import report_to_markdown
-from stockresearch.core.schemas import ResearchReportOut
 
 
 def test_parse_marked_sections() -> None:

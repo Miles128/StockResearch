@@ -9,7 +9,7 @@ from stockresearch.core.exceptions import ValidationError
 from stockresearch.utils.llm import LLMClient, get_llm_client
 
 _SYMBOL_IN_TEXT = re.compile(r"\d{6}")
-_PUNCT_RE = re.compile(r"[，。！？、；：""''（）().,!?;:'\" \\[\\]]+")
+_PUNCT_RE = re.compile(r"[，。！？、；：" "''（）().,!?;:'\" \\[\\]]+")
 _JSON_BLOCK = re.compile(r"\{[\s\S]*\}")
 
 STOCK_ALIASES: dict[str, str] = {

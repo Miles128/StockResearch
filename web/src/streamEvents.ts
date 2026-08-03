@@ -81,7 +81,11 @@ function activateStream(active: string[], streamId: string): string[] {
   return [...active, streamId];
 }
 
-function deactivateAgentStream(active: string[], agentId: string, role?: string): string[] {
+function deactivateAgentStream(
+  active: string[],
+  agentId: string,
+  role?: string,
+): string[] {
   if (role === "vote") {
     return active.filter((id) => id !== `vote-${agentId}` && id !== agentId);
   }
@@ -126,7 +130,8 @@ function upsertDebateDelta(
   delta: string,
 ): DebateRound[] {
   const existing = rounds.find((r) => r.round === roundNum);
-  const prev = typeof existing?.[side] === "string" ? (existing[side] as string) : "";
+  const prev =
+    typeof existing?.[side] === "string" ? (existing[side] as string) : "";
   const nextRound: DebateRound = {
     round: roundNum,
     ...existing,
@@ -148,7 +153,12 @@ function applyTextDeltaToSlice(
     if (sideKey) {
       return {
         agentSteps: slice.agentSteps,
-        debateRounds: upsertDebateDelta(slice.debateRounds, roundNum, sideKey, delta),
+        debateRounds: upsertDebateDelta(
+          slice.debateRounds,
+          roundNum,
+          sideKey,
+          delta,
+        ),
         judgeVerdict: slice.judgeVerdict,
       };
     }
@@ -228,7 +238,10 @@ export function hasLiveProcessContent(process?: StreamState): boolean {
   );
 }
 
-function finalizeSlice(slice: SkillStreamSlice, doneLabel: string): SkillStreamSlice {
+function finalizeSlice(
+  slice: SkillStreamSlice,
+  doneLabel: string,
+): SkillStreamSlice {
   return {
     ...slice,
     streamStatus: doneLabel,
@@ -241,7 +254,10 @@ function finalizeSlice(slice: SkillStreamSlice, doneLabel: string): SkillStreamS
 }
 
 /** Freeze stream UI after completion — drop stale react status lines. */
-export function finalizeStreamState(state: StreamState, doneLabel: string): StreamState {
+export function finalizeStreamState(
+  state: StreamState,
+  doneLabel: string,
+): StreamState {
   return {
     ...state,
     streamStatus: doneLabel,
@@ -281,10 +297,15 @@ function applyCoreStreamEvent(
     streamStatus = msg;
     if (shouldSeedDimensions(event)) {
       const kind = detectDimensionKind(event, msg);
-      const defs = t ? dimensionDefsForKind(kind, t) : detectDimensionSet(agentSteps, msg, kind);
+      const defs = t
+        ? dimensionDefsForKind(kind, t)
+        : detectDimensionSet(agentSteps, msg, kind);
       agentSteps = seedDimensionSteps(agentSteps, defs);
     }
-    if (!shouldSkipStatusLog(event) && streamLog[streamLog.length - 1] !== msg) {
+    if (
+      !shouldSkipStatusLog(event) &&
+      streamLog[streamLog.length - 1] !== msg
+    ) {
       streamLog = [...streamLog, msg];
     }
   }
@@ -297,7 +318,12 @@ function applyCoreStreamEvent(
           role: event.role,
         }
       : undefined;
-    const updated = applyTextDeltaToSlice(slice, event.stream_id, event.delta, meta);
+    const updated = applyTextDeltaToSlice(
+      slice,
+      event.stream_id,
+      event.delta,
+      meta,
+    );
     agentSteps = updated.agentSteps;
     debateRounds = updated.debateRounds;
     judgeVerdict = updated.judgeVerdict;
@@ -313,7 +339,12 @@ function applyCoreStreamEvent(
     );
   }
 
-  if (event.type === "agent_start" && event.agent_id && event.agent_name && event.role) {
+  if (
+    event.type === "agent_start" &&
+    event.agent_id &&
+    event.agent_name &&
+    event.role
+  ) {
     const agentName =
       t != null
         ? localizeAgentName(event.agent_id, event.agent_name, t)
@@ -373,7 +404,8 @@ function applyCoreStreamEvent(
     const dimensionAgent = isDimensionAgent(event.agent_id);
     if (!dimensionAgent && !isRiskWorkflowAgent(event.agent_id)) {
       const doneName =
-        agentSteps.find((s) => s.agent_id === event.agent_id)?.agent_name ?? event.agent_id;
+        agentSteps.find((s) => s.agent_id === event.agent_id)?.agent_name ??
+        event.agent_id;
       const doneLine = t
         ? t("stream.agentDone", { name: doneName })
         : `✓ ${doneName} 完成`;
@@ -390,7 +422,11 @@ function applyCoreStreamEvent(
           }
         : s,
     );
-    activeStreamIds = deactivateAgentStream(activeStreamIds, event.agent_id, event.role);
+    activeStreamIds = deactivateAgentStream(
+      activeStreamIds,
+      event.agent_id,
+      event.role,
+    );
   }
 
   if (event.type === "debate_round" && event.round != null) {
@@ -466,7 +502,10 @@ function applyCoreStreamEvent(
       reasoning: String(event.reasoning ?? ""),
       key_metric: String(event.key_metric ?? ""),
     };
-    masterCommentary = [...masterCommentary.filter((item) => item.master !== nextItem.master), nextItem];
+    masterCommentary = [
+      ...masterCommentary.filter((item) => item.master !== nextItem.master),
+      nextItem,
+    ];
   }
 
   if (event.type === "master_commentary" && Array.isArray(event.commentary)) {
@@ -477,15 +516,16 @@ function applyCoreStreamEvent(
 
   if (event.type === "judge") {
     activeStreamIds = activeStreamIds.filter((id) => id !== "judge");
-    const biasLabel = t && event.verdict
-      ? localizeVoteLabel(event.verdict, t)
-      : event.verdict === "bullish"
-        ? "偏多"
-        : event.verdict === "bearish"
-          ? "偏空"
-          : event.verdict === "neutral"
-            ? "中性"
-            : undefined;
+    const biasLabel =
+      t && event.verdict
+        ? localizeVoteLabel(event.verdict, t)
+        : event.verdict === "bullish"
+          ? "偏多"
+          : event.verdict === "bearish"
+            ? "偏空"
+            : event.verdict === "neutral"
+              ? "中性"
+              : undefined;
     judgeVerdict = {
       risk_level: event.risk_level ?? biasLabel,
       position_action: event.position_action
@@ -538,7 +578,9 @@ export function applyStreamEvent(
   } = prev;
 
   const skillRunId =
-    event.skill_run_id && event.type !== "skill_start" && event.type !== "skill_done"
+    event.skill_run_id &&
+    event.type !== "skill_start" &&
+    event.type !== "skill_done"
       ? String(event.skill_run_id)
       : undefined;
 

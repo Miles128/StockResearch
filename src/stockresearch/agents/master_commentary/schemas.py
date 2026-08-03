@@ -33,8 +33,10 @@ class MasterCommentaryOut(BaseModel):
                 master=master_id,
                 signal=signal,  # type: ignore[arg-type]
                 confidence=max(0.0, min(1.0, confidence)),
-                reasoning=str(data.get("reasoning", "")).strip() or str(data.get("reason", "")).strip(),
-                key_metric=str(data.get("key_metric", "")).strip() or str(data.get("keyMetric", "")).strip(),
+                reasoning=str(data.get("reasoning", "")).strip()
+                or str(data.get("reason", "")).strip(),
+                key_metric=str(data.get("key_metric", "")).strip()
+                or str(data.get("keyMetric", "")).strip(),
             )
         return cls(master=master_id, reasoning=raw.strip()[:200])
 

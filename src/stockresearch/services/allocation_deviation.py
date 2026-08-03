@@ -23,7 +23,7 @@ def normalize_targets(targets: dict[str, float]) -> dict[str, float]:
     cleaned = {
         str(k).strip() or "未知": float(v)
         for k, v in targets.items()
-        if isinstance(v, (int, float)) and float(v) > 0
+        if isinstance(v, int | float) and float(v) > 0
     }
     total = sum(cleaned.values())
     if total <= 0:

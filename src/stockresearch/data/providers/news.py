@@ -408,6 +408,8 @@ def _fetch_flash_sync_bounded(kind: str, limit: int, *, keyword: str = "") -> li
         logger.warning("Flash news failed for %s: %s", kind, payload)
         return []
     return payload
+
+
 def _fetch_flash_sync(kind: str, limit: int, *, keyword: str = "") -> list[RawNewsItem]:
     """Pull one global flash feed. kind: cls | ths | sina | em."""
     fetchers = {
@@ -430,23 +432,15 @@ def _fetch_flash_sync(kind: str, limit: int, *, keyword: str = "") -> list[RawNe
     items: list[RawNewsItem] = []
     for _, row in df.iterrows():
         title = str(
-            row.get("标题")
-            or row.get("title")
-            or row.get("内容")
-            or row.get("新闻标题")
-            or ""
+            row.get("标题") or row.get("title") or row.get("内容") or row.get("新闻标题") or ""
         ).strip()
         if not title:
             continue
         if keyword and keyword not in ("全部", "") and keyword not in title:
             continue
-        summary = str(
-            row.get("摘要") or row.get("内容") or row.get("新闻内容") or ""
-        ).strip()
+        summary = str(row.get("摘要") or row.get("内容") or row.get("新闻内容") or "").strip()
         url = str(row.get("链接") or row.get("url") or row.get("新闻链接") or "").strip()
-        published_at = _parse_datetime(
-            row.get("发布时间") or row.get("时间") or row.get("date")
-        )
+        published_at = _parse_datetime(row.get("发布时间") or row.get("时间") or row.get("date"))
         items.append(
             RawNewsItem(
                 title=title,

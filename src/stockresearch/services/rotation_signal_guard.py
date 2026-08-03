@@ -11,8 +11,7 @@ import re
 
 # Phrases that describe rotation but may omit a directional signal.
 _ROTATION_TERMS = re.compile(
-    r"板块轮动|轮动效应|风格切换|资金切换|龙头切换|"
-    r"板块切换|风格轮动|资金轮动|行业轮动|高低切换"
+    r"板块轮动|轮动效应|风格切换|资金切换|龙头切换|" r"板块切换|风格轮动|资金轮动|行业轮动|高低切换"
 )
 
 # Directional/signal words that satisfy the requirement.

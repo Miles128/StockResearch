@@ -15,9 +15,7 @@ def test_ingest_returns_accepted_job(client: TestClient) -> None:
 
     with patch("stockresearch.services.news_ingest_jobs.NewsPipeline") as pipeline_cls:
         pipeline_cls.return_value.ingest = AsyncMock(side_effect=_ingest)
-        with patch(
-            "stockresearch.services.news_ingest_jobs.purge_irrelevant_news", return_value=0
-        ):
+        with patch("stockresearch.services.news_ingest_jobs.purge_irrelevant_news", return_value=0):
             resp = client.post("/api/v1/news/ingest?limit=5")
 
     assert resp.status_code == 202
@@ -34,9 +32,7 @@ def test_ingest_job_status_completes(client: TestClient) -> None:
 
     with patch("stockresearch.services.news_ingest_jobs.NewsPipeline") as pipeline_cls:
         pipeline_cls.return_value.ingest = AsyncMock(side_effect=_fast_ingest)
-        with patch(
-            "stockresearch.services.news_ingest_jobs.purge_irrelevant_news", return_value=4
-        ):
+        with patch("stockresearch.services.news_ingest_jobs.purge_irrelevant_news", return_value=4):
             create = client.post("/api/v1/news/ingest?limit=5")
             assert create.status_code == 202
             job_id = create.json()["job_id"]

@@ -3,7 +3,13 @@
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from stockresearch.core.schemas import AshareFactorOut, DebateResult, DimensionResult, FactorSourceOut, ResearchReportOut
+from stockresearch.core.schemas import (
+    AshareFactorOut,
+    DebateResult,
+    DimensionResult,
+    FactorSourceOut,
+    ResearchReportOut,
+)
 from stockresearch.services.report_export import report_to_markdown, report_to_pdf
 from stockresearch.services.research_memory import search_research_memory
 

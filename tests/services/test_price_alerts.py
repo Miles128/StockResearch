@@ -6,7 +6,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from stockresearch.db.models import Holding, PriceAlertNotification, PriceAlertSetting, User, WatchlistItem
+from stockresearch.db.models import (
+    Holding,
+    PriceAlertNotification,
+    PriceAlertSetting,
+    User,
+    WatchlistItem,
+)
 from stockresearch.services.price_alerts import check_price_alerts_for_user, get_or_create_settings
 
 
@@ -44,9 +50,7 @@ async def test_price_alert_dedupes_same_day(db_session, user) -> None:
 
     quote = MagicMock(symbol="600519", name="贵州茅台", change_pct=4.5)
 
-    with patch(
-        "stockresearch.services.price_alerts.BatchQuoteProvider"
-    ) as provider_cls:
+    with patch("stockresearch.services.price_alerts.BatchQuoteProvider") as provider_cls:
         provider_cls.return_value.get_quotes = AsyncMock(return_value=[quote])
         created = await check_price_alerts_for_user(db_session, user.id)
         assert created == 1
@@ -68,9 +72,7 @@ async def test_price_alert_includes_watchlist(db_session, user) -> None:
 
     quote = MagicMock(symbol="000001", name="平安银行", change_pct=-2.5)
 
-    with patch(
-        "stockresearch.services.price_alerts.BatchQuoteProvider"
-    ) as provider_cls:
+    with patch("stockresearch.services.price_alerts.BatchQuoteProvider") as provider_cls:
         provider_cls.return_value.get_quotes = AsyncMock(return_value=[quote])
         created = await check_price_alerts_for_user(db_session, user.id)
         assert created == 1

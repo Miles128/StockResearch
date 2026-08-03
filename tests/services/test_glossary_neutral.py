@@ -1,10 +1,12 @@
 """Tests for glossary, neutral_guard, and balance_check services."""
 
-
-from stockresearch.services.glossary import mark_terms, get_glossary, clear_glossary_cache
-from stockresearch.services.neutral_guard import neutral_guard, apply_ban_filter, apply_tone_calibration
 from stockresearch.agents.orchestrator.balance_check import check_balance
-
+from stockresearch.services.glossary import clear_glossary_cache, get_glossary, mark_terms
+from stockresearch.services.neutral_guard import (
+    apply_ban_filter,
+    apply_tone_calibration,
+    neutral_guard,
+)
 
 # ── Glossary ──
 

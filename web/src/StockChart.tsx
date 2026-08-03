@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   createChart,
   type IChartApi,
@@ -10,7 +16,11 @@ import { api, type KlineChart } from "./api";
 import { mergeKlineBars, maSeries, type KlineBar } from "./chartIndicators";
 import { useI18n } from "./i18n";
 import { getCachedKline, patchCachedKline, setCachedKline } from "./klineCache";
-import { baseChartOptions, applyChartEdgeAlignment, readChartColors } from "./ui/chartTheme";
+import {
+  baseChartOptions,
+  applyChartEdgeAlignment,
+  readChartColors,
+} from "./ui/chartTheme";
 
 export type MarketChartVariant = "stock" | "index";
 
@@ -67,13 +77,21 @@ function visibleWindow(barCount: number, compact: boolean): LogicalRange {
 }
 
 /** Unified K-line chart with volume, optional MACD/RSI, and scroll-back loading. */
-export function MarketChart({ symbol, compact = false, variant = "stock" }: MarketChartProps) {
+export function MarketChart({
+  symbol,
+  compact = false,
+  variant = "stock",
+}: MarketChartProps) {
   const { t } = useI18n();
   const rootRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
   const macdRef = useRef<HTMLDivElement>(null);
   const rsiRef = useRef<HTMLDivElement>(null);
-  const runtimeRef = useRef<ChartRuntime>({ subCharts: [], mounted: [], maLines: new Map() });
+  const runtimeRef = useRef<ChartRuntime>({
+    subCharts: [],
+    mounted: [],
+    maLines: new Map(),
+  });
   const visibleRangeRef = useRef<LogicalRange | null>(null);
   const loadingMoreRef = useRef(false);
   const exhaustedRef = useRef(false);
@@ -82,7 +100,9 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
   const syncingRangeRef = useRef(false);
   const barsRef = useRef<KlineBar[]>([]);
 
-  const [data, setData] = useState<KlineChart | null>(() => getCachedKline(symbol));
+  const [data, setData] = useState<KlineChart | null>(() =>
+    getCachedKline(symbol),
+  );
   const dataRef = useRef<KlineChart | null>(data);
   const [loading, setLoading] = useState(() => getCachedKline(symbol) == null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -123,7 +143,9 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
       visibleRangeRef.current = range;
       syncingRangeRef.current = true;
       try {
-        allCharts().forEach((chart) => chart.timeScale().setVisibleLogicalRange(range));
+        allCharts().forEach((chart) =>
+          chart.timeScale().setVisibleLogicalRange(range),
+        );
       } finally {
         syncingRangeRef.current = false;
       }
@@ -132,7 +154,10 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
   );
 
   const applyChart = useCallback(
-    (chart: KlineChart, opts?: { preserveRange?: boolean; added?: number; initial?: boolean }) => {
+    (
+      chart: KlineChart,
+      opts?: { preserveRange?: boolean; added?: number; initial?: boolean },
+    ) => {
       const rt = runtimeRef.current;
       const { up: chartUp, down: chartDown } = readChartColors();
 
@@ -165,25 +190,37 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
             .map((b, i) => ({
               time: barTime(b.date),
               value: chart.indicators.macd_histogram[i] ?? 0,
-              color: (chart.indicators.macd_histogram[i] ?? 0) >= 0 ? `${chartUp}88` : `${chartDown}88`,
+              color:
+                (chart.indicators.macd_histogram[i] ?? 0) >= 0
+                  ? `${chartUp}88`
+                  : `${chartDown}88`,
             }))
             .filter((_, i) => chart.indicators.macd_histogram[i] != null),
         );
         rt.macdLine.setData(
           chart.bars
-            .map((b, i) => ({ time: barTime(b.date), value: chart.indicators.macd[i] }))
+            .map((b, i) => ({
+              time: barTime(b.date),
+              value: chart.indicators.macd[i],
+            }))
             .filter((p): p is { time: Time; value: number } => p.value != null),
         );
         rt.macdSignal.setData(
           chart.bars
-            .map((b, i) => ({ time: barTime(b.date), value: chart.indicators.macd_signal[i] }))
+            .map((b, i) => ({
+              time: barTime(b.date),
+              value: chart.indicators.macd_signal[i],
+            }))
             .filter((p): p is { time: Time; value: number } => p.value != null),
         );
       }
 
       rt.rsi?.setData(
         chart.bars
-          .map((b, i) => ({ time: barTime(b.date), value: chart.indicators.rsi[i] }))
+          .map((b, i) => ({
+            time: barTime(b.date),
+            value: chart.indicators.rsi[i],
+          }))
           .filter((p): p is { time: Time; value: number } => p.value != null),
       );
 
@@ -193,7 +230,10 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
       if (opts?.preserveRange && opts.added && opts.added > 0) {
         const prev = visibleRangeRef.current;
         if (prev) {
-          setAllVisibleRange({ from: prev.from + opts.added, to: prev.to + opts.added } as LogicalRange);
+          setAllVisibleRange({
+            from: prev.from + opts.added,
+            to: prev.to + opts.added,
+          } as LogicalRange);
         }
       } else if (opts?.initial || initialPaintRef.current) {
         setAllVisibleRange(visibleWindow(chart.bars.length, compact));
@@ -316,7 +356,11 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
     const subH = compact ? 72 : 88;
     const rt = runtimeRef.current;
 
-    const mountSubChart = (el: HTMLDivElement | null, height: number, build: (chart: IChartApi) => void) => {
+    const mountSubChart = (
+      el: HTMLDivElement | null,
+      height: number,
+      build: (chart: IChartApi) => void,
+    ) => {
       if (!el) return;
       el.style.height = `${height}px`;
       const width = Math.max(paneWidth(el), 280);
@@ -334,7 +378,10 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
     if (mainRef.current) {
       mainRef.current.style.height = `${mainH}px`;
       const width = Math.max(paneWidth(mainRef.current), 280);
-      const chart = createChart(mainRef.current, baseChartOptions(width, mainH));
+      const chart = createChart(
+        mainRef.current,
+        baseChartOptions(width, mainH),
+      );
       rt.mainChart = chart;
       rt.mounted.push({ el: mainRef.current, chart, h: mainH });
 
@@ -345,7 +392,9 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
         wickUpColor: chartUp,
         wickDownColor: chartDown,
       });
-      chart.priceScale("right").applyOptions({ scaleMargins: { top: 0.06, bottom: 0.28 } });
+      chart
+        .priceScale("right")
+        .applyOptions({ scaleMargins: { top: 0.06, bottom: 0.28 } });
       rt.maLines = new Map();
       for (const period of selectedMa) {
         rt.maLines.set(
@@ -362,7 +411,9 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
         priceFormat: { type: "volume" },
         priceScaleId: "",
       });
-      rt.volume.priceScale().applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } });
+      rt.volume
+        .priceScale()
+        .applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } });
       applyChartEdgeAlignment(chart);
 
       chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
@@ -384,7 +435,11 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
 
     if (showRsi && rsiRef.current && variant === "stock") {
       mountSubChart(rsiRef.current, subH, (chart) => {
-        rt.rsi = chart.addLineSeries({ color: "#9b7fd4", lineWidth: 1, title: "RSI" });
+        rt.rsi = chart.addLineSeries({
+          color: "#9b7fd4",
+          lineWidth: 1,
+          title: "RSI",
+        });
         applyChartEdgeAlignment(chart);
       });
     }
@@ -396,19 +451,35 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
     };
 
     requestAnimationFrame(resizeAll);
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => resizeAll()) : null;
+    const ro =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => resizeAll())
+        : null;
     if (ro && rootRef.current) ro.observe(rootRef.current);
 
     const snapshot = dataRef.current;
     if (snapshot?.bars.length && snapshot.symbol === symbol && rt.candles) {
-      applyChart(snapshot, visibleRangeRef.current ? undefined : { initial: true });
+      applyChart(
+        snapshot,
+        visibleRangeRef.current ? undefined : { initial: true },
+      );
     }
 
     return () => {
       ro?.disconnect();
       dispose();
     };
-  }, [symbol, compact, variant, showMacd, showRsi, t, requestMoreHistory, applyChart, syncVisibleRange]);
+  }, [
+    symbol,
+    compact,
+    variant,
+    showMacd,
+    showRsi,
+    t,
+    requestMoreHistory,
+    applyChart,
+    syncVisibleRange,
+  ]);
 
   useEffect(() => {
     const rt = runtimeRef.current;
@@ -471,7 +542,10 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
   }
 
   return (
-    <div ref={rootRef} className={`market-chart${compact ? " market-chart-compact" : ""}`}>
+    <div
+      ref={rootRef}
+      className={`market-chart${compact ? " market-chart-compact" : ""}`}
+    >
       {variant === "stock" && (
         <div className="market-chart-toggles">
           <button
@@ -490,10 +564,16 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
           >
             {t("chart.rsi")}
           </button>
-          {loadingMore && <span className="muted market-chart-loading-more">{t("chart.loadingMore")}</span>}
+          {loadingMore && (
+            <span className="muted market-chart-loading-more">
+              {t("chart.loadingMore")}
+            </span>
+          )}
         </div>
       )}
-      {loading && !data && <p className="muted market-chart-status">{t("chart.loading")}</p>}
+      {loading && !data && (
+        <p className="muted market-chart-status">{t("chart.loading")}</p>
+      )}
       {!loading && error && !data && (
         <p className="muted market-chart-status">
           {t("chart.error")}: {error}
@@ -510,7 +590,9 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
             </div>
             <div className="market-chart-stage-main">
               <div className="market-chart-pane-head">
-                <span className="market-chart-pane-label">{t("chart.price")}</span>
+                <span className="market-chart-pane-label">
+                  {t("chart.price")}
+                </span>
                 <div className="chart-ma-select">
                   <button
                     type="button"
@@ -530,15 +612,22 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
                             checked={selectedMa.includes(period)}
                             onChange={() => toggleMaPeriod(period)}
                           />
-                          <span style={{ color: MA_COLORS[period] }}>{t("chart.maOption", { period: String(period) })}</span>
+                          <span style={{ color: MA_COLORS[period] }}>
+                            {t("chart.maOption", { period: String(period) })}
+                          </span>
                         </label>
                       ))}
                     </div>
                   )}
                 </div>
-                <span className="market-chart-pane-meta muted">{t("chart.volumeUnit")}</span>
+                <span className="market-chart-pane-meta muted">
+                  {t("chart.volumeUnit")}
+                </span>
               </div>
-              <div ref={mainRef} className="market-chart-pane market-chart-main" />
+              <div
+                ref={mainRef}
+                className="market-chart-pane market-chart-main"
+              />
               <div className="market-chart-axis-x" aria-hidden="true">
                 {t("chart.dateAxis")}
               </div>

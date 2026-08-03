@@ -43,7 +43,9 @@ async def test_overview_uses_sina_first(
 async def test_overview_akshare_fallback_times_out(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(mod, "fetch_sina_indices", lambda: (_ for _ in ()).throw(RuntimeError("sina down")))
+    monkeypatch.setattr(
+        mod, "fetch_sina_indices", lambda: (_ for _ in ()).throw(RuntimeError("sina down"))
+    )
     monkeypatch.setattr(mod, "_AKSHARE_FALLBACK_TIMEOUT_SEC", 0.2)
 
     def hang() -> MarketOverviewOut:

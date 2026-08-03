@@ -22,7 +22,9 @@ function validateSellQuantities(
     const left = available.get(tx.symbol) ?? 0;
     if (qty > left) {
       const label = tx.name || tx.symbol;
-      return t("portfolio.tradeSellExceeds").replace("{name}", label).replace("{n}", String(left));
+      return t("portfolio.tradeSellExceeds")
+        .replace("{name}", label)
+        .replace("{n}", String(left));
     }
     available.set(tx.symbol, left - qty);
   }
@@ -65,7 +67,11 @@ async function buildPayload(
   };
 }
 
-export function HoldingTradeInlineRow({ holdings, onApplied, onCancel }: HoldingTradeInlineRowProps) {
+export function HoldingTradeInlineRow({
+  holdings,
+  onApplied,
+  onCancel,
+}: HoldingTradeInlineRowProps) {
   const { t } = useI18n();
   const today = new Date().toISOString().slice(0, 10);
   const [side, setSide] = useState<"buy" | "sell">("buy");
@@ -122,7 +128,10 @@ export function HoldingTradeInlineRow({ holdings, onApplied, onCancel }: Holding
       <div className="lists-inline-trade-form">
         <label className="lists-inline-field">
           <span>{t("portfolio.tradeSide")}</span>
-          <select value={side} onChange={(e) => setSide(e.target.value as "buy" | "sell")}>
+          <select
+            value={side}
+            onChange={(e) => setSide(e.target.value as "buy" | "sell")}
+          >
             <option value="buy">{t("portfolio.tradeSideBuy")}</option>
             <option value="sell">{t("portfolio.tradeSideSell")}</option>
           </select>
@@ -171,11 +180,23 @@ export function HoldingTradeInlineRow({ holdings, onApplied, onCancel }: Holding
           />
         </label>
         <div className="lists-inline-trade-actions">
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel} disabled={submitting}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={onCancel}
+            disabled={submitting}
+          >
             {t("settings.cancel")}
           </button>
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => void submit()} disabled={submitting}>
-            {submitting ? t("portfolio.tradeSubmitting") : t("portfolio.tradeSubmit")}
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => void submit()}
+            disabled={submitting}
+          >
+            {submitting
+              ? t("portfolio.tradeSubmitting")
+              : t("portfolio.tradeSubmit")}
           </button>
         </div>
       </div>

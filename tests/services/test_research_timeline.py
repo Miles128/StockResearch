@@ -2,7 +2,11 @@
 
 from datetime import UTC, datetime
 
-from stockresearch.services.research_timeline import annotate_deltas, entry_from_payload, snapshot_factors
+from stockresearch.services.research_timeline import (
+    annotate_deltas,
+    entry_from_payload,
+    snapshot_factors,
+)
 
 
 def test_snapshot_factors_keeps_known_keys() -> None:

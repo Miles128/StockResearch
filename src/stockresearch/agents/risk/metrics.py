@@ -183,9 +183,7 @@ def _z_score(confidence_level: float) -> float:
     for i in range(len(levels) - 1):
         if levels[i] <= confidence_level <= levels[i + 1]:
             ratio = (confidence_level - levels[i]) / (levels[i + 1] - levels[i])
-            return Z_SCORES[levels[i]] + ratio * (
-                Z_SCORES[levels[i + 1]] - Z_SCORES[levels[i]]
-            )
+            return Z_SCORES[levels[i]] + ratio * (Z_SCORES[levels[i + 1]] - Z_SCORES[levels[i]])
     return Z_SCORES[0.95]
 
 
@@ -264,9 +262,7 @@ def calculate_portfolio_metrics(
         weights = [_holding_weight(h, total_value) for h in holding_quotes]
 
         for day_idx in range(max_len):
-            day_ret = sum(
-                weights[i] * aligned[i][day_idx] for i in range(len(holding_quotes))
-            )
+            day_ret = sum(weights[i] * aligned[i][day_idx] for i in range(len(holding_quotes)))
             portfolio_daily_returns.append(day_ret)
 
     # ── 年化波动率 ──
@@ -346,8 +342,8 @@ def calculate_portfolio_metrics(
     sector_weight_map: dict[str, float] = {}
     if total_value > 0:
         for h in holding_quotes:
-            sector_weight_map[h.sector] = (
-                sector_weight_map.get(h.sector, 0.0) + _holding_weight(h, total_value)
+            sector_weight_map[h.sector] = sector_weight_map.get(h.sector, 0.0) + _holding_weight(
+                h, total_value
             )
 
     concentration_ratio = max(sector_weight_map.values()) if sector_weight_map else 0.0
@@ -466,9 +462,7 @@ def run_stress_presets(holding_quotes: list[HoldingQuote]) -> list[dict[str, Any
         kind = str(preset["kind"])
         shock_pct = float(preset["shock_pct"])  # type: ignore[arg-type]
         if kind == "max_sector" and max_sector:
-            shock_result = apply_price_shocks(
-                holding_quotes, {max_sector: shock_pct}, by="sector"
-            )
+            shock_result = apply_price_shocks(holding_quotes, {max_sector: shock_pct}, by="sector")
             label = f"{preset['name']}（{max_sector}）"
         elif kind == "all":
             shock_result = apply_price_shocks(holding_quotes, {"*": shock_pct}, by="symbol")
@@ -535,8 +529,7 @@ def calculate_var(
     # ── 组合加权波动率 ──
     if total_value > 0:
         portfolio_vol = sum(
-            _holding_weight(h, total_value) * _estimate_annual_volatility(h)
-            for h in holding_quotes
+            _holding_weight(h, total_value) * _estimate_annual_volatility(h) for h in holding_quotes
         )
     else:
         portfolio_vol = DEFAULT_ANNUAL_VOLATILITY

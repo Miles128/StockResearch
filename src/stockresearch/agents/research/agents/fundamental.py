@@ -6,8 +6,8 @@ from datetime import UTC, datetime, timedelta
 
 from stockresearch.agents.research.agents._scoring import as_confidence
 from stockresearch.agents.research.context import ResearchContext
-from stockresearch.agents.research.react import DimensionAgent, ResearchTool
 from stockresearch.agents.research.dimension_text import REPORT_DIM_VOICE, finalize_dimension
+from stockresearch.agents.research.react import DimensionAgent, ResearchTool
 from stockresearch.core.config import get_settings
 from stockresearch.core.constants import CONFIDENCE_HIGH, CONFIDENCE_LOW, CONFIDENCE_MEDIUM
 from stockresearch.core.schemas import DimensionEvidence, DimensionResult
@@ -97,7 +97,9 @@ async def _tool_ratio_snapshot(ctx: ResearchContext) -> dict[str, object]:
         return {
             "symbol": ctx.symbol,
             "name": resolve_name(ctx.symbol),
-            "ratios": [{"name": "ROE", "value": "18%", "reference": "—", "assessment": "良好", "trend": ""}],
+            "ratios": [
+                {"name": "ROE", "value": "18%", "reference": "—", "assessment": "良好", "trend": ""}
+            ],
             "raw_data": {"roe": 18.0},
             "partial": False,
         }
@@ -161,7 +163,9 @@ async def _tool_announcements(ctx: ResearchContext) -> dict[str, object]:
         is_major = any(k in blob for k in _MAJOR_ANN_KEYWORDS)
         should_excerpt = is_major and bool(it.url)
         if budget.prefer_earnings_anns:
-            should_excerpt = bool(it.url) and (is_earnings or (budget.include_risk_anns and is_risk))
+            should_excerpt = bool(it.url) and (
+                is_earnings or (budget.include_risk_anns and is_risk)
+            )
         if should_excerpt and it.url:
             excerpt = await fetch_url_excerpt(it.url, max_chars=budget.ann_excerpt_chars)
         if excerpt:
@@ -214,11 +218,7 @@ async def _tool_research_reports(ctx: ResearchContext) -> dict[str, object]:
         limit=budget.report_limit,
     )
     items = result.items
-    gap = (
-        "研报源暂时失败"
-        if result.source_failed
-        else ("近期无机构研报" if not items else None)
-    )
+    gap = "研报源暂时失败" if result.source_failed else ("近期无机构研报" if not items else None)
     return {
         "items": [
             {
@@ -279,7 +279,7 @@ def _collect_evidence(data: dict[str, object]) -> list[DimensionEvidence]:
         rating = str(item.get("rating", "")).strip()
         target = item.get("target_price")
         target_bit = ""
-        if isinstance(target, (int, float)) and float(target) > 0:
+        if isinstance(target, int | float) and float(target) > 0:
             target_bit = f" 目标价{float(target):.0f}"
         snippet = f"{inst} {rating}{target_bit} · {title}".strip(" ·")
         if not snippet:
@@ -297,9 +297,9 @@ def _collect_evidence(data: dict[str, object]) -> list[DimensionEvidence]:
         rev = fin.get("revenue_yoy")
         roe = fin.get("roe")
         parts = []
-        if isinstance(rev, (int, float)):
+        if isinstance(rev, int | float):
             parts.append(f"营收YoY {float(rev):.0%}")
-        if isinstance(roe, (int, float)):
+        if isinstance(roe, int | float):
             parts.append(f"ROE {float(roe):.0%}")
         if parts:
             evidence.append(
@@ -322,7 +322,7 @@ def _collect_evidence(data: dict[str, object]) -> list[DimensionEvidence]:
         )
     val = _as_dict(data, "akshare_valuation")
     pe_pct = val.get("pe_percentile", fin.get("pe_percentile"))
-    if isinstance(pe_pct, (int, float)) and not bool(val.get("partial")):
+    if isinstance(pe_pct, int | float) and not bool(val.get("partial")):
         evidence.append(
             DimensionEvidence(
                 source="akshare",
@@ -386,7 +386,7 @@ def _peer_relative_note(data: dict[str, object]) -> str | None:
     peer_pes = [
         float(p["pe_ttm"])
         for p in peers
-        if isinstance(p.get("pe_ttm"), (int, float)) and float(p["pe_ttm"]) > 0
+        if isinstance(p.get("pe_ttm"), int | float) and float(p["pe_ttm"]) > 0
     ]
     if own_pe is None or own_pe <= 0 or len(peer_pes) < 2:
         return None
@@ -469,7 +469,7 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
         f"ROE {_fmt_ratio(roe, missing='缺失')}",
     ]
     periods_raw = fin.get("_budget_financial_periods")
-    periods = int(periods_raw) if isinstance(periods_raw, (int, float)) else 2
+    periods = int(periods_raw) if isinstance(periods_raw, int | float) else 2
     trend = _series_trend_note(fin, periods=periods)
     if trend:
         fallback_highlights.append(trend)

@@ -9,7 +9,11 @@ from statistics import median
 from sqlalchemy.orm import Session
 
 from stockresearch.core.constants import DISCLAIMER
-from stockresearch.core.schemas import ReportPostHocHorizon, SignalBacktestHorizon, SignalBacktestOut
+from stockresearch.core.schemas import (
+    ReportPostHocHorizon,
+    SignalBacktestHorizon,
+    SignalBacktestOut,
+)
 from stockresearch.db.models import ResearchReport
 from stockresearch.services.daily_bars import get_bars_meta_for_symbol
 
@@ -27,7 +31,9 @@ def _parse_date(value: str) -> datetime | None:
     return None
 
 
-def _forward_return_pct(bars: list[dict[str, float | str]], start_idx: int, horizon: int) -> float | None:
+def _forward_return_pct(
+    bars: list[dict[str, float | str]], start_idx: int, horizon: int
+) -> float | None:
     if start_idx < 0 or start_idx >= len(bars):
         return None
     end_idx = start_idx + horizon
@@ -56,11 +62,11 @@ def _factor_tilt(payload: dict[str, object]) -> str | None:
         if not isinstance(item, dict):
             continue
         key = str(item.get("key", ""))
-        if key == "momentum_20d" and isinstance(item.get("value"), (int, float)):
+        if key == "momentum_20d" and isinstance(item.get("value"), int | float):
             mom = float(item["value"])
-        if key == "pe_percentile" and isinstance(item.get("percentile"), (int, float)):
+        if key == "pe_percentile" and isinstance(item.get("percentile"), int | float):
             pe_pct = float(item["percentile"])
-        if key == "volatility_20d" and isinstance(item.get("value"), (int, float)):
+        if key == "volatility_20d" and isinstance(item.get("value"), int | float):
             vol = float(item["value"])
 
     high_vol = vol is not None and vol > 40.0
@@ -268,9 +274,7 @@ async def compute_signal_backtest(
         notes.append(f"跳过 {skipped_non_qfq} 条无前复权日线的样本")
     if factor_samples > 0:
         rate = round(factor_hits / factor_samples * 100.0, 1)
-        notes.append(
-            f"因子倾斜样本 {factor_samples}，方向命中率 {rate}%（启发式，非策略回测）"
-        )
+        notes.append(f"因子倾斜样本 {factor_samples}，方向命中率 {rate}%（启发式，非策略回测）")
     if bias_signals and tilt_signals:
         notes.append(
             f"信号来源分层：研报偏向 {bias_signals} 条优先计入合计；因子倾斜另列 {tilt_signals} 条"
@@ -287,9 +291,7 @@ async def compute_signal_backtest(
         bull_hit = (sum(1 for x in bull if x > 0) / len(bull) * 100) if bull else None
         bear_hit = (sum(1 for x in bear if x < 0) / len(bear) * 100) if bear else None
         spread = (
-            round(bull_avg - bear_avg, 2)
-            if bull_avg is not None and bear_avg is not None
-            else None
+            round(bull_avg - bear_avg, 2) if bull_avg is not None and bear_avg is not None else None
         )
         sample_n = len(bull) + len(bear)
         if sample_n > 0 and sample_n < _MIN_SAMPLE_FOR_CONFIDENCE:

@@ -34,10 +34,18 @@ export function CopilotThreadList({
   if (!open) return null;
 
   return (
-    <div className="copilot-thread-overlay" aria-label={t("copilot.threadList")}>
+    <div
+      className="copilot-thread-overlay"
+      aria-label={t("copilot.threadList")}
+    >
       <div className="copilot-thread-overlay-head">
         <span className="flat-section-title">{t("copilot.threadList")}</span>
-        <button type="button" className="icon-btn" onClick={onClose} title={t("stockDetail.close")}>
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={onClose}
+          title={t("stockDetail.close")}
+        >
           <IconClose />
         </button>
       </div>
@@ -45,8 +53,10 @@ export function CopilotThreadList({
         {threads.map((thread) => {
           const active = thread.id === activeId;
           const preview =
-            [...thread.messages].reverse().find((m) => m.role === "assistant")?.content ||
-            [...thread.messages].reverse().find((m) => m.role === "user")?.content ||
+            [...thread.messages].reverse().find((m) => m.role === "assistant")
+              ?.content ||
+            [...thread.messages].reverse().find((m) => m.role === "user")
+              ?.content ||
             t("chat.threadEmpty");
           return (
             <li key={thread.id}>
@@ -60,7 +70,9 @@ export function CopilotThreadList({
               >
                 <span className="copilot-thread-title">{thread.title}</span>
                 <span className="copilot-thread-preview">{preview}</span>
-                <span className="copilot-thread-when">{formatWhen(thread.updatedAt, locale)}</span>
+                <span className="copilot-thread-when">
+                  {formatWhen(thread.updatedAt, locale)}
+                </span>
               </button>
               {threads.length > 1 && (
                 <button

@@ -16,7 +16,9 @@ def _first_highlight(dim: DimensionResult | None) -> str | None:
     return _join_lines(dim.highlights)
 
 
-def _first_risk_line(dimensions: dict[str, DimensionResult], debate: DebateResult | None) -> str | None:
+def _first_risk_line(
+    dimensions: dict[str, DimensionResult], debate: DebateResult | None
+) -> str | None:
     if debate and debate.consensus.strip():
         return debate.consensus.strip()
     for key in ("fundamental", "technical", "sentiment", "chips"):

@@ -54,7 +54,9 @@ async def test_macro_failure_returns_empty_and_not_cached() -> None:
 
 
 async def test_macro_refresh_bypasses_cache_read() -> None:
-    client = FakeClient(payload={"as_of": "2026-08-01", "indicators": [{"name": "CPI 同比", "value": "0.3%"}]})
+    client = FakeClient(
+        payload={"as_of": "2026-08-01", "indicators": [{"name": "CPI 同比", "value": "0.3%"}]}
+    )
     provider = KimiMacroProvider(client=client)  # type: ignore[arg-type]
     await provider.get_macro_snapshot()
     await provider.get_macro_snapshot(refresh=True)

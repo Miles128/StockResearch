@@ -1,7 +1,6 @@
 """Sina Finance daily K-line — direct HTTP, bypasses system proxy (trust_env=False)."""
 
 import logging
-from typing import TypeAlias
 
 import httpx
 
@@ -10,7 +9,7 @@ from stockresearch.core.exceptions import DataProviderError
 logger = logging.getLogger(__name__)
 
 _SINA_TIMEOUT_SEC = 12.0
-_KlineBar: TypeAlias = dict[str, float | str]
+type _KlineBar = dict[str, float | str]
 
 _SH_INDEX_SYMBOLS = frozenset({"000001", "000300"})
 
@@ -66,7 +65,9 @@ def fetch_sina_kline(symbol: str, days: int) -> list[_KlineBar]:
     return trimmed
 
 
-def fetch_sina_intraday(symbol: str, *, scale: int = 5, datalen: int = 96) -> list[dict[str, str | float]]:
+def fetch_sina_intraday(
+    symbol: str, *, scale: int = 5, datalen: int = 96
+) -> list[dict[str, str | float]]:
     """Fetch intraday price points (5-min bars by default) for sparkline charts."""
     sina_sym = _sina_kline_code(symbol)
     url = "https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData"

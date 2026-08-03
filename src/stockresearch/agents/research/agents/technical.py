@@ -2,11 +2,15 @@
 
 from stockresearch.agents.research.agents._scoring import as_confidence
 from stockresearch.agents.research.context import ResearchContext
-from stockresearch.agents.research.react import DimensionAgent, ResearchTool
 from stockresearch.agents.research.dimension_text import REPORT_DIM_VOICE, finalize_dimension
+from stockresearch.agents.research.react import DimensionAgent, ResearchTool
 from stockresearch.core.constants import CONFIDENCE_MEDIUM
 from stockresearch.core.schemas import DimensionEvidence, DimensionResult
-from stockresearch.data.providers.market import MarketRuleProvider, QuoteProvider, TechnicalDataProvider
+from stockresearch.data.providers.market import (
+    MarketRuleProvider,
+    QuoteProvider,
+    TechnicalDataProvider,
+)
 
 _SYSTEM = f"你是 A 股技术分析师。{REPORT_DIM_VOICE}"
 

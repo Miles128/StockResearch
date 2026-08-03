@@ -14,10 +14,7 @@ def test_stock_comparison_auto_plan() -> None:
     assert is_stock_comparison("对比茅台和五粮液的投资价值")
     assert is_stock_comparison("600519和000858哪个更好")
     assert should_auto_plan_execute("对比茅台和五粮液的投资价值")
-    assert (
-        resolve_execution_mode("对比茅台和五粮液的投资价值")
-        == ComplexityResult.PLAN_EXECUTE
-    )
+    assert resolve_execution_mode("对比茅台和五粮液的投资价值") == ComplexityResult.PLAN_EXECUTE
 
 
 def test_single_stock_not_plan() -> None:
@@ -35,10 +32,7 @@ def test_single_market_not_plan() -> None:
 def test_single_industry_not_plan() -> None:
     assert is_single_focus_scope("半导体行业深度投研分析")
     assert not should_auto_plan_execute("半导体行业深度投研分析")
-    assert (
-        resolve_execution_mode("半导体行业深度投研分析")
-        == ComplexityResult.INDUSTRY_RESEARCH
-    )
+    assert resolve_execution_mode("半导体行业深度投研分析") == ComplexityResult.INDUSTRY_RESEARCH
 
 
 def test_multi_scope_auto_plan() -> None:

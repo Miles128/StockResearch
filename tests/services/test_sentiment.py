@@ -1,6 +1,8 @@
 """Tests for unified sentiment service."""
+
 import pytest
-from stockresearch.services.sentiment import SentimentService, SentimentResult
+
+from stockresearch.services.sentiment import SentimentResult, SentimentService
 
 
 @pytest.mark.asyncio

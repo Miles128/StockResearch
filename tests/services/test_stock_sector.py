@@ -2,6 +2,7 @@
 
 import pytest
 
+from stockresearch.db.models import Holding
 from stockresearch.services import stock_sector as sector_mod
 from stockresearch.services.stock_sector import (
     backfill_holding_sectors,
@@ -10,7 +11,6 @@ from stockresearch.services.stock_sector import (
     resolve_stock_sector,
     sector_from_name,
 )
-from stockresearch.db.models import Holding
 
 
 def test_normalize_sector_maps_baijiu() -> None:
@@ -52,7 +52,9 @@ def test_fetch_eastmoney_sector(monkeypatch: pytest.MonkeyPatch) -> None:
         def __exit__(self, *args: object) -> None:
             return None
 
-        def get(self, url: str, params: dict[str, str], headers: dict[str, str] | None = None) -> FakeResp:
+        def get(
+            self, url: str, params: dict[str, str], headers: dict[str, str] | None = None
+        ) -> FakeResp:
             assert params["secid"] == "1.600519"
             return FakeResp()
 

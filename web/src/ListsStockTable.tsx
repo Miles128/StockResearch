@@ -118,7 +118,11 @@ export function ListsStockTable({
               {editMode && (kind === "holding" || kind === "watchlist") && (
                 <th
                   className="lists-col-actions"
-                  aria-label={kind === "holding" ? t("portfolio.edit") : t("lists.watchlistRemove")}
+                  aria-label={
+                    kind === "holding"
+                      ? t("portfolio.edit")
+                      : t("lists.watchlistRemove")
+                  }
                 />
               )}
             </tr>
@@ -126,27 +130,38 @@ export function ListsStockTable({
         )}
         <tbody>
           {rows.map((row) => {
-            const dailyPnl = computeDailyPnlAmount(row.price, row.quantity, row.changePct);
+            const dailyPnl = computeDailyPnlAmount(
+              row.price,
+              row.quantity,
+              row.changePct,
+            );
             const active = selectedSymbol === row.symbol;
             return (
               <tr
                 key={row.key}
                 className={`lists-detail-row${active ? " active" : ""}`}
                 onClick={() => {
-                  if (row.holding && onSelectHolding) onSelectHolding(row.holding);
-                  if (row.watchItem && onSelectWatchlist) onSelectWatchlist(row.watchItem);
+                  if (row.holding && onSelectHolding)
+                    onSelectHolding(row.holding);
+                  if (row.watchItem && onSelectWatchlist)
+                    onSelectWatchlist(row.watchItem);
                 }}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => {
                   if (e.key !== "Enter" && e.key !== " ") return;
                   e.preventDefault();
-                  if (row.holding && onSelectHolding) onSelectHolding(row.holding);
-                  if (row.watchItem && onSelectWatchlist) onSelectWatchlist(row.watchItem);
+                  if (row.holding && onSelectHolding)
+                    onSelectHolding(row.holding);
+                  if (row.watchItem && onSelectWatchlist)
+                    onSelectWatchlist(row.watchItem);
                 }}
               >
                 <td className="mono lists-col-symbol">{row.symbol}</td>
-                <td className="lists-detail-name lists-col-name" title={row.name}>
+                <td
+                  className="lists-detail-name lists-col-name"
+                  title={row.name}
+                >
                   {row.name}
                 </td>
                 <td className="mono lists-col-price">
@@ -156,32 +171,53 @@ export function ListsStockTable({
                   {row.open != null ? formatPrice(row.open) : "—"}
                 </td>
                 <td className={`mono lists-col-money ${signedClass(dailyPnl)}`}>
-                  {row.quoteAvailable && dailyPnl != null ? formatSignedMoney(dailyPnl) : "—"}
+                  {row.quoteAvailable && dailyPnl != null
+                    ? formatSignedMoney(dailyPnl)
+                    : "—"}
                 </td>
-                <td className={`mono lists-col-pct ${signedClass(row.changePct)}`}>
-                  {row.quoteAvailable && row.changePct != null ? formatSignedPct(row.changePct) : "—"}
+                <td
+                  className={`mono lists-col-pct ${signedClass(row.changePct)}`}
+                >
+                  {row.quoteAvailable && row.changePct != null
+                    ? formatSignedPct(row.changePct)
+                    : "—"}
                 </td>
                 {kind === "holding" && (
                   <>
-                    <td className="mono lists-col-price">{formatPrice(row.cost ?? undefined)}</td>
-                    <td className="mono lists-col-days">{formatHoldingDuration(row.buyDate)}</td>
+                    <td className="mono lists-col-price">
+                      {formatPrice(row.cost ?? undefined)}
+                    </td>
+                    <td className="mono lists-col-days">
+                      {formatHoldingDuration(row.buyDate)}
+                    </td>
                   </>
                 )}
-                <td className={`mono lists-col-money ${signedClass(row.profitAmount)}`}>
+                <td
+                  className={`mono lists-col-money ${signedClass(row.profitAmount)}`}
+                >
                   {row.quoteAvailable && row.profitAmount != null
                     ? formatSignedMoney(row.profitAmount)
                     : "—"}
                 </td>
-                <td className={`mono lists-col-pct ${signedClass(row.profitPct)}`}>
-                  {row.quoteAvailable && row.profitPct != null ? formatSignedPct(row.profitPct) : "—"}
+                <td
+                  className={`mono lists-col-pct ${signedClass(row.profitPct)}`}
+                >
+                  {row.quoteAvailable && row.profitPct != null
+                    ? formatSignedPct(row.profitPct)
+                    : "—"}
                 </td>
-                <td className={`mono lists-col-pct ${signedClass(row.annualizedPct)}`}>
+                <td
+                  className={`mono lists-col-pct ${signedClass(row.annualizedPct)}`}
+                >
                   {row.quoteAvailable && row.annualizedPct != null
                     ? formatSignedPct(row.annualizedPct)
                     : "—"}
                 </td>
                 {editMode && kind === "holding" && row.holding?.id != null && (
-                  <td className="lists-detail-actions lists-col-actions" onClick={(e) => e.stopPropagation()}>
+                  <td
+                    className="lists-detail-actions lists-col-actions"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <button
                       type="button"
                       className="lists-ghost-icon"
@@ -201,7 +237,10 @@ export function ListsStockTable({
                   </td>
                 )}
                 {editMode && kind === "watchlist" && row.watchItem != null && (
-                  <td className="lists-detail-actions lists-col-actions" onClick={(e) => e.stopPropagation()}>
+                  <td
+                    className="lists-detail-actions lists-col-actions"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <button
                       type="button"
                       className="lists-ghost-icon lists-holding-delete"

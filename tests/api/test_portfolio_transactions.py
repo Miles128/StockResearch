@@ -3,7 +3,9 @@
 from fastapi.testclient import TestClient
 
 
-def _buy(client: TestClient, *, symbol: str = "600519", name: str = "贵州茅台", lots: int = 1) -> None:
+def _buy(
+    client: TestClient, *, symbol: str = "600519", name: str = "贵州茅台", lots: int = 1
+) -> None:
     resp = client.post(
         "/api/v1/portfolio/holdings/transactions",
         json={

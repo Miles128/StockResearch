@@ -1,8 +1,9 @@
 """Tests for URL excerpt helper and news thin-trigger helpers."""
 
-from stockresearch.data.providers.web_fetch import _strip_html, fetch_url_excerpt_sync
-from stockresearch.data.providers.news import RawNewsItem, _dedupe_items, _is_thin
 from datetime import UTC, datetime
+
+from stockresearch.data.providers.news import RawNewsItem, _dedupe_items, _is_thin
+from stockresearch.data.providers.web_fetch import _strip_html, fetch_url_excerpt_sync
 
 
 def test_strip_html_prefers_meta_description() -> None:

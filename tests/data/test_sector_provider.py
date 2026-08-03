@@ -18,7 +18,7 @@ async def test_fetch_industry_boards_returns_empty_on_failure(
         def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
             raise RuntimeError("network down")
 
-        async def __aenter__(self) -> "_DummyAsyncClient":
+        async def __aenter__(self) -> _DummyAsyncClient:
             return self
 
         async def __aexit__(self, *args) -> None:  # type: ignore[no-untyped-def]
@@ -49,7 +49,7 @@ async def test_fetch_industry_boards_falls_back_to_ths(
         def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
             raise RuntimeError("network down")
 
-        async def __aenter__(self) -> "_DummyAsyncClient":
+        async def __aenter__(self) -> _DummyAsyncClient:
             return self
 
         async def __aexit__(self, *args) -> None:  # type: ignore[no-untyped-def]

@@ -37,10 +37,7 @@ def collect_research_radar_signals(
     for h in holdings or []:
         universe[h.symbol] = h.name
     watch = (
-        db.query(WatchlistItem)
-        .filter(WatchlistItem.user_id == user_id)
-        .limit(_MAX_SYMBOLS)
-        .all()
+        db.query(WatchlistItem).filter(WatchlistItem.user_id == user_id).limit(_MAX_SYMBOLS).all()
     )
     for w in watch:
         universe.setdefault(w.symbol, w.name)

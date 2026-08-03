@@ -29,10 +29,7 @@ def build_portfolio_brief(holdings: list[Holding]) -> dict[str, Any]:
     sector_counts: Counter[str] = Counter()
     for h in holdings:
         sector_counts[h.sector or "未知"] += 1
-    sectors = [
-        {"name": name, "count": count}
-        for name, count in sector_counts.most_common()
-    ]
+    sectors = [{"name": name, "count": count} for name, count in sector_counts.most_common()]
 
     holdings_list = [
         {

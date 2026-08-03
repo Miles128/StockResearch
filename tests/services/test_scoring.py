@@ -9,7 +9,9 @@ from stockresearch.agents.research.scoring import (
 from stockresearch.core.schemas import DimensionResult
 
 
-def _dim(score: float, confidence: str = "medium", highlights: list[str] | None = None) -> DimensionResult:
+def _dim(
+    score: float, confidence: str = "medium", highlights: list[str] | None = None
+) -> DimensionResult:
     return DimensionResult(
         agent="测试",
         score=score,

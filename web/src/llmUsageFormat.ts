@@ -1,6 +1,9 @@
 import type { LlmUsage } from "./api";
 
-export function formatLlmUsage(usage: LlmUsage, t: (key: string) => string): string {
+export function formatLlmUsage(
+  usage: LlmUsage,
+  t: (key: string) => string,
+): string {
   const cost =
     usage.estimated_cost_cny != null
       ? ` · ${t("chat.usageCost").replace("{cost}", usage.estimated_cost_cny.toFixed(4))}`
@@ -16,6 +19,9 @@ export function formatLlmUsage(usage: LlmUsage, t: (key: string) => string): str
   );
 }
 
-export function formatHeaderUsage(usage: LlmUsage, t: (key: string) => string): string {
+export function formatHeaderUsage(
+  usage: LlmUsage,
+  t: (key: string) => string,
+): string {
   return t("header.usageShort").replace("{total}", String(usage.total_tokens));
 }

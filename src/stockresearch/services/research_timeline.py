@@ -48,8 +48,8 @@ def snapshot_factors(payload: dict[str, object]) -> list[ResearchTimelineFactorS
             ResearchTimelineFactorSnap(
                 key=key,
                 label=str(item.get("label") or key),
-                value=float(value) if isinstance(value, (int, float)) else None,
-                percentile=float(percentile) if isinstance(percentile, (int, float)) else None,
+                value=float(value) if isinstance(value, int | float) else None,
+                percentile=float(percentile) if isinstance(percentile, int | float) else None,
                 partial=bool(item.get("partial")),
             )
         )
@@ -84,9 +84,7 @@ def entry_from_payload(
         analysis_depth=str(payload.get("analysis_depth") or "standard"),
         summary=summary[:160],
         factor_alignment_note=(
-            str(payload["factor_alignment_note"])
-            if payload.get("factor_alignment_note")
-            else None
+            str(payload["factor_alignment_note"]) if payload.get("factor_alignment_note") else None
         ),
         factors=snapshot_factors(payload),
         thesis_claim=_thesis_claim(payload),

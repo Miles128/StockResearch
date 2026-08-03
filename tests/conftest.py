@@ -12,8 +12,8 @@ os.environ["USE_MOCK_LLM"] = "true"
 os.environ["USE_MOCK_MARKET_DATA"] = "true"
 
 from stockresearch.api.app import create_app  # noqa: E402
-from stockresearch.db.models import Base  # noqa: E402
 from stockresearch.db import session as db_session_module  # noqa: E402
+from stockresearch.db.models import Base  # noqa: E402
 from stockresearch.db.session import (  # noqa: E402
     _migration_002_user_preferences,
     _migration_003_provider_cache,

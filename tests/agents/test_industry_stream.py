@@ -8,7 +8,9 @@ from stockresearch.data.providers.sector import SectorLeader
 
 
 @pytest.mark.asyncio
-async def test_industry_stream_builds_report_with_leaders(db_session, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_industry_stream_builds_report_with_leaders(
+    db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from stockresearch.services.local_user import get_or_create_mvp_user
 
     # 注入确定性的板块龙头，避免依赖外网

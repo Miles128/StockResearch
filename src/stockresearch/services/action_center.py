@@ -72,60 +72,64 @@ async def generate_daily_actions(
             continue
         drawdown = (h.float_cost_price - q.price) / h.float_cost_price
         if drawdown >= _STOP_LOSS_RED:
-            signals.append(ActionSignal(
-                type="risk",
-                severity="critical",
-                title=f"{h.name}跌幅 {drawdown:.1%}，触及止损红线",
-                detail=f"成本 {h.float_cost_price:.2f}，现价 {q.price:.2f}",
-                action="查看风控",
-                action_target="risk",
-                symbol=h.symbol,
-                weight=100,
-            ))
+            signals.append(
+                ActionSignal(
+                    type="risk",
+                    severity="critical",
+                    title=f"{h.name}跌幅 {drawdown:.1%}，触及止损红线",
+                    detail=f"成本 {h.float_cost_price:.2f}，现价 {q.price:.2f}",
+                    action="查看风控",
+                    action_target="risk",
+                    symbol=h.symbol,
+                    weight=100,
+                )
+            )
         elif drawdown >= _STOP_LOSS_YELLOW:
-            signals.append(ActionSignal(
-                type="risk",
-                severity="warning",
-                title=f"{h.name}回撤 {drawdown:.1%}，接近止损关注线",
-                detail=f"成本 {h.float_cost_price:.2f}，现价 {q.price:.2f}",
-                action="查看风控",
-                action_target="risk",
-                symbol=h.symbol,
-                weight=80,
-            ))
+            signals.append(
+                ActionSignal(
+                    type="risk",
+                    severity="warning",
+                    title=f"{h.name}回撤 {drawdown:.1%}，接近止损关注线",
+                    detail=f"成本 {h.float_cost_price:.2f}，现价 {q.price:.2f}",
+                    action="查看风控",
+                    action_target="risk",
+                    symbol=h.symbol,
+                    weight=80,
+                )
+            )
         if q.change_pct <= _DAILY_DROP_PCT:
-            signals.append(ActionSignal(
-                type="price",
-                severity="warning",
-                title=f"{h.name}今日跌幅 {q.change_pct:+.1f}%",
-                detail=f"现价 {q.price:.2f}",
-                action="查看行情",
-                action_target="chat",
-                symbol=h.symbol,
-                weight=70,
-            ))
+            signals.append(
+                ActionSignal(
+                    type="price",
+                    severity="warning",
+                    title=f"{h.name}今日跌幅 {q.change_pct:+.1f}%",
+                    detail=f"现价 {q.price:.2f}",
+                    action="查看行情",
+                    action_target="chat",
+                    symbol=h.symbol,
+                    weight=70,
+                )
+            )
 
     # ── 2. News signals ──
     for item in news[:_NEWS_SIGNAL_LIMIT]:
-        related_symbols = [
-            s for s in (item.entities or []) if s in interests.symbols
-        ]
+        related_symbols = [s for s in (item.entities or []) if s in interests.symbols]
         if not related_symbols:
             continue
         for sym in related_symbols:
-            matched_name = next(
-                (h.name for h in holdings if h.symbol == sym), sym
+            matched_name = next((h.name for h in holdings if h.symbol == sym), sym)
+            signals.append(
+                ActionSignal(
+                    type="news",
+                    severity="info" if item.sentiment != "bearish" else "warning",
+                    title=item.title[:_NEWS_TITLE_MAX_LEN],
+                    detail=f"→ {matched_name}（{item.source}）",
+                    action="深度解析",
+                    action_target="news",
+                    symbol=sym,
+                    weight=50 if item.impact_level == "major" else 30,
+                )
             )
-            signals.append(ActionSignal(
-                type="news",
-                severity="info" if item.sentiment != "bearish" else "warning",
-                title=item.title[:_NEWS_TITLE_MAX_LEN],
-                detail=f"→ {matched_name}（{item.source}）",
-                action="深度解析",
-                action_target="news",
-                symbol=sym,
-                weight=50 if item.impact_level == "major" else 30,
-            ))
 
     # ── 3. Sector concentration signal ──
     sector_values: dict[str, float] = {}
@@ -138,16 +142,18 @@ async def generate_daily_actions(
         for sector, val in sector_values.items():
             ratio = val / total
             if ratio > _SECTOR_CONCENTRATION_LIMIT:
-                signals.append(ActionSignal(
-                    type="risk",
-                    severity="warning",
-                    title=f"{sector}板块仓位 {ratio:.0%}，集中度偏高",
-                    detail="建议关注板块分散度",
-                    action="查看风控",
-                    action_target="risk",
-                    symbol=None,
-                    weight=40,
-                ))
+                signals.append(
+                    ActionSignal(
+                        type="risk",
+                        severity="warning",
+                        title=f"{sector}板块仓位 {ratio:.0%}，集中度偏高",
+                        detail="建议关注板块分散度",
+                        action="查看风控",
+                        action_target="risk",
+                        symbol=None,
+                        weight=40,
+                    )
+                )
 
     # ── 4. Research radar (bias flip / factor divergence on holdings+watchlist) ──
     signals.extend(collect_research_radar_signals(db, user_id, holdings))
@@ -210,27 +216,31 @@ async def _collect_market_signals() -> list[ActionSignal]:
         # ── 4a. 指数大涨大跌 ──
         for idx in overview.indices:
             if idx.change_pct >= _INDEX_SURGE_PCT:
-                signals.append(ActionSignal(
-                    type="market",
-                    severity="info",
-                    title=f"{idx.name}涨 {idx.change_pct:+.2f}%，市场走强",
-                    detail=f"现价 {idx.price:.2f}",
-                    action="查看市场",
-                    action_target="market",
-                    symbol=None,
-                    weight=60,
-                ))
+                signals.append(
+                    ActionSignal(
+                        type="market",
+                        severity="info",
+                        title=f"{idx.name}涨 {idx.change_pct:+.2f}%，市场走强",
+                        detail=f"现价 {idx.price:.2f}",
+                        action="查看市场",
+                        action_target="market",
+                        symbol=None,
+                        weight=60,
+                    )
+                )
             elif idx.change_pct <= _INDEX_PLUNGE_PCT:
-                signals.append(ActionSignal(
-                    type="market",
-                    severity="warning",
-                    title=f"{idx.name}跌 {idx.change_pct:+.2f}%，市场走弱",
-                    detail=f"现价 {idx.price:.2f}",
-                    action="查看市场",
-                    action_target="market",
-                    symbol=None,
-                    weight=65,
-                ))
+                signals.append(
+                    ActionSignal(
+                        type="market",
+                        severity="warning",
+                        title=f"{idx.name}跌 {idx.change_pct:+.2f}%，市场走弱",
+                        detail=f"现价 {idx.price:.2f}",
+                        action="查看市场",
+                        action_target="market",
+                        symbol=None,
+                        weight=65,
+                    )
+                )
 
         # ── 4b. 涨跌家数极端（普涨/普跌）──
         adv = overview.advancers
@@ -238,53 +248,61 @@ async def _collect_market_signals() -> list[ActionSignal]:
         if adv is not None and dec is not None and (adv + dec) > 0:
             bull_ratio = adv / (adv + dec)
             if bull_ratio >= _BREADTH_EXTREME_BULL:
-                signals.append(ActionSignal(
-                    type="market",
-                    severity="info",
-                    title=f"市场普涨：{adv}涨 / {dec}跌（{bull_ratio:.0%}）",
-                    detail="上涨家数占比极高，注意次日分化",
-                    action="查看市场",
-                    action_target="market",
-                    symbol=None,
-                    weight=45,
-                ))
+                signals.append(
+                    ActionSignal(
+                        type="market",
+                        severity="info",
+                        title=f"市场普涨：{adv}涨 / {dec}跌（{bull_ratio:.0%}）",
+                        detail="上涨家数占比极高，注意次日分化",
+                        action="查看市场",
+                        action_target="market",
+                        symbol=None,
+                        weight=45,
+                    )
+                )
             elif bull_ratio <= _BREADTH_EXTREME_BEAR:
-                signals.append(ActionSignal(
-                    type="market",
-                    severity="warning",
-                    title=f"市场普跌：{adv}涨 / {dec}跌（{1 - bull_ratio:.0%}跌）",
-                    detail="下跌家数占比极高，注意恐慌蔓延",
-                    action="查看市场",
-                    action_target="market",
-                    symbol=None,
-                    weight=55,
-                ))
+                signals.append(
+                    ActionSignal(
+                        type="market",
+                        severity="warning",
+                        title=f"市场普跌：{adv}涨 / {dec}跌（{1 - bull_ratio:.0%}跌）",
+                        detail="下跌家数占比极高，注意恐慌蔓延",
+                        action="查看市场",
+                        action_target="market",
+                        symbol=None,
+                        weight=55,
+                    )
+                )
 
         # ── 4c. 北向资金大幅流入/流出 ──
         north = overview.northbound_net_yi
         if north is not None:
             if north <= _NORTHBOUND_LARGE_OUTFLOW:
-                signals.append(ActionSignal(
-                    type="market",
-                    severity="warning",
-                    title=f"北向资金净流出 {abs(north):.1f}亿，外资大幅撤离",
-                    detail="北向连续大额流出时需警惕系统性风险",
-                    action="查看市场",
-                    action_target="market",
-                    symbol=None,
-                    weight=58,
-                ))
+                signals.append(
+                    ActionSignal(
+                        type="market",
+                        severity="warning",
+                        title=f"北向资金净流出 {abs(north):.1f}亿，外资大幅撤离",
+                        detail="北向连续大额流出时需警惕系统性风险",
+                        action="查看市场",
+                        action_target="market",
+                        symbol=None,
+                        weight=58,
+                    )
+                )
             elif north >= _NORTHBOUND_LARGE_INFLOW:
-                signals.append(ActionSignal(
-                    type="market",
-                    severity="info",
-                    title=f"北向资金净流入 {north:.1f}亿，外资大幅抢筹",
-                    detail="北向大额流入通常利好短期情绪",
-                    action="查看市场",
-                    action_target="market",
-                    symbol=None,
-                    weight=50,
-                ))
+                signals.append(
+                    ActionSignal(
+                        type="market",
+                        severity="info",
+                        title=f"北向资金净流入 {north:.1f}亿，外资大幅抢筹",
+                        detail="北向大额流入通常利好短期情绪",
+                        action="查看市场",
+                        action_target="market",
+                        symbol=None,
+                        weight=50,
+                    )
+                )
 
     # ── 4d. 市场情绪极端 ──
     try:
@@ -292,27 +310,31 @@ async def _collect_market_signals() -> list[ActionSignal]:
 
         sentiment = await SentimentService().compute_market_sentiment()
         if sentiment.score <= _SENTIMENT_EXTREME_FEAR:
-            signals.append(ActionSignal(
-                type="market",
-                severity="warning",
-                title=f"市场情绪极度恐慌（{sentiment.score}分）",
-                detail="恐慌区间可能存在超跌反弹机会，但也需警惕恐慌蔓延",
-                action="查看市场",
-                action_target="market",
-                symbol=None,
-                weight=62,
-            ))
+            signals.append(
+                ActionSignal(
+                    type="market",
+                    severity="warning",
+                    title=f"市场情绪极度恐慌（{sentiment.score}分）",
+                    detail="恐慌区间可能存在超跌反弹机会，但也需警惕恐慌蔓延",
+                    action="查看市场",
+                    action_target="market",
+                    symbol=None,
+                    weight=62,
+                )
+            )
         elif sentiment.score >= _SENTIMENT_EXTREME_GREED:
-            signals.append(ActionSignal(
-                type="market",
-                severity="info",
-                title=f"市场情绪极度乐观（{sentiment.score}分）",
-                detail="乐观区间需警惕获利回吐风险",
-                action="查看市场",
-                action_target="market",
-                symbol=None,
-                weight=52,
-            ))
+            signals.append(
+                ActionSignal(
+                    type="market",
+                    severity="info",
+                    title=f"市场情绪极度乐观（{sentiment.score}分）",
+                    detail="乐观区间需警惕获利回吐风险",
+                    action="查看市场",
+                    action_target="market",
+                    symbol=None,
+                    weight=52,
+                )
+            )
     except Exception as exc:
         logger.warning("Market sentiment for action center failed: %s", exc)
 

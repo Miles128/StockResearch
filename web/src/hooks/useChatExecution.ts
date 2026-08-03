@@ -22,7 +22,10 @@ import { normalizeStreamEvent } from "../streamI18n";
 import type { FocusTab } from "../focusTabs";
 import { formatBriefingMarkdown, localizeBriefing } from "../uiLabels";
 
-function formatChatRequestError(err: unknown, t: (key: string) => string): string {
+function formatChatRequestError(
+  err: unknown,
+  t: (key: string) => string,
+): string {
   const message = String(err);
   if (err instanceof TypeError && message.includes("Failed to fetch")) {
     return `${t("health.unreachableTitle")}。${t("health.unreachableHint")}`;
@@ -37,8 +40,14 @@ export interface UseChatExecutionOptions {
   pageContext: CopilotContext | null;
   focusContext: FocusContext | null;
   knownSymbols: KnownSymbol[];
-  appendMessages: (updater: (messages: Message[]) => Message[], threadId?: string) => void;
-  prepareUserTurn: (query: string) => { threadId: string; sessionId: string | undefined };
+  appendMessages: (
+    updater: (messages: Message[]) => Message[],
+    threadId?: string,
+  ) => void;
+  prepareUserTurn: (query: string) => {
+    threadId: string;
+    sessionId: string | undefined;
+  };
   input: string;
   setInput: (value: string) => void;
   setChatStream: (updater: (prev: StreamState) => StreamState) => void;
@@ -65,13 +74,25 @@ export interface ChatExecutionState {
   ) => void;
   sendChat: () => void;
   analyzeHolding: (h: HoldingEnriched) => void;
-  runBriefingInCopilot: (userLabel: string, kind: "premarket" | "intraday" | "postmarket") => Promise<void>;
-  confirmChatStock: (originalMessage: string, symbol: string, name: string) => void;
-  confirmChatRoute: (originalMessage: string, preference: ExecutionPreference) => void;
+  runBriefingInCopilot: (
+    userLabel: string,
+    kind: "premarket" | "intraday" | "postmarket",
+  ) => Promise<void>;
+  confirmChatStock: (
+    originalMessage: string,
+    symbol: string,
+    name: string,
+  ) => void;
+  confirmChatRoute: (
+    originalMessage: string,
+    preference: ExecutionPreference,
+  ) => void;
   openCopilotQuery: (query: string) => void;
 }
 
-export function useChatExecution(options: UseChatExecutionOptions): ChatExecutionState {
+export function useChatExecution(
+  options: UseChatExecutionOptions,
+): ChatExecutionState {
   const {
     t,
     locale,
@@ -109,17 +130,24 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
       setStatusMsg(t("chat.connecting"));
       setChatStream(() => emptyStreamState());
       let processSnapshot = emptyStreamState();
-      const activeContext = contextOverride === undefined ? pageContext : contextOverride;
+      const activeContext =
+        contextOverride === undefined ? pageContext : contextOverride;
       const resolvedOptions: ChatStreamOptions = {
         ...chatOptions,
-        userContext: activeContext ? copilotContextToPayload(activeContext) : null,
+        userContext: activeContext
+          ? copilotContextToPayload(activeContext)
+          : null,
       };
       try {
         const resp = await api.chatStream(
           query,
           activeSessionId,
           (event: AgentStreamEvent) => {
-            if (event.type === "analysis_choice" || event.type === "stock_choice") return;
+            if (
+              event.type === "analysis_choice" ||
+              event.type === "stock_choice"
+            )
+              return;
             const normalized = normalizeStreamEvent(event, t);
             setChatStream((prev) => {
               const next = applyStreamEvent(prev, normalized, t);
@@ -148,13 +176,21 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
                 intent: resp.intent,
                 followUpQuestions: resp.follow_up_questions ?? [],
                 llmUsage: resp.llm_usage ?? null,
-                process: hasProcessContent(processSnapshot) ? processSnapshot : undefined,
+                process: hasProcessContent(processSnapshot)
+                  ? processSnapshot
+                  : undefined,
               },
             ],
             threadId,
           );
           setFocusTabs((prevTabs) => {
-            const synced = syncFocusTabsFromChat(query, resp, prevTabs, focusContext, knownSymbols);
+            const synced = syncFocusTabsFromChat(
+              query,
+              resp,
+              prevTabs,
+              focusContext,
+              knownSymbols,
+            );
             if (synced.activeId) {
               setActiveFocusTabId(synced.activeId);
               setCenterTab("focus");
@@ -164,9 +200,15 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
           });
         }
       } catch (err) {
-        if (err instanceof TypeError && String(err).includes("Failed to fetch")) {
+        if (
+          err instanceof TypeError &&
+          String(err).includes("Failed to fetch")
+        ) {
           appendMessages(
-            (m) => [...m, { role: "assistant", content: formatChatRequestError(err, t) }],
+            (m) => [
+              ...m,
+              { role: "assistant", content: formatChatRequestError(err, t) },
+            ],
             threadId,
           );
           return;
@@ -190,7 +232,13 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
             threadId,
           );
           setFocusTabs((prevTabs) => {
-            const synced = syncFocusTabsFromChat(query, resp, prevTabs, focusContext, knownSymbols);
+            const synced = syncFocusTabsFromChat(
+              query,
+              resp,
+              prevTabs,
+              focusContext,
+              knownSymbols,
+            );
             if (synced.activeId) {
               setActiveFocusTabId(synced.activeId);
               setCenterTab("focus");
@@ -200,7 +248,10 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
           });
         } catch (e) {
           appendMessages(
-            (m) => [...m, { role: "assistant", content: formatChatRequestError(e, t) }],
+            (m) => [
+              ...m,
+              { role: "assistant", content: formatChatRequestError(e, t) },
+            ],
             threadId,
           );
         }
@@ -225,7 +276,10 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
   );
 
   const startChatQuery = useCallback(
-    (query: string, opts?: { switchTab?: boolean; context?: CopilotContext | null }) => {
+    (
+      query: string,
+      opts?: { switchTab?: boolean; context?: CopilotContext | null },
+    ) => {
       if (!query.trim() || chatLoading) return;
       if (opts?.switchTab) setCopilotOpen(true);
       setInput("");
@@ -256,7 +310,10 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
   );
 
   const runBriefingInCopilot = useCallback(
-    async (userLabel: string, kind: "premarket" | "intraday" | "postmarket") => {
+    async (
+      userLabel: string,
+      kind: "premarket" | "intraday" | "postmarket",
+    ) => {
       if (chatLoading) return;
       setInput("");
       setChatStream(() => emptyStreamState());
@@ -287,8 +344,14 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
     (originalMessage: string, symbol: string, name: string) => {
       if (chatLoading) return;
       openFocus({ kind: "stock", symbol, name });
-      appendMessages((m) => [...m, { role: "user", content: `${name}（${symbol}）` }]);
-      void executeChat(originalMessage, { confirmedSymbol: symbol, confirmedName: name });
+      appendMessages((m) => [
+        ...m,
+        { role: "user", content: `${name}（${symbol}）` },
+      ]);
+      void executeChat(originalMessage, {
+        confirmedSymbol: symbol,
+        confirmedName: name,
+      });
     },
     [appendMessages, chatLoading, executeChat, openFocus],
   );
@@ -304,7 +367,10 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
       };
       appendMessages((m) => [
         ...m,
-        { role: "user", content: t("chat.selectedMode", { mode: labels[preference] }) },
+        {
+          role: "user",
+          content: t("chat.selectedMode", { mode: labels[preference] }),
+        },
       ]);
       void executeChat(originalMessage, { executionPreference: preference });
     },

@@ -21,8 +21,12 @@ export interface PrepareUserTurnResult {
 }
 
 export function useCopilotThreads({ defaultTitle }: UseCopilotThreadsOptions) {
-  const [threads, setThreads] = useState<CopilotThread[]>(() => loadCopilotThreads(defaultTitle));
-  const [activeId, setActiveId] = useState<string>(() => loadCopilotThreads(defaultTitle)[0]?.id ?? "");
+  const [threads, setThreads] = useState<CopilotThread[]>(() =>
+    loadCopilotThreads(defaultTitle),
+  );
+  const [activeId, setActiveId] = useState<string>(
+    () => loadCopilotThreads(defaultTitle)[0]?.id ?? "",
+  );
   const [chatStream, setChatStream] = useState(emptyStreamState());
   const [input, setInput] = useState("");
   const threadsRef = useRef(threads);
@@ -44,9 +48,14 @@ export function useCopilotThreads({ defaultTitle }: UseCopilotThreadsOptions) {
     saveCopilotThreads(threads);
   }, [threads]);
 
-  const persistThread = useCallback((id: string, patch: Partial<CopilotThread>) => {
-    setThreads((prev) => prev.map((t) => (t.id === id ? touchThread(t, patch) : t)));
-  }, []);
+  const persistThread = useCallback(
+    (id: string, patch: Partial<CopilotThread>) => {
+      setThreads((prev) =>
+        prev.map((t) => (t.id === id ? touchThread(t, patch) : t)),
+      );
+    },
+    [],
+  );
 
   const switchThread = useCallback((id: string) => {
     if (id === activeIdRef.current) return;
@@ -101,7 +110,8 @@ export function useCopilotThreads({ defaultTitle }: UseCopilotThreadsOptions) {
     (query: string): PrepareUserTurnResult => {
       const trimmed = query.trim();
       const current =
-        threadsRef.current.find((t) => t.id === activeIdRef.current) ?? threadsRef.current[0];
+        threadsRef.current.find((t) => t.id === activeIdRef.current) ??
+        threadsRef.current[0];
       if (!current) {
         const title = autoThreadTitle(trimmed, defaultTitle);
         const thread = createThread(title);
@@ -112,7 +122,10 @@ export function useCopilotThreads({ defaultTitle }: UseCopilotThreadsOptions) {
         return { threadId: thread.id, sessionId: undefined };
       }
 
-      const nextMessages: Message[] = [...current.messages, { role: "user", content: trimmed }];
+      const nextMessages: Message[] = [
+        ...current.messages,
+        { role: "user", content: trimmed },
+      ];
       const title = titleFromMessages(nextMessages, defaultTitle);
       persistThread(current.id, { messages: nextMessages, title });
 

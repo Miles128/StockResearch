@@ -4,7 +4,10 @@ import asyncio
 
 import pytest
 
-from stockresearch.agents.stream_typewriter import AgentStreamItem, iter_merged_agent_streams_from_tasks
+from stockresearch.agents.stream_typewriter import (
+    AgentStreamItem,
+    iter_merged_agent_streams_from_tasks,
+)
 
 
 async def _collect(events_iter) -> list[dict[str, object]]:
@@ -35,11 +38,7 @@ async def test_merged_streams_start_when_each_task_finishes(
         asyncio.create_task(fast()),
     ]
     events = await _collect(iter_merged_agent_streams_from_tasks(tasks))
-    deltas = [
-        str(event["stream_id"])
-        for event in events
-        if event["type"] == "text_delta"
-    ]
+    deltas = [str(event["stream_id"]) for event in events if event["type"] == "text_delta"]
     assert deltas[:2] == ["fast", "fast"]
     assert "slow" in deltas
     done_ids = [str(event["agent_id"]) for event in events if event["type"] == "agent_done"]

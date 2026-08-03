@@ -18,8 +18,18 @@ def test_holdings_enriched_includes_quote_and_pnl(
 
     async def fake_get_quotes(self, symbols: list[str], **kwargs: object):
         from stockresearch.core.schemas import StockQuoteOut
+
         return [
-            StockQuoteOut(symbol=sym, name="贵州茅台", price=1680.0, change_pct=-1.2, high=1700.0, low=1660.0, volume=5000.0, source="test")
+            StockQuoteOut(
+                symbol=sym,
+                name="贵州茅台",
+                price=1680.0,
+                change_pct=-1.2,
+                high=1700.0,
+                low=1660.0,
+                volume=5000.0,
+                source="test",
+            )
             for sym in symbols
         ]
 

@@ -155,8 +155,7 @@ def build_text_factor_summary(
     ]
     if dimension_weights:
         weight_parts = [
-            f"{dimension_labels.get(k, k)}×{dimension_weights[k]:.2f}"
-            for k in dimensions
+            f"{dimension_labels.get(k, k)}×{dimension_weights[k]:.2f}" for k in dimensions
         ]
         lines.append("维度权重：" + " · ".join(weight_parts))
     lines.append("")

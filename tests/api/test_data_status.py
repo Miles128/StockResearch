@@ -2,7 +2,11 @@
 
 from fastapi.testclient import TestClient
 
-from stockresearch.data.registry import record_overview_fetch, record_quote_fetch, reset_snapshots_for_tests
+from stockresearch.data.registry import (
+    record_overview_fetch,
+    record_quote_fetch,
+    reset_snapshots_for_tests,
+)
 
 
 def test_data_status_returns_snapshots(client: TestClient) -> None:

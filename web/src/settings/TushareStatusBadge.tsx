@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useI18n } from "../i18n";
 
-type TushareState = "checking" | "ok" | "no_token" | "invalid" | "quota" | "unavailable";
+type TushareState =
+  "checking" | "ok" | "no_token" | "invalid" | "quota" | "unavailable";
 
 export function TushareStatusBadge() {
   const { t } = useI18n();
@@ -15,11 +16,18 @@ export function TushareStatusBadge() {
       .then((status) => {
         if (!alive) return;
         const probe = status.tushare_status;
-        if (probe === "ok" || probe === "no_token" || probe === "invalid" || probe === "quota" || probe === "unavailable") {
+        if (
+          probe === "ok" ||
+          probe === "no_token" ||
+          probe === "invalid" ||
+          probe === "quota" ||
+          probe === "unavailable"
+        ) {
           setState(probe);
           return;
         }
-        if (status.tushare_configured && status.tushare_available) setState("ok");
+        if (status.tushare_configured && status.tushare_available)
+          setState("ok");
         else if (!status.tushare_configured) setState("no_token");
         else setState("unavailable");
       })

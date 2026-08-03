@@ -28,7 +28,11 @@ describe("chartIndicators", () => {
       { date: "2024-01-02", open: 9, high: 9, low: 9, close: 9, volume: 9 },
     ];
     const merged = mergeKlineBars(older, existing);
-    expect(merged.map((b) => b.date)).toEqual(["2024-01-01", "2024-01-02", "2024-01-03"]);
+    expect(merged.map((b) => b.date)).toEqual([
+      "2024-01-01",
+      "2024-01-02",
+      "2024-01-03",
+    ]);
     expect(merged[1].close).toBe(1);
   });
 

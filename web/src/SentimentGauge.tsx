@@ -55,7 +55,10 @@ export function SentimentGauge({
     };
     void fetchSentiment();
     if (!pollingEnabled) return;
-    const timer = window.setInterval(() => void fetchSentiment(), pollingIntervalMs);
+    const timer = window.setInterval(
+      () => void fetchSentiment(),
+      pollingIntervalMs,
+    );
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -63,26 +66,38 @@ export function SentimentGauge({
   }, [variant, sectorName, symbol, name, pollingEnabled, pollingIntervalMs]);
 
   if (loading && !data) {
-    return compact
-      ? <span className="muted sentiment-compact">{t("sentiment.loading")}</span>
-      : <p className="muted">{t("sentiment.loading")}</p>;
+    return compact ? (
+      <span className="muted sentiment-compact">{t("sentiment.loading")}</span>
+    ) : (
+      <p className="muted">{t("sentiment.loading")}</p>
+    );
   }
 
   if (!data) {
-    return compact
-      ? <span className="muted sentiment-compact">—</span>
-      : <p className="muted">{t("sentiment.unavailable")}</p>;
+    return compact ? (
+      <span className="muted sentiment-compact">—</span>
+    ) : (
+      <p className="muted">{t("sentiment.unavailable")}</p>
+    );
   }
 
-  const scoreClass = data.score <= 20 ? "fear"
-    : data.score <= 40 ? "caution"
-    : data.score <= 60 ? "neutral"
-    : data.score <= 80 ? "optimism"
-    : "greed";
+  const scoreClass =
+    data.score <= 20
+      ? "fear"
+      : data.score <= 40
+        ? "caution"
+        : data.score <= 60
+          ? "neutral"
+          : data.score <= 80
+            ? "optimism"
+            : "greed";
 
   if (compact) {
     return (
-      <span className={`sentiment-compact sentiment-${scoreClass}`} title={data.label}>
+      <span
+        className={`sentiment-compact sentiment-${scoreClass}`}
+        title={data.label}
+      >
         {data.label} {data.score}
       </span>
     );
@@ -105,7 +120,10 @@ export function SentimentGauge({
       {data.drivers.length > 0 && (
         <ul className="sentiment-drivers">
           {data.drivers.map((d, i) => (
-            <li key={i} className={`sentiment-driver sentiment-driver-${d.impact}`}>
+            <li
+              key={i}
+              className={`sentiment-driver sentiment-driver-${d.impact}`}
+            >
               <span className="sentiment-driver-label">{d.label}</span>
               <span className="sentiment-driver-value">{d.value}</span>
             </li>

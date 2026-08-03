@@ -2,8 +2,8 @@
 
 from stockresearch.agents.research.agents._scoring import as_confidence
 from stockresearch.agents.research.context import ResearchContext
-from stockresearch.agents.research.react import DimensionAgent, ResearchTool
 from stockresearch.agents.research.dimension_text import REPORT_DIM_VOICE, finalize_dimension
+from stockresearch.agents.research.react import DimensionAgent, ResearchTool
 from stockresearch.core.constants import CONFIDENCE_MEDIUM
 from stockresearch.core.schemas import DimensionEvidence, DimensionResult
 from stockresearch.data.providers.market import ChipsDataProvider
@@ -93,7 +93,7 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
 
     inflow_label = (
         f"主力净流入(5日) {float(main_5d):.0f}"
-        if isinstance(main_5d, (int, float))
+        if isinstance(main_5d, int | float)
         else f"主力净流入 {main_net:.0f}"
     )
     evidence = [

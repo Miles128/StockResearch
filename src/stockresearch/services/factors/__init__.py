@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Iterable
 from datetime import UTC, datetime
-from typing import Iterable
 
 from stockresearch.agents.research.budget import BASE_FACTOR_KEYS
 from stockresearch.core.schemas import BarsProvenanceOut, NumericFactorOut
@@ -108,7 +108,9 @@ async def compute_numeric_factors(
                 as_of=provenance.as_of,
                 unit="%",
                 partial=momentum is None or non_qfq or meta.partial,
-                note=None if (momentum is not None and not non_qfq and not meta.partial) else bar_note,
+                note=None
+                if (momentum is not None and not non_qfq and not meta.partial)
+                else bar_note,
                 bars_source=provenance.source,
                 bars_adjust=provenance.adjust,
             )
@@ -132,9 +134,9 @@ async def compute_numeric_factors(
                 as_of=provenance.as_of,
                 unit="%",
                 partial=vol_pct is None or non_qfq or meta.partial,
-                note=None if (vol_pct is not None and not non_qfq and not meta.partial) else (
-                    bar_note or "收益序列不足"
-                ),
+                note=None
+                if (vol_pct is not None and not non_qfq and not meta.partial)
+                else (bar_note or "收益序列不足"),
                 bars_source=provenance.source,
                 bars_adjust=provenance.adjust,
             )
@@ -144,14 +146,12 @@ async def compute_numeric_factors(
     valuation = await provider.get_valuation(symbol)
     pe = valuation.get("pe_ttm")
     pe_pct = valuation.get("pe_percentile")
-    pe_val = float(pe) if isinstance(pe, (int, float)) else None
-    pe_percentile = float(pe_pct) if isinstance(pe_pct, (int, float)) else None
+    pe_val = float(pe) if isinstance(pe, int | float) else None
+    pe_percentile = float(pe_pct) if isinstance(pe_pct, int | float) else None
     pe_display: float | None = None
     if pe_percentile is not None:
         pe_display = (
-            round(pe_percentile * 100.0, 1)
-            if pe_percentile <= 1.0
-            else round(pe_percentile, 1)
+            round(pe_percentile * 100.0, 1) if pe_percentile <= 1.0 else round(pe_percentile, 1)
         )
     pe_note_bits = [str(g) for g in (valuation.get("gaps") or []) if g]
     if pe_val is not None:
@@ -175,14 +175,12 @@ async def compute_numeric_factors(
     if _want(wanted, "pb_percentile"):
         pb = valuation.get("pb")
         pb_pct = valuation.get("pb_percentile")
-        pb_val = float(pb) if isinstance(pb, (int, float)) else None
-        pb_percentile = float(pb_pct) if isinstance(pb_pct, (int, float)) else None
+        pb_val = float(pb) if isinstance(pb, int | float) else None
+        pb_percentile = float(pb_pct) if isinstance(pb_pct, int | float) else None
         pb_display: float | None = None
         if pb_percentile is not None:
             pb_display = (
-                round(pb_percentile * 100.0, 1)
-                if pb_percentile <= 1.0
-                else round(pb_percentile, 1)
+                round(pb_percentile * 100.0, 1) if pb_percentile <= 1.0 else round(pb_percentile, 1)
             )
         elif pb_val is not None:
             pb_display = round(pb_val, 2)
@@ -215,9 +213,11 @@ async def compute_numeric_factors(
         if not _want(wanted, out_key):
             return
         raw = financials.get(key)
-        val = float(raw) if isinstance(raw, (int, float)) else None
-        display = round(val * 100.0, 1) if val is not None and abs(val) <= 5 else (
-            round(val, 1) if val is not None else None
+        val = float(raw) if isinstance(raw, int | float) else None
+        display = (
+            round(val * 100.0, 1)
+            if val is not None and abs(val) <= 5
+            else (round(val, 1) if val is not None else None)
         )
         factors.append(
             NumericFactorOut(
@@ -254,22 +254,20 @@ async def compute_numeric_factors(
             if want_peer_mom:
                 try:
                     pmeta = await get_bars_meta_for_symbol(psym, days=60)
-                    pcloses = [
-                        float(b["close"]) for b in pmeta.bars if b.get("close") is not None
-                    ]
+                    pcloses = [float(b["close"]) for b in pmeta.bars if b.get("close") is not None]
                     if len(pcloses) >= 21 and pcloses[-21] > 0 and pmeta.adjust == "qfq":
                         peer_moms.append((pcloses[-1] / pcloses[-21] - 1.0) * 100.0)
                 except Exception:
                     logger.debug("peer momentum skipped for %s", psym, exc_info=True)
             if want_peer_pe:
                 raw_pct = peer.get("pe_percentile")
-                if isinstance(raw_pct, (int, float)):
+                if isinstance(raw_pct, int | float):
                     peer_pe_pcts.append(float(raw_pct))
                 else:
                     try:
                         pval = await provider.get_valuation(psym)
                         pp = pval.get("pe_percentile")
-                        if isinstance(pp, (int, float)):
+                        if isinstance(pp, int | float):
                             peer_pe_pcts.append(float(pp))
                     except Exception:
                         logger.debug("peer PE percentile skipped for %s", psym, exc_info=True)
@@ -343,11 +341,9 @@ async def compute_numeric_factors(
         if _want(wanted, "main_net_inflow_5d"):
             fund = await chips.get_fund_flow(symbol)
             main_5d = fund.get("main_net_inflow_5d", fund.get("main_net_inflow"))
-            main_val = float(main_5d) if isinstance(main_5d, (int, float)) else None
+            main_val = float(main_5d) if isinstance(main_5d, int | float) else None
             fund_empty = (
-                fund.get("available") is False
-                or fund.get("partial") is True
-                or main_val is None
+                fund.get("available") is False or fund.get("partial") is True or main_val is None
             )
             factors.append(
                 NumericFactorOut(
@@ -365,7 +361,7 @@ async def compute_numeric_factors(
         if _want(wanted, "northbound_hold_pct"):
             north = await chips.get_northbound_flow(symbol)
             hold_pct = north.get("hold_pct")
-            north_val = float(hold_pct) if isinstance(hold_pct, (int, float)) else None
+            north_val = float(hold_pct) if isinstance(hold_pct, int | float) else None
             north_empty = (
                 north.get("available") is False
                 or north.get("signal") == "暂无数据"

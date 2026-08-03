@@ -12,7 +12,12 @@ interface ProcessTrailProps {
 }
 
 /** Collapsible process panel — title matches the actual agent workflow. */
-export function ProcessTrail({ label, live = false, process, children }: ProcessTrailProps) {
+export function ProcessTrail({
+  label,
+  live = false,
+  process,
+  children,
+}: ProcessTrailProps) {
   const { t } = useI18n();
   const summary = processTrailLabel(process, live, t, label);
   return (

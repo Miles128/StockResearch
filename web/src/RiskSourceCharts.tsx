@@ -43,10 +43,23 @@ function toSlices(
   const rest = slices.filter((s) => s.value / total < minShare);
   if (rest.length === 0) return main;
   const otherValue = rest.reduce((s, x) => s + x.value, 0);
-  return [...main, { key: "__other__", label: otherLabel, value: otherValue, color: "#94a3b8" }];
+  return [
+    ...main,
+    {
+      key: "__other__",
+      label: otherLabel,
+      value: otherValue,
+      color: "#94a3b8",
+    },
+  ];
 }
 
-function piePaths(slices: ChartSlice[], cx: number, cy: number, r: number): ReactNode[] {
+function piePaths(
+  slices: ChartSlice[],
+  cx: number,
+  cy: number,
+  r: number,
+): ReactNode[] {
   const total = slices.reduce((s, x) => s + x.value, 0) || 1;
   let acc = 0;
   return slices.map((slice) => {
@@ -103,11 +116,16 @@ function RiskPieCard({
             const pct = (s.value / total) * 100;
             return (
               <li key={s.key}>
-                <span className="risk-chart-legend-dot" style={{ background: s.color }} />
+                <span
+                  className="risk-chart-legend-dot"
+                  style={{ background: s.color }}
+                />
                 <span className="risk-chart-legend-label" title={s.label}>
                   {s.label}
                 </span>
-                <span className="risk-chart-legend-pct mono">{pct.toFixed(1)}%</span>
+                <span className="risk-chart-legend-pct mono">
+                  {pct.toFixed(1)}%
+                </span>
               </li>
             );
           })}
@@ -132,13 +150,23 @@ function ExpandToggle({
 }) {
   if (hiddenCount <= 0) return null;
   return (
-    <button type="button" className="btn btn-ghost btn-sm risk-chart-expand-btn" onClick={onToggle}>
+    <button
+      type="button"
+      className="btn btn-ghost btn-sm risk-chart-expand-btn"
+      onClick={onToggle}
+    >
       {expanded ? showLessLabel : showAllLabel}
     </button>
   );
 }
 
-function MiniBar({ pct, tone }: { pct: number; tone: "weight" | "var" | "drawdown" }) {
+function MiniBar({
+  pct,
+  tone,
+}: {
+  pct: number;
+  tone: "weight" | "var" | "drawdown";
+}) {
   return (
     <div className="risk-mini-bar">
       <div className="risk-bar-track">
@@ -162,7 +190,12 @@ function RiskCompareDenseTable({
   showAllLabel,
   showLessLabel,
 }: {
-  rows: { key: string; label: string; weightPct: number; varSharePct: number }[];
+  rows: {
+    key: string;
+    label: string;
+    weightPct: number;
+    varSharePct: number;
+  }[];
   stockLabel: string;
   weightLabel: string;
   varLabel: string;
@@ -177,7 +210,9 @@ function RiskCompareDenseTable({
   const scrollable = expanded && rows.length > 8;
 
   return (
-    <div className={`risk-dense-table-wrap${scrollable ? " is-scrollable" : ""}`}>
+    <div
+      className={`risk-dense-table-wrap${scrollable ? " is-scrollable" : ""}`}
+    >
       <table className="risk-dense-table">
         <thead>
           <tr>
@@ -236,7 +271,9 @@ function RiskDrawdownDenseTable({
   const scrollable = expanded && rows.length > 8;
 
   return (
-    <div className={`risk-dense-table-wrap${scrollable ? " is-scrollable" : ""}`}>
+    <div
+      className={`risk-dense-table-wrap${scrollable ? " is-scrollable" : ""}`}
+    >
       <table className="risk-dense-table">
         <thead>
           <tr>
@@ -252,7 +289,9 @@ function RiskDrawdownDenseTable({
               </td>
               <td className="risk-dense-metric">
                 <MiniBar pct={row.value * 100} tone="drawdown" />
-                <span className="mono down">{(row.value * 100).toFixed(1)}%</span>
+                <span className="mono down">
+                  {(row.value * 100).toFixed(1)}%
+                </span>
               </td>
             </tr>
           ))}
@@ -275,7 +314,11 @@ interface RiskSourceChartsProps {
   numLocale: string;
 }
 
-export function RiskSourceCharts({ risk, holdings, numLocale }: RiskSourceChartsProps) {
+export function RiskSourceCharts({
+  risk,
+  holdings,
+  numLocale,
+}: RiskSourceChartsProps) {
   const { t } = useI18n();
 
   const holdingsVar = risk.var_result?.holdings_var ?? [];
@@ -294,7 +337,9 @@ export function RiskSourceCharts({ risk, holdings, numLocale }: RiskSourceCharts
   const sectorMap = new Map<string, number>();
   for (const hv of holdingsVar) {
     const sym = hv.symbol ?? "";
-    const sector = holdings.find((h) => h.symbol === sym)?.sector?.trim() || t("risk.chartUnknownSector");
+    const sector =
+      holdings.find((h) => h.symbol === sym)?.sector?.trim() ||
+      t("risk.chartUnknownSector");
     sectorMap.set(sector, (sectorMap.get(sector) ?? 0) + (hv.var_value ?? 0));
   }
   const sectorVarSlices = toSlices(
@@ -334,9 +379,13 @@ export function RiskSourceCharts({ risk, holdings, numLocale }: RiskSourceCharts
 
   if (!hasPies && !hasCompare && !hasDrawdown) return null;
 
-  const showAllLabel = t("risk.chartShowAll", { n: String(compareRows.length) });
+  const showAllLabel = t("risk.chartShowAll", {
+    n: String(compareRows.length),
+  });
   const showLessLabel = t("risk.chartShowLess");
-  const drawdownShowAll = t("risk.chartShowAll", { n: String(drawdownRows.length) });
+  const drawdownShowAll = t("risk.chartShowAll", {
+    n: String(drawdownRows.length),
+  });
 
   return (
     <section className="risk-source-charts">
@@ -349,7 +398,9 @@ export function RiskSourceCharts({ risk, holdings, numLocale }: RiskSourceCharts
             subtitle={t("risk.chartVarShareHint")}
             slices={varSlices}
             centerLabel={
-              varTotal > 0 ? `¥${Math.round(varTotal).toLocaleString(numLocale)}` : undefined
+              varTotal > 0
+                ? `¥${Math.round(varTotal).toLocaleString(numLocale)}`
+                : undefined
             }
           />
           {sectorVarSlices.length > 1 && (
@@ -373,7 +424,9 @@ export function RiskSourceCharts({ risk, holdings, numLocale }: RiskSourceCharts
             }
             defaultCollapsed
           >
-            <p className="risk-chart-subtitle muted">{t("risk.chartWeightVsVarHint")}</p>
+            <p className="risk-chart-subtitle muted">
+              {t("risk.chartWeightVsVarHint")}
+            </p>
             <RiskCompareDenseTable
               rows={compareRows}
               stockLabel={t("risk.stock")}
@@ -395,7 +448,9 @@ export function RiskSourceCharts({ risk, holdings, numLocale }: RiskSourceCharts
             }
             defaultCollapsed
           >
-            <p className="risk-chart-subtitle muted">{t("risk.chartDrawdownHint")}</p>
+            <p className="risk-chart-subtitle muted">
+              {t("risk.chartDrawdownHint")}
+            </p>
             <RiskDrawdownDenseTable
               rows={drawdownRows}
               stockLabel={t("risk.stock")}

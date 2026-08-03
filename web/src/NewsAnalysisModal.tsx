@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type AgentStreamEvent, type NewsAnalysis, type NewsAnalysisStockImpact } from "./api";
+import {
+  api,
+  type AgentStreamEvent,
+  type NewsAnalysis,
+  type NewsAnalysisStockImpact,
+} from "./api";
 import { useI18n } from "./i18n";
 import { localizeSentiment, localizeImpactLevel } from "./uiLabels";
 import { translateStatusEvent } from "./streamI18n";
@@ -17,7 +22,8 @@ interface Props {
 
 const STOCK_RE = /^\d{6}$/;
 
-type NewsAnalysisPhase = "pick" | "connecting" | "fetching" | "analyzing" | "done";
+type NewsAnalysisPhase =
+  "pick" | "connecting" | "fetching" | "analyzing" | "done";
 
 const NEWS_STEP_ORDER = ["connecting", "fetching", "analyzing"] as const;
 
@@ -42,7 +48,8 @@ export function NewsAnalysisModal({
   const [manualSymbol, setManualSymbol] = useState("");
   const [phase, setPhase] = useState<NewsAnalysisPhase>("pick");
   const [statusMsg, setStatusMsg] = useState("");
-  const [stockImpact, setStockImpact] = useState<NewsAnalysisStockImpact | null>(null);
+  const [stockImpact, setStockImpact] =
+    useState<NewsAnalysisStockImpact | null>(null);
   const [analysis, setAnalysis] = useState<NewsAnalysis | null>(null);
   const [error, setError] = useState("");
   const [dimmed, setDimmed] = useState(true);
@@ -73,7 +80,8 @@ export function NewsAnalysisModal({
             setStatusMsg(msg);
             const key = (event.message_key as string) || "";
             if (key.includes("fetching")) setPhase("fetching");
-            else if (key.includes("cross") || key.includes("analyze")) setPhase("analyzing");
+            else if (key.includes("cross") || key.includes("analyze"))
+              setPhase("analyzing");
           } else if (event.type === "stock_impact") {
             setPhase("analyzing");
             setStockImpact({
@@ -87,7 +95,9 @@ export function NewsAnalysisModal({
               fundamental_summary: "",
               sentiment_summary: "",
               impact_assessment: (event.assessment as string) || "",
-              impact_direction: (event.direction as "positive" | "negative" | "neutral") || "neutral",
+              impact_direction:
+                (event.direction as "positive" | "negative" | "neutral") ||
+                "neutral",
               key_points: (event.key_points as string[]) || [],
             });
           } else if (event.type === "done" && event.result) {
@@ -148,12 +158,19 @@ export function NewsAnalysisModal({
         <div className="modal-header">
           <div>
             <span className="modal-badge">{t("news.deepAnalysisBadge")}</span>
-            <span className="modal-badge modal-badge-muted">{t("news.deepAnalysisMode")}</span>
-            <span className={`stat-pill ${sentiment === "bullish" ? "up" : sentiment === "bearish" ? "down" : ""}`}>
-              {localizeSentiment(sentiment, t)} · {localizeImpactLevel(impactLevel, t)}
+            <span className="modal-badge modal-badge-muted">
+              {t("news.deepAnalysisMode")}
+            </span>
+            <span
+              className={`stat-pill ${sentiment === "bullish" ? "up" : sentiment === "bearish" ? "down" : ""}`}
+            >
+              {localizeSentiment(sentiment, t)} ·{" "}
+              {localizeImpactLevel(impactLevel, t)}
             </span>
           </div>
-          <button className="modal-close" onClick={onClose}>×</button>
+          <button className="modal-close" onClick={onClose}>
+            ×
+          </button>
         </div>
 
         <div className="modal-body">
@@ -190,7 +207,11 @@ export function NewsAnalysisModal({
                       maxLength={6}
                       placeholder="600519"
                       value={manualSymbol}
-                      onChange={(e) => setManualSymbol(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      onChange={(e) =>
+                        setManualSymbol(
+                          e.target.value.replace(/\D/g, "").slice(0, 6),
+                        )
+                      }
                     />
                     <button
                       type="button"
@@ -203,7 +224,11 @@ export function NewsAnalysisModal({
                   </div>
                 </div>
               )}
-              {error && <p className="error" style={{ marginTop: 10 }}>{error}</p>}
+              {error && (
+                <p className="error" style={{ marginTop: 10 }}>
+                  {error}
+                </p>
+              )}
             </div>
           )}
 
@@ -215,7 +240,8 @@ export function NewsAnalysisModal({
                 <ol className="news-analysis-steps">
                   {NEWS_STEP_ORDER.map((step) => {
                     const active = phase === step;
-                    const done = phaseRank(phase) > phaseRank(step as NewsAnalysisPhase);
+                    const done =
+                      phaseRank(phase) > phaseRank(step as NewsAnalysisPhase);
                     return (
                       <li
                         key={step}
@@ -226,7 +252,9 @@ export function NewsAnalysisModal({
                     );
                   })}
                 </ol>
-                {statusMsg && <p className="news-analysis-status muted">{statusMsg}</p>}
+                {statusMsg && (
+                  <p className="news-analysis-status muted">{statusMsg}</p>
+                )}
               </div>
             </div>
           )}
@@ -237,17 +265,26 @@ export function NewsAnalysisModal({
                 <div className="news-stock-header">
                   <strong>{stockImpact.name}</strong>
                   <code>{stockImpact.symbol}</code>
-                  <span className={`stat-pill ${impactClass(stockImpact.impact_direction)}`}>
+                  <span
+                    className={`stat-pill ${impactClass(stockImpact.impact_direction)}`}
+                  >
                     {impactIcon(stockImpact.impact_direction)}{" "}
                     {stockImpact.price.toFixed(2)}{" "}
-                    <span className={stockImpact.change_pct >= 0 ? "up" : "down"}>
-                      {stockImpact.change_pct >= 0 ? "+" : ""}{stockImpact.change_pct.toFixed(2)}%
+                    <span
+                      className={stockImpact.change_pct >= 0 ? "up" : "down"}
+                    >
+                      {stockImpact.change_pct >= 0 ? "+" : ""}
+                      {stockImpact.change_pct.toFixed(2)}%
                     </span>
                   </span>
                   {stockImpact.pe_ttm != null && (
-                    <span className="stat-pill">PE {stockImpact.pe_ttm.toFixed(1)}</span>
+                    <span className="stat-pill">
+                      PE {stockImpact.pe_ttm.toFixed(1)}
+                    </span>
                   )}
-                  <span className={`stat-pill ${stockImpact.technical_signal === "bullish" ? "up" : stockImpact.technical_signal === "bearish" ? "down" : ""}`}>
+                  <span
+                    className={`stat-pill ${stockImpact.technical_signal === "bullish" ? "up" : stockImpact.technical_signal === "bearish" ? "down" : ""}`}
+                  >
                     {stockImpact.technical_signal === "bullish"
                       ? t("news.techBullish")
                       : stockImpact.technical_signal === "bearish"
@@ -260,21 +297,27 @@ export function NewsAnalysisModal({
               {stockImpact.fundamental_summary && (
                 <div className="card">
                   <h4>{t("news.fundamentalVerification")}</h4>
-                  <p className="news-impact-text">{stockImpact.fundamental_summary}</p>
+                  <p className="news-impact-text">
+                    {stockImpact.fundamental_summary}
+                  </p>
                 </div>
               )}
 
               {stockImpact.technical_summary && (
                 <div className="card">
                   <h4>{t("news.technicalVerification")}</h4>
-                  <p className="news-impact-text">{stockImpact.technical_summary}</p>
+                  <p className="news-impact-text">
+                    {stockImpact.technical_summary}
+                  </p>
                 </div>
               )}
 
               {stockImpact.sentiment_summary && (
                 <div className="card">
                   <h4>{t("news.sentimentVerification")}</h4>
-                  <p className="news-impact-text">{stockImpact.sentiment_summary}</p>
+                  <p className="news-impact-text">
+                    {stockImpact.sentiment_summary}
+                  </p>
                 </div>
               )}
 

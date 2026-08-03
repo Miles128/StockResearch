@@ -9,7 +9,12 @@ export default defineConfig({
       output: {
         manualChunks: {
           react: ["react", "react-dom"],
-          markdown: ["react-markdown", "remark-gfm", "rehype-raw", "rehype-sanitize"],
+          markdown: [
+            "react-markdown",
+            "remark-gfm",
+            "rehype-raw",
+            "rehype-sanitize",
+          ],
           charts: ["lightweight-charts"],
         },
       },

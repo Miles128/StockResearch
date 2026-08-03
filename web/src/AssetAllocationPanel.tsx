@@ -76,8 +76,12 @@ export function AssetAllocationPanel({
       {allocation && (
         <>
           <div className="allocation-risk-badge">
-            <span className="allocation-risk-label">{t("allocation.riskLevel")}：</span>
-            <span className={`allocation-risk-value risk-${allocation.risk_tolerance}`}>
+            <span className="allocation-risk-label">
+              {t("allocation.riskLevel")}：
+            </span>
+            <span
+              className={`allocation-risk-value risk-${allocation.risk_tolerance}`}
+            >
               {t(riskLabelKey)}
             </span>
           </div>
@@ -88,7 +92,9 @@ export function AssetAllocationPanel({
               <div key={key} className="allocation-bar-item">
                 <div className="allocation-bar-label">
                   <span className="allocation-bar-name">{key}</span>
-                  <span className="allocation-bar-pct">{Math.round(value * 100)}%</span>
+                  <span className="allocation-bar-pct">
+                    {Math.round(value * 100)}%
+                  </span>
                 </div>
                 <div className="allocation-bar-track">
                   <div
@@ -105,34 +111,48 @@ export function AssetAllocationPanel({
 
           {/* 配置说明 */}
           <div className="allocation-section">
-            <h4 className="allocation-section-title">{t("allocation.rationale")}</h4>
+            <h4 className="allocation-section-title">
+              {t("allocation.rationale")}
+            </h4>
             <p className="allocation-section-text">{allocation.rationale}</p>
           </div>
 
           {/* 现金流影响 */}
           {allocation.cash_flow_impact && (
             <div className="allocation-section">
-              <h4 className="allocation-section-title">{t("allocation.cashFlowImpact")}</h4>
-              <p className="allocation-section-text">{allocation.cash_flow_impact}</p>
+              <h4 className="allocation-section-title">
+                {t("allocation.cashFlowImpact")}
+              </h4>
+              <p className="allocation-section-text">
+                {allocation.cash_flow_impact}
+              </p>
             </div>
           )}
 
           {/* 应急资金建议 */}
           {allocation.emergency_fund_note && (
             <div className="allocation-section">
-              <h4 className="allocation-section-title">{t("allocation.emergencyFund")}</h4>
-              <p className="allocation-section-text">{allocation.emergency_fund_note}</p>
+              <h4 className="allocation-section-title">
+                {t("allocation.emergencyFund")}
+              </h4>
+              <p className="allocation-section-text">
+                {allocation.emergency_fund_note}
+              </p>
             </div>
           )}
 
           {/* 未填写月收入提示 */}
           {!allocation.cash_flow_impact && (
             <div className="allocation-section allocation-no-income">
-              <p className="allocation-section-text muted">{t("allocation.noIncome")}</p>
+              <p className="allocation-section-text muted">
+                {t("allocation.noIncome")}
+              </p>
             </div>
           )}
 
-          <p className="allocation-disclaimer">{t("allocation.educationalNote")}</p>
+          <p className="allocation-disclaimer">
+            {t("allocation.educationalNote")}
+          </p>
         </>
       )}
     </div>

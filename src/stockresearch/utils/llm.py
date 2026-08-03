@@ -28,10 +28,11 @@ def _httpx_client_kwargs() -> dict:
         kwargs["proxy"] = proxy
     return kwargs
 
-from stockresearch.agents.output_style import apply_style_to_system
-from stockresearch.core.exceptions import LLMConfigError
-from stockresearch.core.llm_config import LlmOverrides, resolve_chat_completions_url
-from stockresearch.utils.llm_usage import estimate_tokens, record_usage
+
+from stockresearch.agents.output_style import apply_style_to_system  # noqa: E402
+from stockresearch.core.exceptions import LLMConfigError  # noqa: E402
+from stockresearch.core.llm_config import LlmOverrides, resolve_chat_completions_url  # noqa: E402
+from stockresearch.utils.llm_usage import estimate_tokens, record_usage  # noqa: E402
 
 
 def _styled_system(system: str) -> str:
@@ -133,23 +134,25 @@ class MockLLMClient(LLMClient):
                     '```tool\n{"tool": "get_market_data", "args": {}}\n```\n'
                     '```tool\n{"tool": "reply", "args": {"message": "当前大盘震荡，建议您关注政策面变化。\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
                 )
-            return (
-                '```tool\n{"tool": "reply", "args": {"message": "您好，我是 StockResearch，专注A股投研分析。请问有什么金融投资方面的问题可以帮您？\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
-            )
+            return '```tool\n{"tool": "reply", "args": {"message": "您好，我是 StockResearch，专注A股投研分析。请问有什么金融投资方面的问题可以帮您？\\n\\n以上内容由 AI 生成，仅供参考，不构成投资建议。"}}\n```'
         if "意图识别" in system:
             if any(kw in user for kw in ("大盘", "市场", "股市", "走势", "行情", "板块", "A股")):
                 sectors = []
                 for sec in ("半导体", "新能源", "白酒", "银行", "医药"):
                     if sec in user:
                         sectors.append(sec)
-                return json.dumps({"intent": "market", "symbols": [], "sectors": sectors, "confidence": "high"})
+                return json.dumps(
+                    {"intent": "market", "symbols": [], "sectors": sectors, "confidence": "high"}
+                )
             if any(kw in user for kw in ("风险", "止损", "仓位", "体检", "回撤")):
                 if any(kw in user for kw in ("分析", "研究")):
                     return '{"intent": "composite", "symbols": [], "confidence": "high"}'
                 return '{"intent": "risk", "symbols": [], "confidence": "high"}'
             if any(kw in user for kw in ("新闻", "快讯", "怎么了", "发生", "消息")):
                 return '{"intent": "news", "symbols": [], "confidence": "high"}'
-            if any(kw in user for kw in ("分析", "研究", "投研", "四维", "值不值得", "怎么样", "看看")):
+            if any(
+                kw in user for kw in ("分析", "研究", "投研", "四维", "值不值得", "怎么样", "看看")
+            ):
                 return '{"intent": "research", "symbols": [], "confidence": "high"}'
             return '{"intent": "chat", "symbols": [], "confidence": "high"}'
         if "翻译成人话" in system or "风控助手" in system:
@@ -265,9 +268,7 @@ class MockLLMClient(LLMClient):
                 '"reason":"基本面与技术面信号互相抵消，情绪面未形成一致预期。",'
                 '"divergence":"分歧中等","divergence_point":"估值与动量方向不一致"}'
             )
-        if "风控裁判 Agent" in system or (
-            "裁判 Agent" in system and "position_action" in system
-        ):
+        if "风控裁判 Agent" in system or ("裁判 Agent" in system and "position_action" in system):
             holdings = re.findall(r"(\S+)\((\d{6})\)", user)
             if not holdings:
                 holdings = [("宁德时代", "300750")]

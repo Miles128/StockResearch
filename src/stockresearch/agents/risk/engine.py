@@ -4,11 +4,12 @@ import asyncio
 import logging
 
 from stockresearch.agents.master_commentary.context import build_risk_context
+from stockresearch.agents.master_commentary.registry import resolve_master_ids
 from stockresearch.agents.master_commentary.stream import get_master_commentary
 from stockresearch.agents.risk import messages as risk_msg
 from stockresearch.agents.risk.metrics import (
-    SINGLE_NAME_CONCENTRATION_LIMIT,
     SECTOR_CONCENTRATION_LIMIT,
+    SINGLE_NAME_CONCENTRATION_LIMIT,
     HoldingQuote,
     calculate_portfolio_metrics,
     calculate_var,
@@ -22,7 +23,6 @@ from stockresearch.core.constants import (
     SEVERITY_WARNING,
     SEVERITY_YELLOW,
 )
-from stockresearch.agents.master_commentary.registry import resolve_master_ids
 from stockresearch.core.schemas import (
     LLMRiskAnalysis,
     MasterCommentaryItem,
@@ -95,9 +95,7 @@ async def _llm_scenario_analysis(
     holdings_desc = "\n".join(
         f"- {h.name}({h.symbol}) {h.sector} 成本{h.float_cost_price:.2f}" for h in holdings
     )
-    alerts_desc = (
-        "\n".join(f"- [{a.severity}] {a.message}" for a in alerts) if alerts else "无"
-    )
+    alerts_desc = "\n".join(f"- [{a.severity}] {a.message}" for a in alerts) if alerts else "无"
     system = (
         f"你是 A 股风控分析师。{_RISK_LLM_BRIEF} "
         "列出最多2个风险情景，每行一个，格式：情景 | 影响。不要建议买卖。"
@@ -153,8 +151,11 @@ def _parse_rule_alerts(holdings: list[Holding], quotes: list) -> list[RiskAlertO
                     severity=SEVERITY_RED,
                     symbol=holding.symbol,
                     message=risk_msg.alert_stop_loss_red(
-                        holding.name, holding.symbol,
-                        holding.float_cost_price, quote.price, drawdown,
+                        holding.name,
+                        holding.symbol,
+                        holding.float_cost_price,
+                        quote.price,
+                        drawdown,
                     ),
                     human_message="",
                 )
@@ -166,7 +167,9 @@ def _parse_rule_alerts(holdings: list[Holding], quotes: list) -> list[RiskAlertO
                     severity=SEVERITY_YELLOW,
                     symbol=holding.symbol,
                     message=risk_msg.alert_stop_loss_yellow(
-                        holding.name, holding.symbol, drawdown,
+                        holding.name,
+                        holding.symbol,
+                        drawdown,
                     ),
                     human_message="",
                 )
@@ -371,8 +374,7 @@ async def run_risk_checkup(
                 cvar_pct=round(vr.cvar_pct, 4),
             )
             stress_out = [
-                StressResultOut.model_validate(item)
-                for item in run_stress_presets(holding_quotes)
+                StressResultOut.model_validate(item) for item in run_stress_presets(holding_quotes)
             ]
         except Exception:
             logger.warning("Quantitative metrics calculation failed", exc_info=True)

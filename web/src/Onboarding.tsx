@@ -25,7 +25,11 @@ type Step = "pickMode" | "questionnaire" | "done";
 interface QuestionDef {
   /** i18n key，如 onboarding.q1.title */
   key: string;
-  options: { id: "a" | "b" | "c"; labelKey: "optA" | "optB" | "optC"; score: number }[];
+  options: {
+    id: "a" | "b" | "c";
+    labelKey: "optA" | "optB" | "optC";
+    score: number;
+  }[];
 }
 
 const QUESTIONS: QuestionDef[] = [
@@ -74,7 +78,11 @@ export function Onboarding({ onComplete, onSkip }: OnboardingProps) {
     }
   }
 
-  function finish(mode: AppMode, tolerance: RiskTolerance, income: number | undefined) {
+  function finish(
+    mode: AppMode,
+    tolerance: RiskTolerance,
+    income: number | undefined,
+  ) {
     const preset = mode === "advisor" ? ADVISOR_PRESET : RESEARCH_PRESET;
     onComplete({
       ...preset,
@@ -104,7 +112,8 @@ export function Onboarding({ onComplete, onSkip }: OnboardingProps) {
   function handleQuestionnaireNext() {
     const total = computeScore();
     const tolerance = scoreToTolerance(total);
-    const income = monthlyIncome.trim() === "" ? undefined : Number(monthlyIncome);
+    const income =
+      monthlyIncome.trim() === "" ? undefined : Number(monthlyIncome);
     finish(pickedMode, tolerance, income && income > 0 ? income : undefined);
   }
 
@@ -128,12 +137,16 @@ export function Onboarding({ onComplete, onSkip }: OnboardingProps) {
               className="onboarding-card"
               onClick={() => pickMode("advisor")}
             >
-              <div className="onboarding-card-title">{t("onboarding.advisorCard.title")}</div>
+              <div className="onboarding-card-title">
+                {t("onboarding.advisorCard.title")}
+              </div>
               <ul className="onboarding-card-list">
                 <li>{t("onboarding.advisorCard.desc1")}</li>
                 <li>{t("onboarding.advisorCard.desc2")}</li>
                 <li>{t("onboarding.advisorCard.desc3")}</li>
-                <li className="onboarding-card-tag">{t("onboarding.advisorCard.desc4")}</li>
+                <li className="onboarding-card-tag">
+                  {t("onboarding.advisorCard.desc4")}
+                </li>
               </ul>
             </button>
 
@@ -142,18 +155,26 @@ export function Onboarding({ onComplete, onSkip }: OnboardingProps) {
               className="onboarding-card"
               onClick={() => pickMode("research")}
             >
-              <div className="onboarding-card-title">{t("onboarding.researchCard.title")}</div>
+              <div className="onboarding-card-title">
+                {t("onboarding.researchCard.title")}
+              </div>
               <ul className="onboarding-card-list">
                 <li>{t("onboarding.researchCard.desc1")}</li>
                 <li>{t("onboarding.researchCard.desc2")}</li>
                 <li>{t("onboarding.researchCard.desc3")}</li>
-                <li className="onboarding-card-tag">{t("onboarding.researchCard.desc4")}</li>
+                <li className="onboarding-card-tag">
+                  {t("onboarding.researchCard.desc4")}
+                </li>
               </ul>
             </button>
           </div>
 
           <p className="onboarding-hint">{t("onboarding.pickModeHint")}</p>
-          <button type="button" className="onboarding-skip-btn" onClick={onSkip}>
+          <button
+            type="button"
+            className="onboarding-skip-btn"
+            onClick={onSkip}
+          >
             {t("onboarding.skip")}
           </button>
         </div>
@@ -163,18 +184,24 @@ export function Onboarding({ onComplete, onSkip }: OnboardingProps) {
 
   if (step === "questionnaire") {
     const isIncomeStep = currentQ === QUESTIONS.length;
-    const progress = Math.round(((currentQ) / (QUESTIONS.length + 1)) * 100);
+    const progress = Math.round((currentQ / (QUESTIONS.length + 1)) * 100);
 
     return (
       <div className="onboarding-overlay">
         <div className="onboarding-modal onboarding-modal-wide">
           <div className="onboarding-progress-bar">
-            <div className="onboarding-progress-fill" style={{ width: `${progress}%` }} />
+            <div
+              className="onboarding-progress-fill"
+              style={{ width: `${progress}%` }}
+            />
           </div>
           <h2 className="onboarding-title">
-            {t("onboarding.questionnaire.title")} ({currentQ + 1}/{QUESTIONS.length + 1})
+            {t("onboarding.questionnaire.title")} ({currentQ + 1}/
+            {QUESTIONS.length + 1})
           </h2>
-          <p className="onboarding-subtitle">{t("onboarding.questionnaire.hint")}</p>
+          <p className="onboarding-subtitle">
+            {t("onboarding.questionnaire.hint")}
+          </p>
 
           {!isIncomeStep ? (
             <div className="onboarding-question">
@@ -205,7 +232,10 @@ export function Onboarding({ onComplete, onSkip }: OnboardingProps) {
             </div>
           ) : (
             <div className="onboarding-income">
-              <label className="onboarding-income-label" htmlFor="monthly-income">
+              <label
+                className="onboarding-income-label"
+                htmlFor="monthly-income"
+              >
                 {t("onboarding.questionnaire.monthlyIncome")}
               </label>
               <p className="onboarding-income-hint">
@@ -216,7 +246,9 @@ export function Onboarding({ onComplete, onSkip }: OnboardingProps) {
                 type="number"
                 inputMode="numeric"
                 min={0}
-                placeholder={t("onboarding.questionnaire.monthlyIncomePlaceholder")}
+                placeholder={t(
+                  "onboarding.questionnaire.monthlyIncomePlaceholder",
+                )}
                 value={monthlyIncome}
                 onChange={(e) => setMonthlyIncome(e.target.value)}
                 className="onboarding-income-input"
@@ -225,7 +257,11 @@ export function Onboarding({ onComplete, onSkip }: OnboardingProps) {
           )}
 
           <div className="onboarding-actions">
-            <button type="button" className="onboarding-skip-btn" onClick={handleQuestionnaireSkip}>
+            <button
+              type="button"
+              className="onboarding-skip-btn"
+              onClick={handleQuestionnaireSkip}
+            >
               {t("onboarding.questionnaire.skip")}
             </button>
             <div className="onboarding-nav">

@@ -44,11 +44,7 @@ async def compute_event_study(
         kind = _event_kind(it.title, it.announcement_type)
         kind_counts[kind] = kind_counts.get(kind, 0) + 1
     if event_filter != "all":
-        items = [
-            it
-            for it in items
-            if _event_kind(it.title, it.announcement_type) == event_filter
-        ]
+        items = [it for it in items if _event_kind(it.title, it.announcement_type) == event_filter]
     items = items[:limit]
 
     meta = await get_bars_meta_for_symbol(symbol, days=max(lookback_days + 40, 120))

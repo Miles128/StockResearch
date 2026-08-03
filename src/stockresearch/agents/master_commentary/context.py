@@ -51,7 +51,9 @@ def build_risk_context(result: RiskCheckupOut) -> str:
         if llm.holding_actions:
             lines.append("逐股建议：")
             for action in llm.holding_actions:
-                action = HoldingActionOut.model_validate(action) if isinstance(action, dict) else action
+                action = (
+                    HoldingActionOut.model_validate(action) if isinstance(action, dict) else action
+                )
                 lines.append(f"- {action.name}({action.symbol})：{action.action}，{action.reason}")
     if result.metrics:
         m = result.metrics

@@ -48,13 +48,9 @@ def merge_llm_settings(
         base_url=(body.base_url if body and body.base_url else None) or header.base_url,
         model=(body.model if body and body.model else None) or header.model,
         temperature=(
-            body.temperature
-            if body and body.temperature is not None
-            else header.temperature
+            body.temperature if body and body.temperature is not None else header.temperature
         ),
-        use_mock=(
-            body.use_mock if body and body.use_mock is not None else header.use_mock
-        ),
+        use_mock=(body.use_mock if body and body.use_mock is not None else header.use_mock),
     )
 
 

@@ -39,28 +39,28 @@ _READING_MODE_INSTRUCTIONS: dict[ReadingMode, str] = {
     "friendly": (
         "【友善白话规则】\n"
         "1. 以日常语言为主，尽量少用英文缩写；必须出现时可保留（系统自动加可点击解释）\n"
-        "2. 数字必须带\"意味着什么\"的解释，不能只列数字\n"
-        "3. 把指标翻译成钱的感受：不说\"VaR 4.32%\"，说\"95% 概率一天亏不超过 ¥2,300\"\n"
-        "4. 类比优先：PE = \"花多少钱买1元年利润\"，ROE = \"每100元本金能赚多少\"\n"
-        "5. 板块轮动类结论须在同一句话内标注偏多/偏空/中性；证据不足时说\"暂时看不出明确轮动\"\n"
+        '2. 数字必须带"意味着什么"的解释，不能只列数字\n'
+        '3. 把指标翻译成钱的感受：不说"VaR 4.32%"，说"95% 概率一天亏不超过 ¥2,300"\n'
+        '4. 类比优先：PE = "花多少钱买1元年利润"，ROE = "每100元本金能赚多少"\n'
+        '5. 板块轮动类结论须在同一句话内标注偏多/偏空/中性；证据不足时说"暂时看不出明确轮动"\n'
         "示例：\n"
-        "  ❌ \"ROE 32.1%，毛利率 52.3%\"\n"
-        "  ✅ \"赚钱能力很强——每100元本金一年能赚32元，行业平均才18元。\""
+        '  ❌ "ROE 32.1%，毛利率 52.3%"\n'
+        '  ✅ "赚钱能力很强——每100元本金一年能赚32元，行业平均才18元。"'
     ),
     "standard": (
         "【标准表达规则】\n"
         "1. 使用常见中文金融术语（市盈率、净资产收益率等），首次出现时用半句白话点明含义\n"
-        "2. 数据完整呈现，关键数字附一句\"意味着什么\"或行业对比\n"
+        '2. 数据完整呈现，关键数字附一句"意味着什么"或行业对比\n'
         "3. 避免堆砌英文缩写；必要时保留 PE/ROE 等并配合中文说法\n"
         "4. 语气客观克制，结构清晰：先结论后依据\n"
-        "示例：✅ \"市盈率 35 倍，略高于行业均值 28 倍，估值偏贵；净资产收益率 32%，赚钱能力仍属上游。\""
+        '示例：✅ "市盈率 35 倍，略高于行业均值 28 倍，估值偏贵；净资产收益率 32%，赚钱能力仍属上游。"'
     ),
     "professional": (
         "【专业写作规则】\n"
         "1. 术语直接使用，数据完整呈现\n"
         "2. 关键指标首次出现时附行业标准对比\n"
         "3. 保持投研报告的专业口径，客观克制\n"
-        "示例：✅ \"ROE 32.1%（行业均值 18.2%），毛利率 52.3%\""
+        '示例：✅ "ROE 32.1%（行业均值 18.2%），毛利率 52.3%"'
     ),
 }
 
@@ -99,7 +99,9 @@ def set_output_style(
     locale: str | None = None,
     enable_glossary: bool | None = None,
     custom_glossary: Sequence[CustomGlossaryTermOut] | None = None,
-) -> tuple[Token[ReadingMode], Token[OutputLocale], Token[bool], Token[tuple[CustomGlossaryTermOut, ...]]]:
+) -> tuple[
+    Token[ReadingMode], Token[OutputLocale], Token[bool], Token[tuple[CustomGlossaryTermOut, ...]]
+]:
     mode = reading_mode or tone
     mode_token = _reading_mode_var.set(normalize_reading_mode(mode))
     locale_token = _locale_var.set(normalize_locale(locale))
@@ -174,6 +176,3 @@ def output_style_scope(
         yield
     finally:
         reset_output_style(tokens)
-
-
-

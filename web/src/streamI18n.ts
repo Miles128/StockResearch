@@ -1,4 +1,8 @@
-import type { AgentStreamEvent, RouteChoiceCardData, RouteChoiceOption } from "./api";
+import type {
+  AgentStreamEvent,
+  RouteChoiceCardData,
+  RouteChoiceOption,
+} from "./api";
 import type { TParams } from "./i18n";
 import {
   localizeAgentDisplay,
@@ -52,7 +56,8 @@ export function translateStatusEvent(event: AgentStreamEvent, t: TFn): string {
   if (key === "status.route") {
     const params = event.message_params ?? {};
     return t("stream.status.route", {
-      debate: params.debate === "on" ? t("stream.debate.on") : t("stream.debate.off"),
+      debate:
+        params.debate === "on" ? t("stream.debate.on") : t("stream.debate.off"),
       mode: t(`stream.routeMode.${String(params.mode ?? "")}`),
     });
   }
@@ -77,10 +82,14 @@ export function detectDimensionKind(
   const key = statusEventKey(event);
   if (key && INDUSTRY_START_KEYS.has(key)) return "industry";
   if (key && MARKET_START_KEYS.has(key)) return "market";
-  if (statusText.includes("五维") || (statusText.includes("板块") && statusText.includes("维"))) {
+  if (
+    statusText.includes("五维") ||
+    (statusText.includes("板块") && statusText.includes("维"))
+  ) {
     return "industry";
   }
-  if (statusText.includes("市场") && statusText.includes("四维")) return "market";
+  if (statusText.includes("市场") && statusText.includes("四维"))
+    return "market";
   return "stock";
 }
 
@@ -97,20 +106,33 @@ export function shouldSkipStatusLog(event: AgentStreamEvent): boolean {
   );
 }
 
-export function localizeAgentName(agentId: string, fallback: string, t: TFn): string {
+export function localizeAgentName(
+  agentId: string,
+  fallback: string,
+  t: TFn,
+): string {
   return localizeAgentDisplay(agentId, fallback, t);
 }
 
-export function translateRouteReason(data: RouteChoiceCardData, t: TFn): string {
+export function translateRouteReason(
+  data: RouteChoiceCardData,
+  t: TFn,
+): string {
   const key = data.reason_key;
   if (key) {
-    const translated = t(`stream.${key}`, (data.reason_params ?? {}) as TParams);
+    const translated = t(
+      `stream.${key}`,
+      (data.reason_params ?? {}) as TParams,
+    );
     if (translated !== `stream.${key}`) return translated;
   }
   return data.message ?? "";
 }
 
-export function normalizeStreamEvent(event: AgentStreamEvent, t: TFn): AgentStreamEvent {
+export function normalizeStreamEvent(
+  event: AgentStreamEvent,
+  t: TFn,
+): AgentStreamEvent {
   if (event.type === "status" && (event.message_key || event.message)) {
     return { ...event, message: translateStatusEvent(event, t) };
   }
@@ -126,7 +148,9 @@ export function normalizeStreamEvent(event: AgentStreamEvent, t: TFn): AgentStre
   }
   if (event.type === "vote" && event.agent_name) {
     const name = localizeAgentName(event.agent_id ?? "", event.agent_name, t);
-    const vote = event.vote ? localizeVoteLabel(String(event.vote), t) : event.vote;
+    const vote = event.vote
+      ? localizeVoteLabel(String(event.vote), t)
+      : event.vote;
     return { ...event, agent_name: name, vote };
   }
   if (event.type === "vote_tally" && event.leading) {
@@ -138,7 +162,10 @@ export function normalizeStreamEvent(event: AgentStreamEvent, t: TFn): AgentStre
   if (event.type === "judge") {
     const next: AgentStreamEvent = { ...event };
     if (event.position_action) {
-      next.position_action = localizePositionAction(String(event.position_action), t);
+      next.position_action = localizePositionAction(
+        String(event.position_action),
+        t,
+      );
     }
     if (event.holding_actions && Array.isArray(event.holding_actions)) {
       next.holding_actions = event.holding_actions.map((ha) => ({
@@ -151,7 +178,10 @@ export function normalizeStreamEvent(event: AgentStreamEvent, t: TFn): AgentStre
   return event;
 }
 
-export function translateRouteOption(opt: RouteChoiceOption, t: TFn): {
+export function translateRouteOption(
+  opt: RouteChoiceOption,
+  t: TFn,
+): {
   label: string;
   description: string;
 } {

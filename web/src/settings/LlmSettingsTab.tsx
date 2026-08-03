@@ -73,7 +73,8 @@ export function LlmSettingsTab({
       </label>
       <label className="settings-field">
         <span>
-          {t("settings.temperature")} <strong>{form.temperature.toFixed(1)}</strong>
+          {t("settings.temperature")}{" "}
+          <strong>{form.temperature.toFixed(1)}</strong>
           <span className="settings-muted">{t("settings.tempHint")}</span>
         </span>
         <input
@@ -82,7 +83,9 @@ export function LlmSettingsTab({
           max={2}
           step={0.1}
           value={form.temperature}
-          onChange={(e) => onFormChange({ ...form, temperature: parseFloat(e.target.value) })}
+          onChange={(e) =>
+            onFormChange({ ...form, temperature: parseFloat(e.target.value) })
+          }
         />
       </label>
       <label className="settings-check">
@@ -98,15 +101,34 @@ export function LlmSettingsTab({
       )}
       <div className="settings-actions">
         {!required && variant === "modal" && (
-          <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={onClose}
+            disabled={busy}
+          >
             {t("settings.cancel")}
           </button>
         )}
-        <button type="button" className="btn btn-ghost" onClick={onTest} disabled={busy}>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={onTest}
+          disabled={busy}
+        >
           {testing ? t("settings.testing") : t("settings.test")}
         </button>
-        <button type="button" className="btn btn-primary" onClick={onSave} disabled={busy}>
-          {saving ? t("settings.saving") : required ? t("settings.saveEnter") : t("settings.save")}
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={onSave}
+          disabled={busy}
+        >
+          {saving
+            ? t("settings.saving")
+            : required
+              ? t("settings.saveEnter")
+              : t("settings.save")}
         </button>
       </div>
     </>

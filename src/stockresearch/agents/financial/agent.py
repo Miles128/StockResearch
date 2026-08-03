@@ -56,7 +56,7 @@ class FinancialRatioAgent:
             try:
                 data_text = "\n".join(
                     f"{r['name']}: {r['value']}"
-                    + (f" (趋势: {r['trend']})" if r.get('trend') else "")
+                    + (f" (趋势: {r['trend']})" if r.get("trend") else "")
                     + f" (参考: {r['reference']}, 评价: {r['assessment']})"
                     for r in ratios
                 )
@@ -154,9 +154,7 @@ class FinancialRatioAgent:
         try:
             import akshare as ak
 
-            df = ak.stock_financial_abstract_ths(
-                symbol=symbol, indicator="按年度"
-            )
+            df = ak.stock_financial_abstract_ths(symbol=symbol, indicator="按年度")
             if df is None or df.empty:
                 logger.warning("No financial data returned for %s", symbol)
                 return data
@@ -236,8 +234,12 @@ class FinancialRatioAgent:
 
             # Build trend data (last 3 years)
             trend_keys = [
-                "roe", "gross_margin", "net_margin",
-                "revenue_growth", "profit_growth", "debt_ratio",
+                "roe",
+                "gross_margin",
+                "net_margin",
+                "revenue_growth",
+                "profit_growth",
+                "debt_ratio",
             ]
             for period_idx, period_df in enumerate([year3, prev, latest]):
                 if period_df is None:
@@ -247,10 +249,7 @@ class FinancialRatioAgent:
                     if key in trend_keys:
                         val = period_df.get(col)
                         is_pct = "率" in col or "增长" in col
-                        parsed = (
-                            _parse_pct(val) if is_pct
-                            else _parse_num(val)
-                        )
+                        parsed = _parse_pct(val) if is_pct else _parse_num(val)
                         if parsed is not None:
                             data["trends"].setdefault(key, {})[year] = parsed
 
@@ -263,9 +262,7 @@ class FinancialRatioAgent:
             set_sqlite_cached(cache_key, json.loads(json.dumps(data)), ttl)
         return data
 
-    def _compute_ratios(
-        self, raw: dict[str, Any], symbol: str, name: str
-    ) -> list[dict[str, str]]:
+    def _compute_ratios(self, raw: dict[str, Any], symbol: str, name: str) -> list[dict[str, str]]:
         """Compute and format financial ratios with industry references."""
         refs: dict[str, tuple[str, str]] = {
             "pe": ("市盈率 PE", "15-25"),
@@ -299,22 +296,26 @@ class FinancialRatioAgent:
                     years = sorted(trends.keys())
                     vals = [f"{trends[y]:.1f}" for y in years]
                     trend_str = " → ".join(vals)
-                ratios.append({
-                    "name": label,
-                    "value": val_str,
-                    "reference": ref,
-                    "assessment": assessment,
-                    "trend": trend_str,
-                })
+                ratios.append(
+                    {
+                        "name": label,
+                        "value": val_str,
+                        "reference": ref,
+                        "assessment": assessment,
+                        "trend": trend_str,
+                    }
+                )
 
         if len(ratios) < 3:
-            ratios.append({
-                "name": "数据状态",
-                "value": "部分数据不可用",
-                "reference": "-",
-                "assessment": "数据有限",
-                "trend": "",
-            })
+            ratios.append(
+                {
+                    "name": "数据状态",
+                    "value": "部分数据不可用",
+                    "reference": "-",
+                    "assessment": "数据有限",
+                    "trend": "",
+                }
+            )
 
         return ratios
 
@@ -322,49 +323,38 @@ class FinancialRatioAgent:
         """Simple assessment of a financial ratio."""
         assessments: dict[str, Any] = {
             "pe": lambda v: (
-                "偏低" if v < 15 else "合理" if v < 25
-                else "偏高" if v < 40 else "过高"
+                "偏低" if v < 15 else "合理" if v < 25 else "偏高" if v < 40 else "过高"
             ),
             "pb": lambda v: "破净" if v < 1 else "合理" if v < 3 else "偏高",
             "roe": lambda v: (
-                "优秀" if v > 15 else "良好" if v > 10
-                else "一般" if v > 5 else "较差"
+                "优秀" if v > 15 else "良好" if v > 10 else "一般" if v > 5 else "较差"
             ),
             "roe_diluted": lambda v: (
-                "优秀" if v > 15 else "良好" if v > 10
-                else "一般" if v > 5 else "较差"
+                "优秀" if v > 15 else "良好" if v > 10 else "一般" if v > 5 else "较差"
             ),
             "gross_margin": lambda v: (
-                "优秀" if v > 40 else "良好" if v > 25
-                else "一般" if v > 15 else "较低"
+                "优秀" if v > 40 else "良好" if v > 25 else "一般" if v > 15 else "较低"
             ),
             "net_margin": lambda v: (
-                "优秀" if v > 15 else "良好" if v > 8
-                else "一般" if v > 3 else "较低"
+                "优秀" if v > 15 else "良好" if v > 8 else "一般" if v > 3 else "较低"
             ),
             "debt_ratio": lambda v: (
-                "保守" if v < 30 else "合理" if v < 60
-                else "偏高" if v < 80 else "高风险"
+                "保守" if v < 30 else "合理" if v < 60 else "偏高" if v < 80 else "高风险"
             ),
             "current_ratio": lambda v: (
-                "偏强" if v > 2 else "合理" if v > 1.5
-                else "偏弱" if v > 1 else "风险"
+                "偏强" if v > 2 else "合理" if v > 1.5 else "偏弱" if v > 1 else "风险"
             ),
             "quick_ratio": lambda v: (
-                "偏强" if v > 1.5 else "合理" if v > 1
-                else "偏弱" if v > 0.5 else "风险"
+                "偏强" if v > 1.5 else "合理" if v > 1 else "偏弱" if v > 0.5 else "风险"
             ),
             "revenue_growth": lambda v: (
-                "高增" if v > 30 else "稳健" if v > 10
-                else "放缓" if v > 0 else "下滑"
+                "高增" if v > 30 else "稳健" if v > 10 else "放缓" if v > 0 else "下滑"
             ),
             "profit_growth": lambda v: (
-                "高增" if v > 30 else "稳健" if v > 10
-                else "放缓" if v > 0 else "下滑"
+                "高增" if v > 30 else "稳健" if v > 10 else "放缓" if v > 0 else "下滑"
             ),
             "equity_ratio": lambda v: (
-                "低杠杆" if v < 0.5 else "合理" if v < 1.5
-                else "偏高" if v < 3 else "高杠杆"
+                "低杠杆" if v < 0.5 else "合理" if v < 1.5 else "偏高" if v < 3 else "高杠杆"
             ),
         }
         fn = assessments.get(key)

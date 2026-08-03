@@ -118,7 +118,7 @@ def _build_stock_context(symbol: str, data: dict) -> str:
 def _pct(v: object) -> str:
     if v is None:
         return "N/A"
-    if isinstance(v, (int, float)):
+    if isinstance(v, int | float):
         return f"{float(v) * 100:.1f}%"
     return str(v)
 

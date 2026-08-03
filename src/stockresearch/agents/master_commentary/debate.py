@@ -39,7 +39,11 @@ async def stream_master_debate(
     if len(commentaries) < 2:
         return
 
-    yield {"type": "master_debate_start", "subject": subject, "masters": [c.master for c in commentaries]}
+    yield {
+        "type": "master_debate_start",
+        "subject": subject,
+        "masters": [c.master for c in commentaries],
+    }
 
     lines = []
     for c in commentaries:

@@ -31,7 +31,9 @@ export function BackendHealthBanner() {
           setState("wrong-service");
           return;
         }
-        const data = (await resp.json().catch(() => null)) as { status?: string } | null;
+        const data = (await resp.json().catch(() => null)) as {
+          status?: string;
+        } | null;
         if (data && data.status === "ok") {
           setState("ok");
         } else {
@@ -50,9 +52,13 @@ export function BackendHealthBanner() {
   if (state === "ok" || state === "checking" || dismissed) return null;
 
   const title =
-    state === "unreachable" ? t("health.unreachableTitle") : t("health.wrongServiceTitle");
+    state === "unreachable"
+      ? t("health.unreachableTitle")
+      : t("health.wrongServiceTitle");
   const hint =
-    state === "unreachable" ? t("health.unreachableHint") : t("health.wrongServiceHint");
+    state === "unreachable"
+      ? t("health.unreachableHint")
+      : t("health.wrongServiceHint");
 
   return (
     <div className="backend-health-banner" role="alert">

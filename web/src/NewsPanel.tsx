@@ -1,9 +1,18 @@
 import { useMemo, useState } from "react";
-import { api, type Briefing, type NewsItem, type SectorPreferences } from "./api";
+import {
+  api,
+  type Briefing,
+  type NewsItem,
+  type SectorPreferences,
+} from "./api";
 import { getBriefingKind } from "./briefingKind";
 import { useI18n } from "./i18n";
 import { NewsAnalysisModal } from "./NewsAnalysisModal";
-import { localizeBriefing, localizeImpactLevel, localizeSentiment } from "./uiLabels";
+import {
+  localizeBriefing,
+  localizeImpactLevel,
+  localizeSentiment,
+} from "./uiLabels";
 
 interface NewsPanelProps {
   news: NewsItem[];
@@ -48,7 +57,11 @@ export function NewsPanel({
   return (
     <div className="panel">
       <div className="panel-actions-row">
-        <button className="btn btn-primary" onClick={onLoadNews} disabled={newsLoading}>
+        <button
+          className="btn btn-primary"
+          onClick={onLoadNews}
+          disabled={newsLoading}
+        >
           {newsLoading ? t("news.loading") : t("news.refresh")}
         </button>
         <button
@@ -59,23 +72,24 @@ export function NewsPanel({
           {briefingLoading ? t("news.briefingLoading") : briefingLabel}
         </button>
       </div>
-      {briefing && (() => {
-        const b = localizeBriefing(briefing, t);
-        return (
-        <div className="briefing-card">
-          <h4>{b.title}</h4>
-          <p>{b.summary}</p>
-          <div className="briefing-vertical-list">
-            {b.sections.map((s) => (
-              <div key={s.title} className="briefing-point">
-                <strong>{s.title}</strong>
-                <pre className="briefing-section">{s.content}</pre>
+      {briefing &&
+        (() => {
+          const b = localizeBriefing(briefing, t);
+          return (
+            <div className="briefing-card">
+              <h4>{b.title}</h4>
+              <p>{b.summary}</p>
+              <div className="briefing-vertical-list">
+                {b.sections.map((s) => (
+                  <div key={s.title} className="briefing-point">
+                    <strong>{s.title}</strong>
+                    <pre className="briefing-section">{s.content}</pre>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-        );
-      })()}
+            </div>
+          );
+        })()}
       {newsSectors && newsSectors.available.length > 0 && (
         <div style={{ marginTop: 10 }}>
           <span className="field-label">{t("news.sectors")}</span>
@@ -96,13 +110,19 @@ export function NewsPanel({
       )}
       {(["holding", "sector", "market"] as const).map((group) => {
         const items = news.filter((n) => {
-          if (group === "holding") return n.category === "holding" || n.related_to_user;
-          if (group === "sector") return n.category === "sector" && !n.related_to_user;
+          if (group === "holding")
+            return n.category === "holding" || n.related_to_user;
+          if (group === "sector")
+            return n.category === "sector" && !n.related_to_user;
           return n.category === "market" && !n.related_to_user;
         });
         if (items.length === 0) return null;
         const title =
-          group === "market" ? t("news.groupMarket") : group === "sector" ? t("news.groupSector") : t("news.groupHolding");
+          group === "market"
+            ? t("news.groupMarket")
+            : group === "sector"
+              ? t("news.groupSector")
+              : t("news.groupHolding");
         return (
           <div key={group}>
             <p className="news-group-title">{title}</p>
@@ -119,7 +139,8 @@ export function NewsPanel({
                 <span
                   className={`stat-pill ${n.sentiment === "bullish" ? "up" : n.sentiment === "bearish" ? "down" : ""}`}
                 >
-                  {localizeSentiment(n.sentiment, t)} · {localizeImpactLevel(n.impact_level, t)}
+                  {localizeSentiment(n.sentiment, t)} ·{" "}
+                  {localizeImpactLevel(n.impact_level, t)}
                   {n.related_to_user ? ` · ${t("news.related")}` : ""}
                 </span>
                 {onAskCopilot && (
@@ -130,14 +151,18 @@ export function NewsPanel({
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm"
-                      onClick={() => onAskCopilot(`${t("news.askExplain")}：${n.title}`)}
+                      onClick={() =>
+                        onAskCopilot(`${t("news.askExplain")}：${n.title}`)
+                      }
                     >
                       {t("news.askExplain")}
                     </button>
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm"
-                      onClick={() => onAskCopilot(`${t("news.askImpact")}：${n.title}`)}
+                      onClick={() =>
+                        onAskCopilot(`${t("news.askImpact")}：${n.title}`)
+                      }
                     >
                       {t("news.askImpact")}
                     </button>
@@ -148,7 +173,9 @@ export function NewsPanel({
           </div>
         );
       })}
-      {news.length === 0 && !newsLoading && <p className="muted">{t("news.empty")}</p>}
+      {news.length === 0 && !newsLoading && (
+        <p className="muted">{t("news.empty")}</p>
+      )}
       {analyzingNews && (
         <NewsAnalysisModal
           newsId={analyzingNews.id}

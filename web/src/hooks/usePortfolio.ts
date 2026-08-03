@@ -48,8 +48,12 @@ export function usePortfolio(
 ): PortfolioState {
   const cachedSnapshot = readHoldingsSnapshot();
   const hadSnapshotRef = useRef(Boolean(cachedSnapshot?.length));
-  const [holdings, setHoldings] = useState<HoldingEnriched[]>(cachedSnapshot ?? []);
-  const [holdingsLoading, setHoldingsLoading] = useState(!cachedSnapshot?.length);
+  const [holdings, setHoldings] = useState<HoldingEnriched[]>(
+    cachedSnapshot ?? [],
+  );
+  const [holdingsLoading, setHoldingsLoading] = useState(
+    !cachedSnapshot?.length,
+  );
   const [holdingsRefreshing, setHoldingsRefreshing] = useState(false);
   const [isDemo, setIsDemo] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
@@ -137,7 +141,10 @@ export function usePortfolio(
 
   useEffect(() => {
     void loadHoldings().then(() => {
-      api.demoStatus().then((s) => setIsDemo(s.demo)).catch(() => {});
+      api
+        .demoStatus()
+        .then((s) => setIsDemo(s.demo))
+        .catch(() => {});
     });
   }, [loadHoldings]);
 

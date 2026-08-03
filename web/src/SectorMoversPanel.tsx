@@ -10,7 +10,11 @@ interface SectorMoversPanelProps {
   onAskSector: (sectorName: string) => void;
 }
 
-export function SectorMoversPanel({ selectedSector, onSelectLeader, onAskSector }: SectorMoversPanelProps) {
+export function SectorMoversPanel({
+  selectedSector,
+  onSelectLeader,
+  onAskSector,
+}: SectorMoversPanelProps) {
   const { t } = useI18n();
   const [data, setData] = useState<SectorMovers | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,12 +48,16 @@ export function SectorMoversPanel({ selectedSector, onSelectLeader, onAskSector 
               >
                 {item.name}
               </button>
-              <span className={`mono ${signedClass(item.change_pct)}`}>{formatSignedPct(item.change_pct)}</span>
+              <span className={`mono ${signedClass(item.change_pct)}`}>
+                {formatSignedPct(item.change_pct)}
+              </span>
               {item.leader_symbol ? (
                 <button
                   type="button"
                   className="sector-movers-leader"
-                  onClick={() => onSelectLeader(item.leader_symbol, item.leader_name)}
+                  onClick={() =>
+                    onSelectLeader(item.leader_symbol, item.leader_name)
+                  }
                 >
                   {item.leader_name}
                 </button>
@@ -62,7 +70,10 @@ export function SectorMoversPanel({ selectedSector, onSelectLeader, onAskSector 
   }
 
   return (
-    <CollapsibleSection title={t("sectors.title")} className="sector-movers-panel">
+    <CollapsibleSection
+      title={t("sectors.title")}
+      className="sector-movers-panel"
+    >
       <div className="sector-movers-grid">
         {renderColumn(t("sectors.gainers"), data!.gainers)}
         {renderColumn(t("sectors.losers"), data!.losers)}

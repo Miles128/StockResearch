@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 
-
 from stockresearch.core.schemas import (
     DeepAnalysisOut,
     DimensionResult,
@@ -196,4 +195,3 @@ def test_build_thesis_includes_pricing_evidence() -> None:
 def test_build_thesis_is_deterministic() -> None:
     report = _bullish_report()
     assert build_thesis(report).model_dump() == build_thesis(report).model_dump()
-

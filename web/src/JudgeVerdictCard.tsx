@@ -10,10 +10,14 @@ interface JudgeVerdictCardProps {
 
 export function JudgeVerdictCard({ verdict, isTyping }: JudgeVerdictCardProps) {
   const { t } = useI18n();
-  const actionKey = positionActionCssClass(verdict.position_action ?? "仓位适中");
+  const actionKey = positionActionCssClass(
+    verdict.position_action ?? "仓位适中",
+  );
 
   return (
-    <div className={`message assistant stream-msg stream-judge action-${actionKey}`}>
+    <div
+      className={`message assistant stream-msg stream-judge action-${actionKey}`}
+    >
       <div className="stream-msg-head">
         <strong>{t("stream.judge")}</strong>
         {isTyping && <span className="muted">{t("stream.typing")}</span>}
@@ -21,7 +25,9 @@ export function JudgeVerdictCard({ verdict, isTyping }: JudgeVerdictCardProps) {
       {(verdict.risk_level || verdict.position_action) && (
         <p className="stream-msg-meta">
           {verdict.risk_level && (
-            <span>{t("stream.overallRisk")}: {verdict.risk_level} </span>
+            <span>
+              {t("stream.overallRisk")}: {verdict.risk_level}{" "}
+            </span>
           )}
           {verdict.position_action && (
             <span>
@@ -47,7 +53,10 @@ export function JudgeVerdictCard({ verdict, isTyping }: JudgeVerdictCardProps) {
           </p>
           <div className="holding-action-list">
             {verdict.holding_actions.map((item: HoldingAction) => (
-              <div key={item.symbol} className={`holding-action action-${positionActionCssClass(item.action)}`}>
+              <div
+                key={item.symbol}
+                className={`holding-action action-${positionActionCssClass(item.action)}`}
+              >
                 <div className="holding-action-head">
                   <strong>
                     {item.name}（{item.symbol}）
@@ -67,7 +76,9 @@ export function JudgeVerdictCard({ verdict, isTyping }: JudgeVerdictCardProps) {
               </div>
             ))}
           </div>
-          <p className="stream-section-title">{t("stream.portfolioConclusion")}</p>
+          <p className="stream-section-title">
+            {t("stream.portfolioConclusion")}
+          </p>
           <div className="stream-msg-body">
             <MarkdownContent text={verdict.summary} />
           </div>
@@ -78,7 +89,9 @@ export function JudgeVerdictCard({ verdict, isTyping }: JudgeVerdictCardProps) {
           )}
           {verdict.divergence && (
             <div className="stream-msg-body muted">
-              <MarkdownContent text={`${t("stream.divergence")}: ${verdict.divergence}`} />
+              <MarkdownContent
+                text={`${t("stream.divergence")}: ${verdict.divergence}`}
+              />
             </div>
           )}
         </>
@@ -95,7 +108,9 @@ export function JudgeVerdictCard({ verdict, isTyping }: JudgeVerdictCardProps) {
           )}
           {verdict.divergence && (
             <div className="stream-msg-body muted">
-              <MarkdownContent text={`${t("stream.divergence")}: ${verdict.divergence}`} />
+              <MarkdownContent
+                text={`${t("stream.divergence")}: ${verdict.divergence}`}
+              />
             </div>
           )}
         </>

@@ -4,6 +4,9 @@ import asyncio
 import logging
 from typing import Literal
 
+from stockresearch.agents.master_commentary.context import build_research_context
+from stockresearch.agents.master_commentary.registry import resolve_master_ids
+from stockresearch.agents.master_commentary.stream import get_master_commentary
 from stockresearch.agents.research.agents import AGENT_BY_ID, DIMENSION_AGENTS
 from stockresearch.agents.research.budget import (
     AnalysisDepth,
@@ -17,10 +20,8 @@ from stockresearch.agents.research.react import (
     prepare_react_agent,
     run_react_agent,
 )
-from stockresearch.agents.master_commentary.context import build_research_context
-from stockresearch.agents.master_commentary.stream import get_master_commentary
 from stockresearch.agents.research.report_builder import build_research_report
-from stockresearch.agents.master_commentary.registry import resolve_master_ids
+from stockresearch.agents.research.scoring import score_bias, weighted_composite_score
 from stockresearch.core.schemas import (
     DebateResult,
     DimensionResult,
@@ -28,7 +29,6 @@ from stockresearch.core.schemas import (
     ModeSettingsOut,
     ResearchReportOut,
 )
-from stockresearch.agents.research.scoring import score_bias, weighted_composite_score
 from stockresearch.services.factors import factor_alignment_note
 from stockresearch.services.text_factor import build_news_text_factor, fetch_symbol_news_snippets
 from stockresearch.utils.llm import LLMClient, get_llm_client
@@ -96,7 +96,9 @@ async def run_research(
     name = resolve_name(symbol)
 
     results = await asyncio.gather(*(_run_agent(agent, ctx) for agent in DIMENSION_AGENTS))
-    dimensions = {agent.agent_id: result for agent, result in zip(DIMENSION_AGENTS, results, strict=True)}
+    dimensions = {
+        agent.agent_id: result for agent, result in zip(DIMENSION_AGENTS, results, strict=True)
+    }
 
     news_snippets = await fetch_symbol_news_snippets(symbol, name)
     news_text_factor = build_news_text_factor(news_snippets, subject=f"{name}({symbol})")

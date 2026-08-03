@@ -10,12 +10,17 @@ export interface MarketOverviewState {
 }
 
 export function useMarketOverview(): MarketOverviewState {
-  const [marketOverview, setMarketOverview] = useState<MarketOverview | null>(null);
+  const [marketOverview, setMarketOverview] = useState<MarketOverview | null>(
+    null,
+  );
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [dataStatus, setDataStatus] = useState<DataSourceStatus | null>(null);
 
   const refreshDataStatus = useCallback(() => {
-    void api.dataSourceStatus().then(setDataStatus).catch(() => setDataStatus(null));
+    void api
+      .dataSourceStatus()
+      .then(setDataStatus)
+      .catch(() => setDataStatus(null));
   }, []);
 
   const loadOverview = useCallback(async () => {

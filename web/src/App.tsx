@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import {
   api,
   HoldingEnriched,
@@ -10,7 +17,12 @@ import type { CopilotContext } from "./appTypes";
 import type { CenterTab, FocusContext, ListsLayoutMode } from "./layoutTypes";
 import { FocusTabBar } from "./FocusTabBar";
 import { PriceConflictBanner } from "./PriceConflictBanner";
-import { activeFocusContext, removeFocusTab, upsertFocusTab, type FocusTab } from "./focusTabs";
+import {
+  activeFocusContext,
+  removeFocusTab,
+  upsertFocusTab,
+  type FocusTab,
+} from "./focusTabs";
 import { buildKnownSymbols } from "./copilotFocusSync";
 import { ListsSidebar } from "./ListsSidebar";
 import { HeaderSearch } from "./HeaderSearch";
@@ -47,16 +59,15 @@ import { indexSymbolKey, localizeIndexName } from "./indexLabels";
 import { MarketTicker } from "./MarketTicker";
 import { MarketPanel } from "./MarketPanel";
 import { NewsPanel } from "./NewsPanel";
-import { computePortfolioSummary, computeSectorConcentration } from "./portfolioHelpers";
+import {
+  computePortfolioSummary,
+  computeSectorConcentration,
+} from "./portfolioHelpers";
 import { RiskPanel } from "./RiskPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { ModeSwitcher } from "./ModeSwitcher";
 import { Onboarding } from "./Onboarding";
-import {
-  IconMessages,
-  IconSettings,
-  IconSignal,
-} from "./ui/Icons";
+import { IconMessages, IconSettings, IconSignal } from "./ui/Icons";
 import {
   READING_MODE_I18N_KEYS,
   switchMode,
@@ -78,10 +89,21 @@ export default function App() {
   );
   const numLocale = locale === "zh" ? "zh-CN" : "en-US";
   const ratioGrade = (v: number, excellent: number, good: number) =>
-    v > excellent ? t("rating.excellent") : v > good ? t("rating.good") : v > 0 ? t("rating.fair") : t("rating.poor");
+    v > excellent
+      ? t("rating.excellent")
+      : v > good
+        ? t("rating.good")
+        : v > 0
+          ? t("rating.fair")
+          : t("rating.poor");
 
   const [centerTab, setCenterTab] = useState<CenterTab>("focus");
-  const { layoutSettings, setLayoutSettings, startCopilotResize, startListsResize } = useLayoutResize();
+  const {
+    layoutSettings,
+    setLayoutSettings,
+    startCopilotResize,
+    startListsResize,
+  } = useLayoutResize();
   const [listsMode, setListsMode] = useState<ListsLayoutMode>("sidebar");
 
   const expandListsPanel = useCallback(() => {
@@ -105,7 +127,8 @@ export default function App() {
   const [error, setError] = useState("");
   const [dataDetailsOpen, setDataDetailsOpen] = useState(false);
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
-  const [tradeModalSeed, setTradeModalSeed] = useState<Partial<TradeDraft> | null>(null);
+  const [tradeModalSeed, setTradeModalSeed] =
+    useState<Partial<TradeDraft> | null>(null);
   const [inlineTradeOpen, setInlineTradeOpen] = useState(false);
 
   const showError = useCallback((msg: string) => {
@@ -153,13 +176,21 @@ export default function App() {
     addWatchlistItem,
     removeWatchlistItem,
   } = useWatchlist(showError);
-  const { news, newsLoading, newsSectors, sectorSaving, loadNews, toggleNewsSector } = useNews(
+  const {
+    news,
+    newsLoading,
+    newsSectors,
+    sectorSaving,
+    loadNews,
+    toggleNewsSector,
+  } = useNews(
     centerTab === "news" ||
       centerTab === "market" ||
       (centerTab === "focus" && focusContext != null),
     showError,
   );
-  const { risk, riskLoading, riskStream, riskStatusMsg, runRisk } = useRiskCheckup(showError, t);
+  const { risk, riskLoading, riskStream, riskStatusMsg, runRisk } =
+    useRiskCheckup(showError, t);
   const riskTabRunRef = useRef(false);
 
   useEffect(() => {
@@ -167,7 +198,8 @@ export default function App() {
       riskTabRunRef.current = false;
       return;
     }
-    if (holdingsLoading || holdings.length === 0 || riskTabRunRef.current) return;
+    if (holdingsLoading || holdings.length === 0 || riskTabRunRef.current)
+      return;
     riskTabRunRef.current = true;
     void runRisk();
   }, [centerTab, holdings.length, holdingsLoading, runRisk]);
@@ -237,19 +269,52 @@ export default function App() {
 
   const chatExamples = useMemo(() => {
     const all = {
-      market: { label: t("chat.exampleMarketLabel"), query: t("chat.exampleMarketQuery") },
-      stock: { label: t("chat.exampleStockLabel"), query: t("chat.exampleStockQuery") },
-      news: { label: t("chat.exampleNewsLabel"), query: t("chat.exampleNewsQuery") },
-      risk: { label: t("chat.exampleRiskLabel"), query: t("chat.exampleRiskQuery") },
-      sentiment: { label: t("chat.exampleSentimentLabel"), query: t("chat.exampleSentimentQuery") },
-      sector: { label: t("chat.exampleSectorLabel"), query: t("chat.exampleSectorQuery") },
-      pnl: { label: t("chat.examplePnlLabel"), query: t("chat.examplePnlQuery") },
-      topMover: { label: t("chat.exampleTopMoverLabel"), query: t("chat.exampleTopMoverQuery") },
-      newsImpact: { label: t("chat.exampleNewsImpactLabel"), query: t("chat.exampleNewsImpactQuery") },
-      topRisk: { label: t("chat.exampleTopRiskLabel"), query: t("chat.exampleTopRiskQuery") },
-      stress: { label: t("chat.exampleStressLabel"), query: t("chat.exampleStressQuery") },
+      market: {
+        label: t("chat.exampleMarketLabel"),
+        query: t("chat.exampleMarketQuery"),
+      },
+      stock: {
+        label: t("chat.exampleStockLabel"),
+        query: t("chat.exampleStockQuery"),
+      },
+      news: {
+        label: t("chat.exampleNewsLabel"),
+        query: t("chat.exampleNewsQuery"),
+      },
+      risk: {
+        label: t("chat.exampleRiskLabel"),
+        query: t("chat.exampleRiskQuery"),
+      },
+      sentiment: {
+        label: t("chat.exampleSentimentLabel"),
+        query: t("chat.exampleSentimentQuery"),
+      },
+      sector: {
+        label: t("chat.exampleSectorLabel"),
+        query: t("chat.exampleSectorQuery"),
+      },
+      pnl: {
+        label: t("chat.examplePnlLabel"),
+        query: t("chat.examplePnlQuery"),
+      },
+      topMover: {
+        label: t("chat.exampleTopMoverLabel"),
+        query: t("chat.exampleTopMoverQuery"),
+      },
+      newsImpact: {
+        label: t("chat.exampleNewsImpactLabel"),
+        query: t("chat.exampleNewsImpactQuery"),
+      },
+      topRisk: {
+        label: t("chat.exampleTopRiskLabel"),
+        query: t("chat.exampleTopRiskQuery"),
+      },
+      stress: {
+        label: t("chat.exampleStressLabel"),
+        query: t("chat.exampleStressQuery"),
+      },
     };
-    const byTab: Record<CenterTab, typeof all[keyof typeof all][]> = {
+    const byTab: Record<CenterTab, (typeof all)[keyof typeof all][]> = {
       focus: [all.stock, all.pnl, all.topMover, all.risk],
       market: [all.market, all.sentiment, all.sector, all.news],
       risk: [all.risk, all.topRisk, all.stress, all.pnl],
@@ -257,10 +322,18 @@ export default function App() {
     };
     return byTab[centerTab];
   }, [t, locale, centerTab]);
-  const portfolioSummary = useMemo(() => computePortfolioSummary(holdings), [holdings]);
-  const sectorMix = useMemo(() => computeSectorConcentration(holdings), [holdings]);
+  const portfolioSummary = useMemo(
+    () => computePortfolioSummary(holdings),
+    [holdings],
+  );
+  const sectorMix = useMemo(
+    () => computeSectorConcentration(holdings),
+    [holdings],
+  );
   const marketSessionLabel =
-    holdings[0]?.market_session === "trading" ? t("ticker.trading") : t("ticker.closed");
+    holdings[0]?.market_session === "trading"
+      ? t("ticker.trading")
+      : t("ticker.closed");
   const headerUsage = useMemo((): LlmUsage | null => {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       const m = messages[i];
@@ -279,10 +352,14 @@ export default function App() {
     const fallback = overview?.fallback || quotes?.fallback || "akshare";
     const degraded = Boolean(overview?.degraded || quotes?.degraded);
     if (degraded) {
-      return t("header.dataDegraded").replace("{primary}", primary).replace("{fallback}", fallback);
+      return t("header.dataDegraded")
+        .replace("{primary}", primary)
+        .replace("{fallback}", fallback);
     }
     // 默认并列展示主源 + 备源，让用户看到完整源链路
-    return t("header.dataLiveMulti").replace("{primary}", primary).replace("{fallback}", fallback);
+    return t("header.dataLiveMulti")
+      .replace("{primary}", primary)
+      .replace("{fallback}", fallback);
   }
 
   function toggleLocale() {
@@ -311,7 +388,10 @@ export default function App() {
         await refreshWatchlistQuotes({ silent: true });
         if (cancelled) return;
         const trading = data.some((h) => h.market_session === "trading");
-        timeoutId = window.setTimeout(refreshQuotes, trading ? tradingPollMs : closedPollMs);
+        timeoutId = window.setTimeout(
+          refreshQuotes,
+          trading ? tradingPollMs : closedPollMs,
+        );
       } catch {
         if (!cancelled) {
           timeoutId = window.setTimeout(refreshQuotes, tradingPollMs);
@@ -324,7 +404,12 @@ export default function App() {
       cancelled = true;
       if (timeoutId) window.clearTimeout(timeoutId);
     };
-  }, [loadHoldings, refreshWatchlistQuotes, modeSettings.quoteRefreshMinutes, modeSettings.uiPollingEnabled]);
+  }, [
+    loadHoldings,
+    refreshWatchlistQuotes,
+    modeSettings.quoteRefreshMinutes,
+    modeSettings.uiPollingEnabled,
+  ]);
 
   useEffect(() => {
     setFocusTabs((tabs) => {
@@ -335,8 +420,13 @@ export default function App() {
         const holding = holdings.find((h) => h.symbol === sym);
         const quote = watchlistQuotes[sym];
         const price = holding?.price ?? quote?.price ?? tab.context.price;
-        const change_pct = holding?.change_pct ?? quote?.change_pct ?? tab.context.change_pct;
-        if (price === tab.context.price && change_pct === tab.context.change_pct) return tab;
+        const change_pct =
+          holding?.change_pct ?? quote?.change_pct ?? tab.context.change_pct;
+        if (
+          price === tab.context.price &&
+          change_pct === tab.context.change_pct
+        )
+          return tab;
         changed = true;
         return { ...tab, context: { ...tab.context, price, change_pct } };
       });
@@ -395,7 +485,8 @@ export default function App() {
     };
   }
 
-  const focusSymbol = focusContext?.kind === "stock" ? focusContext.symbol : null;
+  const focusSymbol =
+    focusContext?.kind === "stock" ? focusContext.symbol : null;
 
   function closeFocusTab(tabId: string) {
     const next = removeFocusTab(focusTabs, tabId);
@@ -503,7 +594,9 @@ export default function App() {
   }
 
   function alertHoldingTags(message: string): HoldingEnriched[] {
-    return holdings.filter((h) => message.includes(h.name) || message.includes(h.symbol));
+    return holdings.filter(
+      (h) => message.includes(h.name) || message.includes(h.symbol),
+    );
   }
 
   async function deleteHolding(id: number) {
@@ -520,238 +613,276 @@ export default function App() {
       enabled={modeSettings.mode === "advisor" && modeSettings.enableGlossary}
       terms={glossary}
     >
-    <div className="app-shell" data-mode={modeSettings.mode}>
-      <div className="app-chrome">
-        <div className="chrome-left">
-          <span className="chrome-brand">StockResearch</span>
-        </div>
-        <HeaderSearch
-          onSelectStock={(symbol, name) => selectSymbol(symbol, name)}
-          onAskQuery={openCopilotQuery}
-        />
-        <MarketTicker
-          inline
-          overview={marketOverview}
-          loading={overviewLoading}
-          sessionLabel={marketSessionLabel}
-          northboundLabel={t("ticker.northbound")}
-          breadthLabel={t("ticker.breadth")}
-          refreshTitle={t("ticker.refresh")}
-          onRefresh={() => void loadOverview()}
-          onIndexClick={onTickerIndexClick}
-        />
-        <div className="chrome-meta">
-          <ModeSwitcher settings={modeSettings} onSwitch={handleSwitchMode} />
-          <PriceAlertBell
-            onSelectSymbol={(symbol, name) => selectSymbol(symbol, name)}
-            pollingEnabled={modeSettings.uiPollingEnabled}
-            pollingIntervalMs={modeSettings.quoteRefreshMinutes * 60_000}
+      <div className="app-shell" data-mode={modeSettings.mode}>
+        <div className="app-chrome">
+          <div className="chrome-left">
+            <span className="chrome-brand">StockResearch</span>
+          </div>
+          <HeaderSearch
+            onSelectStock={(symbol, name) => selectSymbol(symbol, name)}
+            onAskQuery={openCopilotQuery}
           />
-          {headerUsage && (
-            <span className="chrome-usage" title={formatLlmUsage(headerUsage, t)}>
-              {formatHeaderUsage(headerUsage, t)}
-            </span>
-          )}
-          <button
-            type="button"
-            className={`icon-btn data-source-icon${dataStatus && (dataStatus.quotes?.degraded || dataStatus.overview?.degraded) ? " degraded" : ""}`}
-            title={dataStatus?.overview?.message || dataStatus?.quotes?.message || dataSourceLabel()}
-            onClick={() => setDataDetailsOpen(true)}
-          >
-            <IconSignal />
-          </button>
-          <button
-            type="button"
-            className="icon-btn"
-            title={t("settings.readingModeCurrent", {
-              reading: t(READING_MODE_I18N_KEYS[modeSettings.readingMode].short),
-            })}
-            onClick={() => setSetupOpen(true)}
-            aria-label={t("header.settingsTitle")}
-          >
-            <IconSettings />
-          </button>
-          <button
-            type="button"
-            className="locale-toggle-btn"
-            onClick={toggleLocale}
-            title={locale === "zh" ? "English" : "中文"}
-          >
-            {locale === "zh" ? "En" : "中"}
-          </button>
-        </div>
-      </div>
-      <PriceConflictBanner conflicts={dataStatus?.price_conflicts ?? []} />
-      <SettingsPanel
-        open={setupOpen}
-        onClose={() => {
-          if (!settingsRequired) setSetupOpen(false);
-        }}
-        required={settingsRequired}
-        onConfigured={handleLlmConfigured}
-        onModeSettingsChange={persistModeSettings}
-        variant="modal"
-      />
-      {dataDetailsOpen && <DataSourceDetails status={dataStatus} onClose={() => setDataDetailsOpen(false)} />}
-      {onboardingOpen && (
-        <Onboarding onComplete={handleOnboardingComplete} onSkip={handleOnboardingSkip} />
-      )}
-      <HoldingTradeModal
-        open={tradeModalOpen}
-        holdings={holdings}
-        onClose={closeTradeModal}
-        onApplied={async () => {
-          await loadHoldings();
-        }}
-        initialRow={tradeModalSeed}
-      />
-
-      <div
-        className={`app-body tri-shell lists-${listsMode}${!copilotOpen ? " copilot-collapsed" : ""}${settingsRequired ? " app-locked" : ""}`}
-        style={
-          {
-            "--lists-w": listsMode === "hidden" ? "0px" : `${layoutSettings.listsWidth}px`,
-            "--copilot-w": `${layoutSettings.copilotWidth}px`,
-          } as CSSProperties
-        }
-      >
-        {listsMode !== "hidden" && (
-          <ListsSidebar
-            mode={listsMode}
-            onSetMode={setListsMode}
-            onExpandLists={expandListsPanel}
-            holdings={holdings}
-            holdingsLoading={holdingsLoading}
-            holdingsRefreshing={holdingsRefreshing}
-            portfolioSummary={portfolioSummary}
-            sectorMix={sectorMix}
-            numLocale={numLocale}
-            selectedSymbol={focusSymbol}
-            onSelectHolding={selectHolding}
-            onAddHolding={openAddHoldingModal}
-            onEditHolding={openEditHoldingModal}
-            onDeleteHolding={(id) => void deleteHolding(id)}
-            inlineTradeOpen={inlineTradeOpen}
-            onInlineTradeClose={closeInlineTrade}
-            onTradeApplied={async () => {
-              await loadHoldings();
-            }}
-            watchlist={watchlist}
-            watchlistQuotes={watchlistQuotes}
-            watchlistLoading={watchlistLoading}
-            onSelectWatchlist={selectWatchlistItem}
-            onAddWatchlist={addWatchlistItem}
-            onRemoveWatchlist={(id) => void removeWatchlistItem(id)}
-            onListsResizeStart={startListsResize}
-            listsWidth={layoutSettings.listsWidth}
+          <MarketTicker
+            inline
+            overview={marketOverview}
+            loading={overviewLoading}
+            sessionLabel={marketSessionLabel}
+            northboundLabel={t("ticker.northbound")}
+            breadthLabel={t("ticker.breadth")}
+            refreshTitle={t("ticker.refresh")}
+            onRefresh={() => void loadOverview()}
+            onIndexClick={onTickerIndexClick}
           />
-        )}
-
-        {listsMode === "hidden" && (
-          <button
-            type="button"
-            className="panel-float-toggle lists-float-toggle"
-            onClick={() => expandListsPanel()}
-            title={t("lists.expandCenter")}
-            aria-label={t("lists.expandCenter")}
-          >
-            »
-          </button>
-        )}
-
-        <div className="center-column">
-          <nav className="center-tabs" aria-label={t("center.aria")}>
-            {centerTabs.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                className={`center-tab${centerTab === item.key ? " active" : ""}`}
-                onClick={() => setCenterTab(item.key)}
+          <div className="chrome-meta">
+            <ModeSwitcher settings={modeSettings} onSwitch={handleSwitchMode} />
+            <PriceAlertBell
+              onSelectSymbol={(symbol, name) => selectSymbol(symbol, name)}
+              pollingEnabled={modeSettings.uiPollingEnabled}
+              pollingIntervalMs={modeSettings.quoteRefreshMinutes * 60_000}
+            />
+            {headerUsage && (
+              <span
+                className="chrome-usage"
+                title={formatLlmUsage(headerUsage, t)}
               >
-                {item.label}
-              </button>
-            ))}
-            {focusTabs.length > 0 && (
-              <FocusTabBar
-                tabs={focusTabs}
-                activeId={centerTab === "focus" ? activeFocusTabId : null}
-                onSelect={(tabId) => {
-                  setCenterTab("focus");
-                  setActiveFocusTabId(tabId);
-                }}
-                onClose={closeFocusTab}
-              />
+                {formatHeaderUsage(headerUsage, t)}
+              </span>
             )}
-          </nav>
+            <button
+              type="button"
+              className={`icon-btn data-source-icon${dataStatus && (dataStatus.quotes?.degraded || dataStatus.overview?.degraded) ? " degraded" : ""}`}
+              title={
+                dataStatus?.overview?.message ||
+                dataStatus?.quotes?.message ||
+                dataSourceLabel()
+              }
+              onClick={() => setDataDetailsOpen(true)}
+            >
+              <IconSignal />
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
+              title={t("settings.readingModeCurrent", {
+                reading: t(
+                  READING_MODE_I18N_KEYS[modeSettings.readingMode].short,
+                ),
+              })}
+              onClick={() => setSetupOpen(true)}
+              aria-label={t("header.settingsTitle")}
+            >
+              <IconSettings />
+            </button>
+            <button
+              type="button"
+              className="locale-toggle-btn"
+              onClick={toggleLocale}
+              title={locale === "zh" ? "English" : "中文"}
+            >
+              {locale === "zh" ? "En" : "中"}
+            </button>
+          </div>
+        </div>
+        <PriceConflictBanner conflicts={dataStatus?.price_conflicts ?? []} />
+        <SettingsPanel
+          open={setupOpen}
+          onClose={() => {
+            if (!settingsRequired) setSetupOpen(false);
+          }}
+          required={settingsRequired}
+          onConfigured={handleLlmConfigured}
+          onModeSettingsChange={persistModeSettings}
+          variant="modal"
+        />
+        {dataDetailsOpen && (
+          <DataSourceDetails
+            status={dataStatus}
+            onClose={() => setDataDetailsOpen(false)}
+          />
+        )}
+        {onboardingOpen && (
+          <Onboarding
+            onComplete={handleOnboardingComplete}
+            onSkip={handleOnboardingSkip}
+          />
+        )}
+        <HoldingTradeModal
+          open={tradeModalOpen}
+          holdings={holdings}
+          onClose={closeTradeModal}
+          onApplied={async () => {
+            await loadHoldings();
+          }}
+          initialRow={tradeModalSeed}
+        />
 
-          <div className="center-scroll">
-            {error && <div className="error">{error}</div>}
-            {centerTab === "focus" && !focusContext && focusTabs.length === 0 && <BackendHealthBanner />}
-            {centerTab === "focus" && !focusContext && focusTabs.length === 0 && holdings.length === 0 && !isDemo && (
-              <DemoBanner onLoad={loadDemoHoldings} onClear={clearDemoHoldings} isDemo={isDemo} loading={demoLoading} />
-            )}
-            {centerTab === "focus" && !focusContext && focusTabs.length === 0 && isDemo && (
-              <DemoBanner
-                onLoad={loadDemoHoldings}
-                onClear={clearDemoHoldings}
-                onGoPortfolio={() => setCenterTab("focus")}
-                isDemo={isDemo}
-                loading={demoLoading}
-              />
-            )}
+        <div
+          className={`app-body tri-shell lists-${listsMode}${!copilotOpen ? " copilot-collapsed" : ""}${settingsRequired ? " app-locked" : ""}`}
+          style={
+            {
+              "--lists-w":
+                listsMode === "hidden"
+                  ? "0px"
+                  : `${layoutSettings.listsWidth}px`,
+              "--copilot-w": `${layoutSettings.copilotWidth}px`,
+            } as CSSProperties
+          }
+        >
+          {listsMode !== "hidden" && (
+            <ListsSidebar
+              mode={listsMode}
+              onSetMode={setListsMode}
+              onExpandLists={expandListsPanel}
+              holdings={holdings}
+              holdingsLoading={holdingsLoading}
+              holdingsRefreshing={holdingsRefreshing}
+              portfolioSummary={portfolioSummary}
+              sectorMix={sectorMix}
+              numLocale={numLocale}
+              selectedSymbol={focusSymbol}
+              onSelectHolding={selectHolding}
+              onAddHolding={openAddHoldingModal}
+              onEditHolding={openEditHoldingModal}
+              onDeleteHolding={(id) => void deleteHolding(id)}
+              inlineTradeOpen={inlineTradeOpen}
+              onInlineTradeClose={closeInlineTrade}
+              onTradeApplied={async () => {
+                await loadHoldings();
+              }}
+              watchlist={watchlist}
+              watchlistQuotes={watchlistQuotes}
+              watchlistLoading={watchlistLoading}
+              onSelectWatchlist={selectWatchlistItem}
+              onAddWatchlist={addWatchlistItem}
+              onRemoveWatchlist={(id) => void removeWatchlistItem(id)}
+              onListsResizeStart={startListsResize}
+              listsWidth={layoutSettings.listsWidth}
+            />
+          )}
 
-            {centerTab === "focus" && focusContext && (
-              <StockFocusView
-                focus={focusContext}
-                news={news}
-                newsLoading={newsLoading}
-                onAnalyze={analyzeFocusedStock}
-                onLoadNews={() => void loadNews()}
-              />
-            )}
+          {listsMode === "hidden" && (
+            <button
+              type="button"
+              className="panel-float-toggle lists-float-toggle"
+              onClick={() => expandListsPanel()}
+              title={t("lists.expandCenter")}
+              aria-label={t("lists.expandCenter")}
+            >
+              »
+            </button>
+          )}
 
-            {centerTab === "focus" && !focusContext && focusTabs.length === 0 && (
-              <>
-                <SectorMoversPanel
-                  selectedSector={highlightSector}
-                  onSelectLeader={(symbol, name) => selectSymbol(symbol, name)}
-                  onAskSector={selectSector}
-                />
-                <ActionCenter
-                  onNavigate={handleActionNavigate}
-                  onChatQuery={(query) => {
-                    const context: CopilotContext = {
-                      kind: "focus",
-                      label: locale === "zh" ? "我的持仓" : "My holdings",
-                    };
-                    setPageContext(context);
-                    setCopilotOpen(true);
-                    startChatQuery(query, { context });
+          <div className="center-column">
+            <nav className="center-tabs" aria-label={t("center.aria")}>
+              {centerTabs.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={`center-tab${centerTab === item.key ? " active" : ""}`}
+                  onClick={() => setCenterTab(item.key)}
+                >
+                  {item.label}
+                </button>
+              ))}
+              {focusTabs.length > 0 && (
+                <FocusTabBar
+                  tabs={focusTabs}
+                  activeId={centerTab === "focus" ? activeFocusTabId : null}
+                  onSelect={(tabId) => {
+                    setCenterTab("focus");
+                    setActiveFocusTabId(tabId);
                   }}
+                  onClose={closeFocusTab}
                 />
-              </>
-            )}
+              )}
+            </nav>
 
-            {centerTab === "market" && (
-              <MarketPanel
-                overview={marketOverview}
-                overviewLoading={overviewLoading}
-                onRefreshOverview={() => void loadOverview()}
-                news={news}
-                newsLoading={newsLoading}
-                onLoadNews={() => void loadNews()}
-                onIndexClick={onTickerIndexClick}
-                onSectorClick={selectSector}
-                onAskCopilot={(query) =>
-                  askCopilot(query, {
-                    kind: "focus",
-                    label: locale === "zh" ? "市场" : "Market",
-                  })
-                }
-              />
-            )}
+            <div className="center-scroll">
+              {error && <div className="error">{error}</div>}
+              {centerTab === "focus" &&
+                !focusContext &&
+                focusTabs.length === 0 && <BackendHealthBanner />}
+              {centerTab === "focus" &&
+                !focusContext &&
+                focusTabs.length === 0 &&
+                holdings.length === 0 &&
+                !isDemo && (
+                  <DemoBanner
+                    onLoad={loadDemoHoldings}
+                    onClear={clearDemoHoldings}
+                    isDemo={isDemo}
+                    loading={demoLoading}
+                  />
+                )}
+              {centerTab === "focus" &&
+                !focusContext &&
+                focusTabs.length === 0 &&
+                isDemo && (
+                  <DemoBanner
+                    onLoad={loadDemoHoldings}
+                    onClear={clearDemoHoldings}
+                    onGoPortfolio={() => setCenterTab("focus")}
+                    isDemo={isDemo}
+                    loading={demoLoading}
+                  />
+                )}
 
-            {centerTab === "risk" && (
+              {centerTab === "focus" && focusContext && (
+                <StockFocusView
+                  focus={focusContext}
+                  news={news}
+                  newsLoading={newsLoading}
+                  onAnalyze={analyzeFocusedStock}
+                  onLoadNews={() => void loadNews()}
+                />
+              )}
+
+              {centerTab === "focus" &&
+                !focusContext &&
+                focusTabs.length === 0 && (
+                  <>
+                    <SectorMoversPanel
+                      selectedSector={highlightSector}
+                      onSelectLeader={(symbol, name) =>
+                        selectSymbol(symbol, name)
+                      }
+                      onAskSector={selectSector}
+                    />
+                    <ActionCenter
+                      onNavigate={handleActionNavigate}
+                      onChatQuery={(query) => {
+                        const context: CopilotContext = {
+                          kind: "focus",
+                          label: locale === "zh" ? "我的持仓" : "My holdings",
+                        };
+                        setPageContext(context);
+                        setCopilotOpen(true);
+                        startChatQuery(query, { context });
+                      }}
+                    />
+                  </>
+                )}
+
+              {centerTab === "market" && (
+                <MarketPanel
+                  overview={marketOverview}
+                  overviewLoading={overviewLoading}
+                  onRefreshOverview={() => void loadOverview()}
+                  news={news}
+                  newsLoading={newsLoading}
+                  onLoadNews={() => void loadNews()}
+                  onIndexClick={onTickerIndexClick}
+                  onSectorClick={selectSector}
+                  onAskCopilot={(query) =>
+                    askCopilot(query, {
+                      kind: "focus",
+                      label: locale === "zh" ? "市场" : "Market",
+                    })
+                  }
+                />
+              )}
+
+              {centerTab === "risk" && (
                 <RiskPanel
                   holdings={holdings}
                   risk={risk}
@@ -773,72 +904,72 @@ export default function App() {
                     })
                   }
                 />
-            )}
+              )}
 
-            {centerTab === "news" && (
-              <NewsPanel
-                news={news}
-                newsLoading={newsLoading}
-                newsSectors={newsSectors}
-                sectorSaving={sectorSaving}
-                onLoadNews={() => void loadNews()}
-                onToggleSector={(s) => void toggleNewsSector(s)}
-                onAskCopilot={(query) =>
-                  askCopilot(query, {
-                    kind: "news",
-                    label: locale === "zh" ? "新闻·研报" : "News",
-                  })
-                }
-              />
-            )}
+              {centerTab === "news" && (
+                <NewsPanel
+                  news={news}
+                  newsLoading={newsLoading}
+                  newsSectors={newsSectors}
+                  sectorSaving={sectorSaving}
+                  onLoadNews={() => void loadNews()}
+                  onToggleSector={(s) => void toggleNewsSector(s)}
+                  onAskCopilot={(query) =>
+                    askCopilot(query, {
+                      kind: "news",
+                      label: locale === "zh" ? "新闻·研报" : "News",
+                    })
+                  }
+                />
+              )}
+            </div>
           </div>
-        </div>
 
-        {!copilotOpen && (
-          <button
-            type="button"
-            className="panel-float-toggle copilot-float-toggle"
-            onClick={() => setCopilotOpen(true)}
-            title={t("copilot.expand")}
-            aria-label={t("copilot.expand")}
-          >
-            <IconMessages />
-          </button>
-        )}
-        {copilotOpen && (
-          <aside className="copilot-column">
-            <CopilotPanel
-              open
-              threads={copilotThreads}
-              activeThreadId={activeThreadId}
-              userContext={pageContext}
-              onCollapsePanel={() => setCopilotOpen(false)}
-              onNewThread={newCopilotThread}
-              onSelectThread={switchThread}
-              onDeleteThread={deleteThread}
-              onResizeStart={startCopilotResize}
+          {!copilotOpen && (
+            <button
+              type="button"
+              className="panel-float-toggle copilot-float-toggle"
+              onClick={() => setCopilotOpen(true)}
+              title={t("copilot.expand")}
+              aria-label={t("copilot.expand")}
             >
-              <ChatPanel
-                messages={messages}
-                loading={chatLoading}
-                statusMsg={statusMsg}
-                chatStream={chatStream}
-                input={input}
-                onInputChange={setInput}
-                chatExamples={chatExamples}
-                holdings={holdings}
-                appMode={modeSettings.mode}
-                onStartQuery={(query) => startChatQuery(query)}
-                onSend={sendChat}
-                onAnalyzeHolding={analyzeHolding}
-                onConfirmStock={confirmChatStock}
-                onConfirmRoute={confirmChatRoute}
-              />
-            </CopilotPanel>
-          </aside>
-        )}
+              <IconMessages />
+            </button>
+          )}
+          {copilotOpen && (
+            <aside className="copilot-column">
+              <CopilotPanel
+                open
+                threads={copilotThreads}
+                activeThreadId={activeThreadId}
+                userContext={pageContext}
+                onCollapsePanel={() => setCopilotOpen(false)}
+                onNewThread={newCopilotThread}
+                onSelectThread={switchThread}
+                onDeleteThread={deleteThread}
+                onResizeStart={startCopilotResize}
+              >
+                <ChatPanel
+                  messages={messages}
+                  loading={chatLoading}
+                  statusMsg={statusMsg}
+                  chatStream={chatStream}
+                  input={input}
+                  onInputChange={setInput}
+                  chatExamples={chatExamples}
+                  holdings={holdings}
+                  appMode={modeSettings.mode}
+                  onStartQuery={(query) => startChatQuery(query)}
+                  onSend={sendChat}
+                  onAnalyzeHolding={analyzeHolding}
+                  onConfirmStock={confirmChatStock}
+                  onConfirmRoute={confirmChatRoute}
+                />
+              </CopilotPanel>
+            </aside>
+          )}
+        </div>
       </div>
-    </div>
     </GlossaryProvider>
   );
 }

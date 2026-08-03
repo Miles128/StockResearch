@@ -209,9 +209,7 @@ class DailyBar(Base):
     """Local OHLCV warehouse row (qfq by default)."""
 
     __tablename__ = "daily_bars"
-    __table_args__ = (
-        UniqueConstraint("symbol", "trade_date", name="uq_daily_bars_symbol_date"),
-    )
+    __table_args__ = (UniqueConstraint("symbol", "trade_date", name="uq_daily_bars_symbol_date"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     symbol: Mapped[str] = mapped_column(String(6), index=True)

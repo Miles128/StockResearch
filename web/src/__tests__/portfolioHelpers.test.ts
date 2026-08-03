@@ -1,8 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { computePortfolioSummary, computeSectorConcentration } from "../portfolioHelpers";
+import {
+  computePortfolioSummary,
+  computeSectorConcentration,
+} from "../portfolioHelpers";
 import type { HoldingEnriched } from "../api";
 
-function makeHolding(overrides: Partial<HoldingEnriched> = {}): HoldingEnriched {
+function makeHolding(
+  overrides: Partial<HoldingEnriched> = {},
+): HoldingEnriched {
   return {
     symbol: "TEST",
     name: "Test Stock",
@@ -93,7 +98,9 @@ describe("computePortfolioSummary", () => {
   });
 
   it("handles change_pct being null", () => {
-    const holdings = [makeHolding({ price: 100, quantity: 10, change_pct: null })];
+    const holdings = [
+      makeHolding({ price: 100, quantity: 10, change_pct: null }),
+    ];
     const result = computePortfolioSummary(holdings);
     expect(result.totalValue).toBe(1000);
     expect(result.todayPnl).toBe(0);
@@ -107,9 +114,27 @@ describe("computeSectorConcentration", () => {
 
   it("computes sector weights and sorts by pct descending", () => {
     const holdings = [
-      makeHolding({ sector: "科技", price: 100, quantity: 10, change_pct: 2, profit_amount: 200 }),
-      makeHolding({ sector: "金融", price: 200, quantity: 5, change_pct: -1, profit_amount: -50 }),
-      makeHolding({ sector: "科技", price: 50, quantity: 4, change_pct: 0, profit_amount: 20 }),
+      makeHolding({
+        sector: "科技",
+        price: 100,
+        quantity: 10,
+        change_pct: 2,
+        profit_amount: 200,
+      }),
+      makeHolding({
+        sector: "金融",
+        price: 200,
+        quantity: 5,
+        change_pct: -1,
+        profit_amount: -50,
+      }),
+      makeHolding({
+        sector: "科技",
+        price: 50,
+        quantity: 4,
+        change_pct: 0,
+        profit_amount: 20,
+      }),
     ];
     const result = computeSectorConcentration(holdings);
     expect(result).toHaveLength(2);

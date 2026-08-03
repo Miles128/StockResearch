@@ -9,9 +9,7 @@ def _en() -> bool:
     return get_output_locale() == "en"
 
 
-def alert_stop_loss_red(
-    name: str, symbol: str, cost: float, price: float, drawdown: float
-) -> str:
+def alert_stop_loss_red(name: str, symbol: str, cost: float, price: float, drawdown: float) -> str:
     if _en():
         return (
             f"{name} ({symbol}) drawdown from cost {cost:.2f} to {price:.2f}, "
@@ -25,14 +23,8 @@ def alert_stop_loss_red(
 
 def alert_stop_loss_yellow(name: str, symbol: str, drawdown: float) -> str:
     if _en():
-        return (
-            f"{name} ({symbol}) drawdown {drawdown:.0%}, "
-            f"approaching your 8% watch zone."
-        )
-    return (
-        f"{name}({symbol}) 回撤 {drawdown:.0%}，"
-        f"接近你设定的止损关注区间（8%）。"
-    )
+        return f"{name} ({symbol}) drawdown {drawdown:.0%}, " f"approaching your 8% watch zone."
+    return f"{name}({symbol}) 回撤 {drawdown:.0%}，" f"接近你设定的止损关注区间（8%）。"
 
 
 def alert_stop_loss_yellow_short(name: str, symbol: str, drawdown: float) -> str:
@@ -43,10 +35,7 @@ def alert_stop_loss_yellow_short(name: str, symbol: str, drawdown: float) -> str
 
 def alert_black_swan_drop(name: str, change_pct: float) -> str:
     if _en():
-        return (
-            f"{name} fell sharply today ({change_pct:.1f}%) — "
-            f"check for major negative news."
-        )
+        return f"{name} fell sharply today ({change_pct:.1f}%) — " f"check for major negative news."
     return f"{name} 今日大跌 {change_pct}%，请关注是否有重大利空。"
 
 
@@ -121,7 +110,11 @@ def llm_no_holdings_market() -> str:
 
 
 def llm_insufficient_correlation() -> str:
-    return "Fewer than two holdings — correlation review not needed." if _en() else "持仓不足两只，无需分析相关性。"
+    return (
+        "Fewer than two holdings — correlation review not needed."
+        if _en()
+        else "持仓不足两只，无需分析相关性。"
+    )
 
 
 def llm_no_narrative_needed() -> str:

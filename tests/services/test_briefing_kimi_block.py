@@ -11,18 +11,32 @@ def test_kimi_block_empty_when_no_cache() -> None:
 def test_kimi_block_formats_macro_and_wind() -> None:
     set_sqlite_cached(
         MACRO_CACHE_KEY,
-        {"as_of": "2026-08-01",
-         "indicators": [{"name": "CPI 同比", "value": "0.3%", "period": "2026-06",
-                         "trend": "flat", "comment": "温和"}],
-         "industry_highlights": [{"industry": "新能源", "summary": "装机高增"}]},
+        {
+            "as_of": "2026-08-01",
+            "indicators": [
+                {
+                    "name": "CPI 同比",
+                    "value": "0.3%",
+                    "period": "2026-06",
+                    "trend": "flat",
+                    "comment": "温和",
+                }
+            ],
+            "industry_highlights": [{"industry": "新能源", "summary": "装机高增"}],
+        },
         3600,
     )
     set_sqlite_cached(
         WIND_CACHE_KEY,
-        {"as_of": "2026-08-01",
-         "announcements": [{"title": "某公司回购", "summary": "拟回购 2%", "symbols": ["600519"]}],
-         "research_reports": [{"title": "白酒深度", "org": "中信证券", "rating": "买入",
-                               "summary": "需求回暖"}]},
+        {
+            "as_of": "2026-08-01",
+            "announcements": [
+                {"title": "某公司回购", "summary": "拟回购 2%", "symbols": ["600519"]}
+            ],
+            "research_reports": [
+                {"title": "白酒深度", "org": "中信证券", "rating": "买入", "summary": "需求回暖"}
+            ],
+        },
         3600,
     )
     block = _collect_kimi_block()

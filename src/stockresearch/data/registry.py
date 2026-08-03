@@ -119,7 +119,8 @@ def get_snapshots() -> dict[str, ProviderSnapshot]:
 def _clear_expired_snapshots() -> None:
     now = datetime.now(UTC)
     expired = [
-        k for k, v in _snapshots.items()
+        k
+        for k, v in _snapshots.items()
         if (now - v.updated_at).total_seconds() > _SNAPSHOT_TTL_SECONDS
     ]
     for k in expired:

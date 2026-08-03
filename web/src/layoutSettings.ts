@@ -24,17 +24,27 @@ const store = createLocalStorageStore<LayoutSettings>({
 });
 
 export function loadLayoutSettings(): LayoutSettings {
-  const raw = store.load() as LayoutSettings & { shellLayout?: string; copilotLayout?: string; copilotHeight?: number };
+  const raw = store.load() as LayoutSettings & {
+    shellLayout?: string;
+    copilotLayout?: string;
+    copilotHeight?: number;
+  };
   const listsWidth = raw.listsWidth ?? LISTS_WIDTH_DEFAULT;
   return {
     copilotWidth: raw.copilotWidth ?? 380,
-    listsWidth: Math.max(LISTS_WIDTH_MIN, Math.min(LISTS_WIDTH_MAX, listsWidth)),
+    listsWidth: Math.max(
+      LISTS_WIDTH_MIN,
+      Math.min(LISTS_WIDTH_MAX, listsWidth),
+    ),
   };
 }
 
 export function saveLayoutSettings(value: LayoutSettings): void {
   store.save({
     ...value,
-    listsWidth: Math.max(LISTS_WIDTH_MIN, Math.min(LISTS_WIDTH_MAX, value.listsWidth)),
+    listsWidth: Math.max(
+      LISTS_WIDTH_MIN,
+      Math.min(LISTS_WIDTH_MAX, value.listsWidth),
+    ),
   });
 }
