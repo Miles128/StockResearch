@@ -48,6 +48,9 @@ export const en: Dict = {
     watchlistAdd: "Add",
     watchlistAddPh: "Symbol or name",
     watchlistRemove: "Remove",
+    batchResearch: "Batch research",
+    batchResearchTip:
+      "Generate research reports for all watchlist symbols (up to 8)",
     watchlistPick: "No exact match — please confirm:",
     colSymbol: "Symbol",
     colName: "Name",
@@ -65,6 +68,15 @@ export const en: Dict = {
     todayPnlPct: "Day %",
     totalPnlPct: "Total %",
     resize: "Drag to resize lists panel",
+  },
+  batch: {
+    title: "Batch research watchlist",
+    loading: "Running batch research, this may take a few minutes…",
+    error: "Batch research failed",
+    empty: "No watchlist symbols to research",
+    success: "succeeded",
+    failed: "failed",
+    partial: "partial data",
   },
   search: {
     button: "Search",

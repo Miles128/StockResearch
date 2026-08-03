@@ -112,6 +112,7 @@ interface ListsSidebarProps {
   onSelectWatchlist: (item: WatchlistItem) => void;
   onAddWatchlist: (symbol: string, name: string) => void | Promise<void>;
   onRemoveWatchlist: (id: number) => void;
+  onBatchResearch: () => void;
   onListsResizeStart: () => void;
   listsWidth: number;
 }
@@ -140,6 +141,7 @@ export function ListsSidebar({
   onSelectWatchlist,
   onAddWatchlist,
   onRemoveWatchlist,
+  onBatchResearch,
   onListsResizeStart,
   listsWidth,
 }: ListsSidebarProps) {
@@ -510,6 +512,16 @@ export function ListsSidebar({
             >
               <IconPlus size={14} />
             </button>
+            {watchlist.length > 0 && (
+              <button
+                type="button"
+                className="example-chip lists-batch-research"
+                onClick={onBatchResearch}
+                title={t("lists.batchResearchTip")}
+              >
+                {t("lists.batchResearch")}
+              </button>
+            )}
           </div>
         </div>
 

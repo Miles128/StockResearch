@@ -1,5 +1,35 @@
 /* ── News Analysis Modal ── */
 
+/* ── Batch Research Modal ── */
+
+.modal.batch-research-modal {
+  max-width: 920px;
+}
+
+.batch-research-items {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.batch-research-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+}
+
+.batch-research-error p {
+  width: 100%;
+  margin: 0;
+}
+
+.batch-research-loading {
+  padding: 24px 0;
+  text-align: center;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
