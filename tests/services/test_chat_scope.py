@@ -241,3 +241,22 @@ async def test_mixed_intent_builds_market_secondary_block(
     assert "【附：大盘概况】" in scope.secondary_block
     assert "上证指数" in scope.secondary_block
     assert len(scope.secondary_block.strip().splitlines()) <= 7  # 标题 + ≤6 行
+
+
+async def test_ui_context_alone_does_not_create_secondary_domain() -> None:
+    """界面自动带入的上下文只用于解析讨论主体，不产生次要域/附录块。"""
+    stock_ui = ChatUserContext(kind="stock", label="贵州茅台 600519", symbol="600519")
+    scope = await build_chat_context_scope(
+        "大盘走势如何", [_HoldingStub()], stock_ui, llm=MockLLMClient()  # type: ignore[list-item]
+    )
+    assert scope.intent.primary == "market"
+    assert scope.intent.secondary == ()
+    assert scope.secondary_block == ""
+
+    risk_ui = ChatUserContext(kind="risk", label="风控")
+    scope = await build_chat_context_scope(
+        "半导体板块怎么样", [_HoldingStub()], risk_ui, llm=MockLLMClient()  # type: ignore[list-item]
+    )
+    assert scope.intent.primary == "industry"
+    assert scope.intent.secondary == ()
+    assert scope.secondary_block == ""
