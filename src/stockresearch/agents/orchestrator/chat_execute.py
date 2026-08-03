@@ -57,10 +57,12 @@ async def execute_chat_turn(
 ) -> ChatExecuteResult:
     """Run one chat turn — ReAct skills, plan-execute, or risk shortcut."""
     msg = message.strip()
-    turn_scope = scope or build_chat_context_scope(
+    turn_scope = scope or await build_chat_context_scope(
         msg,
         holdings,
         user_context,
+        llm=llm,  # type: ignore[arg-type]
+        mode_settings=mode_settings,
         confirmed_symbol=confirmed_symbol,
         confirmed_name=confirmed_name,
     )

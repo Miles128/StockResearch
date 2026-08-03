@@ -45,6 +45,7 @@ class Orchestrator:
             holdings=holdings,
             message=message,
             user_context=user_context,
+            llm=self._llm,
             confirmed_symbol=confirmed_symbol,
             confirmed_name=confirmed_name,
         )

@@ -63,6 +63,7 @@ async def run_chat_stream(
         holdings=holdings,
         message=message,
         user_context=user_context,
+        llm=client,
         confirmed_symbol=confirmed_symbol,
         confirmed_name=confirmed_name,
     )
