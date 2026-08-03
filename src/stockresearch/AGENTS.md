@@ -1,11 +1,11 @@
 # AGENTS.md — `src/stockresearch` (Python backend)
 
-Python backend package: FastAPI API + LangGraph research agents + domain services. Runs under `uv` from the repo root; tests use `pythonpath = ["src"]`.
+Python backend package: FastAPI API + custom-orchestrated research agents + domain services. Runs under `uv` from the repo root; tests use `pythonpath = ["src"]`.
 
 ## Layout & boundaries
 
 - `api/` — FastAPI app factory, routes, middleware, rate limiting, SSE responses, LLM dependency resolution. Keep HTTP concerns here; business logic belongs in `services/` and `agents/`.
-- `agents/` — LangGraph agents (research, risk, chat, orchestrator). Emits the streaming events the web feed consumes.
+- `agents/` — research/risk/chat agents on the custom orchestrator (graph, plan-execute, ReAct, SSE streaming). Emits the streaming events the web feed consumes.
 - `services/` — domain/business logic shared by the API and agents.
 - `data/` — market/news/data providers. External calls are isolated here; mock them in tests.
 - `core/` — config (pydantic-settings) and the exception hierarchy.

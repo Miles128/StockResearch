@@ -1,6 +1,6 @@
 # AGENTS.md — StockResearch
 
-AI stock research assistant. LangGraph backend + React tri-shell UI (lists · focus · copilot).
+AI stock research assistant. Custom multi-agent orchestration backend + React tri-shell UI (lists · focus · copilot).
 
 ## Quick start
 
