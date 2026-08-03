@@ -64,11 +64,7 @@ def build_follow_up_questions(
         )
 
     if report:
-        missing = [
-            gap
-            for factor in report.ashare_factors
-            for gap in factor.missing
-        ]
+        missing = [gap for factor in report.ashare_factors for gap in factor.missing]
         if missing:
             questions.append(
                 "哪些数据补齐后，这个结论可能会变化？"

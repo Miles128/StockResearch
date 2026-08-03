@@ -7,11 +7,11 @@ from sqlalchemy.orm import Session
 
 from stockresearch.agents.orchestrator.chat_execute import execute_chat_turn
 from stockresearch.core.constants import INTENT_CHAT, INTENT_RISK
-from stockresearch.core.schemas import ChatUserContext, ChatResponse, ModeSettingsOut
+from stockresearch.core.schemas import ChatResponse, ChatUserContext, ModeSettingsOut
 from stockresearch.db.models import Holding
-from stockresearch.services.chat_scope import prepare_chat_turn
-from stockresearch.services.chat_response import assemble_chat_response, save_conversation
-from stockresearch.services.conversation_memory import prepare_chat_history
+from stockresearch.services.chat.conversation_memory import prepare_chat_history
+from stockresearch.services.chat.response import assemble_chat_response, save_conversation
+from stockresearch.services.chat.scope import prepare_chat_turn
 from stockresearch.services.user_preferences import get_mode_settings
 from stockresearch.utils.llm import LLMClient, get_llm_client
 from stockresearch.utils.llm_usage import get_usage, reset_usage, usage_to_out
@@ -51,9 +51,7 @@ class Orchestrator:
         )
         history = await prepare_chat_history(self._db, user_id, sid, self._llm)
 
-        debate_on = (
-            settings.enable_debate if enable_debate is None else bool(enable_debate)
-        )
+        debate_on = settings.enable_debate if enable_debate is None else bool(enable_debate)
         master_on = (
             bool(enable_master_commentary)
             if enable_master_commentary is not None

@@ -21,7 +21,7 @@ from stockresearch.agents.research.stream import run_research_stream
 from stockresearch.agents.risk.stream import run_risk_checkup_stream
 from stockresearch.core.schemas import ModeSettingsOut, ResearchReportOut, RiskCheckupOut
 from stockresearch.db.models import Holding
-from stockresearch.services.message_stock import resolve_message_stock, stock_choice_card
+from stockresearch.services.chat.message_stock import resolve_message_stock, stock_choice_card
 from stockresearch.services.stock_lookup import StockLookupResult
 from stockresearch.utils.llm import LLMClient
 from stockresearch.utils.symbols import resolve_name
@@ -238,8 +238,7 @@ class SkillRunner:
         from stockresearch.agents.research.budget import resolve_analysis_depth
 
         utterance = " ".join(
-            str(args.get(k) or "")
-            for k in ("context", "query", "message", "utterance")
+            str(args.get(k) or "") for k in ("context", "query", "message", "utterance")
         ).strip()
         depth = resolve_analysis_depth(
             explicit=args.get("analysis_depth"),
@@ -346,7 +345,9 @@ class SkillRunner:
             else:
                 await self._forward(run_id, event)
         if payload is None:
-            return SkillRunResult(summary=f"{sector} 板块投研暂时无法完成。", partial=True, intent="research")
+            return SkillRunResult(
+                summary=f"{sector} 板块投研暂时无法完成。", partial=True, intent="research"
+            )
         report = ResearchReportOut.model_validate(payload)
         return SkillRunResult(
             summary=report.summary,
@@ -423,7 +424,10 @@ class SkillRunner:
                         f"共识：{event.get('consensus', '')}；分歧：{event.get('divergence', '')}"
                     )
 
-        lines = [f"[{c.get('name', c.get('master', ''))}] {c.get('reasoning', '')}" for c in commentary_payloads]
+        lines = [
+            f"[{c.get('name', c.get('master', ''))}] {c.get('reasoning', '')}"
+            for c in commentary_payloads
+        ]
         summary = "\n".join(lines)
         if debate_summary:
             summary = f"{summary}\n\n大师交叉辩论：{debate_summary}"

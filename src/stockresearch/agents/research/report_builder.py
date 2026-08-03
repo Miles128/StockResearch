@@ -2,6 +2,7 @@
 
 from typing import Literal
 
+from stockresearch.agents.research.dimension_text import build_brief_summary
 from stockresearch.agents.research.scoring import (
     composite_confidence as resolve_composite_confidence,
 )
@@ -9,6 +10,7 @@ from stockresearch.agents.research.scoring import (
     score_bias,
     weighted_composite_score,
 )
+from stockresearch.agents.research.summary_length import normalize_summary
 from stockresearch.core.schemas import (
     DebateResult,
     DimensionResult,
@@ -17,9 +19,6 @@ from stockresearch.core.schemas import (
 )
 from stockresearch.services.ashare_factors import build_ashare_factor_checklist
 from stockresearch.services.text_factor import build_text_factor_summary
-from stockresearch.agents.research.dimension_text import build_brief_summary
-from stockresearch.agents.research.summary_length import normalize_summary
-
 
 _DIM_ORDER = (
     "fundamental",
@@ -97,8 +96,10 @@ def build_research_report(
         summary = f"{name}({symbol}) {score_tail}"
     if debate:
         judge_label: Literal["偏多", "偏空", "中性"] = (
-            "偏多" if debate.final_bias == "bullish"
-            else "偏空" if debate.final_bias == "bearish"
+            "偏多"
+            if debate.final_bias == "bullish"
+            else "偏空"
+            if debate.final_bias == "bearish"
             else "中性"
         )
         summary += f" 裁判{judge_label}：{debate.consensus}"
@@ -164,6 +165,6 @@ def build_research_report(
         factor_alignment_note=factor_alignment_note,
         enable_signal_verify_hook=enable_signal_verify_hook,
     )
-    from stockresearch.services.follow_up import attach_report_follow_ups
+    from stockresearch.services.chat.follow_up import attach_report_follow_ups
 
     return attach_report_follow_ups(report)

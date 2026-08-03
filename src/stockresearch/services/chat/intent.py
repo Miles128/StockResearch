@@ -150,14 +150,10 @@ _CLASSIFY_SYSTEM = """你是聊天意图分类器。将用户问题分类到以�
 {"primary": "market|industry|portfolio|stock|general", "secondary": [], "subject_symbol": null, "subject_industry": null}
 其中 secondary 至多包含 1 个次要意图;subject_symbol 为 6 位股票代码(无为 null);subject_industry 为行业名(无为 null)。"""
 
-_INTENT_KINDS: frozenset[str] = frozenset(
-    {"market", "industry", "portfolio", "stock", "general"}
-)
+_INTENT_KINDS: frozenset[str] = frozenset({"market", "industry", "portfolio", "stock", "general"})
 
 
-def _intent_from_dict(
-    data: dict[str, object], *, source: Literal["llm"]
-) -> ChatIntent | None:
+def _intent_from_dict(data: dict[str, object], *, source: Literal["llm"]) -> ChatIntent | None:
     """把 LLM 返回的 JSON 校验并转成 ChatIntent;字段非法返回 None。"""
     primary = str(data.get("primary", "") or "").strip()
     if primary not in _INTENT_KINDS:
@@ -180,7 +176,7 @@ def _intent_from_dict(
     )
 
 
-async def classify_by_llm(message: str, llm: "LLMClient | None") -> ChatIntent | None:
+async def classify_by_llm(message: str, llm: LLMClient | None) -> ChatIntent | None:
     """LLM 兜底分类;Mock 模式、llm 缺失或任何异常均返回 None。"""
     from stockresearch.utils.llm import MockLLMClient
 
@@ -197,9 +193,7 @@ async def classify_by_llm(message: str, llm: "LLMClient | None") -> ChatIntent |
     return _intent_from_dict(data, source="llm")
 
 
-async def classify_chat_intent(
-    message: str, llm: "LLMClient | None" = None
-) -> ChatIntent:
+async def classify_chat_intent(message: str, llm: LLMClient | None = None) -> ChatIntent:
     """分类入口:规则 → LLM → fallback(portfolio,保持现状行为)。"""
     intent = classify_by_rule(message)
     if intent is not None:

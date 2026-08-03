@@ -1,12 +1,12 @@
 """Stock analysis should route to streaming research, not ReAct direct."""
 
 from stockresearch.agents.orchestrator.complexity import (
+    ComplexityResult,
     classify_research_scope,
     is_stock_analysis_intent,
     resolve_execution_mode,
 )
-from stockresearch.agents.orchestrator.complexity import ComplexityResult
-from stockresearch.services.message_stock import match_holding_in_message
+from stockresearch.services.chat.message_stock import match_holding_in_message
 
 
 class _Holding:

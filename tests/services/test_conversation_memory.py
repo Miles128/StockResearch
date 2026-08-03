@@ -1,6 +1,6 @@
 import pytest
 
-from stockresearch.services.conversation_memory import (
+from stockresearch.services.chat.conversation_memory import (
     MEMORY_CHAR_LIMIT,
     _message_chars,
     compress_messages_if_needed,

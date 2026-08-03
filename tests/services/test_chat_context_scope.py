@@ -4,7 +4,7 @@ import pytest
 
 from stockresearch.agents.orchestrator.complexity import is_holdings_intent, is_vague_query
 from stockresearch.core.schemas import ChatUserContext
-from stockresearch.services.chat_context import should_include_holdings_context
+from stockresearch.services.chat.context import should_include_holdings_context
 
 
 @pytest.mark.parametrize(

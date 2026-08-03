@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
+from stockresearch.agents.master_commentary.registry import resolve_master_ids
 from stockresearch.agents.orchestrator.card_merge import merge_plan_cards
 from stockresearch.agents.orchestrator.complexity import (
     is_market_scope,
@@ -17,12 +18,11 @@ from stockresearch.agents.orchestrator.complexity import (
 from stockresearch.agents.orchestrator.plan_execute import PlanExecuteAgent
 from stockresearch.agents.orchestrator.react_agent import OrchestratorAgent
 from stockresearch.agents.risk.engine import run_risk_checkup
-from stockresearch.agents.master_commentary.registry import resolve_master_ids
 from stockresearch.core.config import get_settings
 from stockresearch.core.constants import INTENT_RISK
-from stockresearch.core.schemas import ModeSettingsOut, RiskCheckupOut, ChatUserContext
+from stockresearch.core.schemas import ChatUserContext, ModeSettingsOut, RiskCheckupOut
 from stockresearch.db.models import Holding
-from stockresearch.services.chat_scope import ChatContextScope, build_chat_context_scope
+from stockresearch.services.chat.scope import ChatContextScope, build_chat_context_scope
 
 ProgressCallback = Callable[[dict[str, object]], Awaitable[None]]
 
@@ -33,6 +33,30 @@ class ChatExecuteResult:
     cards: list[dict[str, object]] = field(default_factory=list)
     intent: str = "chat"
     partial: bool = False
+
+
+@dataclass
+class ChatRunContext:
+    """单轮对话执行的共享上下文 — 收敛 ReAct / plan-execute 分支的公共参数。"""
+
+    db: Session
+    llm: object
+    user_id: int
+    message: str
+    mode_settings: ModeSettingsOut
+    holdings: list[Holding]
+    debate_on: bool
+    master_on: bool
+    finance_tools: bool = True
+    long_term_context: str = ""
+    user_context_text: str = ""
+    history: list[dict[str, str]] | None = None
+    confirmed_symbol: str | None = None
+    confirmed_name: str | None = None
+    portfolio_context: bool = False
+    page_context_kind: str | None = None
+    scope: ChatContextScope | None = None
+    on_progress: ProgressCallback | None = None
 
 
 async def execute_chat_turn(
@@ -79,48 +103,28 @@ async def execute_chat_turn(
             mode_settings=mode_settings,
         )
 
-    if execution_preference == "plan_execute":
-        return await _run_plan_execute_sync(
-            db=db,
-            llm=llm,
-            message=msg,
-            user_id=user_id,
-            finance_tools=True,
-            long_term_context=long_term_context,
-            user_context_text=user_context_text,
-            history=history,
-            mode_settings=mode_settings,
-            holdings=turn_scope.holdings,
-            debate_on=debate_on,
-            master_on=master_on,
-            confirmed_symbol=confirmed_symbol,
-            confirmed_name=confirmed_name,
-            on_progress=on_progress,
-            portfolio_context=turn_scope.portfolio_tools,
-            page_context_kind=page_kind,
-            scope=turn_scope,
-        )
-
-    return await _run_react_sync(
+    ctx = ChatRunContext(
         db=db,
         llm=llm,
-        message=msg,
         user_id=user_id,
-        finance_tools=True,
-        long_term_context=long_term_context,
-        user_context_text=user_context_text,
-        history=history,
+        message=msg,
         mode_settings=mode_settings,
         holdings=turn_scope.holdings,
         debate_on=debate_on,
         master_on=master_on,
+        long_term_context=long_term_context,
+        user_context_text=user_context_text,
+        history=history,
         confirmed_symbol=confirmed_symbol,
         confirmed_name=confirmed_name,
-        on_progress=on_progress,
         portfolio_context=turn_scope.portfolio_tools,
-        scope=turn_scope,
         page_context_kind=page_kind,
+        scope=turn_scope,
+        on_progress=on_progress,
     )
+    if execution_preference == "plan_execute":
+        return await _run_plan_execute_sync(ctx)
+    return await _run_react_sync(ctx)
 
 
 async def _run_risk_sync(
@@ -160,147 +164,31 @@ async def _run_risk_sync(
     )
 
 
-async def _run_plan_execute_sync(
-    *,
-    db: Session,
-    llm: object,
-    message: str,
-    user_id: int,
-    finance_tools: bool,
-    long_term_context: str,
-    user_context_text: str,
-    history: list[dict[str, str]] | None,
-    mode_settings: ModeSettingsOut,
-    holdings: list[Holding],
-    debate_on: bool,
-    master_on: bool,
-    confirmed_symbol: str | None = None,
-    confirmed_name: str | None = None,
-    on_progress: ProgressCallback | None,
-    portfolio_context: bool = False,
-    page_context_kind: str | None = None,
-    scope: ChatContextScope | None = None,
-) -> ChatExecuteResult:
-    if on_progress:
-        from stockresearch.i18n.status_events import status_event
-
-        await on_progress(status_event("status.planning"))
-
-    react_agent = OrchestratorAgent(
-        db=db,
-        llm=llm,  # type: ignore[arg-type]
-        user_id=user_id,
-        finance_tools=finance_tools,
-        mode_settings=mode_settings,
-        holdings=holdings,
-        debate_default=debate_on,
-        master_default=master_on,
-        portfolio_context=portfolio_context,
-        confirmed_symbol=confirmed_symbol,
-        confirmed_name=confirmed_name,
-        page_context_kind=page_context_kind,
-        scope=scope,
-    )
-    if on_progress:
-        react_agent.set_progress_callback(on_progress)
-
-    async def tool_executor(name: str, args: dict) -> str:
-        return await react_agent._execute_tool(name, args)
-
-    agent = PlanExecuteAgent(
-        llm=llm,  # type: ignore[arg-type]
-        tool_executor=tool_executor,
-        finance_tools=finance_tools,
-    )
-    if on_progress:
-        agent.set_progress_callback(on_progress)
-
-    reply, plan_cards = await agent.run(
-        message,
-        history=history,
-        long_term_context=long_term_context,
-        user_context_text=user_context_text,
-    )
-    merged = merge_plan_cards(plan_cards, react_agent.tool_cards())
-    intent = "chat"
-    for card in merged:
-        ctype = card.get("type")
-        if ctype == "research":
-            intent = "research"
-        elif ctype == "risk":
-            intent = INTENT_RISK
-    return ChatExecuteResult(reply=reply, cards=merged, intent=intent)
-
-
-async def _run_react_sync(
-    *,
-    db: Session,
-    llm: object,
-    message: str,
-    user_id: int,
-    finance_tools: bool,
-    long_term_context: str,
-    user_context_text: str,
-    history: list[dict[str, str]] | None,
-    mode_settings: ModeSettingsOut,
-    holdings: list[Holding],
-    debate_on: bool,
-    master_on: bool,
-    confirmed_symbol: str | None,
-    confirmed_name: str | None,
-    on_progress: ProgressCallback | None,
-    portfolio_context: bool = False,
-    scope: ChatContextScope | None = None,
-    page_context_kind: str | None = None,
-) -> ChatExecuteResult:
-    if on_progress:
-        from stockresearch.i18n.status_events import status_event
-
-        await on_progress(status_event("status.react.thinking", step=1))
-
-    news_explain = is_simple_news_explanation(message)
+def _build_orchestrator_agent(
+    ctx: ChatRunContext, *, news_explain_only: bool = False
+) -> OrchestratorAgent:
     agent = OrchestratorAgent(
-        db=db,
-        llm=llm,  # type: ignore[arg-type]
-        user_id=user_id,
-        finance_tools=finance_tools,
-        mode_settings=mode_settings,
-        holdings=holdings,
-        debate_default=debate_on,
-        master_default=master_on,
-        portfolio_context=portfolio_context,
-        news_explain_only=news_explain,
-        confirmed_symbol=confirmed_symbol,
-        confirmed_name=confirmed_name,
-        page_context_kind=page_context_kind,
-        scope=scope,
+        db=ctx.db,
+        llm=ctx.llm,  # type: ignore[arg-type]
+        user_id=ctx.user_id,
+        finance_tools=ctx.finance_tools,
+        mode_settings=ctx.mode_settings,
+        holdings=ctx.holdings,
+        debate_default=ctx.debate_on,
+        master_default=ctx.master_on,
+        portfolio_context=ctx.portfolio_context,
+        news_explain_only=news_explain_only,
+        confirmed_symbol=ctx.confirmed_symbol,
+        confirmed_name=ctx.confirmed_name,
+        page_context_kind=ctx.page_context_kind,
+        scope=ctx.scope,
     )
-    if on_progress:
-        agent.set_progress_callback(on_progress)
+    if ctx.on_progress:
+        agent.set_progress_callback(ctx.on_progress)
+    return agent
 
-    run_message = message
-    if finance_tools:
-        if news_explain:
-            run_message = await _augment_news_message(
-                agent,
-                message,
-                scope=scope,
-                on_progress=on_progress,
-            )
-        elif is_trend_explanation_intent(message):
-            run_message = await _augment_trend_message(
-                agent,
-                message,
-                scope=scope,
-                on_progress=on_progress,
-            )
 
-    reply, cards = await agent.run(
-        run_message,
-        history=history,
-        long_term_context=long_term_context,
-        user_context_text=user_context_text,
-    )
+def _intent_from_cards(cards: list[dict[str, object]]) -> str:
     intent = "chat"
     for card in cards:
         ctype = card.get("type")
@@ -308,9 +196,71 @@ async def _run_react_sync(
             intent = "research"
         elif ctype == "risk":
             intent = INTENT_RISK
-        elif ctype == "stock_choice":
-            intent = "chat"
-    return ChatExecuteResult(reply=reply, cards=cards, intent=intent)
+    return intent
+
+
+async def _run_plan_execute_sync(ctx: ChatRunContext) -> ChatExecuteResult:
+    if ctx.on_progress:
+        from stockresearch.i18n.status_events import status_event
+
+        await ctx.on_progress(status_event("status.planning"))
+
+    react_agent = _build_orchestrator_agent(ctx)
+
+    async def tool_executor(name: str, args: dict) -> str:
+        return await react_agent._execute_tool(name, args)
+
+    agent = PlanExecuteAgent(
+        llm=ctx.llm,  # type: ignore[arg-type]
+        tool_executor=tool_executor,
+        finance_tools=ctx.finance_tools,
+    )
+    if ctx.on_progress:
+        agent.set_progress_callback(ctx.on_progress)
+
+    reply, plan_cards = await agent.run(
+        ctx.message,
+        history=ctx.history,
+        long_term_context=ctx.long_term_context,
+        user_context_text=ctx.user_context_text,
+    )
+    merged = merge_plan_cards(plan_cards, react_agent.tool_cards())
+    return ChatExecuteResult(reply=reply, cards=merged, intent=_intent_from_cards(merged))
+
+
+async def _run_react_sync(ctx: ChatRunContext) -> ChatExecuteResult:
+    if ctx.on_progress:
+        from stockresearch.i18n.status_events import status_event
+
+        await ctx.on_progress(status_event("status.react.thinking", step=1))
+
+    news_explain = is_simple_news_explanation(ctx.message)
+    agent = _build_orchestrator_agent(ctx, news_explain_only=news_explain)
+
+    run_message = ctx.message
+    if ctx.finance_tools:
+        if news_explain:
+            run_message = await _augment_news_message(
+                agent,
+                ctx.message,
+                scope=ctx.scope,
+                on_progress=ctx.on_progress,
+            )
+        elif is_trend_explanation_intent(ctx.message):
+            run_message = await _augment_trend_message(
+                agent,
+                ctx.message,
+                scope=ctx.scope,
+                on_progress=ctx.on_progress,
+            )
+
+    reply, cards = await agent.run(
+        run_message,
+        history=ctx.history,
+        long_term_context=ctx.long_term_context,
+        user_context_text=ctx.user_context_text,
+    )
+    return ChatExecuteResult(reply=reply, cards=cards, intent=_intent_from_cards(cards))
 
 
 async def _augment_trend_message(

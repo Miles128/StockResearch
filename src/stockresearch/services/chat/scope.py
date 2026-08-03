@@ -12,12 +12,12 @@ from stockresearch.agents.orchestrator.complexity import (
 )
 from stockresearch.core.schemas import ChatUserContext, ModeSettingsOut
 from stockresearch.db.models import Holding
-from stockresearch.services.chat_context import (
+from stockresearch.services.chat.context import (
     build_long_term_context,
     format_user_context_block,
     should_include_holdings_context,
 )
-from stockresearch.services.chat_intent import ChatIntent, classify_chat_intent
+from stockresearch.services.chat.intent import ChatIntent, classify_chat_intent
 from stockresearch.utils.llm import LLMClient
 from stockresearch.utils.symbols import (
     extract_symbols,
@@ -131,9 +131,7 @@ async def _market_secondary_block(*, mode_settings: ModeSettingsOut | None) -> s
     from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
 
     provider = MarketOverviewProvider()
-    overview = await provider.get_overview(
-        cache_ttl_seconds=quote_cache_ttl_seconds(mode_settings)
-    )
+    overview = await provider.get_overview(cache_ttl_seconds=quote_cache_ttl_seconds(mode_settings))
     limit = _SECONDARY_MAX_LINES["market"]
     lines: list[str] = []
     for idx in overview.indices[: limit - 1]:
@@ -151,9 +149,7 @@ def _portfolio_secondary_block(holdings: list[Holding]) -> str:
     if not holdings:
         return ""
     limit = _SECONDARY_MAX_LINES["portfolio"]
-    lines = [
-        f"- {h.name}({h.symbol}) {h.quantity}股 · {h.sector}" for h in holdings[: limit - 1]
-    ]
+    lines = [f"- {h.name}({h.symbol}) {h.quantity}股 · {h.sector}" for h in holdings[: limit - 1]]
     if len(holdings) > len(lines):
         lines.append(f"…等共 {len(holdings)} 只")
     return _SECONDARY_TITLES["portfolio"] + "\n" + "\n".join(lines)
@@ -214,9 +210,7 @@ async def build_chat_context_scope(
         confirmed_symbol=confirmed_symbol,
         confirmed_name=confirmed_name,
     )
-    secondary_block = await _build_secondary_block(
-        intent, holdings, mode_settings=mode_settings
-    )
+    secondary_block = await _build_secondary_block(intent, holdings, mode_settings=mode_settings)
     return ChatContextScope(
         message=msg,
         intent=intent,

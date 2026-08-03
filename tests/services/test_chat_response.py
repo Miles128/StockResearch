@@ -1,6 +1,10 @@
 from stockresearch.agents.output_style import output_style_scope
 from stockresearch.core.schemas import DimensionResult, ResearchReportOut
-from stockresearch.services.chat_response import finalize_cards, finalize_chat_reply, finalize_research_report
+from stockresearch.services.chat.response import (
+    finalize_cards,
+    finalize_chat_reply,
+    finalize_research_report,
+)
 
 
 def test_finalize_chat_reply_applies_neutrality_and_partial_marker() -> None:

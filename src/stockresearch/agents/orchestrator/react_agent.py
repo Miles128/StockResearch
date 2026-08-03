@@ -19,13 +19,13 @@ from stockresearch.agents.orchestrator.tools_registry import (
 )
 from stockresearch.core.constants import DISCLAIMER
 from stockresearch.core.schemas import ModeSettingsOut
-from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
 from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.data.providers.market_overview import MarketOverviewProvider
 from stockresearch.db.models import Holding, NewsItem
 from stockresearch.i18n.status_events import status_event
 from stockresearch.prompts import load_prompt
-from stockresearch.services.chat_scope import PORTFOLIO_TOOL_NAMES, ChatContextScope
+from stockresearch.services.chat.scope import PORTFOLIO_TOOL_NAMES, ChatContextScope
+from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
 from stockresearch.utils.llm import LLMClient
 from stockresearch.utils.symbols import resolve_name
 
@@ -88,6 +88,7 @@ def _build_orchestrator_system(tools_list: str, skills_note: str) -> str:
         .replace("{skills_note}", skills_note)
         .replace("{disclaimer}", DISCLAIMER)
     )
+
 
 _RESEARCH_SKILL_BLOCK = frozenset(
     {
@@ -320,10 +321,7 @@ class OrchestratorAgent:
             return f"工具 {name} 已禁用：当前问题与股票投资无关，请直接基于知识回答。"
         skill_name = _LEGACY_SKILL_ALIASES.get(name, name)
         if skill_name in PORTFOLIO_TOOL_NAMES and not self._portfolio_context:
-            return (
-                f"工具 {name} 不可用：当前问题未涉及持仓组合，"
-                "请勿调用持仓相关工具。"
-            )
+            return f"工具 {name} 不可用：当前问题未涉及持仓组合，请勿调用持仓相关工具。"
         if self._news_explain_only and skill_name in _RESEARCH_SKILL_BLOCK:
             return (
                 f"工具 {name} 不可用：当前为新闻解读问题，"
@@ -444,8 +442,7 @@ class OrchestratorAgent:
         lines = [f"{result.get('name', symbol)}({symbol}) 财报比率分析"]
         for r in ratios:
             lines.append(
-                f"  {r['name']}: {r['value']} (参考: {r['reference']}, "
-                f"评价: {r['assessment']})"
+                f"  {r['name']}: {r['value']} (参考: {r['reference']}, 评价: {r['assessment']})"
             )
         return "\n".join(lines)
 
@@ -465,15 +462,17 @@ class OrchestratorAgent:
             if not snippets:
                 return f"暂无与 {display}({symbol}) 相关的最新新闻"
             factor = build_news_text_factor(snippets, subject=f"{display}({symbol}) 相关新闻")
-            self._cards.append({
-                "type": "news",
-                "data": {
-                    "items": [
-                        {"title": s.title, "summary": s.summary, "source": s.source}
-                        for s in snippets
-                    ],
-                },
-            })
+            self._cards.append(
+                {
+                    "type": "news",
+                    "data": {
+                        "items": [
+                            {"title": s.title, "summary": s.summary, "source": s.source}
+                            for s in snippets
+                        ],
+                    },
+                }
+            )
             return factor
 
         news_scope = self._scope.news_scope if self._scope is not None else "personalized"
@@ -488,10 +487,12 @@ class OrchestratorAgent:
         )
         if not news:
             return "暂无最新新闻"
-        self._cards.append({
-            "type": "news",
-            "data": {"items": [n.model_dump(mode="json") for n in news]},
-        })
+        self._cards.append(
+            {
+                "type": "news",
+                "data": {"items": [n.model_dump(mode="json") for n in news]},
+            }
+        )
         return build_news_text_factor(
             [news_from_out(n) for n in news],
             subject="财经快讯",
@@ -507,8 +508,7 @@ class OrchestratorAgent:
         if not rows:
             return f"持仓中暂无「{sector}」板块标的"
         lines = [
-            f"- {h.name}({h.symbol}) 成本{h.float_cost_price:.2f} · {h.quantity}股"
-            for h in rows
+            f"- {h.name}({h.symbol}) 成本{h.float_cost_price:.2f} · {h.quantity}股" for h in rows
         ]
         return f"「{sector}」板块持仓：\n" + "\n".join(lines)
 
@@ -516,12 +516,7 @@ class OrchestratorAgent:
         sector = str(args.get("sector", "")).strip()
         if not sector:
             return "请提供板块名称"
-        candidates = (
-            self._db.query(NewsItem)
-            .order_by(NewsItem.published_at.desc())
-            .limit(80)
-            .all()
-        )
+        candidates = self._db.query(NewsItem).order_by(NewsItem.published_at.desc()).limit(80).all()
         matched = [
             n
             for n in candidates
@@ -542,12 +537,12 @@ class OrchestratorAgent:
         self._cards.append({"type": "portfolio", "data": brief})
         lines = [f"持仓 {len(self._holdings)} 只，总成本 ¥{brief['total_cost']:.0f}"]
         if brief.get("sectors"):
-            sector_line = "、".join(
-                f"{s['name']}({s['count']}只)" for s in brief["sectors"][:5]
-            )
+            sector_line = "、".join(f"{s['name']}({s['count']}只)" for s in brief["sectors"][:5])
             lines.append(f"行业分布: {sector_line}")
         for h in brief["holdings"][:6]:
-            lines.append(f"- {h['name']}({h['symbol']}) {h['quantity']}股 成本{h['cost_price']:.2f}")
+            lines.append(
+                f"- {h['name']}({h['symbol']}) {h['quantity']}股 成本{h['cost_price']:.2f}"
+            )
         if len(brief["holdings"]) > 6:
             lines.append(f"…等共 {len(brief['holdings'])} 只")
         return "\n".join(lines)
@@ -564,10 +559,7 @@ class OrchestratorAgent:
             .all()
         )
         if not recent:
-            return (
-                "暂无风控告警记录。"
-                "如需风控体检，请调用 skill_risk_checkup 工具执行完整分析。"
-            )
+            return "暂无风控告警记录。如需风控体检，请调用 skill_risk_checkup 工具执行完整分析。"
         lines = [f"最近 {len(recent)} 条风控告警："]
         for r in recent:
             sev = r.severity
@@ -596,18 +588,20 @@ class OrchestratorAgent:
         else:
             result = await service.compute_market_sentiment()
 
-        self._cards.append({
-            "type": "sentiment",
-            "data": {
-                "scope": scope,
-                "score": result.score,
-                "label": result.label,
-                "drivers": [
-                    {"label": d.label, "value": d.value, "impact": d.impact}
-                    for d in result.drivers
-                ],
-            },
-        })
+        self._cards.append(
+            {
+                "type": "sentiment",
+                "data": {
+                    "scope": scope,
+                    "score": result.score,
+                    "label": result.label,
+                    "drivers": [
+                        {"label": d.label, "value": d.value, "impact": d.impact}
+                        for d in result.drivers
+                    ],
+                },
+            }
+        )
         lines = [f"情绪指数: {result.score:.0f} ({result.label})"]
         if result.drivers:
             lines.append("驱动因素:")
@@ -660,5 +654,6 @@ def _clean_reply(text: str) -> str:
     """Clean LLM response when no tool calls are found — just return the text as-is."""
     # Remove any stray ```tool blocks that weren't parsed
     import re
+
     text = re.sub(r"```tool\s*.*?```", "", text, flags=re.DOTALL).strip()
     return text if text else "抱歉，我暂时无法回答，请稍后再试。"

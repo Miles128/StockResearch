@@ -13,9 +13,9 @@ from stockresearch.core.exceptions import LLMConfigError
 from stockresearch.core.schemas import ChatUserContext, ModeSettingsOut
 from stockresearch.db.models import Holding
 from stockresearch.i18n.status_events import status_event
-from stockresearch.services.chat_scope import PreparedChatTurn, prepare_chat_turn
-from stockresearch.services.chat_response import assemble_chat_response, save_conversation
-from stockresearch.services.conversation_memory import prepare_chat_history
+from stockresearch.services.chat.conversation_memory import prepare_chat_history
+from stockresearch.services.chat.response import assemble_chat_response, save_conversation
+from stockresearch.services.chat.scope import PreparedChatTurn, prepare_chat_turn
 from stockresearch.services.stream_checkpoint import clear_checkpoint, save_checkpoint
 from stockresearch.services.user_preferences import get_mode_settings
 from stockresearch.utils.llm import LLMClient, get_llm_client
@@ -71,9 +71,7 @@ async def run_chat_stream(
 
     yield status_event("status.understanding")
 
-    debate_on = (
-        settings.enable_debate if enable_debate is None else bool(enable_debate)
-    )
+    debate_on = settings.enable_debate if enable_debate is None else bool(enable_debate)
     cards: list[dict[str, object]] = []
     reply = ""
     partial = False
@@ -105,9 +103,7 @@ async def run_chat_stream(
                     intent = str(response.get("intent", intent))
                     partial = bool(response.get("partial", False))
             if not (
-                isinstance(event, dict)
-                and event.get("type") == "done"
-                and "response" in event
+                isinstance(event, dict) and event.get("type") == "done" and "response" in event
             ):
                 yield event
     except LLMConfigError as exc:

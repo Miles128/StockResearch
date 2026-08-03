@@ -2,7 +2,7 @@
 
 import pytest
 
-from stockresearch.services.chat_intent import (
+from stockresearch.services.chat.intent import (
     classify_by_llm,
     classify_by_rule,
     classify_chat_intent,

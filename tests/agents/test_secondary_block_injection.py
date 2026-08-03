@@ -9,7 +9,7 @@ from stockresearch.agents.orchestrator.chat_execute import execute_chat_turn
 from stockresearch.agents.orchestrator.react_agent import OrchestratorAgent
 from stockresearch.core.schemas import ModeSettingsOut
 from stockresearch.db.models import User
-from stockresearch.services.chat_scope import build_chat_context_scope
+from stockresearch.services.chat.scope import build_chat_context_scope
 from stockresearch.utils.llm import MockLLMClient
 
 _MESSAGE = "介绍一下半导体和新能源的区别"

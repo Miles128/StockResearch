@@ -7,7 +7,7 @@ from stockresearch.agents.orchestrator.chat_execute import execute_chat_turn
 from stockresearch.agents.orchestrator.react_agent import OrchestratorAgent
 from stockresearch.core.schemas import ChatUserContext, ModeSettingsOut
 from stockresearch.db.models import Holding, User
-from stockresearch.services.chat_scope import (
+from stockresearch.services.chat.scope import (
     PORTFOLIO_TOOL_NAMES,
     build_chat_context_scope,
     resolve_subject_symbol,
@@ -26,7 +26,10 @@ class _HoldingStub:
 
 async def test_stock_risk_does_not_shortcut_portfolio_checkup() -> None:
     ctx = await build_chat_context_scope(
-        "600519有什么风险", [_HoldingStub()], None, llm=MockLLMClient()  # type: ignore[list-item]
+        "600519有什么风险",
+        [_HoldingStub()],
+        None,
+        llm=MockLLMClient(),  # type: ignore[list-item]
     )
     assert not ctx.run_portfolio_risk_shortcut
     assert not ctx.include_holdings
@@ -34,7 +37,10 @@ async def test_stock_risk_does_not_shortcut_portfolio_checkup() -> None:
 
 async def test_portfolio_risk_shortcut_when_explicit() -> None:
     ctx = await build_chat_context_scope(
-        "我的持仓风险大吗", [_HoldingStub()], None, llm=MockLLMClient()  # type: ignore[list-item]
+        "我的持仓风险大吗",
+        [_HoldingStub()],
+        None,
+        llm=MockLLMClient(),  # type: ignore[list-item]
     )
     assert ctx.run_portfolio_risk_shortcut
     assert ctx.include_holdings
@@ -149,9 +155,7 @@ async def test_stock_risk_question_uses_react_not_portfolio_checkup(
     )
 
     holdings = db_session.query(Holding).filter(Holding.user_id == user.id).all()
-    scope = await build_chat_context_scope(
-        "600519有什么风险", holdings, None, llm=MockLLMClient()
-    )
+    scope = await build_chat_context_scope("600519有什么风险", holdings, None, llm=MockLLMClient())
     result = await execute_chat_turn(
         db=db_session,
         user_id=user.id,
@@ -169,7 +173,10 @@ async def test_stock_risk_question_uses_react_not_portfolio_checkup(
 
 async def test_market_intent_isolates_holdings() -> None:
     scope = await build_chat_context_scope(
-        "大盘走势如何", [_HoldingStub()], None, llm=MockLLMClient()  # type: ignore[list-item]
+        "大盘走势如何",
+        [_HoldingStub()],
+        None,
+        llm=MockLLMClient(),  # type: ignore[list-item]
     )
     assert scope.intent.primary == "market"
     assert scope.intent.source == "rule"
@@ -183,7 +190,10 @@ async def test_market_intent_isolates_holdings() -> None:
 async def test_portfolio_intent_keeps_full_context() -> None:
     holdings = [_HoldingStub()]
     scope = await build_chat_context_scope(
-        "我的持仓怎么样", holdings, None, llm=MockLLMClient()  # type: ignore[list-item]
+        "我的持仓怎么样",
+        holdings,
+        None,
+        llm=MockLLMClient(),  # type: ignore[list-item]
     )
     assert scope.intent.primary == "portfolio"
     assert scope.include_holdings
@@ -195,7 +205,10 @@ async def test_portfolio_intent_keeps_full_context() -> None:
 async def test_stock_intent_skill_holdings_full_but_prompt_holdings_empty() -> None:
     holdings = [_HoldingStub()]
     scope = await build_chat_context_scope(
-        "600519怎么样", holdings, None, llm=MockLLMClient()  # type: ignore[list-item]
+        "600519怎么样",
+        holdings,
+        None,
+        llm=MockLLMClient(),  # type: ignore[list-item]
     )
     assert scope.intent.primary == "stock"
     assert not scope.include_holdings
@@ -206,7 +219,10 @@ async def test_stock_intent_skill_holdings_full_but_prompt_holdings_empty() -> N
 
 async def test_industry_intent_scope() -> None:
     scope = await build_chat_context_scope(
-        "半导体板块怎么样", [_HoldingStub()], None, llm=MockLLMClient()  # type: ignore[list-item]
+        "半导体板块怎么样",
+        [_HoldingStub()],
+        None,
+        llm=MockLLMClient(),  # type: ignore[list-item]
     )
     assert scope.intent.primary == "industry"
     assert scope.news_scope == "industry"
@@ -234,7 +250,10 @@ async def test_mixed_intent_builds_market_secondary_block(
         _fake_overview,
     )
     scope = await build_chat_context_scope(
-        "大盘对我的持仓影响", [_HoldingStub()], None, llm=MockLLMClient()  # type: ignore[list-item]
+        "大盘对我的持仓影响",
+        [_HoldingStub()],
+        None,
+        llm=MockLLMClient(),  # type: ignore[list-item]
     )
     assert scope.intent.primary == "portfolio"
     assert scope.intent.secondary == ("market",)
@@ -247,7 +266,10 @@ async def test_ui_context_alone_does_not_create_secondary_domain() -> None:
     """界面自动带入的上下文只用于解析讨论主体，不产生次要域/附录块。"""
     stock_ui = ChatUserContext(kind="stock", label="贵州茅台 600519", symbol="600519")
     scope = await build_chat_context_scope(
-        "大盘走势如何", [_HoldingStub()], stock_ui, llm=MockLLMClient()  # type: ignore[list-item]
+        "大盘走势如何",
+        [_HoldingStub()],
+        stock_ui,
+        llm=MockLLMClient(),  # type: ignore[list-item]
     )
     assert scope.intent.primary == "market"
     assert scope.intent.secondary == ()
@@ -255,7 +277,10 @@ async def test_ui_context_alone_does_not_create_secondary_domain() -> None:
 
     risk_ui = ChatUserContext(kind="risk", label="风控")
     scope = await build_chat_context_scope(
-        "半导体板块怎么样", [_HoldingStub()], risk_ui, llm=MockLLMClient()  # type: ignore[list-item]
+        "半导体板块怎么样",
+        [_HoldingStub()],
+        risk_ui,
+        llm=MockLLMClient(),  # type: ignore[list-item]
     )
     assert scope.intent.primary == "industry"
     assert scope.intent.secondary == ()

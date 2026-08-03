@@ -20,7 +20,7 @@ from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
 from stockresearch.utils.format import arrow_for_change
 
 if TYPE_CHECKING:
-    from stockresearch.services.chat_scope import ChatContextScope
+    from stockresearch.services.chat.scope import ChatContextScope
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +155,9 @@ async def build_long_term_context(
     return template.format(
         mode_label=_MODE_LABELS.get(mode, mode),
         mode_hint=mode_hint,
-        reading_mode_label=_READING_LABELS.get(mode_settings.reading_mode, mode_settings.reading_mode),
+        reading_mode_label=_READING_LABELS.get(
+            mode_settings.reading_mode, mode_settings.reading_mode
+        ),
         holdings_summary=holdings_summary,
         holdings_quotes=holdings_quotes,
         debate_label="开启" if mode_settings.enable_debate else "关闭",

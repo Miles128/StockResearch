@@ -2,7 +2,7 @@
 
 from stockresearch.core.constants import INTENT_RISK
 from stockresearch.core.schemas import AshareFactorOut, DimensionResult, ResearchReportOut
-from stockresearch.services.follow_up import build_follow_up_questions
+from stockresearch.services.chat.follow_up import build_follow_up_questions
 
 
 def test_follow_up_for_research_with_missing_factors() -> None:
