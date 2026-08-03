@@ -66,6 +66,9 @@ async def execute_chat_turn(
         confirmed_symbol=confirmed_symbol,
         confirmed_name=confirmed_name,
     )
+    if turn_scope.secondary_block:
+        # 次要域附录块（如「【附：你的持仓概况】」）作为独立段落附在用户消息后
+        msg = f"{msg}\n\n{turn_scope.secondary_block}"
     page_kind = user_context.kind if user_context else None
 
     if turn_scope.run_portfolio_risk_shortcut and turn_scope.holdings:
