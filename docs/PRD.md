@@ -1,6 +1,6 @@
 # StockResearch 产品需求文档
 
-**V10.16 · 开源 A 股市场研究 Agent**
+**V10.17 · 开源 A 股市场研究 Agent**
 
 > 唯一 PRD：`docs/PRD.md`。Git 中 `docs/` 还推送 `screenshots/` 界面预览图。本地可选 `docs/meta.yaml` 供 prd-first 工具读取。
 
@@ -65,7 +65,7 @@
 | 风控体检 | 规则引擎 + 可选 LLM 解读（`enable_llm_analysis` 开关，默认开；关时仅规则+量化指标） |
 | 新闻过滤 | 三层规则，3s SLA，零 LLM；统一 interest（持仓/自选/板块） |
 | 价格告警 | APScheduler 5min；铃铛 + 可选浏览器 Notification |
-| 定时简报 | 盘前 09:05 / 盘中 11:35 / 盘后 15:35；Cron 在独立 worker 运行 |
+| 定时简报 | 盘前 09:05 / 盘中 11:35 / 盘后 15:35；Cron 在独立 worker 运行；盘前/盘后含行业板块涨跌榜块与持仓所属行业标注，盘后复盘对照当日盘前观点 |
 | Action Center | 规则信号，零 LLM |
 | 研究信号验证 | 历史研报 bias / 因子阈值 → 前向收益统计；单报告事后核对；仅前复权日线（研究验证，非策略回测器）；深度档可露出入口，不静默自动跑 |
 | 研究复盘时间线 | 同标的多份研报时间线：结论/因子快照变化 + 可挂事后核对（Phase 7a） |
@@ -121,7 +121,7 @@
 | 实时报价 | **新浪财经** `hq.sinajs.cn` | AkShare hist → **efinance** | 三源兜底 |
 | 日 K 线 | **AkShare**（前复权 `stock_zh_a_hist`） | efinance → **Tushare**（有 Token）→ 新浪（非 qfq） | 指数用 `index_zh_a_hist`；本地日线仓增量缓存持仓/自选/近期研报标的 |
 | 指数概览 | **新浪指数** | AkShare | 北向：AkShare `stock_hsgt_north_net_flow_in_em` |
-| K 线画线层 | 前端算法 9a 部分落地（自动趋势线） | 水平参考线 + 后端同 schema（9b）未做 | `chartTrendlines.ts` 摆动点拟合支撑/压力虚线，距现价 ≤15% 过滤，≤4 条，默认开；非交易信号；另有滚轮缩放归一化（触控板可放大） |
+| K 线画线层 | 9a 前端自动趋势线 + 9b 后端算法（`GET /market/overlays`） | 水平参考线未做 | 前后端同 `ChartOverlaySet` schema（source `"algo"`/`"ai"`）；摆动点拟合支撑/压力虚线，距现价 ≤15% 过滤，≤4 条，默认开；Copilot 画线卡片可一键上屏；非交易信号；另有滚轮缩放归一化 |
 
 **画线层契约（`ChartOverlaySet`）**：见 §八 Phase 9。Phase 9a 纯前端；9b 同一 JSON 供 Copilot 筛选/解说。
 
@@ -207,7 +207,7 @@ Phase 2：`stockresearch worker` 独立 Cron + 可选 launchd 示例。
 
 **产品验收**：设置选综合且无覆盖 → 报告 `analysis_depth=comprehensive` 且因子条展开；「深度分析{标的}」本轮为 deep、设置不变；deep 证据密于 standard，缺数 `partial`；轻问报价不升档。
 
-### Phase 6（可带走的研究验证）🚧 大部分完成（导出/PIT/compare/event-study/hypothesis 已落地；`POST /research/batch` 批量四维未做）
+### Phase 6（可带走的研究验证）✅ 完成（导出/PIT/compare/event-study/hypothesis/批量四维与前端批量入口均已落地）
 
 仍不做策略回测器 / 第三套量化 Shell。API/能力清单如下；**产品叙事与主界面拼装以 Phase 10 三层为准**（事件研究并入 Impact，假设验证/时间线并入 Thesis，导出与 PIT 为横切）。
 
@@ -219,7 +219,7 @@ Phase 2：`stockresearch worker` 独立 Cron + 可选 launchd 示例。
 
 ### Phase 7（研究 OS 加厚 · 仍非交易）🚧 大部分完成
 
-不做真实交易场景（滑点/撮合/组合优化/再平衡引擎/模拟盘/实盘）。**7a 并入 Phase 10 落地波次**；7b/7c 仍按序在 10 之后或并行外缘。状态：7a ✅（timeline + 事后核对）；7b 🚧（自选雷达已接 Action Center ✅，缺口一键补跑未做）；7c ✅ 大部分（配置偏差 ✅、CLI ✅；MCP 未做）。
+不做真实交易场景（滑点/撮合/组合优化/再平衡引擎/模拟盘/实盘）。**7a 并入 Phase 10 落地波次**；7b/7c 仍按序在 10 之后或并行外缘。状态：7a ✅（timeline + 事后核对）；7b ✅（自选雷达已接 Action Center；缺口一键补跑 `POST /research/refill` + 研报卡按钮已落地）；7c ✅ 大部分（配置偏差 ✅、CLI ✅；MCP 未做）。
 
 #### 7a · 核（验证与复盘）→ 见 Phase 10 L2/L3
 
@@ -251,7 +251,7 @@ Phase 2：`stockresearch worker` 独立 Cron + 可选 launchd 示例。
 
 **产品验收**：macOS / Windows 上 `npm run tauri dev`（或等价）能打开窗口并完成登录/持仓/对话一条主路径；退出后 8000 端口无残留本壳拉起的 uvicorn（复用外部已有服务时不杀）。
 
-### Phase 9（K 线算法画线 · 再接 Copilot）🚧 9a 部分落地 / 9b 未开始
+### Phase 9（K 线算法画线 · 再接 Copilot）🚧 9a 部分落地 / 9b ✅ 已落地
 
 在现有 `lightweight-charts`（`MarketChart`：K 线 + MA + 量 + MACD/RSI）上叠加**算法画线层**；手动画线 / 斐波那契 / 通道 / 用户线持久化 **不做**。合规：线旁与 Copilot 解说均禁止买卖建议措辞。
 
@@ -297,11 +297,11 @@ type ChartOverlaySet = {
 
 **测试**：摆动点 / 聚类 / 排序截断单测（固定 fixtures）；toggle 开关键线出现与清除。
 
-#### 9b · Copilot 复用（后接，本阶段只预留）❌ 未开始
+#### 9b · Copilot 复用 ✅ 已落地（V10.17）
 
-1. 将同一 `ChartOverlaySet` 抽到后端 endpoint 或 research tool（算法可与前端对齐或服务端重算）。
-2. Copilot「画趋势线 / 标一下支撑」→ 返回或筛选 overlay + **一句描述性解读**（仍禁止交易指令）；`source` 可扩 `"ai"`，可选 `rationale`。
-3. 前端仍用 9a 同一渲染路径。
+1. `ChartOverlaySet`/`ChartOverlay` 抽到后端 Pydantic schema（`core/schemas.py`）；`services/chart_overlays.py` Python 移植前端 `chartTrendlines.ts` 算法（左右各 3 根摆动点、≤4 条、距现价过滤），`GET /market/overlays?symbol=` 输出。
+2. Copilot「画趋势线 / 支撑位在哪」→ `skill_chart_overlays` 返回 overlay 卡片 + 模板化描述性解读（禁交易措辞）；`source="ai"`，附 `rationale`。
+3. 对话卡片一键「在图表显示」，经 9a 同一 `addLineSeries` 渲染路径上屏（SparseDotted 虚线，标注 AI）。
 
 **产品验收（9a）**：个股 K 线默认可见 ≤4 条算法线；关「画线」后全部消失；滚动可见区时趋势线更新、水平线不乱跳；无买卖措辞。**9b**：对话可触发画线并附描述，schema 与 9a 一致。
 
@@ -425,6 +425,7 @@ cd desktop && npm install && npm run tauri dev
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **V10.17** | 2026-08-04 | 每日扫描/复盘增强：盘前/盘后简报新增行业板块涨跌榜块（持仓所属行业标注），盘后复盘对照当日盘前观点，盘前 prompt 强化「今日关注点」；Phase 6 收尾：自选股批量研究前端入口（≤8，复用轻研报卡）；Phase 7b：缺口一键补跑 `POST /research/refill`（gap 关键词分类定向驱逐缓存后重跑）；Phase 9b：后端 `ChartOverlaySet` schema + Python 趋势线算法 + `GET /market/overlays` + Copilot 画线技能，对话卡片一键上屏；依赖治理：删 langgraph/langchain-core 死依赖（akshare/efinance/tushare 保持主依赖） |
 | **V10.16** | 2026-08-04 | PRD 与实现对齐：登记意图路由上下文装配、大盘宏观/外围研究、LLM 错误详情透传、K 线滚轮缩放修复与自动趋势线；Phase 9a 按实际实现修订（水平参考线与 `ChartOverlaySet` 推迟）；§八路线图加实现状态标注（✅/🚧/❌） |
 | **V10.15** | 2026-08-01 | Phase 10：深度分析三层（Impact/Pricing/Thesis）去重合并 Phase 6–7a；导出 `deep_analysis`；PIT 横切；明确非 Qlib/非完整 DCF |
 | **V10.14** | 2026-07-30 | Phase 9：K 线算法画线层（趋势+水平，≤4）；9a 前端先落地，9b Copilot 复用同 schema |
