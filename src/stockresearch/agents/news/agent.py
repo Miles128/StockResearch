@@ -50,12 +50,7 @@ async def _fetch_feed_rows(
     industry: str | None = None,
 ) -> list[tuple[NewsItem, bool, str]]:
     interests, force_related = _interests_for_scope(db, user_id, news_scope, industry)
-    candidates = (
-        db.query(NewsItem)
-        .order_by(NewsItem.published_at.desc())
-        .limit(limit * 8)
-        .all()
-    )
+    candidates = db.query(NewsItem).order_by(NewsItem.published_at.desc()).limit(limit * 8).all()
     ranked = filter_and_rank(
         candidates,
         interests,
