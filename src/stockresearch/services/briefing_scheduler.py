@@ -160,8 +160,14 @@ class BriefingScheduler:
             logger.info("%s briefing already exists for user %s today", normalized, user_id)
             return
 
+        premarket_view: str | None = None
+        if normalized == "postmarket":
+            premarket_view = self._morning_view(db, user_id, start, end)
+
         logger.info("Generating %s briefing for user %s", normalized, user_id)
-        briefing = await generate_briefing(db, user_id, normalized, llm=LLMClient())
+        briefing = await generate_briefing(
+            db, user_id, normalized, llm=LLMClient(), premarket_view=premarket_view
+        )
         generated_at = briefing.generated_at
         if generated_at.tzinfo:
             generated_at = generated_at.replace(tzinfo=None)
@@ -176,6 +182,34 @@ class BriefingScheduler:
         db.add(record)
         db.commit()
         logger.info("Saved %s briefing for user %s", normalized, user_id)
+
+    @staticmethod
+    def _morning_view(db: Session, user_id: int, start: datetime, end: datetime) -> str | None:
+        """当日盘前简报观点（summary + 各段），供盘后复盘对照；无则 None。"""
+        morning = (
+            db.query(BriefingRecord)
+            .filter(
+                BriefingRecord.user_id == user_id,
+                BriefingRecord.kind.in_(briefing_kind_aliases("premarket")),
+                BriefingRecord.generated_at >= start,
+                BriefingRecord.generated_at <= end,
+            )
+            .order_by(BriefingRecord.generated_at.desc())
+            .first()
+        )
+        if morning is None:
+            return None
+        parts: list[str] = []
+        if morning.summary:
+            parts.append(morning.summary)
+        for section in morning.sections or []:
+            if not isinstance(section, dict):
+                continue
+            title = str(section.get("title", "")).strip()
+            content = str(section.get("content", "")).strip()
+            if title and content:
+                parts.append(f"{title}：{content}")
+        return "\n".join(parts)[:1500] or None
 
 
 scheduler = BriefingScheduler()
