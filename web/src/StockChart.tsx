@@ -7,6 +7,7 @@ import {
 } from "react";
 import {
   createChart,
+  LineStyle,
   type IChartApi,
   type ISeriesApi,
   type LogicalRange,
@@ -14,6 +15,7 @@ import {
 } from "lightweight-charts";
 import { api, type KlineChart } from "./api";
 import { mergeKlineBars, maSeries, type KlineBar } from "./chartIndicators";
+import { detectTrendLines } from "./chartTrendlines";
 import { useI18n } from "./i18n";
 import { getCachedKline, patchCachedKline, setCachedKline } from "./klineCache";
 import {
@@ -56,6 +58,7 @@ interface ChartRuntime {
   macdLine?: ISeriesApi<"Line">;
   macdSignal?: ISeriesApi<"Line">;
   rsi?: ISeriesApi<"Line">;
+  trendLines: ISeriesApi<"Line">[];
   mounted: { el: HTMLElement; chart: IChartApi; h: number }[];
 }
 
@@ -66,6 +69,45 @@ function barTime(date: string): Time {
 function paneWidth(el: HTMLElement | null): number {
   if (!el) return 0;
   return el.clientWidth || el.parentElement?.clientWidth || 0;
+}
+
+/**
+ * Normalize wheel events before lightweight-charts sees them.
+ * The library clamps zoomScale to ±1 and treats deltaMode=PAGE as ×100, so
+ * trackpad pinches / small deltas (~±3) zoom <1% per event — zoom-in feels dead.
+ * Re-dispatch in pixel mode with an amplified delta for usable zoom.
+ */
+function installWheelZoomNormalizer(el: HTMLElement): () => void {
+  const onWheel = (e: WheelEvent) => {
+    if ((e as WheelEvent & { __normalized?: boolean }).__normalized) return;
+    if (e.deltaY === 0 && e.deltaX === 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    let dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    let dx = e.deltaMode === 1 ? e.deltaX * 16 : e.deltaX;
+    dy = Math.max(-100, Math.min(100, dy));
+    dx = Math.max(-100, Math.min(100, dx));
+    // Only amplify when the vertical (zoom) gesture dominates, so horizontal
+    // two-finger panning keeps its natural speed.
+    if (dy !== 0 && Math.abs(dy) >= Math.abs(dx)) {
+      dy = Math.sign(dy) * Math.max(Math.abs(dy), 30);
+    }
+    const forwarded = new WheelEvent("wheel", {
+      deltaY: dy,
+      deltaX: dx,
+      deltaMode: 0,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      bubbles: true,
+      cancelable: true,
+    });
+    (forwarded as WheelEvent & { __normalized?: boolean }).__normalized = true;
+    // dispatch on the chart widget root (child of container) so the library handler receives it
+    const target = el.firstElementChild ?? el;
+    target.dispatchEvent(forwarded);
+  };
+  el.addEventListener("wheel", onWheel, { capture: true, passive: false });
+  return () => el.removeEventListener("wheel", onWheel, { capture: true });
 }
 
 function visibleWindow(barCount: number, compact: boolean): LogicalRange {
@@ -91,6 +133,7 @@ export function MarketChart({
     subCharts: [],
     mounted: [],
     maLines: new Map(),
+    trendLines: [],
   });
   const visibleRangeRef = useRef<LogicalRange | null>(null);
   const loadingMoreRef = useRef(false);
@@ -109,6 +152,7 @@ export function MarketChart({
   const [error, setError] = useState("");
   const [showMacd, setShowMacd] = useState(false);
   const [showRsi, setShowRsi] = useState(false);
+  const [showTrend, setShowTrend] = useState(true);
   const [selectedMa, setSelectedMa] = useState<number[]>([20]);
   const [maMenuOpen, setMaMenuOpen] = useState(false);
 
@@ -347,7 +391,12 @@ export function MarketChart({
     const dispose = () => {
       runtimeRef.current.mainChart?.remove();
       runtimeRef.current.subCharts.forEach((c) => c.remove());
-      runtimeRef.current = { subCharts: [], mounted: [], maLines: new Map() };
+      runtimeRef.current = {
+        subCharts: [],
+        mounted: [],
+        maLines: new Map(),
+        trendLines: [],
+      };
     };
     dispose();
 
@@ -355,6 +404,7 @@ export function MarketChart({
     const mainH = compact ? 252 : 328;
     const subH = compact ? 72 : 88;
     const rt = runtimeRef.current;
+    let detachWheel: (() => void) | null = null;
 
     const mountSubChart = (
       el: HTMLDivElement | null,
@@ -384,6 +434,8 @@ export function MarketChart({
       );
       rt.mainChart = chart;
       rt.mounted.push({ el: mainRef.current, chart, h: mainH });
+      const detachWheelHere = installWheelZoomNormalizer(mainRef.current);
+      detachWheel = detachWheelHere;
 
       rt.candles = chart.addCandlestickSeries({
         upColor: chartUp,
@@ -467,6 +519,7 @@ export function MarketChart({
 
     return () => {
       ro?.disconnect();
+      detachWheel?.();
       dispose();
     };
   }, [
@@ -510,6 +563,46 @@ export function MarketChart({
       applyChart(snapshot);
     }
   }, [selectedMa, symbol, applyChart]);
+
+  useEffect(() => {
+    const rt = runtimeRef.current;
+    const chart = rt.mainChart;
+    if (!chart) return;
+
+    for (const series of rt.trendLines) chart.removeSeries(series);
+    rt.trendLines = [];
+
+    const snapshot = dataRef.current;
+    if (!showTrend || variant !== "stock") return;
+    if (!snapshot || snapshot.symbol !== symbol || snapshot.bars.length === 0)
+      return;
+
+    const { up, down } = readChartColors();
+    for (const line of detectTrendLines(snapshot.bars)) {
+      const support = line.kind === "support";
+      const series = chart.addLineSeries({
+        color: support ? up : down,
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        title: support ? t("chart.trendSupport") : t("chart.trendResistance"),
+        lastValueVisible: false,
+        priceLineVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      series.setData([
+        {
+          time: barTime(snapshot.bars[line.startIndex].date),
+          value: line.startPrice,
+        },
+        {
+          time: barTime(snapshot.bars[line.endIndex].date),
+          value: line.endPrice,
+        },
+      ]);
+      rt.trendLines.push(series);
+    }
+    // showMacd/showRsi/compact/variant remount the chart, so re-apply lines then.
+  }, [showTrend, data, symbol, variant, t, showMacd, showRsi, compact]);
 
   useEffect(() => {
     if (skipDataEffectRef.current) {
@@ -563,6 +656,14 @@ export function MarketChart({
             disabled={loading || !!error}
           >
             {t("chart.rsi")}
+          </button>
+          <button
+            type="button"
+            className={`chart-toggle-btn${showTrend ? " active" : ""}`}
+            onClick={() => setShowTrend((v) => !v)}
+            disabled={loading || !!error}
+          >
+            {t("chart.trend")}
           </button>
           {loadingMore && (
             <span className="muted market-chart-loading-more">
