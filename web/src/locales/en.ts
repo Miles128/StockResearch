@@ -724,6 +724,10 @@ export const en: Dict = {
     highlights: "Highlights",
     risks: "Risks",
     dataGaps: "Data gaps",
+    refillGapsTip:
+      "Clear related caches, re-fetch data and re-run the four-dimension research",
+    refilling: "Refilling…",
+    refillFailed: "Refill failed",
     gapCloseRerun: "Refill gaps & re-run",
     deepAnalysisTitle: "Deep attribution",
     impactStock: "Stock",

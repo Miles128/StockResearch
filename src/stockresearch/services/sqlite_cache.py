@@ -42,6 +42,28 @@ def set_sqlite_cached(key: str, value: dict[str, object], ttl_seconds: int) -> N
         db.commit()
 
 
+def evict_sqlite_prefixes(
+    prefixes: tuple[str, ...] | list[str], contains: str | None = None
+) -> int:
+    """Delete provider_cache rows whose cache_key starts with any prefix.
+
+    When ``contains`` is given, only keys containing that substring are
+    deleted (used to scope eviction to one symbol). Returns deleted count.
+    """
+    if not prefixes:
+        return 0
+    conditions = " OR ".join(["cache_key LIKE :p" + str(i) for i in range(len(prefixes))])
+    params: dict[str, object] = {f"p{i}": prefix + "%" for i, prefix in enumerate(prefixes)}
+    sql = f"DELETE FROM provider_cache WHERE ({conditions})"  # noqa: S608
+    if contains:
+        sql += " AND cache_key LIKE :contains"
+        params["contains"] = f"%{contains}%"
+    with SessionLocal() as db:
+        result = db.execute(text(sql), params)
+        db.commit()
+        return result.rowcount or 0
+
+
 def _upsert_cache(db: Session, key: str, payload: str, expires_at: datetime) -> None:
     db.execute(
         text(

@@ -22,11 +22,14 @@ interface LightResearchCardProps {
 type ReportView = "brief" | "formal";
 
 export function LightResearchCard({
-  report,
+  report: initialReport,
   appMode,
   onFollowUp,
 }: LightResearchCardProps) {
   const { t } = useI18n();
+  const [report, setReport] = useState(initialReport);
+  const [refilling, setRefilling] = useState(false);
+  const [refillError, setRefillError] = useState<string | null>(null);
   const followUps = report.follow_up_questions ?? [];
   const isAdvisor = appMode === "advisor";
   const isExpert = appMode === "research";
@@ -73,6 +76,24 @@ export function LightResearchCard({
       );
     } finally {
       setDownloading(null);
+    }
+  }
+
+  async function handleRefill() {
+    setRefillError(null);
+    setRefilling(true);
+    try {
+      const fresh = await api.refillResearch(
+        report.symbol,
+        report.data_gaps ?? [],
+      );
+      setReport(fresh);
+    } catch (err) {
+      setRefillError(
+        err instanceof Error ? err.message : t("card.refillFailed"),
+      );
+    } finally {
+      setRefilling(false);
     }
   }
 
@@ -205,10 +226,24 @@ export function LightResearchCard({
         report.deep_analysis?.thesis) &&
         !brief && <DeepAnalysisBlock report={report} compact />}
       {report.data_gaps && report.data_gaps.length > 0 && !brief && (
-        <p className="muted light-research-gaps">
-          <strong>{t("card.dataGaps")}：</strong>
-          {report.data_gaps.join("；")}
-        </p>
+        <div className="light-research-gaps-row">
+          <p className="muted light-research-gaps">
+            <strong>{t("card.dataGaps")}：</strong>
+            {report.data_gaps.join("；")}
+          </p>
+          <button
+            type="button"
+            className="example-chip light-research-refill"
+            disabled={refilling}
+            onClick={() => void handleRefill()}
+            title={t("card.refillGapsTip")}
+          >
+            {refilling ? t("card.refilling") : t("card.gapCloseRerun")}
+          </button>
+        </div>
+      )}
+      {refillError && (
+        <p className="error light-research-gaps">{refillError}</p>
       )}
       {followUps.length > 0 && onFollowUp && (
         <div className="follow-up-row">

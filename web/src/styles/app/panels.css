@@ -1889,6 +1889,23 @@
   margin-bottom: 12px;
 }
 
+.light-research-gaps-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.light-research-gaps-row .light-research-gaps {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.light-research-refill {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .deep-analysis-block {
   margin: 8px 0 12px;
   padding: 10px 12px;

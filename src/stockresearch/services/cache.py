@@ -109,3 +109,25 @@ def peek_cached(key: str, ttl_sec: float) -> T | None:
 def clear_cache() -> None:
     _memory_store.clear()
     _factory_store.clear()
+
+
+def evict_memory_prefixes(
+    prefixes: tuple[str, ...] | list[str], contains: str | None = None
+) -> int:
+    """Drop in-memory entries whose key starts with any prefix.
+
+    When ``contains`` is given, only keys containing that substring are
+    evicted (used to scope eviction to one symbol).
+    """
+    evicted = 0
+    for store in (_memory_store, _factory_store):
+        doomed = [
+            key
+            for key in store
+            if any(key.startswith(prefix) for prefix in prefixes)
+            and (contains is None or contains in key)
+        ]
+        for key in doomed:
+            del store[key]
+        evicted += len(doomed)
+    return evicted
