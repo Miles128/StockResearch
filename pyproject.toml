@@ -29,6 +29,7 @@ dev = [
     "ruff>=0.8.0",
     "mypy>=1.13.0",
     "types-PyYAML",
+    "pre-commit>=3.5.0",
 ]
 
 [project.scripts]
@@ -55,6 +56,8 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+# E501 delegated to ruff format; long Chinese prompt strings cannot be auto-wrapped
+ignore = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -69,4 +72,5 @@ dev = [
     "ruff>=0.8.0",
     "mypy>=1.13.0",
     "types-PyYAML",
+    "pre-commit>=3.5.0",
 ]
