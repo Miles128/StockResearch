@@ -29,6 +29,7 @@ from stockresearch.core.schemas import (
     HypothesisVerifyRequest,
     IndustryResearchRequest,
     MemorySearchOut,
+    RefillGapsRequest,
     ReportPostHocOut,
     ResearchReportListItem,
     ResearchReportOut,
@@ -41,6 +42,7 @@ from stockresearch.services.cache import CacheService
 from stockresearch.services.compare_table import build_compare_table, flatten_compare_csv
 from stockresearch.services.event_study import compute_event_study, compute_event_study_batch
 from stockresearch.services.hypothesis_verify import HYPOTHESIS_PRESETS, verify_hypothesis
+from stockresearch.services.refill_gaps import classify_gaps, evict_gap_caches
 from stockresearch.services.report_export import (
     report_to_csv,
     report_to_json,
@@ -572,6 +574,45 @@ async def batch_research(
             "结果已写入研报历史，可导出 JSON/CSV 或做事后核对。",
         ],
     )
+
+
+@router.post("/refill", response_model=ResearchReportOut)
+async def refill_gaps(
+    payload: RefillGapsRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    llm: LLMClient = Depends(llm_from_headers),
+) -> ResearchReportOut:
+    """定向补跑：按 data_gaps 驱逐相关缓存后重跑四维研究。
+
+    gaps 缺省时回退到该标的最近一份研报记录的 data_gaps。
+    """
+    symbol = payload.symbol
+    gaps = [str(g).strip() for g in payload.gaps if str(g).strip()]
+    if not gaps:
+        latest = (
+            db.query(ResearchReport)
+            .filter(ResearchReport.symbol == symbol)
+            .order_by(ResearchReport.created_at.desc())
+            .first()
+        )
+        if latest is not None and isinstance(latest.report_json, dict):
+            raw = latest.report_json.get("data_gaps")
+            if isinstance(raw, list):
+                gaps = [str(g).strip() for g in raw if str(g).strip()][:10]
+    categories = classify_gaps(gaps)
+    evict_gap_caches(symbol, categories)
+
+    settings = get_mode_settings(db, user.id)
+    depth = resolve_analysis_depth(
+        explicit=payload.analysis_depth,
+        settings_depth=settings.analysis_depth,
+    )
+    report = await run_research(symbol, llm=llm, mode_settings=settings, analysis_depth=depth)
+    cache = CacheService()
+    cache.set_json(f"research:{symbol}:{depth}", report.model_dump(mode="json"), ttl_seconds=86400)
+    row = persist_report(db, user.id, report)
+    return stamp_report_id(report, row.id)
 
 
 @router.get("/memory/search", response_model=MemorySearchOut)

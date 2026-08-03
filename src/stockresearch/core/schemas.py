@@ -1025,6 +1025,12 @@ class BatchResearchRequest(BaseModel):
     with_debate: bool = False
 
 
+class RefillGapsRequest(BaseModel):
+    symbol: str = Field(pattern=r"^\d{6}$")
+    gaps: list[str] = Field(default_factory=list, max_length=10)
+    analysis_depth: Literal["standard", "comprehensive", "deep"] | None = None
+
+
 class BatchResearchItemOut(BaseModel):
     symbol: str
     name: str

@@ -481,6 +481,23 @@ export const api = {
       },
       300_000,
     ),
+  refillResearch: (
+    symbol: string,
+    gaps: string[],
+    analysisDepth?: AnalysisDepth,
+  ) =>
+    requestWithLlm<ResearchReport>(
+      "/research/refill",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          symbol,
+          gaps,
+          analysis_depth: analysisDepth ?? loadModeSettings().analysisDepth,
+        }),
+      },
+      300_000,
+    ),
   searchMemory: (q: string) =>
     request<MemorySearchResult>(
       `/research/memory/search?q=${encodeURIComponent(q)}`,
