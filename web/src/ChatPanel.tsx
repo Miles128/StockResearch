@@ -8,6 +8,8 @@ import type { AppMode } from "./modeSettings";
 import { CardView, PlanCardsFold, StockChoiceCardView } from "./chatCards";
 import { FollowUpChips } from "./FollowUpChips";
 import { LightResearchCard } from "./LightResearchCard";
+import { ChartOverlaysCardView } from "./ChartOverlaysCardView";
+import type { ChartOverlaySet } from "./api";
 import { findResearchReport, FollowUpQuestions } from "./researchReportView";
 import { isResearchTurn } from "./disclaimerText";
 import { useI18n } from "./i18n";
@@ -236,6 +238,11 @@ export function ChatPanel({
                             data={c.data as unknown as StockChoiceCardData}
                             disabled={loading}
                             onConfirm={onConfirmStock}
+                          />
+                        ) : c.type === "chart_overlays" ? (
+                          <ChartOverlaysCardView
+                            key={j}
+                            data={c.data as unknown as ChartOverlaySet}
                           />
                         ) : (
                           <CardView key={j} card={c} />

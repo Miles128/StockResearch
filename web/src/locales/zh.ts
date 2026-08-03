@@ -33,6 +33,15 @@ export const zh: Dict = {
     priceConflictBody:
       "{count} 只标的新浪/AkShare 价差 >1%（{preview}），可能由延迟或口径差异导致。",
   },
+  overlays: {
+    title: "AI 趋势线",
+    lines: "条线",
+    showOnChart: "在图表显示",
+    applied: "已显示在图表",
+    none: "近期走势未识别出显著支撑/压力线。",
+    support: "支撑",
+    resistance: "压力",
+  },
   lists: {
     aria: "列表侧栏",
     expand: "展开列表",

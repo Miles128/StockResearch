@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from stockresearch.api.deps import get_current_user
 from stockresearch.core.schemas import (
+    ChartOverlaySet,
     DataSourceDetailOut,
     DataSourceStatusOut,
     IndexIntradayOut,
@@ -33,6 +34,7 @@ from stockresearch.data.providers.sina_kline import fetch_sina_intraday
 from stockresearch.data.registry import ProviderSnapshot, get_quote_conflicts, get_snapshots
 from stockresearch.db.models import Holding, User
 from stockresearch.db.session import get_db
+from stockresearch.services.chart_overlays import compute_chart_overlays
 from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
 from stockresearch.services.sentiment import SentimentService
 from stockresearch.services.user_preferences import get_mode_settings
@@ -132,6 +134,19 @@ async def stock_kline(
             detail="K 线数据暂不可用（行情源连接失败），请稍后刷新",
         )
     return KlineChartOut.model_validate(raw)
+
+
+@router.get("/overlays", response_model=ChartOverlaySet)
+async def chart_overlays(
+    symbol: str = Query(min_length=6, max_length=6, pattern=r"^\d{6}$"),
+    _user: User = Depends(get_current_user),
+) -> ChartOverlaySet:
+    """Phase 9b：服务端趋势线 overlay（与前端 chartTrendlines 算法对齐）。"""
+    try:
+        return await compute_chart_overlays(symbol)
+    except Exception as exc:
+        logger.warning("chart overlays failed for %s: %s", symbol, exc, exc_info=True)
+        raise HTTPException(status_code=503, detail="画线数据暂不可用，请稍后重试") from exc
 
 
 @router.get("/data-status", response_model=DataSourceStatusOut)

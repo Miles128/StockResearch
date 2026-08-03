@@ -1333,3 +1333,20 @@
 .price-conflict-banner strong {
   color: #b8860b;
 }
+
+.chart-overlays-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chart-overlays-list li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12px;
+  line-height: 1.5;
+}

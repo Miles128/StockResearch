@@ -81,6 +81,13 @@ PACKAGED_SKILLS: tuple[PackagedSkill, ...] = (
         '{"subject": "标的或主题", "context": "必填：待点评的摘要或报告", '
         '"master_ids": ["buffett","munger"], "debate_masters": true}',
     ),
+    PackagedSkill(
+        "skill_chart_overlays",
+        "K线画线解说",
+        "基于日线计算趋势线/支撑压力位并给出一句描述性解读（不荐股、不给交易指令）；"
+        "用户说「画趋势线/支撑位在哪/压力位在哪」时调用",
+        '{"symbol": "600519"}',
+    ),
 )
 
 SKILL_IDS: frozenset[str] = frozenset(s.skill_id for s in PACKAGED_SKILLS)
@@ -161,6 +168,8 @@ class SkillRunner:
                 result = await self._run_bull_bear(run_id, args)
             elif skill_id == "skill_master_commentary":
                 result = await self._run_master_commentary(run_id, args)
+            elif skill_id == "skill_chart_overlays":
+                result = await self._run_chart_overlays(run_id, args)
             else:
                 result = SkillRunResult(summary=f"未知 Skill: {skill_id}", error="unknown_skill")
         except Exception as exc:
@@ -183,6 +192,38 @@ class SkillRunner:
 
     async def _forward(self, run_id: str, event: dict[str, object]) -> None:
         await self._emit({**event, "skill_run_id": run_id})
+
+    async def _run_chart_overlays(self, run_id: str, args: dict[str, Any]) -> SkillRunResult:
+        from stockresearch.services.chart_overlays import compute_chart_overlays
+
+        symbol = str(args.get("symbol", "")).strip()
+        if not (len(symbol) == 6 and symbol.isdigit()):
+            symbol = self._confirmed_symbol or ""
+        if not (len(symbol) == 6 and symbol.isdigit()):
+            return SkillRunResult(summary="请先告诉我要画线的股票代码（6 位数字）。", partial=True)
+        await self._forward(
+            run_id, {"type": "status", "message": f"正在计算 {resolve_name(symbol)} 的趋势线…"}
+        )
+        overlay_set = await compute_chart_overlays(symbol)
+        if not overlay_set.overlays:
+            return SkillRunResult(
+                summary=(
+                    f"{resolve_name(symbol)}（{symbol}）近期日线未检测到有效趋势线，"
+                    "可能缺少清晰的枢轴点或价格距离过远。"
+                ),
+                cards=[{"type": "chart_overlays", "data": overlay_set.model_dump(mode="json")}],
+                intent="chat",
+                partial=True,
+            )
+        lines = "\n".join(
+            f"- {overlay.rationale}" for overlay in overlay_set.overlays if overlay.rationale
+        )
+        summary = f"{resolve_name(symbol)}（{symbol}）当前识别到 {len(overlay_set.overlays)} 条趋势线：\n{lines}"
+        return SkillRunResult(
+            summary=summary,
+            cards=[{"type": "chart_overlays", "data": overlay_set.model_dump(mode="json")}],
+            intent="chat",
+        )
 
     async def _run_risk(self, run_id: str) -> SkillRunResult:
         if not self._holdings:

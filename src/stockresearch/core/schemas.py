@@ -670,6 +670,32 @@ class KlineChartOut(BaseModel):
     adjust: str = "none"  # qfq | none
 
 
+class ChartOverlayPoint(BaseModel):
+    time: str
+    price: float
+
+
+class ChartOverlay(BaseModel):
+    """画线层单元（与 PRD §九 TS shape 对齐，source 扩 ai）。"""
+
+    id: str
+    kind: Literal["trend", "level"]
+    a: ChartOverlayPoint | None = None
+    b: ChartOverlayPoint | None = None
+    side: Literal["support", "resistance"] | None = None
+    price: float | None = None
+    strength: float = Field(default=0.0, ge=0.0, le=1.0)
+    touches: int | None = None
+    source: Literal["algo", "ai"] = "ai"
+    rationale: str | None = None
+
+
+class ChartOverlaySet(BaseModel):
+    symbol: str
+    generatedAt: str
+    overlays: list[ChartOverlay] = Field(default_factory=list)
+
+
 class MarketOverviewOut(BaseModel):
     indices: list[IndexQuoteOut]
     northbound_net_yi: float | None
