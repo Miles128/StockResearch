@@ -8,19 +8,14 @@ from typing import Any
 from stockresearch.agents.master_commentary.context import build_research_context
 from stockresearch.agents.master_commentary.registry import resolve_master_ids
 from stockresearch.agents.master_commentary.stream import stream_master_commentary
+from stockresearch.agents.research.battle import iter_battle_events
 from stockresearch.agents.research.budget import (
     AnalysisDepth,
     budget_for_depth,
     resolve_analysis_depth,
 )
 from stockresearch.agents.research.context import ResearchContext
-from stockresearch.agents.research.debate import (
-    iter_battle_vote_events,
-    iter_multi_round_debate_events,
-    iter_research_manager_events,
-    summarize_situation,
-    transcript_from_rounds,
-)
+from stockresearch.agents.research.debate import summarize_situation
 from stockresearch.agents.research.report_builder import build_research_report
 from stockresearch.agents.research.runner import (
     build_chips,
@@ -34,15 +29,12 @@ from stockresearch.agents.research.runner import (
 )
 from stockresearch.agents.research.scoring import score_bias, weighted_composite_score
 from stockresearch.agents.stream_typewriter import (
-    iter_llm_stream_events,
     iter_queue_merged_events,
     pump_dimension_llm_stream,
 )
-from stockresearch.agents.structured_output import ResearchJudgeOut
-from stockresearch.agents.voice import DEBATE_ROUNDS, DEBATE_VOICE, JUDGE_VOICE
+from stockresearch.agents.voice import DEBATE_VOICE
 from stockresearch.core.schemas import (
     DebateResult,
-    DebateRound,
     DimensionResult,
     MasterCommentaryItem,
     ModeSettingsOut,
@@ -58,8 +50,6 @@ logger = logging.getLogger(__name__)
 
 _BULL_SYSTEM = f"你是看多 Agent。{DEBATE_VOICE}"
 _BEAR_SYSTEM = f"你是看空 Agent。{DEBATE_VOICE}"
-_JUDGE_RESEARCH_SYSTEM = f"""你是投研裁判。{JUDGE_VOICE} 只输出 JSON，禁止 markdown。
-{{"bias":"偏多|偏空|中性","summary":"结论，2句内","reason":"为何如此判，2句内","divergence":"分歧大|分歧中等|分歧小","divergence_point":"分歧焦点，1句"}}"""
 
 _AGENT_LABELS: dict[str, str] = {
     "fundamental": "基本面",
@@ -74,10 +64,6 @@ _DIMENSION_STREAM_JOBS: list[tuple[str, str, object, object]] = [
     ("sentiment", "情绪面", prepare_sentiment, build_sentiment),
     ("chips", "筹码面", prepare_chips, build_chips),
 ]
-
-
-def _parse_research_judge(raw: str) -> ResearchJudgeOut:
-    return ResearchJudgeOut.from_llm(raw)
 
 
 def _dimension_brief(label: str, dim: DimensionResult) -> str:
@@ -263,95 +249,20 @@ async def run_research_stream(
     yield status_event("status.research.battle_start")
 
     debate_context = f"{name}({symbol})\n作战情摘要：\n{situation}"
-    debate_rounds: list[DebateRound] = []
-    async for event in iter_multi_round_debate_events(
+    debate: DebateResult | None = None
+    async for event in iter_battle_events(
         client,
-        _BULL_SYSTEM,
-        _BEAR_SYSTEM,
-        debate_context,
-        rounds=DEBATE_ROUNDS,
+        bull_system=_BULL_SYSTEM,
+        bear_system=_BEAR_SYSTEM,
+        debate_context=debate_context,
+        situation=situation,
+        dimensions=dimensions,
+        agent_labels=_AGENT_LABELS,
     ):
+        if event.get("type") == "battle_result":
+            debate = event["debate"]  # type: ignore[assignment]
+            continue
         yield event
-        if event.get("type") == "debate_round":
-            round_num = event.get("round")
-            if isinstance(round_num, int):
-                debate_rounds.append(
-                    DebateRound(
-                        round=round_num,
-                        bull_argument=str(event.get("bull", "")),
-                        bear_rebuttal=str(event.get("bear", "")),
-                    )
-                )
-
-    debate_transcript = transcript_from_rounds(debate_rounds)
-    vote_tally: dict[str, int] | None = None
-    vote_summary = ""
-    async for event in iter_battle_vote_events(
-        client,
-        dimensions,
-        _AGENT_LABELS,
-        debate_transcript,
-    ):
-        yield event
-        if event.get("type") == "vote_tally":
-            vote_tally = {
-                "偏多": int(event.get("bullish", 0)),
-                "偏空": int(event.get("bearish", 0)),
-                "中性": int(event.get("neutral", 0)),
-            }
-            vote_summary = str(event.get("message", ""))
-
-    manager_thesis = ""
-    async for event in iter_research_manager_events(
-        client,
-        situation,
-        debate_transcript,
-        vote_summary,
-    ):
-        yield event
-        if event.get("type") == "manager":
-            manager_thesis = str(event.get("content", ""))
-
-    yield {
-        "type": "agent_start",
-        "agent_id": "judge",
-        "agent_name": "裁判",
-        "role": "judge",
-    }
-    judge_user = f"{debate_transcript}\n\n{vote_summary}\n\nResearch Manager：\n{manager_thesis}"
-    judge_raw = ""
-    async for event in iter_llm_stream_events(
-        stream_id="judge",
-        agent_id="judge",
-        agent_name="裁判",
-        role="judge",
-        llm=client,
-        system=_JUDGE_RESEARCH_SYSTEM,
-        user=judge_user,
-    ):
-        yield event
-        if event.get("type") == "agent_done":
-            judge_raw = str(event.get("content", ""))
-    parsed = _parse_research_judge(judge_raw)
-    debate = DebateResult(
-        rounds=debate_rounds,
-        judge_verdict=f"{parsed.summary} {parsed.reason}",
-        consensus=parsed.summary,
-        core_divergence=f"{parsed.divergence}：{parsed.divergence_point}",
-        final_bias=parsed.final_bias,
-        confidence="medium",
-        vote_tally=vote_tally,
-        manager_thesis=manager_thesis or None,
-    )
-
-    yield {
-        "type": "judge",
-        "content": parsed.summary,
-        "verdict": debate.final_bias,
-        "summary": parsed.summary,
-        "reason": parsed.reason,
-        "divergence": parsed.divergence,
-    }
 
     report = _build_report(
         symbol,
