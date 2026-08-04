@@ -1,4 +1,4 @@
-# StockResearch
+# StockResearch <img src="desktop/branding/app-icon.png" alt="StockResearch logo" width="36" height="36" align="middle">
 
 **[中文](#中文) · [English](#english)** · [PRD v10.16](docs/PRD.md)
 
