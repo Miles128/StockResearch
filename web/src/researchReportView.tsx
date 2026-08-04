@@ -1,4 +1,11 @@
-import type { AshareFactor, DebateResult, NumericFactor, ResearchReport } from "./api";
+import { useState } from "react";
+import {
+  api,
+  type AshareFactor,
+  type DebateResult,
+  type NumericFactor,
+  type ResearchReport,
+} from "./api";
 import { DeepAnalysisBlock } from "./DeepAnalysisBlock";
 import { DimensionCards, dimensionItemsFromResults } from "./DimensionCards";
 import { MarkdownContent } from "./MarkdownContent";
@@ -226,22 +233,52 @@ function ResearchNumericFactorsBlock({
 
 export function ResearchReportDetails({
   report,
+  reportId,
   showDimensions = true,
   showDebate = true,
   showDeepAnalysis = true,
 }: {
   report: ResearchReport;
+  reportId?: number;
   showDimensions?: boolean;
   showDebate?: boolean;
   showDeepAnalysis?: boolean;
 }) {
   const { t } = useI18n();
   const settings = loadModeSettings();
-  const dimEntries = Object.entries(report.dimensions ?? {});
+  const [viewMode, setViewMode] = useState<"professional" | "plain">("professional");
+  const [plainReport, setPlainReport] = useState<ResearchReport | null>(null);
+  const [plainLoading, setPlainLoading] = useState(false);
+  const [plainNotice, setPlainNotice] = useState<string | null>(null);
+
+  const displayReport = viewMode === "plain" && plainReport ? plainReport : report;
+  const dimEntries = Object.entries(displayReport.dimensions ?? {});
   const allSources = Array.from(
     new Set(dimEntries.flatMap(([, d]) => d.data_sources ?? [])),
   ).filter(Boolean);
   const evidenceOpen = settings.mode === "research";
+
+  const switchToPlain = async () => {
+    if (!reportId || plainReport) {
+      if (plainReport) setViewMode("plain");
+      return;
+    }
+    setPlainLoading(true);
+    setPlainNotice(null);
+    try {
+      const out = await api.plainReport(reportId);
+      if (out.source === "degraded") {
+        setPlainNotice(out.message ?? t("card.plainDegraded"));
+      } else {
+        setPlainReport(out.report);
+        setViewMode("plain");
+      }
+    } catch {
+      setPlainNotice(t("card.plainDegraded"));
+    } finally {
+      setPlainLoading(false);
+    }
+  };
 
   const debateLabels = {
     section: t("card.debateSection"),
@@ -261,17 +298,44 @@ export function ResearchReportDetails({
 
   return (
     <div className="research-report-details">
-      <ResearchTrustStrip report={report} />
+      {reportId && (
+        <div className="report-tone-switch">
+          <span className="report-tone-label">{t("card.toneLabel")}</span>
+          <div className="tone-toggle" role="group" aria-label={t("card.toneLabel")}>
+            <button
+              type="button"
+              className={viewMode === "professional" ? "active" : ""}
+              onClick={() => {
+                setViewMode("professional");
+                setPlainNotice(null);
+              }}
+              disabled={plainLoading}
+            >
+              {t("card.viewProfessional")}
+            </button>
+            <button
+              type="button"
+              className={viewMode === "plain" ? "active" : ""}
+              onClick={switchToPlain}
+              disabled={plainLoading}
+            >
+              {plainLoading ? t("card.plainLoading") : t("card.viewPlain")}
+            </button>
+          </div>
+          {plainNotice && <p className="report-tone-notice">{plainNotice}</p>}
+        </div>
+      )}
+      <ResearchTrustStrip report={displayReport} />
       {allSources.length > 0 && (
         <p className="research-source-hint">
           <span className="muted">{t("card.dataSources")}：</span>
           {allSources.join(" · ")}
         </p>
       )}
-      {(report.data_gaps?.length ?? 0) > 0 && (
+      {(displayReport.data_gaps?.length ?? 0) > 0 && (
         <p className="research-source-hint muted">
           <span>{t("card.dataGaps")}：</span>
-          {report.data_gaps!.join("；")}
+          {displayReport.data_gaps!.join("；")}
         </p>
       )}
       {showDimensions && dimEntries.length > 0 && (
@@ -286,29 +350,32 @@ export function ResearchReportDetails({
             risks: t("card.risks"),
             evidence: t("card.evidence"),
             gaps: t("card.missing"),
+            partial: t("card.factorPartial"),
           }}
-          items={dimensionItemsFromResults(report.dimensions ?? {}, (key, agent) =>
+          items={dimensionItemsFromResults(displayReport.dimensions ?? {}, (key, agent) =>
             localizeAgentDisplay(key, agent, t),
           )}
         />
       )}
       {showDeepAnalysis &&
-        (report.deep_analysis?.impact ||
-          report.deep_analysis?.pricing ||
-          report.deep_analysis?.thesis) && <DeepAnalysisBlock report={report} />}
-      {showDebate && report.debate && (
+        (displayReport.deep_analysis?.impact ||
+          displayReport.deep_analysis?.pricing ||
+          displayReport.deep_analysis?.thesis) && <DeepAnalysisBlock report={displayReport} />}
+      {showDebate && displayReport.debate && (
         <details className="research-debate-details">
           <summary>{t("card.debateSection")}</summary>
-          <ResearchDebateBlock debate={report.debate} labels={debateLabels} />
+          <ResearchDebateBlock debate={displayReport.debate} labels={debateLabels} />
         </details>
       )}
       <ResearchNumericFactorsBlock
-        factors={report.factors}
-        expanded={Boolean(report.factors_expanded) || report.analysis_depth !== "standard"}
-        alignmentNote={report.factor_alignment_note}
+        factors={displayReport.factors}
+        expanded={
+          Boolean(displayReport.factors_expanded) || displayReport.analysis_depth !== "standard"
+        }
+        alignmentNote={displayReport.factor_alignment_note}
         t={t}
       />
-      <ResearchAshareFactorsBlock factors={report.ashare_factors} t={t} />
+      <ResearchAshareFactorsBlock factors={displayReport.ashare_factors} t={t} />
     </div>
   );
 }

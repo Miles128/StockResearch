@@ -413,6 +413,8 @@ export const api = {
       `/research/timeline?symbol=${encodeURIComponent(symbol)}&include_post_hoc=${includePostHoc}`,
     ),
   reportPostHoc: (id: number) => request<ReportPostHoc>(`/research/reports/${id}/post-hoc`),
+  plainReport: (id: number) =>
+    request<PlainReportOut>(`/research/reports/${id}/plain`, { method: "POST" }),
   compareSymbols: (symbols: string[]) =>
     request<CompareTable>("/research/compare", {
       method: "POST",
@@ -902,6 +904,12 @@ export interface ReportPostHoc {
   point_in_time?: boolean;
   signal_as_of?: string | null;
   pit_note?: string;
+}
+
+export interface PlainReportOut {
+  report: ResearchReport;
+  source: "cache" | "generated" | "degraded";
+  message?: string | null;
 }
 
 export interface ResearchTimelineFactorSnap {

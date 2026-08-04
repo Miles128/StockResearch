@@ -497,6 +497,14 @@ class ResearchReportOut(BaseModel):
     post_hoc: list[dict[str, object]] = Field(default_factory=list)
 
 
+class PlainReportOut(BaseModel):
+    """单篇普通版切换响应：report 为展示用报告对象，source 标明来源。"""
+
+    report: ResearchReportOut
+    source: Literal["cache", "generated", "degraded"]
+    message: str | None = None
+
+
 class RiskAlertOut(BaseModel):
     rule_id: str
     severity: str

@@ -264,6 +264,7 @@ export function LightResearchCard({
           <summary>{isExpert ? t("card.expandSources") : t("card.expandProfessional")}</summary>
           <ResearchReportDetails
             report={report}
+            reportId={report.id ?? undefined}
             showDimensions={false}
             showDebate={isExpert}
             showDeepAnalysis={false}
