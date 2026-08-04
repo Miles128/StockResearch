@@ -1,5 +1,6 @@
 :root,
 [data-theme="institutional-light"] {
+  color-scheme: light;
   --surface-0: #ffffff;
   --surface-1: #ffffff;
   --surface-2: #f8fafc;
@@ -26,6 +27,18 @@
   --bbg-down: #059669;
   --bbg-warn: #d97706;
   --bbg-blue: var(--accent-ai);
+  --bbg-fg: var(--bbg-text);
+  --bbg-fg-muted: var(--bbg-muted);
+  --bbg-red: #ef4444;
+  --bbg-accent: var(--accent-ai);
+  --bbg-hover: var(--nav-hover-bg);
+  --bbg-bg-elevated: rgba(15, 23, 42, 0.04);
+  --bbg-panel-alt: rgba(15, 23, 42, 0.04);
+  --bbg-card-2: var(--surface-2);
+  --border: var(--bbg-border);
+  --border-subtle: var(--bbg-border);
+  --color-border: var(--bbg-border);
+  --color-text-muted: var(--bbg-muted);
 
   --header-bg: #ffffff;
   --header-fg: #0f172a;
@@ -66,6 +79,7 @@
 }
 
 [data-theme="institutional-dark"] {
+  color-scheme: dark;
   --surface-0: #0b0e14;
   --surface-1: #11151c;
   --surface-2: #161b26;
@@ -92,6 +106,18 @@
   --bbg-down: #00b386;
   --bbg-warn: #e6a817;
   --bbg-blue: var(--accent-ai);
+  --bbg-fg: var(--bbg-text);
+  --bbg-fg-muted: var(--bbg-muted);
+  --bbg-red: #f87171;
+  --bbg-accent: var(--accent-ai);
+  --bbg-hover: var(--nav-hover-bg);
+  --bbg-bg-elevated: rgba(255, 255, 255, 0.05);
+  --bbg-panel-alt: rgba(255, 255, 255, 0.03);
+  --bbg-card-2: var(--surface-2);
+  --border: var(--bbg-border);
+  --border-subtle: var(--bbg-border);
+  --color-border: var(--bbg-border);
+  --color-text-muted: var(--bbg-muted);
 
   --header-bg: #11151c;
   --header-fg: #e8ecf4;

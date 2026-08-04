@@ -501,6 +501,7 @@
   border: 1px solid var(--bbg-border);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.02);
+  color: var(--bbg-text);
   cursor: pointer;
   text-align: left;
   position: relative;
