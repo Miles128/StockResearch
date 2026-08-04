@@ -21,10 +21,12 @@ export interface PrepareUserTurnResult {
 }
 
 export function useCopilotThreads({ defaultTitle }: UseCopilotThreadsOptions) {
-  const [threads, setThreads] = useState<CopilotThread[]>(() => loadCopilotThreads(defaultTitle));
-  const [activeId, setActiveId] = useState<string>(
-    () => loadCopilotThreads(defaultTitle)[0]?.id ?? "",
-  );
+  // Load once and derive both states from the SAME array. Calling
+  // loadCopilotThreads() twice (two lazy initializers) creates two different
+  // threads when storage is empty, leaving activeId pointing at a ghost.
+  const [initialThreads] = useState(() => loadCopilotThreads(defaultTitle));
+  const [threads, setThreads] = useState<CopilotThread[]>(initialThreads);
+  const [activeId, setActiveId] = useState<string>(() => initialThreads[0]?.id ?? "");
   const [chatStream, setChatStream] = useState(emptyStreamState());
   const [input, setInput] = useState("");
   const threadsRef = useRef(threads);
@@ -78,24 +80,26 @@ export function useCopilotThreads({ defaultTitle }: UseCopilotThreadsOptions) {
 
   const deleteThread = useCallback(
     (id: string) => {
-      setThreads((prev) => {
-        const next = prev.filter((t) => t.id !== id);
-        if (next.length === 0) {
-          const created = createThread(defaultTitle);
-          setActiveId(created.id);
-          activeIdRef.current = created.id;
-          return [created];
-        }
-        if (id === activeIdRef.current) {
-          setActiveId(next[0].id);
-          activeIdRef.current = next[0].id;
-          setChatStream(emptyStreamState());
-          setInput("");
-        }
-        return next;
-      });
+      // Compute from the synced ref and apply state changes outside any
+      // updater — side effects inside a setThreads updater run twice in
+      // StrictMode and are order-dependent.
+      const next = threadsRef.current.filter((t) => t.id !== id);
+      if (next.length === 0) {
+        const created = createThread(defaultTitle);
+        setThreads([created]);
+        setActiveId(created.id);
+        activeIdRef.current = created.id;
+        return;
+      }
+      setThreads(next);
+      if (id === activeIdRef.current) {
+        setActiveId(next[0].id);
+        activeIdRef.current = next[0].id;
+        setChatStream(emptyStreamState());
+        setInput("");
+      }
     },
-    [defaultTitle],
+    [defaultTitle, setChatStream],
   );
 
   /** Append a user turn to the active thread. Only Plus (`newThread`) starts a new line. */

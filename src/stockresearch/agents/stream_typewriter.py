@@ -93,21 +93,42 @@ async def pump_llm_stream_events_to_queue(
     system: str,
     user: str,
 ) -> str:
-    """Stream LLM tokens into queue as text_delta + agent_done."""
+    """Stream LLM tokens into queue as text_delta + agent_done.
+
+    Guarantees a ``_PUMP_DONE`` sentinel is emitted even when the underlying
+    LLM stream raises, so the merged iterator never hangs.
+    """
     content = ""
-    async for event in iter_llm_stream_events(
-        stream_id=stream_id,
-        agent_id=agent_id,
-        agent_name=agent_name,
-        role=role,
-        llm=llm,
-        system=system,
-        user=user,
-    ):
-        await queue.put(event)
-        if event.get("type") == "agent_done":
-            content = str(event.get("content", ""))
-    await queue.put(_PUMP_DONE)
+    done_emitted = False
+    try:
+        async for event in iter_llm_stream_events(
+            stream_id=stream_id,
+            agent_id=agent_id,
+            agent_name=agent_name,
+            role=role,
+            llm=llm,
+            system=system,
+            user=user,
+        ):
+            await queue.put(event)
+            if event.get("type") == "agent_done":
+                content = str(event.get("content", ""))
+                done_emitted = True
+    except Exception as exc:
+        logger.warning("LLM stream pump failed for agent %s: %s", agent_id, exc)
+        if not done_emitted:
+            content = content or f"{agent_name}输出中断，请稍后重试。"
+            await queue.put(
+                {
+                    "type": "agent_done",
+                    "agent_id": agent_id,
+                    "agent_name": agent_name,
+                    "role": role,
+                    "content": content,
+                }
+            )
+    finally:
+        await queue.put(_PUMP_DONE)
     return content
 
 
@@ -131,13 +152,8 @@ async def pump_dimension_llm_stream(
         }
     )
     await queue.put(status_event("status.research.fetch_data", agent=agent_name))
-    try:
-        system, user, data = await asyncio.wait_for(
-            prepare(ctx),  # type: ignore[operator]
-            timeout=_PREPARE_TIMEOUT_SEC,
-        )
-    except Exception as exc:
-        logger.warning("Dimension %s prepare failed: %s", agent_id, exc)
+
+    async def _emit_unavailable() -> None:
         content = f"{agent_name}数据暂不可用，请稍后重试。"
         dim = DimensionResult(
             agent=agent_id,
@@ -167,48 +183,61 @@ async def pump_dimension_llm_stream(
                 "content": content,
             }
         )
-        await queue.put(_PUMP_DONE)
-        return
 
-    parts: list[str] = []
-    async for chunk in ctx.llm.stream_complete(system, user):  # type: ignore[attr-defined]
-        parts.append(chunk)
+    try:
+        try:
+            system, user, data = await asyncio.wait_for(
+                prepare(ctx),  # type: ignore[operator]
+                timeout=_PREPARE_TIMEOUT_SEC,
+            )
+        except Exception as exc:
+            logger.warning("Dimension %s prepare failed: %s", agent_id, exc)
+            await _emit_unavailable()
+            return
+
+        parts: list[str] = []
+        async for chunk in ctx.llm.stream_complete(system, user):  # type: ignore[attr-defined]
+            parts.append(chunk)
+            await queue.put(
+                {
+                    "type": "text_delta",
+                    "stream_id": agent_id,
+                    "agent_id": agent_id,
+                    "agent_name": agent_name,
+                    "role": "analyst",
+                    "delta": chunk,
+                }
+            )
+        from stockresearch.utils.disclaimer import strip_disclaimer
+
+        analysis = strip_disclaimer("".join(parts))
+        dim = build(data, analysis)  # type: ignore[operator]
+        dimensions[agent_id] = dim
+        content = analysis.strip() or analysis
         await queue.put(
             {
-                "type": "text_delta",
-                "stream_id": agent_id,
+                "type": "dimension_ready",
                 "agent_id": agent_id,
                 "agent_name": agent_name,
                 "role": "analyst",
-                "delta": chunk,
+                "content": content,
+                "dimension": dim.model_dump(mode="json"),  # type: ignore[union-attr]
             }
         )
-    from stockresearch.utils.disclaimer import strip_disclaimer
-
-    analysis = strip_disclaimer("".join(parts))
-    dim = build(data, analysis)  # type: ignore[operator]
-    dimensions[agent_id] = dim
-    content = analysis.strip() or analysis
-    await queue.put(
-        {
-            "type": "dimension_ready",
-            "agent_id": agent_id,
-            "agent_name": agent_name,
-            "role": "analyst",
-            "content": content,
-            "dimension": dim.model_dump(mode="json"),  # type: ignore[union-attr]
-        }
-    )
-    await queue.put(
-        {
-            "type": "agent_done",
-            "agent_id": agent_id,
-            "agent_name": agent_name,
-            "role": "analyst",
-            "content": content,
-        }
-    )
-    await queue.put(_PUMP_DONE)
+        await queue.put(
+            {
+                "type": "agent_done",
+                "agent_id": agent_id,
+                "agent_name": agent_name,
+                "role": "analyst",
+                "content": content,
+            }
+        )
+    except Exception as exc:
+        logger.warning("Dimension %s stream/build failed: %s", agent_id, exc)
+        await _emit_unavailable()
+    finally:
+        await queue.put(_PUMP_DONE)
 
 
 async def iter_agent_done_stream(
@@ -286,7 +315,13 @@ async def iter_merged_agent_streams_from_tasks(
     pumps: list[asyncio.Task[None]] = []
 
     async def when_ready(task: asyncio.Task[AgentStreamItem]) -> None:
-        item = await task
+        try:
+            item = await task
+        except Exception:
+            logger.warning("Merged agent stream task failed", exc_info=True)
+            # Still emit a done marker so the merged iterator terminates.
+            await queue.put(_PUMP_DONE)
+            return
         await pump_agent_done_stream(
             queue,
             agent_id=item.agent_id,

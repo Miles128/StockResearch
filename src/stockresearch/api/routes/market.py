@@ -59,6 +59,8 @@ async def stock_quotes(
     db: Session = Depends(get_db),
 ) -> list[StockQuoteOut]:
     symbol_list = list(dict.fromkeys(s.strip() for s in symbols.split(",") if s.strip()))
+    if len(symbol_list) > 100:
+        raise HTTPException(status_code=400, detail="单次最多查询 100 个标的")
     if not symbol_list:
         holdings = db.query(Holding).filter(Holding.user_id == user.id).all()
         symbol_list = list(dict.fromkeys(h.symbol for h in holdings))

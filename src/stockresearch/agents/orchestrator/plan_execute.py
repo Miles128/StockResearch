@@ -51,9 +51,9 @@ _PLAN_SYSTEM = """你是「StockResearch」的研究规划 Agent。用户提出�
 - **禁止只规划 1 个数据步骤**；金融问题至少 3 步，最后一步用 tool:auto 做归纳分析
 - 步骤不超过 5 步；顺序：先行情/数据 → 再新闻或持仓/板块 → 最后解读研判
 - 大盘/市场走势类至少：get_market_data → get_news → auto 综合解读
-- 个股类至少：get_stock_quote 或 get_stock_research → get_news → auto 解读
+- 个股类至少：get_stock_quote 或 skill_stock_research → get_news → auto 解读
 - 对比多只标的：分别拉数据/投研 → get_news → auto 对比结论
-- 如果涉及个股深度投研，可用 debate_stock
+- 如果涉及个股深度投研，可用 skill_bull_bear_debate
 - 不要建议买卖"""
 
 _EXECUTE_SYSTEM = """你是「StockResearch」的执行 Agent。根据计划步骤执行研究任务。
@@ -148,40 +148,41 @@ def _normalize_plan_steps(query: str, steps: list[dict[str, Any]]) -> list[dict[
 
     if is_stock_comparison(msg) and count_stock_mentions(msg) >= 2:
         codes = list(dict.fromkeys(STOCK_CODE_RE.findall(msg)))
-        if len(codes) < 2:
-            codes = ["600519", "000858"]
-        return _reindex_steps(
-            [
-                {
-                    "id": 1,
-                    "description": f"获取 {codes[0]} 多维投研",
-                    "tool": "skill_stock_research",
-                    "args": {"symbol": codes[0]},
-                },
-                {
-                    "id": 2,
-                    "description": f"获取 {codes[1]} 多维投研",
-                    "tool": "skill_stock_research",
-                    "args": {"symbol": codes[1]},
-                },
-                {
-                    "id": 3,
-                    "description": "获取相关市场快讯与行业背景",
-                    "tool": "get_news",
-                    "args": {},
-                },
-                {
-                    "id": 4,
-                    "description": "对比两只标的的估值、趋势与风险差异",
-                    "tool": "auto",
-                    "args": {},
-                },
-            ]
-        )
+        if len(codes) >= 2:
+            return _reindex_steps(
+                [
+                    {
+                        "id": 1,
+                        "description": f"获取 {codes[0]} 多维投研",
+                        "tool": "skill_stock_research",
+                        "args": {"symbol": codes[0]},
+                    },
+                    {
+                        "id": 2,
+                        "description": f"获取 {codes[1]} 多维投研",
+                        "tool": "skill_stock_research",
+                        "args": {"symbol": codes[1]},
+                    },
+                    {
+                        "id": 3,
+                        "description": "获取相关市场快讯与行业背景",
+                        "tool": "get_news",
+                        "args": {},
+                    },
+                    {
+                        "id": 4,
+                        "description": "对比两只标的的估值、趋势与风险差异",
+                        "tool": "auto",
+                        "args": {},
+                    },
+                ]
+            )
+        # Fewer than two explicit stock codes — do not fabricate symbols; fall
+        # through to generic padding so we never analyze the wrong stocks.
 
     symbol = _extract_symbol(msg)
-    if has_stock_reference(msg) or symbol:
-        sym = symbol or "600519"
+    if symbol:
+        sym = symbol
         from stockresearch.agents.research.budget import parse_depth_from_text
 
         depth_cue = parse_depth_from_text(msg)

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { ExecutionPreference, HoldingEnriched, StockChoiceCardData } from "./api";
 import type { Message } from "./appTypes";
 import type { AppMode } from "./modeSettings";
@@ -113,6 +114,34 @@ function ProcessStreamFeed({
   );
 }
 
+// Keep the conversation pinned to the bottom as new messages and stream
+// chunks arrive, unless the user has scrolled up to read history.
+function useAutoScroll(messageCount: number) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const nearBottomRef = useRef(true);
+
+  const handleScroll = () => {
+    const el = containerRef.current;
+    if (!el) return;
+    nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
+
+  useEffect(() => {
+    if (!nearBottomRef.current) return;
+    const el = containerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  });
+
+  useEffect(() => {
+    // New turn started — jump to the bottom regardless of scroll position.
+    nearBottomRef.current = true;
+    const el = containerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messageCount]);
+
+  return { containerRef, handleScroll };
+}
+
 export function ChatPanel({
   messages,
   loading,
@@ -130,6 +159,7 @@ export function ChatPanel({
   onConfirmRoute,
 }: ChatPanelProps) {
   const { t } = useI18n();
+  const { containerRef, handleScroll } = useAutoScroll(messages.length);
 
   function renderAssistantConclusion(m: Message) {
     const researchReport = findResearchReport(m.cards);
@@ -156,7 +186,7 @@ export function ChatPanel({
 
   return (
     <div className="panel chat-panel">
-      <div className="chat-messages">
+      <div className="chat-messages" ref={containerRef} onScroll={handleScroll}>
         {messages.length === 0 && !loading && (
           <div className="chat-empty">
             <p className="chat-empty-label">{t("chat.emptyHint")}</p>
@@ -190,7 +220,7 @@ export function ChatPanel({
           </div>
         )}
         {messages.map((m, i) => (
-          <div key={i} className="chat-turn">
+          <div key={`${i}-${m.role}`} className="chat-turn">
             {m.role === "user" ? (
               <div className="message user">
                 <MarkdownContent text={m.content} />

@@ -47,3 +47,7 @@ docs/*
 !docs/PRD.md
 !docs/screenshots/
 !docs/screenshots/**/*.png
+
+# local-only
+.qoder-cn/
+StockResearch-*-src.zip

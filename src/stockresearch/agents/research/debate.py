@@ -108,7 +108,7 @@ def _bull_prompt(context: str, round_num: int, transcript: list[str], side_label
     if round_num == 1:
         return f"{context}\n第1轮：{theme}"
     history = "\n".join(transcript)
-    return f"{context}\n" f"此前交锋：\n{history}\n" f"第{round_num}轮：{theme}"
+    return f"{context}\n此前交锋：\n{history}\n第{round_num}轮：{theme}"
 
 
 def _bear_prompt(
@@ -122,10 +122,7 @@ def _bear_prompt(
     prefix = f"此前：\n{history}\n" if history else ""
     theme = _round_theme(round_num, bullish=False)
     return (
-        f"{context}\n"
-        f"第{round_num}轮{side_label}刚说：{bull_text}\n"
-        f"{prefix}"
-        f"第{round_num}轮：{theme}"
+        f"{context}\n第{round_num}轮{side_label}刚说：{bull_text}\n{prefix}第{round_num}轮：{theme}"
     )
 
 
@@ -221,7 +218,7 @@ async def iter_battle_vote_events(
 
 
 _RESEARCH_MANAGER_SYSTEM = f"""你是 Research Manager（投研负责人）。{JUDGE_VOICE}
-阅读作战情摘要、辩论记录与投票结果，只输出 JSON，禁止 markdown。
+阅读作战情报摘要、辩论记录与投票结果，只输出 JSON，禁止 markdown。
 {{"investment_thesis":"投资要点2-3句","key_risk":"最大风险1-2句","debate_summary":"辩论核心1-2句","recommended_bias":"偏多|偏空|中性"}}
 不要建议买卖。"""
 
@@ -242,7 +239,7 @@ async def iter_research_manager_events(
         "agent_name": "Research Manager",
         "role": "manager",
     }
-    user = f"作战情摘要：\n{situation}\n\n辩论：\n{debate_transcript}\n\n{vote_summary}"
+    user = f"作战情报摘要：\n{situation}\n\n辩论：\n{debate_transcript}\n\n{vote_summary}"
     thesis = ""
     async for event in iter_llm_stream_events(
         stream_id="research_manager",
@@ -516,9 +513,14 @@ def _infer_bias(
     dimensions: dict[str, DimensionResult],
 ) -> Literal["bullish", "bearish", "neutral"]:
     text = judge_text.lower()
-    if "偏多" in judge_text or "bullish" in text or "看多" in judge_text:
+    has_bull = "偏多" in judge_text or "bullish" in text or "看多" in judge_text
+    has_bear = "偏空" in judge_text or "bearish" in text or "看空" in judge_text
+    # When both directions appear (common in balanced verdicts such as
+    # "空方强调估值压力，但…") keyword presence is ambiguous — defer to scores
+    # instead of defaulting to bullish.
+    if has_bull and not has_bear:
         return "bullish"
-    if "偏空" in judge_text or "bearish" in text or "看空" in judge_text:
+    if has_bear and not has_bull:
         return "bearish"
     scores = [d.score for d in dimensions.values()]
     avg = sum(scores) / len(scores) if scores else 5.0

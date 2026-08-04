@@ -32,7 +32,11 @@ def main(argv: list[str] | None = None) -> int:
     subparsers = parser.add_subparsers(dest="command")
 
     api_parser = subparsers.add_parser("api", help="Run the FastAPI server")
-    api_parser.add_argument("--host", default="0.0.0.0", help="Bind host")
+    api_parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Bind host (defaults to localhost; pass 0.0.0.0 only behind a trusted reverse proxy)",
+    )
     api_parser.add_argument("--port", type=int, default=8000, help="Bind port")
     api_parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
 

@@ -11,6 +11,7 @@ import json
 import logging
 import shutil
 from dataclasses import dataclass
+from datetime import date
 
 from stockresearch.core.config import get_settings
 
@@ -33,6 +34,10 @@ class KimiCliParseError(KimiCliError):
     """CLI 输出无法解析为 JSON。"""
 
 
+class KimiCliQuotaExceededError(KimiCliError):
+    """当日调用次数超过 kimi_live_max_calls_per_day 配额。"""
+
+
 @dataclass(frozen=True)
 class KimiCliResult:
     payload: dict[str, object]
@@ -42,6 +47,25 @@ class KimiCliResult:
 _JSON_INSTRUCTION = (
     "请只输出一个 JSON 对象作为回答,不要输出任何其他文字、解释或 markdown 代码块标记。"
 )
+
+# Module-level daily quota counter shared by all KimiCliClient instances.
+_quota_date: date | None = None
+_quota_count = 0
+
+
+def _consume_daily_quota() -> None:
+    """按自然日计数;超额时拒绝调用,防止烧穿 Kimi Code 会员配额。"""
+    global _quota_date, _quota_count
+    limit = get_settings().kimi_live_max_calls_per_day
+    today = date.today()
+    if _quota_date != today:
+        _quota_date = today
+        _quota_count = 0
+    if limit > 0 and _quota_count >= limit:
+        raise KimiCliQuotaExceededError(
+            f"kimi CLI 当日调用已达上限({limit} 次),请明日再试或调高配额"
+        )
+    _quota_count += 1
 
 
 def _extract_assistant_text(stream_output: str) -> str:
@@ -96,6 +120,7 @@ class KimiCliClient:
     async def query_json(self, prompt: str, *, max_retries: int = 2) -> KimiCliResult:
         if not self.available():
             raise KimiCliNotAvailableError(f"kimi CLI 不可用: {self._cli_path}")
+        _consume_daily_quota()
         full_prompt = f"{prompt}\n\n{_JSON_INSTRUCTION}"
         last_exc: KimiCliError | None = None
         for attempt in range(max_retries + 1):

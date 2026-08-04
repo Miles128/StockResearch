@@ -184,7 +184,7 @@ async def run_industry_research_stream(
     if with_debate:
         situation = summarize_situation(dimensions)
         leader_note = "\n".join(f"- {ld.name}: {ld.brief}" for ld in leader_briefs)
-        debate_context = f"板块：{sector}\n作战情：\n{situation}\n龙头简评：\n{leader_note}"
+        debate_context = f"板块：{sector}\n作战情报：\n{situation}\n龙头简评：\n{leader_note}"
         yield status_event("status.industry.battle_start")
         async for event in iter_battle_events(
             client,

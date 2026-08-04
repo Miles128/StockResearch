@@ -248,7 +248,7 @@ async def run_research_stream(
     situation = summarize_situation(dimensions)
     yield status_event("status.research.battle_start")
 
-    debate_context = f"{name}({symbol})\n作战情摘要：\n{situation}"
+    debate_context = f"{name}({symbol})\n作战情报摘要：\n{situation}"
     debate: DebateResult | None = None
     async for event in iter_battle_events(
         client,
