@@ -62,18 +62,23 @@ async function fetchWithRetry(
   retries = RETRY_COUNT,
   timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<Response> {
+  // Only idempotent methods are safe to retry — retrying a POST/PUT/DELETE
+  // that already reached the server could duplicate writes (holdings, trades).
+  const method = (options.method ?? "GET").toUpperCase();
+  const idempotent = method === "GET" || method === "HEAD" || method === "OPTIONS";
+  const maxAttempts = idempotent ? retries : 0;
   let lastError: Error | null = null;
-  for (let attempt = 0; attempt <= retries; attempt++) {
+  for (let attempt = 0; attempt <= maxAttempts; attempt++) {
     try {
       const resp = await fetchWithTimeout(url, options, timeoutMs);
-      if (resp.status >= 500 && attempt < retries) {
+      if (resp.status >= 500 && attempt < maxAttempts) {
         await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
         continue;
       }
       return resp;
     } catch (err) {
       lastError = err as Error;
-      if (attempt < retries) {
+      if (attempt < maxAttempts) {
         await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
       }
     }
@@ -240,6 +245,7 @@ export const api = {
     sessionId?: string,
     onEvent?: (event: AgentStreamEvent) => void,
     options?: ChatStreamOptions,
+    signal?: AbortSignal,
   ) =>
     createJsonSseStream<ChatResponse, AgentStreamEvent>({
       url: apiUrl("/chat/stream"),
@@ -256,6 +262,7 @@ export const api = {
         ...llmBodyField(),
       },
       onEvent,
+      signal,
       extractResult: (event) =>
         event.type === "done" && event.response ? (event.response as ChatResponse) : undefined,
     }),
@@ -501,7 +508,7 @@ export const api = {
     signal?: AbortSignal,
   ) =>
     createJsonSseStream<NewsAnalysis, AgentStreamEvent>({
-      url: apiUrl(`/news/${newsId}/analyze/stream?symbol=${symbol}`),
+      url: apiUrl(`/news/${newsId}/analyze/stream?symbol=${encodeURIComponent(symbol)}`),
       headers: llmRequestHeaders(),
       signal,
       onEvent,
@@ -516,7 +523,7 @@ export const api = {
     request<SentimentData>(`/market/sector-sentiment?name=${encodeURIComponent(name)}`),
   stockSentiment: (symbol: string, name?: string) =>
     request<SentimentData>(
-      `/market/stock-sentiment?symbol=${symbol}&name=${encodeURIComponent(name ?? "")}`,
+      `/market/stock-sentiment?symbol=${encodeURIComponent(symbol)}&name=${encodeURIComponent(name ?? "")}`,
     ),
 };
 

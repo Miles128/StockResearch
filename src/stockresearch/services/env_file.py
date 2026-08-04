@@ -8,6 +8,15 @@ from pathlib import Path
 _ENV_KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$")
 
 
+def _sanitize_value(value: str) -> str:
+    """Strip CR/LF and other control chars so a value cannot inject new keys.
+
+    Prevents newline-injection (e.g. ``base_url="https://x\\nEVIL=1"``) that
+    would otherwise append arbitrary variables to the .env file.
+    """
+    return "".join(ch for ch in value if ch.isprintable()).strip()
+
+
 def resolve_env_path() -> Path:
     """Return .env path in the current working directory (project root when started locally)."""
     return Path.cwd() / ".env"
@@ -39,7 +48,7 @@ def write_env_vars(updates: dict[str, str], path: Path | None = None) -> Path:
         if example.is_file():
             lines = example.read_text(encoding="utf-8").splitlines()
 
-    pending = dict(updates)
+    pending = {key: _sanitize_value(value) for key, value in updates.items()}
     out: list[str] = []
     for line in lines:
         stripped = line.strip()

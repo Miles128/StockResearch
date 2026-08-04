@@ -131,6 +131,7 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
   const skipDataEffectRef = useRef(false);
   const syncingRangeRef = useRef(false);
   const barsRef = useRef<KlineBar[]>([]);
+  const symbolRef = useRef(symbol);
 
   const [data, setData] = useState<KlineChart | null>(() => getCachedKline(symbol));
   const dataRef = useRef<KlineChart | null>(data);
@@ -277,6 +278,7 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
     const earliest = bars[0]?.date;
     if (!earliest) return;
 
+    const requestedSymbol = symbol;
     const nextDays = Math.min(bars.length + LOAD_CHUNK, MAX_BARS);
     const useSinaExpand = nextDays <= SINA_EXPAND_LIMIT;
 
@@ -289,6 +291,9 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
 
     fetchPromise
       .then((chunk) => {
+        // The user switched stocks while this page request was in flight —
+        // discard the stale chunk so it cannot pollute the new symbol's bars.
+        if (symbolRef.current !== requestedSymbol) return;
         if (!chunk.bars.length) {
           exhaustedRef.current = true;
           return;
@@ -327,6 +332,7 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
   }, [applyChart, symbol]);
 
   useEffect(() => {
+    symbolRef.current = symbol;
     exhaustedRef.current = false;
     loadingMoreRef.current = false;
     initialPaintRef.current = true;

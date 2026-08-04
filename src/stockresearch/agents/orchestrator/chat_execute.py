@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
@@ -25,6 +26,8 @@ from stockresearch.db.models import Holding
 from stockresearch.services.chat.scope import ChatContextScope, build_chat_context_scope
 
 ProgressCallback = Callable[[dict[str, object]], Awaitable[None]]
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -218,12 +221,24 @@ async def _run_plan_execute_sync(ctx: ChatRunContext) -> ChatExecuteResult:
     if ctx.on_progress:
         agent.set_progress_callback(ctx.on_progress)
 
-    reply, plan_cards = await agent.run(
-        ctx.message,
-        history=ctx.history,
-        long_term_context=ctx.long_term_context,
-        user_context_text=ctx.user_context_text,
-    )
+    try:
+        reply, plan_cards = await asyncio.wait_for(
+            agent.run(
+                ctx.message,
+                history=ctx.history,
+                long_term_context=ctx.long_term_context,
+                user_context_text=ctx.user_context_text,
+            ),
+            timeout=get_settings().agent_timeout_seconds,
+        )
+    except TimeoutError:
+        logger.warning(
+            "plan-execute turn timed out after %ss", get_settings().agent_timeout_seconds
+        )
+        return ChatExecuteResult(
+            reply="分析耗时较长已超时，请您稍后重试，或把问题描述得更具体一些。",
+            partial=True,
+        )
     merged = merge_plan_cards(plan_cards, react_agent.tool_cards())
     return ChatExecuteResult(reply=reply, cards=merged, intent=_intent_from_cards(merged))
 
@@ -254,12 +269,22 @@ async def _run_react_sync(ctx: ChatRunContext) -> ChatExecuteResult:
                 on_progress=ctx.on_progress,
             )
 
-    reply, cards = await agent.run(
-        run_message,
-        history=ctx.history,
-        long_term_context=ctx.long_term_context,
-        user_context_text=ctx.user_context_text,
-    )
+    try:
+        reply, cards = await asyncio.wait_for(
+            agent.run(
+                run_message,
+                history=ctx.history,
+                long_term_context=ctx.long_term_context,
+                user_context_text=ctx.user_context_text,
+            ),
+            timeout=get_settings().agent_timeout_seconds,
+        )
+    except TimeoutError:
+        logger.warning("react turn timed out after %ss", get_settings().agent_timeout_seconds)
+        return ChatExecuteResult(
+            reply="分析耗时较长已超时，请您稍后重试，或把问题描述得更具体一些。",
+            partial=True,
+        )
     return ChatExecuteResult(reply=reply, cards=cards, intent=_intent_from_cards(cards))
 
 

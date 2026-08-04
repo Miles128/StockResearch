@@ -151,7 +151,7 @@ export function DimensionCards({ items, labels, defaultOpen = false }: Dimension
                   <ul className="dimension-evidence-list">
                     {item.evidence!.map((ev, idx) => (
                       <li key={`${ev.source}-${idx}`}>
-                        {ev.url ? (
+                        {ev.url && /^https?:\/\//i.test(ev.url) ? (
                           <a href={ev.url} target="_blank" rel="noreferrer">
                             {ev.snippet}
                           </a>

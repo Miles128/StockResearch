@@ -25,13 +25,13 @@ def extract_json_dict(raw: str) -> dict[str, object] | None:
 
 def _normalize_bias(text: str) -> Literal["偏多", "偏空", "中性"]:
     lowered = text.lower()
-    if "偏多" in text or "bullish" in lowered or "看多" in text:
+    has_bull = "偏多" in text or "bullish" in lowered or "看多" in text
+    has_bear = "偏空" in text or "bearish" in lowered or "看空" in text
+    # Both directions present => ambiguous; do not default to bullish.
+    if has_bull and not has_bear:
         return "偏多"
-    if "偏空" in text or "bearish" in lowered or "看空" in text:
+    if has_bear and not has_bull:
         return "偏空"
-    for token in _BIAS_TOKENS:
-        if token in text:
-            return token  # type: ignore[return-value]
     return "中性"
 
 

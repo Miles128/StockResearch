@@ -26,6 +26,11 @@ class LlmOverrides:
     def effective_api_key(self) -> str:
         if self.api_key and self.api_key.strip():
             return self.api_key.strip()
+        # Security: never fall back to the server-side key when a custom
+        # base_url is overridden — that would send the server credential to a
+        # third-party host. A custom endpoint must bring its own key.
+        if self.base_url and self.base_url.strip():
+            return ""
         return get_settings().llm_api_key
 
     def effective_base_url(self) -> str:

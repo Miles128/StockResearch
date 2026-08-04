@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from typing import Any
 
 from stockresearch.agents.master_commentary.context import build_risk_context
@@ -52,6 +53,7 @@ from stockresearch.core.schemas import (
     VaRResultOut,
 )
 from stockresearch.data.providers.market import QuoteProvider
+from stockresearch.data.providers.market.common import Quote
 from stockresearch.db.models import Holding
 from stockresearch.i18n.status_events import status_event
 from stockresearch.services.compliance_language import (
@@ -195,9 +197,27 @@ async def run_risk_checkup_stream(
     }
     quote_provider = QuoteProvider()
     quote_map = await quote_provider.get_quotes([h.symbol for h in holdings]) if holdings else {}
-    quotes = [quote_map[h.symbol] for h in holdings if h.symbol in quote_map]
-    if holdings and len(quotes) != len(holdings):
-        missing = [h.symbol for h in holdings if h.symbol not in quote_map]
+    quotes: list[Quote] = []
+    missing: list[str] = []
+    for h in holdings:
+        q = quote_map.get(h.symbol)
+        if q is None:
+            missing.append(h.symbol)
+            # Placeholder keeps holdings/quotes aligned so downstream zip never
+            # crashes when a quote provider is temporarily unavailable.
+            q = Quote(
+                symbol=h.symbol,
+                name=h.name or h.symbol,
+                price=float(h.float_cost_price or 0.0),
+                change_pct=0.0,
+                open=0.0,
+                high=0.0,
+                low=0.0,
+                volume=0.0,
+                updated_at=datetime.now(UTC),
+            )
+        quotes.append(q)
+    if missing:
         logger.warning("Risk checkup missing quotes for: %s", ",".join(missing))
 
     alerts = _parse_rule_alerts(holdings, quotes)

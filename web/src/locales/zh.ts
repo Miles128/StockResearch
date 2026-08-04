@@ -1079,7 +1079,7 @@ export const zh: Dict = {
         start: "启动 {name}（{symbol}）四维投研…",
         fetch_data: "正在获取{agent}数据…",
         news_factor: "四维完成，压缩新闻文本因子…",
-        summarize: "汇总作战情与文本因子…",
+        summarize: "汇总作战情报与文本因子…",
         report_done: "投研报告已生成",
         battle_start: "进入多空 Battle…",
       },
@@ -1087,7 +1087,7 @@ export const zh: Dict = {
         research: {
           start: "启动 A 股市场四维深度投研…",
           news_factor: "四维完成，压缩市场新闻文本因子…",
-          summarize: "汇总市场作战情与文本因子…",
+          summarize: "汇总市场作战情报与文本因子…",
           report_done: "市场深度投研报告已生成",
           battle_start: "进入大盘多空 Battle…",
         },

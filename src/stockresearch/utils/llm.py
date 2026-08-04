@@ -1,5 +1,6 @@
 """LLM client with mock fallback for tests."""
 
+import asyncio
 import json
 import logging
 from abc import ABC, abstractmethod
@@ -30,6 +31,19 @@ def _httpx_client_kwargs() -> dict:
     if proxy:
         kwargs["proxy"] = proxy
     return kwargs
+
+
+# Transient failures worth retrying: rate limits, server errors, timeouts.
+_RETRYABLE_STATUS = {408, 425, 429, 500, 502, 503, 504}
+_MAX_LLM_RETRIES = 2
+
+
+def _is_retryable_llm_error(exc: Exception) -> bool:
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in _RETRYABLE_STATUS
+    return isinstance(
+        exc, httpx.ConnectError | httpx.ConnectTimeout | httpx.ReadTimeout | httpx.PoolTimeout
+    )
 
 
 def _styled_system(system: str) -> str:
@@ -65,6 +79,30 @@ class OpenAICompatibleClient(LLMClient):
         self._base_url = resolve_chat_completions_url(cfg.effective_base_url())
         self._model = cfg.effective_model()
         self._temperature = cfg.effective_temperature()
+
+    async def _post_with_retry(
+        self, headers: dict[str, str], payload: dict[str, object]
+    ) -> dict[str, object]:
+        """POST a chat-completion request, retrying on transient failures."""
+        for attempt in range(_MAX_LLM_RETRIES + 1):
+            try:
+                async with httpx.AsyncClient(**_httpx_client_kwargs()) as client:
+                    resp = await client.post(self._base_url, headers=headers, json=payload)
+                    resp.raise_for_status()
+                    return resp.json()  # type: ignore[no-any-return]
+            except Exception as exc:
+                if not _is_retryable_llm_error(exc) or attempt >= _MAX_LLM_RETRIES:
+                    raise
+                backoff = 0.5 * (2**attempt)
+                logger.warning(
+                    "LLM request failed (attempt %d/%d), retrying in %.1fs: %s",
+                    attempt + 1,
+                    _MAX_LLM_RETRIES + 1,
+                    backoff,
+                    exc,
+                )
+                await asyncio.sleep(backoff)
+        raise RuntimeError("unreachable")  # pragma: no cover
 
     async def stream_complete(self, system: str, user: str) -> AsyncIterator[str]:
         system = _styled_system(system)
@@ -161,31 +199,24 @@ class OpenAICompatibleClient(LLMClient):
             "messages": styled_messages,
             "temperature": self._temperature,
         }
-        async with httpx.AsyncClient(**_httpx_client_kwargs()) as client:
-            resp = await client.post(
-                self._base_url,
-                headers=headers,
-                json=payload,
+        data = await self._post_with_retry(headers, payload)
+        content = str(data["choices"][0]["message"]["content"])
+        usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+        if usage.get("total_tokens"):
+            record_usage(
+                prompt_tokens=int(usage.get("prompt_tokens") or 0),
+                completion_tokens=int(usage.get("completion_tokens") or 0),
             )
-            resp.raise_for_status()
-            data = resp.json()
-            content = str(data["choices"][0]["message"]["content"])
-            usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
-            if usage.get("total_tokens"):
-                record_usage(
-                    prompt_tokens=int(usage.get("prompt_tokens") or 0),
-                    completion_tokens=int(usage.get("completion_tokens") or 0),
-                )
-            else:
-                prompt_text = "\n".join(
-                    f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages
-                )
-                record_usage(
-                    prompt_tokens=estimate_tokens(prompt_text),
-                    completion_tokens=estimate_tokens(content),
-                    is_estimate=True,
-                )
-            return content
+        else:
+            prompt_text = "\n".join(
+                f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages
+            )
+            record_usage(
+                prompt_tokens=estimate_tokens(prompt_text),
+                completion_tokens=estimate_tokens(content),
+                is_estimate=True,
+            )
+        return content
 
 
 def get_llm_client(overrides: LlmOverrides | None = None) -> LLMClient:

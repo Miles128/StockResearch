@@ -1,5 +1,6 @@
 """Financial ratio analysis agent — PE/PB/ROE/margins/trends for A-share stocks."""
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -95,7 +96,7 @@ class FinancialRatioAgent:
         """Fetch financial data from AkShare (stock_financial_abstract_ths)."""
         cache_key = f"financial:abstract_ths:{symbol}"
         ttl = provider_ttl("akshare_financials")
-        cached = get_sqlite_cached(cache_key)
+        cached = await asyncio.to_thread(get_sqlite_cached, cache_key)
         if cached is not None:
             data = json.loads(json.dumps(cached))
             try:
@@ -154,7 +155,9 @@ class FinancialRatioAgent:
         try:
             import akshare as ak
 
-            df = ak.stock_financial_abstract_ths(symbol=symbol, indicator="按年度")
+            df = await asyncio.to_thread(
+                ak.stock_financial_abstract_ths, symbol=symbol, indicator="按年度"
+            )
             if df is None or df.empty:
                 logger.warning("No financial data returned for %s", symbol)
                 return data
@@ -259,7 +262,7 @@ class FinancialRatioAgent:
             logger.warning("Financial data fetch failed for %s: %s", symbol, exc)
 
         if data.get("roe") is not None or data.get("eps") is not None:
-            set_sqlite_cached(cache_key, json.loads(json.dumps(data)), ttl)
+            await asyncio.to_thread(set_sqlite_cached, cache_key, json.loads(json.dumps(data)), ttl)
         return data
 
     def _compute_ratios(self, raw: dict[str, Any], symbol: str, name: str) -> list[dict[str, str]]:

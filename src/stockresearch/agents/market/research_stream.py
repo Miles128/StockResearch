@@ -136,7 +136,7 @@ async def run_market_research_stream(
     yield status_event("status.market.research.battle_start")
 
     enrichment = format_enrichment_block(ctx.global_text, ctx.macro_text)
-    debate_context = f"{MARKET_NAME}\n用户关切：{query}\n作战情摘要：\n{situation}"
+    debate_context = f"{MARKET_NAME}\n用户关切：{query}\n作战情报摘要：\n{situation}"
     if enrichment:
         debate_context += f"\n\n{enrichment}"
     debate: DebateResult | None = None

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   api,
   type AgentStreamEvent,
@@ -101,6 +101,7 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
 
   const [chatLoading, setChatLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
+  const abortRef = useRef<AbortController | null>(null);
 
   const executeChat = useCallback(
     async (
@@ -111,6 +112,10 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
     ) => {
       const threadId = turn?.threadId;
       const activeSessionId = turn?.sessionId ?? sessionId;
+      // Abort any in-flight stream before starting a new one.
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
       setChatLoading(true);
       setStatusMsg(t("chat.connecting"));
       setChatStream(() => emptyStreamState());
@@ -137,8 +142,16 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
             }
           },
           resolvedOptions,
+          controller.signal,
         );
-        if (resp) {
+        // Superseded by a newer turn — drop the stale result.
+        if (controller.signal.aborted) return;
+        if (!resp) {
+          // SSE ended without a done event (timeout/disconnect); fall back to
+          // the sync endpoint instead of silently dropping the user's query.
+          throw new Error("chat stream ended without a result");
+        }
+        {
           setSessionId(resp.session_id, threadId);
           processSnapshot = finalizeStreamState(
             { ...processSnapshot, streamStatus: t("chat.analysisDone") },
@@ -170,6 +183,8 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
           });
         }
       } catch (err) {
+        // Aborted (superseded or cancelled) — not an error to surface.
+        if (controller.signal.aborted) return;
         if (err instanceof TypeError && String(err).includes("Failed to fetch")) {
           appendMessages(
             (m) => [...m, { role: "assistant", content: formatChatRequestError(err, t) }],
@@ -211,8 +226,13 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
           );
         }
       } finally {
-        setChatLoading(false);
-        setStatusMsg("");
+        // Only clear loading/status if this turn is still the active one; a
+        // superseding turn manages its own lifecycle.
+        if (abortRef.current === controller) {
+          abortRef.current = null;
+          setChatLoading(false);
+          setStatusMsg("");
+        }
       }
     },
     [

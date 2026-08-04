@@ -65,14 +65,16 @@ async function consumeSse<E extends SseEvent>(
     while (true) {
       if (timedOut) break;
       const readPromise = reader.read();
+      let timerId: ReturnType<typeof setTimeout> | undefined;
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => {
+        timerId = setTimeout(() => {
           reject(new Error("SSE connection timed out — no data received for 60s"));
         }, timeoutMs);
       });
 
       try {
         const { done, value } = await Promise.race([readPromise, timeoutPromise]);
+        if (timerId !== undefined) clearTimeout(timerId);
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
@@ -89,6 +91,7 @@ async function consumeSse<E extends SseEvent>(
           }
         }
       } catch (err) {
+        if (timerId !== undefined) clearTimeout(timerId);
         reader.cancel().catch(() => {});
         if (err instanceof Error && err.message.includes("timed out")) break;
         throw err;

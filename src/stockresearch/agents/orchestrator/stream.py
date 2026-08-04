@@ -221,7 +221,9 @@ async def _run_chat_stream_body(
             )
         except Exception as exc:
             logger.exception("Chat stream turn failed: %s", exc)
-            reply = f"分析过程出错（{type(exc).__name__}），请稍后重试。详细错误已记录到服务端日志。"
+            reply = (
+                f"分析过程出错（{type(exc).__name__}），请稍后重试。详细错误已记录到服务端日志。"
+            )
             partial = True
             await on_progress(
                 {
@@ -235,35 +237,46 @@ async def _run_chat_stream_body(
 
     turn_task = asyncio.create_task(_run_turn())
 
-    while True:
-        hint = await progress_queue.get()
-        if hint is None:
-            break
-        yield hint
-        if hint.get("type") == "skill_start":
-            save_checkpoint(
-                db,
-                user_id,
-                sid,
-                {
-                    "mode": "skill",
-                    "skill_id": hint.get("skill_id"),
-                    "skill_run_id": hint.get("skill_run_id"),
-                },
-            )
-        elif hint.get("message_key"):
-            save_checkpoint(
-                db,
-                user_id,
-                sid,
-                {
-                    "mode": "react",
-                    "message_key": hint.get("message_key"),
-                    "message_params": hint.get("message_params"),
-                },
-            )
+    try:
+        while True:
+            hint = await progress_queue.get()
+            if hint is None:
+                break
+            yield hint
+            if hint.get("type") == "skill_start":
+                save_checkpoint(
+                    db,
+                    user_id,
+                    sid,
+                    {
+                        "mode": "skill",
+                        "skill_id": hint.get("skill_id"),
+                        "skill_run_id": hint.get("skill_run_id"),
+                    },
+                )
+            elif hint.get("message_key"):
+                save_checkpoint(
+                    db,
+                    user_id,
+                    sid,
+                    {
+                        "mode": "react",
+                        "message_key": hint.get("message_key"),
+                        "message_params": hint.get("message_params"),
+                    },
+                )
 
-    await turn_task
+        await turn_task
+    finally:
+        # If the client disconnects the async generator is closed mid-loop;
+        # cancel the background turn so it stops calling the LLM and touching
+        # the request-scoped DB session.
+        if not turn_task.done():
+            turn_task.cancel()
+            try:
+                await turn_task
+            except (asyncio.CancelledError, Exception):
+                pass
 
     yield {
         "type": "done",

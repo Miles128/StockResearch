@@ -3,7 +3,7 @@
 from collections.abc import Callable, Generator
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool, StaticPool
@@ -23,7 +23,9 @@ def _resolve_database_url(url: str) -> str:
 
 _settings = get_settings()
 _db_url = _resolve_database_url(_settings.database_url)
-_connect_args = {"check_same_thread": False} if _db_url.startswith("sqlite") else {}
+# `timeout` lets concurrent writers (API + scheduler worker) wait instead of
+# immediately raising "database is locked".
+_connect_args = {"check_same_thread": False, "timeout": 30} if _db_url.startswith("sqlite") else {}
 
 if _db_url == "sqlite://":
     # 内存数据库（测试）：必须共享同一连接，否则每次连接都是新的空库。
@@ -38,6 +40,18 @@ else:
         max_overflow=20,
         pool_timeout=30,
     )
+
+if _db_url.startswith("sqlite") and _db_url != "sqlite://":
+
+    @event.listens_for(engine, "connect")
+    def _enable_sqlite_wal(dbapi_connection, connection_record):  # pragma: no cover
+        # WAL allows a reader and a writer to proceed concurrently, which the
+        # API + worker double-process setup relies on.
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=30000")
+        cursor.close()
+
 
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
@@ -68,10 +82,7 @@ def _migration_002_user_preferences(conn: Connection) -> None:
         )
     )
     conn.execute(
-        text(
-            "CREATE INDEX IF NOT EXISTS ix_user_preferences_user_id "
-            "ON user_preferences (user_id)"
-        )
+        text("CREATE INDEX IF NOT EXISTS ix_user_preferences_user_id ON user_preferences (user_id)")
     )
 
 
@@ -88,8 +99,7 @@ def _migration_003_provider_cache(conn: Connection) -> None:
     )
     conn.execute(
         text(
-            "CREATE INDEX IF NOT EXISTS ix_provider_cache_expires_at "
-            "ON provider_cache (expires_at)"
+            "CREATE INDEX IF NOT EXISTS ix_provider_cache_expires_at ON provider_cache (expires_at)"
         )
     )
 
@@ -123,7 +133,7 @@ def _migrate_sqlite_schema() -> None:
                 continue
             migration(conn)
             conn.execute(
-                text("INSERT INTO schema_migrations(version, name) " "VALUES (:version, :name)"),
+                text("INSERT INTO schema_migrations(version, name) VALUES (:version, :name)"),
                 {"version": version, "name": name},
             )
 
