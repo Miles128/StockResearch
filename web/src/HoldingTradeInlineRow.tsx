@@ -35,6 +35,7 @@ async function buildPayload(
   costPrice: string,
   lots: string,
   tradeDate: string,
+  note: string,
 ): Promise<HoldingTransactionItem> {
   const parsedLots = parseInt(lots, 10);
   let symbol: string | undefined;
@@ -60,8 +61,10 @@ async function buildPayload(
     name,
     query: lookupQuery,
     lots: parsedLots,
-    cost_price: side === "buy" ? parseFloat(costPrice) : undefined,
-    trade_date: side === "buy" ? tradeDate : undefined,
+    cost_price:
+      side === "buy" ? parseFloat(costPrice) : costPrice.trim() ? parseFloat(costPrice) : undefined,
+    trade_date: side === "buy" ? tradeDate : tradeDate || undefined,
+    note: note.trim() || undefined,
   };
 }
 
@@ -77,6 +80,7 @@ export function HoldingTradeInlineRow({
   const [costPrice, setCostPrice] = useState("");
   const [lots, setLots] = useState("1");
   const [tradeDate, setTradeDate] = useState(today);
+  const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -105,7 +109,7 @@ export function HoldingTradeInlineRow({
 
     setSubmitting(true);
     try {
-      const tx = await buildPayload(side, query, costPrice, lots, tradeDate);
+      const tx = await buildPayload(side, query, costPrice, lots, tradeDate, note);
       const sellError = validateSellQuantities([tx], holdings, t);
       if (sellError) {
         setError(sellError);
@@ -164,6 +168,19 @@ export function HoldingTradeInlineRow({
             </label>
           </>
         )}
+        {side === "sell" && (
+          <label className="lists-inline-field">
+            <span>{t("portfolio.sellPrice")}</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              value={costPrice}
+              onChange={(e) => setCostPrice(e.target.value)}
+            />
+          </label>
+        )}
         <label className="lists-inline-field">
           <span>{t("portfolio.tradeLots")}</span>
           <input
@@ -172,6 +189,15 @@ export function HoldingTradeInlineRow({
             step="1"
             value={lots}
             onChange={(e) => setLots(e.target.value)}
+          />
+        </label>
+        <label className="lists-inline-field lists-inline-field-wide">
+          <span>{t("portfolio.noteLabel")}</span>
+          <input
+            placeholder={t("portfolio.notePh")}
+            maxLength={500}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
           />
         </label>
         <div className="lists-inline-trade-actions">
