@@ -1,4 +1,4 @@
-# StockResearch — English
+# StockResearch <img src="desktop/branding/app-icon.png" alt="StockResearch logo" width="36" height="36" align="middle"> — English
 
 The repository homepage README is **bilingual** (Chinese + English).
 

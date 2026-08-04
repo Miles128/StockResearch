@@ -1,4 +1,4 @@
-# StockResearch 产品需求文档
+# StockResearch <img src="../desktop/branding/app-icon.png" alt="StockResearch logo" width="32" height="32" align="middle"> 产品需求文档
 
 **V10.17 · 开源 A 股市场研究 Agent**
 
