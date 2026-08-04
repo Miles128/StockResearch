@@ -1,15 +1,22 @@
-/** Portfolio NAV curve vs benchmark + trade ledger (decision journal) sections. */
+/**
+ * Portfolio cockpit — “今日关注”首页的组合驾驶舱。
+ *
+ * 组合日线（90 天净值 vs 沪深300）+ 决策台账（交易记录）+ 组合事件（财报/解禁）。
+ * 有持仓时替换原空状态引导中的市场速览，板块异动与快讯下沉到底部。
+ */
 
 import { useEffect, useMemo, useState } from "react";
 import { api, type PortfolioPerformance, type TradeRecord } from "./api";
 import { CollapsibleSection } from "./CollapsibleSection";
+import { PortfolioEventsSection } from "./PortfolioEventsScreener";
 import { formatSignedMoney, formatSignedPct, signedClass } from "./holdingDisplay";
 import { useI18n } from "./i18n";
+import type { PortfolioSummary } from "./portfolioHelpers";
 
-const CHART_W = 220;
-const CHART_H = 52;
 const PERF_DAYS = 90;
-const TRADE_LIMIT = 8;
+const TRADE_LIMIT = 10;
+const CHART_W = 480;
+const CHART_H = 132;
 
 function linePath(values: number[], allMin: number, allMax: number): string {
   if (values.length < 2) return "";
@@ -18,13 +25,13 @@ function linePath(values: number[], allMin: number, allMax: number): string {
   return values
     .map((v, i) => {
       const x = i * step;
-      const y = CHART_H - 3 - ((v - allMin) / span) * (CHART_H - 6);
+      const y = CHART_H - 6 - ((v - allMin) / span) * (CHART_H - 12);
       return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
 }
 
-function PerfChart({ perf }: { perf: PortfolioPerformance }) {
+function CockpitPerfChart({ perf }: { perf: PortfolioPerformance }) {
   const { portfolio, benchmark, min, max } = useMemo(() => {
     const p = perf.series.map((pt) => pt.portfolio_index);
     const b = perf.series.map((pt) => pt.benchmark_index);
@@ -39,7 +46,7 @@ function PerfChart({ perf }: { perf: PortfolioPerformance }) {
 
   return (
     <svg
-      className="ledger-perf-chart"
+      className="cockpit-perf-chart"
       viewBox={`0 0 ${CHART_W} ${CHART_H}`}
       preserveAspectRatio="none"
       role="img"
@@ -57,7 +64,7 @@ function PerfChart({ perf }: { perf: PortfolioPerformance }) {
         d={linePath(portfolio, min, max)}
         fill="none"
         stroke="var(--accent)"
-        strokeWidth="2"
+        strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -76,8 +83,19 @@ const BIAS_LABEL_KEYS: Record<string, string> = {
   neutral: "portfolio.biasNeutral",
 };
 
-export function PortfolioLedgerSections({ trigger }: { trigger: string }) {
+interface PortfolioCockpitProps {
+  holdingsCount: number;
+  watchlistCount: number;
+  portfolioSummary: PortfolioSummary | null;
+}
+
+export function PortfolioCockpit({
+  holdingsCount,
+  watchlistCount,
+  portfolioSummary,
+}: PortfolioCockpitProps) {
   const { t } = useI18n();
+  const trigger = `${holdingsCount}:${watchlistCount}`;
   const [perf, setPerf] = useState<PortfolioPerformance | null>(null);
   const [trades, setTrades] = useState<TradeRecord[]>([]);
 
@@ -96,8 +114,6 @@ export function PortfolioLedgerSections({ trigger }: { trigger: string }) {
     };
   }, [trigger]);
 
-  if (!perf && trades.length === 0) return null;
-
   const perfSummary =
     perf && perf.portfolio_return_pct != null ? (
       <span className={`ledger-perf-summary mono ${signedClass(perf.portfolio_return_pct)}`}>
@@ -105,13 +121,46 @@ export function PortfolioLedgerSections({ trigger }: { trigger: string }) {
       </span>
     ) : undefined;
 
+  const pnl = portfolioSummary;
+
   return (
     <>
+      {pnl && pnl.hasQuotes && (
+        <section className="flat-section cockpit-snapshot">
+          <div className="cockpit-snapshot-head">
+            <span className="flat-section-title">{t("center.focus")}</span>
+            <span className="cockpit-snapshot-value mono">{formatSignedMoney(pnl.todayPnl)}</span>
+          </div>
+          <div className="cockpit-snapshot-metrics mono">
+            <span className={`lists-portfolio-metric ${signedClass(pnl.todayPnl)}`}>
+              <span className="lists-metric-label">{t("lists.todayPnl")}</span>
+              <span>{formatSignedMoney(pnl.todayPnl)}</span>
+            </span>
+            <span className={`lists-portfolio-metric ${signedClass(pnl.todayPnlPct ?? 0)}`}>
+              <span className="lists-metric-label">{t("lists.todayPnlPct")}</span>
+              <span>{formatSignedPct(pnl.todayPnlPct)}</span>
+            </span>
+            <span className={`lists-portfolio-metric ${signedClass(pnl.totalProfit)}`}>
+              <span className="lists-metric-label">{t("lists.totalPnl")}</span>
+              <span>{formatSignedMoney(pnl.totalProfit)}</span>
+            </span>
+            <span className={`lists-portfolio-metric ${signedClass(pnl.totalProfitPct ?? 0)}`}>
+              <span className="lists-metric-label">{t("lists.totalPnlPct")}</span>
+              <span>{formatSignedPct(pnl.totalProfitPct)}</span>
+            </span>
+            <span className={`lists-portfolio-metric ${signedClass(pnl.annualizedPct ?? 0)}`}>
+              <span className="lists-metric-label">{t("portfolio.annualized")}</span>
+              <span>{pnl.annualizedPct != null ? formatSignedPct(pnl.annualizedPct) : "—"}</span>
+            </span>
+          </div>
+        </section>
+      )}
+
       {perf && (
         <CollapsibleSection title={t("portfolio.perfTitle")} summary={perfSummary}>
           {perf.series.length > 0 ? (
-            <div className="ledger-perf-body">
-              <PerfChart perf={perf} />
+            <div className="cockpit-perf-body">
+              <CockpitPerfChart perf={perf} />
               <div className="ledger-perf-legend mono">
                 <span className="ledger-perf-item">
                   <i className="ledger-perf-dot ledger-perf-dot-portfolio" />
@@ -183,6 +232,8 @@ export function PortfolioLedgerSections({ trigger }: { trigger: string }) {
           <p className="muted ledger-perf-basis">{t("portfolio.tradesHint")}</p>
         </CollapsibleSection>
       )}
+
+      <PortfolioEventsSection trigger={trigger} />
     </>
   );
 }
