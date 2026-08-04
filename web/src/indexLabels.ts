@@ -12,13 +12,9 @@ const NAME_TO_SYMBOL: Record<string, string> = {
   沪深300: "000300",
 };
 
-export function indexSymbolKey(
-  symbol?: string,
-  fallbackName?: string,
-): string | null {
+export function indexSymbolKey(symbol?: string, fallbackName?: string): string | null {
   if (symbol && /^\d{6}$/.test(symbol)) return symbol;
-  if (fallbackName && NAME_TO_SYMBOL[fallbackName])
-    return NAME_TO_SYMBOL[fallbackName];
+  if (fallbackName && NAME_TO_SYMBOL[fallbackName]) return NAME_TO_SYMBOL[fallbackName];
   return null;
 }
 

@@ -5,7 +5,7 @@ from stockresearch.services.chat.conversation_memory import (
     _message_chars,
     compress_messages_if_needed,
 )
-from stockresearch.utils.llm import MockLLMClient
+from stockresearch.services.mock_llm import MockLLMClient
 
 
 @pytest.mark.asyncio

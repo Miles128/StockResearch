@@ -81,11 +81,7 @@ function activateStream(active: string[], streamId: string): string[] {
   return [...active, streamId];
 }
 
-function deactivateAgentStream(
-  active: string[],
-  agentId: string,
-  role?: string,
-): string[] {
+function deactivateAgentStream(active: string[], agentId: string, role?: string): string[] {
   if (role === "vote") {
     return active.filter((id) => id !== `vote-${agentId}` && id !== agentId);
   }
@@ -130,8 +126,7 @@ function upsertDebateDelta(
   delta: string,
 ): DebateRound[] {
   const existing = rounds.find((r) => r.round === roundNum);
-  const prev =
-    typeof existing?.[side] === "string" ? (existing[side] as string) : "";
+  const prev = typeof existing?.[side] === "string" ? (existing[side] as string) : "";
   const nextRound: DebateRound = {
     round: roundNum,
     ...existing,
@@ -153,12 +148,7 @@ function applyTextDeltaToSlice(
     if (sideKey) {
       return {
         agentSteps: slice.agentSteps,
-        debateRounds: upsertDebateDelta(
-          slice.debateRounds,
-          roundNum,
-          sideKey,
-          delta,
-        ),
+        debateRounds: upsertDebateDelta(slice.debateRounds, roundNum, sideKey, delta),
         judgeVerdict: slice.judgeVerdict,
       };
     }
@@ -238,10 +228,7 @@ export function hasLiveProcessContent(process?: StreamState): boolean {
   );
 }
 
-function finalizeSlice(
-  slice: SkillStreamSlice,
-  doneLabel: string,
-): SkillStreamSlice {
+function finalizeSlice(slice: SkillStreamSlice, doneLabel: string): SkillStreamSlice {
   return {
     ...slice,
     streamStatus: doneLabel,
@@ -254,10 +241,7 @@ function finalizeSlice(
 }
 
 /** Freeze stream UI after completion — drop stale react status lines. */
-export function finalizeStreamState(
-  state: StreamState,
-  doneLabel: string,
-): StreamState {
+export function finalizeStreamState(state: StreamState, doneLabel: string): StreamState {
   return {
     ...state,
     streamStatus: doneLabel,
@@ -297,15 +281,10 @@ function applyCoreStreamEvent(
     streamStatus = msg;
     if (shouldSeedDimensions(event)) {
       const kind = detectDimensionKind(event, msg);
-      const defs = t
-        ? dimensionDefsForKind(kind, t)
-        : detectDimensionSet(agentSteps, msg, kind);
+      const defs = t ? dimensionDefsForKind(kind, t) : detectDimensionSet(agentSteps, msg, kind);
       agentSteps = seedDimensionSteps(agentSteps, defs);
     }
-    if (
-      !shouldSkipStatusLog(event) &&
-      streamLog[streamLog.length - 1] !== msg
-    ) {
+    if (!shouldSkipStatusLog(event) && streamLog[streamLog.length - 1] !== msg) {
       streamLog = [...streamLog, msg];
     }
   }
@@ -318,12 +297,7 @@ function applyCoreStreamEvent(
           role: event.role,
         }
       : undefined;
-    const updated = applyTextDeltaToSlice(
-      slice,
-      event.stream_id,
-      event.delta,
-      meta,
-    );
+    const updated = applyTextDeltaToSlice(slice, event.stream_id, event.delta, meta);
     agentSteps = updated.agentSteps;
     debateRounds = updated.debateRounds;
     judgeVerdict = updated.judgeVerdict;
@@ -333,36 +307,22 @@ function applyCoreStreamEvent(
   if (event.type === "manager" && event.content) {
     const formatted = formatManagerContent(event.content);
     agentSteps = agentSteps.map((s) =>
-      s.agent_id === "research_manager"
-        ? { ...s, content: formatted, status: "done" as const }
-        : s,
+      s.agent_id === "research_manager" ? { ...s, content: formatted, status: "done" as const } : s,
     );
   }
 
-  if (
-    event.type === "agent_start" &&
-    event.agent_id &&
-    event.agent_name &&
-    event.role
-  ) {
+  if (event.type === "agent_start" && event.agent_id && event.agent_name && event.role) {
     const agentName =
-      t != null
-        ? localizeAgentName(event.agent_id, event.agent_name, t)
-        : event.agent_name;
+      t != null ? localizeAgentName(event.agent_id, event.agent_name, t) : event.agent_name;
     const dimensionAgent = isDimensionAgent(event.agent_id);
     const riskAgent = isRiskWorkflowAgent(event.agent_id);
     if (!dimensionAgent && !riskAgent) {
-      const startLine = t
-        ? t("stream.agentStarted", { name: agentName })
-        : `▶ ${agentName} 开始`;
+      const startLine = t ? t("stream.agentStarted", { name: agentName }) : `▶ ${agentName} 开始`;
       if (streamLog[streamLog.length - 1] !== startLine) {
         streamLog = [...streamLog, startLine];
       }
     } else if (dimensionAgent) {
-      const kind = detectDimensionKind(
-        { type: "status", message: streamStatus },
-        streamStatus,
-      );
+      const kind = detectDimensionKind({ type: "status", message: streamStatus }, streamStatus);
       const defs = t
         ? dimensionDefsForKind(kind, t)
         : detectDimensionSet(agentSteps, streamStatus, kind);
@@ -404,11 +364,8 @@ function applyCoreStreamEvent(
     const dimensionAgent = isDimensionAgent(event.agent_id);
     if (!dimensionAgent && !isRiskWorkflowAgent(event.agent_id)) {
       const doneName =
-        agentSteps.find((s) => s.agent_id === event.agent_id)?.agent_name ??
-        event.agent_id;
-      const doneLine = t
-        ? t("stream.agentDone", { name: doneName })
-        : `✓ ${doneName} 完成`;
+        agentSteps.find((s) => s.agent_id === event.agent_id)?.agent_name ?? event.agent_id;
+      const doneLine = t ? t("stream.agentDone", { name: doneName }) : `✓ ${doneName} 完成`;
       if (streamLog[streamLog.length - 1] !== doneLine) {
         streamLog = [...streamLog, doneLine];
       }
@@ -422,11 +379,7 @@ function applyCoreStreamEvent(
           }
         : s,
     );
-    activeStreamIds = deactivateAgentStream(
-      activeStreamIds,
-      event.agent_id,
-      event.role,
-    );
+    activeStreamIds = deactivateAgentStream(activeStreamIds, event.agent_id, event.role);
   }
 
   if (event.type === "debate_round" && event.round != null) {
@@ -442,9 +395,7 @@ function applyCoreStreamEvent(
         round: event.round,
         bull: event.bull ? stripDisclaimer(String(event.bull)) : event.bull,
         bear: event.bear ? stripDisclaimer(String(event.bear)) : event.bear,
-        aggressive: event.aggressive
-          ? stripDisclaimer(String(event.aggressive))
-          : event.aggressive,
+        aggressive: event.aggressive ? stripDisclaimer(String(event.aggressive)) : event.aggressive,
         neutral: event.neutral_view
           ? stripDisclaimer(String(event.neutral_view))
           : event.neutral_view,
@@ -536,9 +487,7 @@ function applyCoreStreamEvent(
       summary: stripDisclaimer(
         String(event.summary ?? event.content ?? judgeVerdict?.summary ?? ""),
       ),
-      reason: stripDisclaimer(
-        String(event.reason ?? event.summary ?? judgeVerdict?.reason ?? ""),
-      ),
+      reason: stripDisclaimer(String(event.reason ?? event.summary ?? judgeVerdict?.reason ?? "")),
       divergence: event.divergence,
       verdict: event.verdict,
       content: event.content,
@@ -559,11 +508,7 @@ function applyCoreStreamEvent(
   };
 }
 
-export function applyStreamEvent(
-  prev: StreamState,
-  event: AgentStreamEvent,
-  t?: TFn,
-): StreamState {
+export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent, t?: TFn): StreamState {
   let {
     streamStatus,
     streamLog,
@@ -578,9 +523,7 @@ export function applyStreamEvent(
   } = prev;
 
   const skillRunId =
-    event.skill_run_id &&
-    event.type !== "skill_start" &&
-    event.type !== "skill_done"
+    event.skill_run_id && event.type !== "skill_start" && event.type !== "skill_done"
       ? String(event.skill_run_id)
       : undefined;
 
@@ -623,9 +566,7 @@ export function applyStreamEvent(
   if (skillRunId) {
     activeSkillRunId = skillRunId;
     skillSteps = skillSteps.map((s) =>
-      s.skillRunId === skillRunId
-        ? { ...s, nested: applyCoreStreamEvent(s.nested, event, t) }
-        : s,
+      s.skillRunId === skillRunId ? { ...s, nested: applyCoreStreamEvent(s.nested, event, t) } : s,
     );
   } else if (event.type !== "skill_start" && event.type !== "skill_done") {
     const topSlice: SkillStreamSlice = {

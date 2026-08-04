@@ -103,8 +103,7 @@ export const zh: Dict = {
     sectorHint: "以下为与该板块相关的新闻与动态。",
     relatedNews: "相关新闻",
     noNews: "暂无相关新闻",
-    financialHint:
-      "财务序列、公告与研报证据见 Copilot 投研报告；点击分析拉取四维证据链。",
+    financialHint: "财务序列、公告与研报证据见 Copilot 投研报告；点击分析拉取四维证据链。",
   },
   layout: {
     toggleShell: "切换列表布局（侧栏 / 顶栏卡片）",
@@ -250,8 +249,7 @@ export const zh: Dict = {
     dataLiveMulti: "行情 · {primary} + {fallback}",
     dataDegraded: "行情降级 · {primary}→{fallback}",
     dataUnknown: "行情未刷新",
-    backendDown:
-      "后端不可用，部分功能可能无法正常工作。请确认 API 服务已启动（:8000）。",
+    backendDown: "后端不可用，部分功能可能无法正常工作。请确认 API 服务已启动（:8000）。",
     usageShort: "{total} tok",
   },
   health: {
@@ -296,8 +294,7 @@ export const zh: Dict = {
       master: "大师点评",
     },
     processDone: "完成",
-    researchStreamHint:
-      "四维分析与多空辩论将在本面板展示；完成后会保留结构化结果。",
+    researchStreamHint: "四维分析与多空辩论将在本面板展示；完成后会保留结构化结果。",
     conclusion: "综合结论",
     placeholder: "输入消息",
     emptyHint: "用自然语言提问，或试试：",
@@ -648,8 +645,7 @@ export const zh: Dict = {
     moderate: "稳健",
     aggressive: "进取",
     deviationTitle: "板块配置偏差",
-    deviationHint:
-      "自设目标权重 vs 当前持仓（成本市值代理）。只展示偏差，不做再平衡建议。",
+    deviationHint: "自设目标权重 vs 当前持仓（成本市值代理）。只展示偏差，不做再平衡建议。",
     deviationCompare: "对照偏差",
     deviationEmpty: "暂无持仓，无法对照配置偏差",
     deviationFailed: "偏差计算失败",
@@ -767,8 +763,7 @@ export const zh: Dict = {
     reportView: "报告视图",
     briefView: "简明版",
     formalView: "正式报告",
-    briefHint:
-      "已用大白话概括；可切换正式报告，或下载完整 Markdown / PDF / JSON / CSV。",
+    briefHint: "已用大白话概括；可切换正式报告，或下载完整 Markdown / PDF / JSON / CSV。",
     downloadMd: "下载 Markdown",
     downloadPdf: "下载 PDF",
     downloadJson: "下载 JSON",
@@ -800,8 +795,7 @@ export const zh: Dict = {
     subtitle: "外观、数据源、模型与分析偏好",
     welcome: "欢迎使用 StockResearch",
     close: "关闭",
-    requiredBanner:
-      "请先配置大模型。保存后会自动写入本机项目 .env，下次打开无需重复填写。",
+    requiredBanner: "请先配置大模型。保存后会自动写入本机项目 .env，下次打开无需重复填写。",
     appearance: "外观风格",
     appearanceHint: "切换后立即生效，保存在本机浏览器。",
     language: "界面语言",
@@ -834,8 +828,7 @@ export const zh: Dict = {
     themeDark: "金融 AI · 深色",
     themeDarkHint: "机构暗色底 · 橘红信标 · 红涨绿跌",
     analysis: "分析模式",
-    analysisHint:
-      "股票/市场相关问题默认进行多维投研；开关控制是否追加多空辩论与投资大师点评。",
+    analysisHint: "股票/市场相关问题默认进行多维投研；开关控制是否追加多空辩论与投资大师点评。",
     analysisDepth: "分析深度（默认档）",
     analysisDepthHint:
       "调节四维投研内的证据预算；单次说「综合分析/深度分析」可覆盖本轮，不改此处默认。",
@@ -848,21 +841,17 @@ export const zh: Dict = {
     enableDebate: "开启多空辩论",
     enableGlossary: "术语弹窗（点击下划线查看解释）",
     glossary: "专业名词词库",
-    glossaryHint:
-      "个人模式下，AI 输出中的专业术语会显示虚线下划线，点击可弹出通俗解释卡片。",
+    glossaryHint: "个人模式下，AI 输出中的专业术语会显示虚线下划线，点击可弹出通俗解释卡片。",
     glossaryOnNote: "已开启：对话与研究卡中的专业术语可点击查看解释。",
     glossaryResearchNote: "专家模式不提供术语弹窗（PRD §2）。",
     notificationsTitle: "通知与轮询",
-    notificationsHint:
-      "关闭后：Cron 跳过、不写库、不触发 UI 通知（见 PRD §7.2）。",
+    notificationsHint: "关闭后：Cron 跳过、不写库、不触发 UI 通知（见 PRD §7.2）。",
     briefingAuto: "自动生成盘前/盘中/盘后简报",
-    briefingAutoNote:
-      "关闭：不为该用户写入 briefing_records，也不触发简报通知。",
+    briefingAutoNote: "关闭：不为该用户写入 briefing_records，也不触发简报通知。",
     priceAlerts: "价格涨跌告警",
     priceAlertsNote: "关闭：跳过 5 分钟评估，不写 price_alert_notifications。",
     uiPolling: "UI 轮询告警铃铛",
-    uiPollingNote:
-      "默认关闭。开启后按行情刷新间隔轮询；告警仍可能有最多 5 分钟延迟。",
+    uiPollingNote: "默认关闭。开启后按行情刷新间隔轮询；告警仍可能有最多 5 分钟延迟。",
     uiPollingConfirm:
       "开启 UI 轮询后，浏览器会按设定间隔请求告警接口。价格告警评估周期为 5 分钟，实际通知可能仍有延迟。确认开启？",
     glossaryOffNote: "已关闭：术语不再标记为可点击链接。",
@@ -905,8 +894,7 @@ export const zh: Dict = {
     removeCustomMaster: "删除",
     customMasterIdPrompt: "自定义大师 ID（小写英文，如 dalio）",
     customMasterNamePrompt: "显示名称",
-    customMasterPromptPrompt:
-      "蒸馏提示词（至少 10 字，定义投资框架与输出要求）",
+    customMasterPromptPrompt: "蒸馏提示词（至少 10 字，定义投资框架与输出要求）",
     readingMode: "表达风格",
     readingModeHint: "控制 AI 回答的用语风格，与顶栏「个人/专家」模式独立。",
     readingModeNote: "当前为{mode}模式 · {reading}",
@@ -982,15 +970,13 @@ export const zh: Dict = {
     tushareHint:
       "在 tushare.pro 注册获取 Token。保存于本机浏览器，请求时带给服务端用于基本面/估值补充（AkShare 失败时降级）。",
     tushareToken: "Tushare Token",
-    tushareNote:
-      "需服务端安装 tushare 包；未配置时仍使用 AkShare / 新浪等免费源。",
+    tushareNote: "需服务端安装 tushare 包；未配置时仍使用 AkShare / 新浪等免费源。",
     tushareGuideTitle: "如何免费获取 Token",
     tushareGuideStep1: "1. 访问 tushare.pro 注册账号（手机号即可，免费）。",
     tushareGuideStep2: "2. 登录后进入「个人主页」，复制右上角 Token。",
     tushareGuideStep3:
       "3. 新账号默认 120 积分，可免费使用日线行情、财务、分红等基础接口；编辑个股研究时本系统会自动调用。",
-    tushareGuideStep4:
-      "4. 如需更多接口（如分钟线、龙虎榜），完善资料或邀请好友可获积分。",
+    tushareGuideStep4: "4. 如需更多接口（如分钟线、龙虎榜），完善资料或邀请好友可获积分。",
     tushareRegisterLink: "前往 tushare.pro 注册",
     tushareStatusChecking: "正在检测服务端状态…",
     tushareStatusOk: "Token 有效，Tushare Pro 可用。",
@@ -998,8 +984,7 @@ export const zh: Dict = {
     tushareStatusInvalid: "Token 无效或鉴权失败，请检查后重新保存。",
     tushareStatusQuota: "积分不足或接口权限不够，已跳过 Tushare 兜底。",
     tushareStatusUnavailable: "服务端未安装 tushare 包，将自动降级。",
-    tushareUsage:
-      "当前用于：估值兜底（东财之后） / 日线前复权兜底（AkShare → efinance 之后）。",
+    tushareUsage: "当前用于：估值兜底（东财之后） / 日线前复权兜底（AkShare → efinance 之后）。",
     bochaTitle: "博查 AI 联网搜索",
     bochaHint:
       "用于新闻兜底搜索。当 AkShare / 东方财富等本地源无数据时，自动联网抓取最新财经新闻。",
@@ -1161,21 +1146,18 @@ export const zh: Dict = {
     route: {
       reason: {
         finance_complex: "检测到较复杂的金融分析问题，请选择执行方式。",
-        non_finance:
-          "检测到较复杂的问题。本问题与股票投资无直接关系，将不使用联网搜索或行情工具。",
+        non_finance: "检测到较复杂的问题。本问题与股票投资无直接关系，将不使用联网搜索或行情工具。",
       },
       option: {
         preset: "预定路线 · {mode}",
         preset_desc: "按系统推荐的专业投研流程执行（推荐）",
         react: "ReAct 快速分析",
         react_desc: "逐步调用工具并即时回答，适合需要较快结论的场景",
-        react_desc_non_finance:
-          "基于模型知识直接回答，不调用行情、新闻等金融工具",
+        react_desc_non_finance: "基于模型知识直接回答，不调用行情、新闻等金融工具",
         plan_execute: "规划执行",
         plan_execute_desc:
           "多步拆解（行情+新闻+解读等）再综合报告；单一句行情问答请用「预定路线」或 ReAct",
-        plan_execute_desc_non_finance:
-          "先规划多步再执行，仅使用通用推理，不调用金融数据工具",
+        plan_execute_desc_non_finance: "先规划多步再执行，仅使用通用推理，不调用金融数据工具",
       },
     },
   },

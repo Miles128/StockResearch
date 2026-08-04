@@ -45,14 +45,10 @@ export function SectorStripCards({ items, ariaLabel }: SectorStripCardsProps) {
           >
             <span className="sector-strip-bar" aria-hidden="true" />
             <span className="sector-strip-name">{item.label}</span>
-            <span
-              className={`sector-strip-pct mono ${signedClass(item.value)}`}
-            >
+            <span className={`sector-strip-pct mono ${signedClass(item.value)}`}>
               {formatSignedPct(item.value)}
             </span>
-            {item.meta ? (
-              <span className="sector-strip-meta muted">{item.meta}</span>
-            ) : null}
+            {item.meta ? <span className="sector-strip-meta muted">{item.meta}</span> : null}
           </button>
         );
       })}

@@ -1203,8 +1203,7 @@
 .backend-health-banner {
   background: color-mix(in srgb, var(--bbg-red) 18%, var(--bbg-panel));
   color: var(--bbg-red);
-  border-bottom: 1px solid
-    color-mix(in srgb, var(--bbg-red) 35%, var(--bbg-border));
+  border-bottom: 1px solid color-mix(in srgb, var(--bbg-red) 35%, var(--bbg-border));
   padding: 8px 16px;
   font-size: 13px;
   text-align: center;
@@ -3405,10 +3404,7 @@
   padding: 12px 10px 10px;
   border: 1px solid var(--bbg-border);
   border-radius: 8px;
-  background: var(
-    --sector-fill,
-    var(--bbg-panel-alt, rgba(255, 255, 255, 0.02))
-  );
+  background: var(--sector-fill, var(--bbg-panel-alt, rgba(255, 255, 255, 0.02)));
   color: var(--bbg-text);
   cursor: pointer;
   scroll-snap-align: start;

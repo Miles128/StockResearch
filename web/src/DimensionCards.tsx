@@ -85,17 +85,12 @@ function hasDetail(item: DimensionCardItem): boolean {
   );
 }
 
-export function DimensionCards({
-  items,
-  labels,
-  defaultOpen = false,
-}: DimensionCardsProps) {
+export function DimensionCards({ items, labels, defaultOpen = false }: DimensionCardsProps) {
   if (!items.length) return null;
   return (
     <div className="dimension-cards-grid">
       {items.map((item) => {
-        const open =
-          defaultOpen || (item.status === "running" && item.streaming);
+        const open = defaultOpen || (item.status === "running" && item.streaming);
         const expandable = hasDetail(item) || item.status === "running";
         return (
           <details
@@ -105,16 +100,12 @@ export function DimensionCards({
           >
             <summary className="dimension-card-summary">
               <span className="dimension-card-title">
-                {expandable ? (
-                  <span className="dimension-card-chevron" aria-hidden />
-                ) : null}
+                {expandable ? <span className="dimension-card-chevron" aria-hidden /> : null}
                 {item.title}
               </span>
               <span className="dimension-card-meta">
                 {item.statusLabel ? (
-                  <span
-                    className={`dimension-status dimension-status-${item.status}`}
-                  >
+                  <span className={`dimension-status dimension-status-${item.status}`}>
                     {item.statusLabel}
                   </span>
                 ) : null}
@@ -139,27 +130,19 @@ export function DimensionCards({
               {item.body ? (
                 <div className="stream-msg-body">
                   <MarkdownContent text={item.body} />
-                  {item.streaming ? (
-                    <span className="stream-cursor">▍</span>
-                  ) : null}
+                  {item.streaming ? <span className="stream-cursor">▍</span> : null}
                 </div>
               ) : null}
               {(item.highlights?.length ?? 0) > 0 && (
                 <div className="dimension-highlights">
                   <strong>{labels.highlights}：</strong>
-                  <MarkdownContent
-                    className="markdown-inline"
-                    text={item.highlights!.join("；")}
-                  />
+                  <MarkdownContent className="markdown-inline" text={item.highlights!.join("；")} />
                 </div>
               )}
               {(item.risks?.length ?? 0) > 0 && (
                 <div className="dimension-risks muted">
                   <strong>{labels.risks}：</strong>
-                  <MarkdownContent
-                    className="markdown-inline"
-                    text={item.risks!.join("；")}
-                  />
+                  <MarkdownContent className="markdown-inline" text={item.risks!.join("；")} />
                 </div>
               )}
               {(item.evidence?.length ?? 0) > 0 && labels.evidence ? (

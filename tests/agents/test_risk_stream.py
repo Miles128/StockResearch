@@ -7,7 +7,7 @@ import pytest
 from stockresearch.agents.risk.stream import run_risk_checkup_stream
 from stockresearch.data.providers.market import Quote, QuoteProvider
 from stockresearch.db.models import Holding
-from stockresearch.utils.llm import MockLLMClient
+from stockresearch.services.mock_llm import MockLLMClient
 
 
 def _fake_quotes(symbols: list[str]) -> dict[str, Quote]:

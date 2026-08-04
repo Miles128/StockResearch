@@ -1,8 +1,4 @@
-import {
-  BUILTIN_MASTER_IDS,
-  type AnalysisDepth,
-  type ModeSettings,
-} from "../modeSettings";
+import { BUILTIN_MASTER_IDS, type AnalysisDepth, type ModeSettings } from "../modeSettings";
 import { useI18n } from "../i18n";
 
 interface AnalysisSettingsTabProps {
@@ -81,9 +77,7 @@ export function AnalysisSettingsTab({
         <span>{t("settings.enableDebate")}</span>
       </label>
       <p className="settings-muted settings-analysis-note">
-        {modeSettings.enableDebate
-          ? t("settings.debateOnNote")
-          : t("settings.debateOffNote")}
+        {modeSettings.enableDebate ? t("settings.debateOnNote") : t("settings.debateOffNote")}
       </p>
 
       <label className="settings-check">
@@ -100,9 +94,7 @@ export function AnalysisSettingsTab({
           : t("settings.masterCommentaryOffNote")}
       </p>
 
-      <h4 className="settings-section-title">
-        {t("settings.masterSelection")}
-      </h4>
+      <h4 className="settings-section-title">{t("settings.masterSelection")}</h4>
       <p className="settings-hint">{t("settings.masterSelectionHint")}</p>
       <div className="settings-master-list">
         {BUILTIN_MASTER_IDS.map((id) => (
@@ -117,16 +109,11 @@ export function AnalysisSettingsTab({
           </label>
         ))}
         {modeSettings.customMasters.map((master) => (
-          <label
-            key={master.id}
-            className="settings-check settings-custom-master-row"
-          >
+          <label key={master.id} className="settings-check settings-custom-master-row">
             <input
               type="checkbox"
               checked={modeSettings.selectedMasters.includes(master.id)}
-              onChange={(e) =>
-                onToggleMasterSelection(master.id, e.target.checked)
-              }
+              onChange={(e) => onToggleMasterSelection(master.id, e.target.checked)}
               disabled={!modeSettings.enableMasterCommentary}
             />
             <span>{master.name}</span>

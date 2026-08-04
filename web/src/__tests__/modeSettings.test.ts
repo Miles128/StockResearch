@@ -26,9 +26,7 @@ describe("modeSettings API conversion", () => {
           systemPrompt: "Macro cycles and risk parity.",
         },
       ],
-      customGlossary: [
-        { id: "测试术语", short: "测试术语", def: "用于单测的自定义词条" },
-      ],
+      customGlossary: [{ id: "测试术语", short: "测试术语", def: "用于单测的自定义词条" }],
       holdingsView: "table",
       quoteRefreshMinutes: 10,
       briefingAutoEnabled: true,

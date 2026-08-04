@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from stockresearch.agents.orchestrator.stream import run_chat_stream
-from stockresearch.agents.output_style import output_style_scope
+from stockresearch.core.output_style import output_style_scope
 from stockresearch.db.models import User
 
 

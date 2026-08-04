@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 
-from stockresearch.agents.output_style import get_reading_mode
 from stockresearch.core.constants import INTENT_RISK
+from stockresearch.core.output_style import get_reading_mode
 from stockresearch.core.schemas import AshareFactorOut, ResearchReportOut
 
 logger = logging.getLogger(__name__)

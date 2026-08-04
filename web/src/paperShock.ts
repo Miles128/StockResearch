@@ -32,22 +32,15 @@ export function computePaperShock(
   let key: string;
   let label: string;
   if (target === "top_holding") {
-    const top = priced.reduce((a, b) =>
-      marketValue(a) >= marketValue(b) ? a : b,
-    );
+    const top = priced.reduce((a, b) => (marketValue(a) >= marketValue(b) ? a : b));
     key = top.symbol;
     label = `${top.name}(${top.symbol})`;
   } else {
     const sectorValue = new Map<string, number>();
     for (const h of priced) {
-      sectorValue.set(
-        h.sector,
-        (sectorValue.get(h.sector) ?? 0) + marketValue(h),
-      );
+      sectorValue.set(h.sector, (sectorValue.get(h.sector) ?? 0) + marketValue(h));
     }
-    const maxSector = [...sectorValue.entries()].sort(
-      (a, b) => b[1] - a[1],
-    )[0]?.[0];
+    const maxSector = [...sectorValue.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
     if (!maxSector) return null;
     key = maxSector;
     label = maxSector;
@@ -55,8 +48,7 @@ export function computePaperShock(
 
   let shocked = 0;
   for (const h of priced) {
-    const match =
-      target === "top_holding" ? h.symbol === key : h.sector === key;
+    const match = target === "top_holding" ? h.symbol === key : h.sector === key;
     const price = h.price ?? h.cost_price;
     const shockedPrice = match ? price * (1 + shockPct) : price;
     shocked += shockedPrice * h.quantity;

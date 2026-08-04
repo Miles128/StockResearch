@@ -2,18 +2,12 @@
 
 .app-body.tri-shell {
   display: grid;
-  grid-template-columns: var(--lists-w, 360px) minmax(0, 1fr) var(
-      --copilot-w,
-      380px
-    );
+  grid-template-columns: var(--lists-w, 360px) minmax(0, 1fr) var(--copilot-w, 380px);
 }
 
 .tri-shell {
   display: grid;
-  grid-template-columns: var(--lists-w, 360px) minmax(0, 1fr) var(
-      --copilot-w,
-      380px
-    );
+  grid-template-columns: var(--lists-w, 360px) minmax(0, 1fr) var(--copilot-w, 380px);
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -21,10 +15,7 @@
 
 .tri-shell.lists-sidebar,
 .tri-shell.lists-center {
-  grid-template-columns: var(--lists-w, 360px) minmax(0, 1fr) var(
-      --copilot-w,
-      380px
-    );
+  grid-template-columns: var(--lists-w, 360px) minmax(0, 1fr) var(--copilot-w, 380px);
 }
 
 .tri-shell.lists-hidden {

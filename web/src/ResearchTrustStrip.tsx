@@ -9,10 +9,7 @@ import {
 } from "./api";
 import { useI18n } from "./i18n";
 
-function collectEvidence(
-  report: ResearchReport,
-  limit = 3,
-): DimensionEvidence[] {
+function collectEvidence(report: ResearchReport, limit = 3): DimensionEvidence[] {
   const items: DimensionEvidence[] = [];
   for (const dim of Object.values(report.dimensions ?? {})) {
     for (const ev of dim.evidence ?? []) {
@@ -53,9 +50,7 @@ export function ResearchTrustStrip({
   onFollowUp?: (query: string) => void;
 }) {
   const { t } = useI18n();
-  const [postHoc, setPostHoc] = useState<
-    ReportPostHoc | "loading" | "error" | null
-  >(null);
+  const [postHoc, setPostHoc] = useState<ReportPostHoc | "loading" | "error" | null>(null);
   const gaps = [
     ...(report.data_gaps ?? []).slice(0, 3),
     ...missingFromFactors(report.ashare_factors, 2),
@@ -63,8 +58,7 @@ export function ResearchTrustStrip({
     .filter((g, i, arr) => arr.indexOf(g) === i)
     .slice(0, 4);
   const evidence = collectEvidence(report, compact ? 2 : 3);
-  const expanded =
-    Boolean(report.factors_expanded) || report.analysis_depth !== "standard";
+  const expanded = Boolean(report.factors_expanded) || report.analysis_depth !== "standard";
   const factorLimit = compact ? (expanded ? 5 : 3) : expanded ? 8 : 4;
   const factors = (report.factors ?? []).slice(0, factorLimit);
   const provenance = report.bars_provenance;
@@ -76,9 +70,7 @@ export function ResearchTrustStrip({
         ? t("card.analysisDepthComprehensive")
         : t("card.analysisDepthStandard");
   const canVerify =
-    Boolean(report.enable_signal_verify_hook) &&
-    typeof report.id === "number" &&
-    report.id > 0;
+    Boolean(report.enable_signal_verify_hook) && typeof report.id === "number" && report.id > 0;
 
   async function runPostHoc() {
     if (typeof report.id !== "number") return;
@@ -90,13 +82,7 @@ export function ResearchTrustStrip({
     }
   }
 
-  if (
-    !gaps.length &&
-    !evidence.length &&
-    !factors.length &&
-    !provenance &&
-    !canVerify
-  ) {
+  if (!gaps.length && !evidence.length && !factors.length && !provenance && !canVerify) {
     return null;
   }
 
@@ -127,13 +113,7 @@ export function ResearchTrustStrip({
                 type="button"
                 className="example-chip active"
                 onClick={() =>
-                  onFollowUp(
-                    gapCloseQuery(
-                      report.symbol,
-                      report.name || report.symbol,
-                      gaps,
-                    ),
-                  )
+                  onFollowUp(gapCloseQuery(report.symbol, report.name || report.symbol, gaps))
                 }
               >
                 {t("card.gapCloseRerun")}
@@ -201,9 +181,7 @@ export function ResearchTrustStrip({
       {canVerify ? (
         <div className="research-trust-block">
           <strong>{t("card.postHoc")}</strong>
-          <p className="muted research-trust-line">
-            {t("card.signalVerifyHint")}
-          </p>
+          <p className="muted research-trust-line">{t("card.signalVerifyHint")}</p>
           <button
             type="button"
             className="btn btn-ghost btn-sm"
@@ -227,9 +205,7 @@ export function ResearchTrustStrip({
             </p>
           ) : null}
           {postHoc === "error" ? (
-            <p className="muted research-trust-line">
-              {t("card.postHocEmpty")}
-            </p>
+            <p className="muted research-trust-line">{t("card.postHocEmpty")}</p>
           ) : null}
         </div>
       ) : null}

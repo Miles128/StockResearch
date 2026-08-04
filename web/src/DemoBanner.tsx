@@ -8,13 +8,7 @@ interface DemoBannerProps {
   loading: boolean;
 }
 
-export function DemoBanner({
-  onLoad,
-  onClear,
-  onGoPortfolio,
-  isDemo,
-  loading,
-}: DemoBannerProps) {
+export function DemoBanner({ onLoad, onClear, onGoPortfolio, isDemo, loading }: DemoBannerProps) {
   const { t } = useI18n();
 
   if (isDemo) {
@@ -22,20 +16,11 @@ export function DemoBanner({
       <div className="demo-banner demo-banner-active">
         <span className="demo-banner-text">{t("demo.active")}</span>
         {onGoPortfolio && (
-          <button
-            type="button"
-            className="btn btn-sm btn-ghost"
-            onClick={onGoPortfolio}
-          >
+          <button type="button" className="btn btn-sm btn-ghost" onClick={onGoPortfolio}>
             {t("demo.replace")}
           </button>
         )}
-        <button
-          type="button"
-          className="btn btn-sm btn-ghost"
-          onClick={onClear}
-          disabled={loading}
-        >
+        <button type="button" className="btn btn-sm btn-ghost" onClick={onClear} disabled={loading}>
           {t("demo.clear")}
         </button>
       </div>
@@ -45,12 +30,7 @@ export function DemoBanner({
   return (
     <div className="demo-banner">
       <span className="demo-banner-text">{t("demo.hint")}</span>
-      <button
-        type="button"
-        className="btn btn-sm btn-primary"
-        onClick={onLoad}
-        disabled={loading}
-      >
+      <button type="button" className="btn btn-sm btn-primary" onClick={onLoad} disabled={loading}>
         {t("demo.load")}
       </button>
     </div>

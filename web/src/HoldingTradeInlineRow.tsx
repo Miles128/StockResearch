@@ -22,9 +22,7 @@ function validateSellQuantities(
     const left = available.get(tx.symbol) ?? 0;
     if (qty > left) {
       const label = tx.name || tx.symbol;
-      return t("portfolio.tradeSellExceeds")
-        .replace("{name}", label)
-        .replace("{n}", String(left));
+      return t("portfolio.tradeSellExceeds").replace("{name}", label).replace("{n}", String(left));
     }
     available.set(tx.symbol, left - qty);
   }
@@ -128,10 +126,7 @@ export function HoldingTradeInlineRow({
       <div className="lists-inline-trade-form">
         <label className="lists-inline-field">
           <span>{t("portfolio.tradeSide")}</span>
-          <select
-            value={side}
-            onChange={(e) => setSide(e.target.value as "buy" | "sell")}
-          >
+          <select value={side} onChange={(e) => setSide(e.target.value as "buy" | "sell")}>
             <option value="buy">{t("portfolio.tradeSideBuy")}</option>
             <option value="sell">{t("portfolio.tradeSideSell")}</option>
           </select>
@@ -194,9 +189,7 @@ export function HoldingTradeInlineRow({
             onClick={() => void submit()}
             disabled={submitting}
           >
-            {submitting
-              ? t("portfolio.tradeSubmitting")
-              : t("portfolio.tradeSubmit")}
+            {submitting ? t("portfolio.tradeSubmitting") : t("portfolio.tradeSubmit")}
           </button>
         </div>
       </div>

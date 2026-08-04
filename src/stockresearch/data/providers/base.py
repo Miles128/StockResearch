@@ -3,14 +3,12 @@
 import asyncio
 import logging
 from collections.abc import Callable
-from typing import TypeVar
 
 logger = logging.getLogger(__name__)
-T = TypeVar("T")
 _RAISE = object()
 
 
-async def run_sync_fetch(
+async def run_sync_fetch[T](
     name: str,
     fn: Callable[[], T],
     *,

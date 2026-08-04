@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from stockresearch.agents.orchestrator.react_agent import OrchestratorAgent
 from stockresearch.db.models import User
 from stockresearch.services.chat.scope import build_chat_context_scope
-from stockresearch.utils.llm import MockLLMClient
+from stockresearch.services.mock_llm import MockLLMClient
 
 
 class _HoldingStub:

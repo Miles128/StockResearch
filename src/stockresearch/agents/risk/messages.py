@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from stockresearch.agents.output_style import get_output_locale
+from stockresearch.core.output_style import get_output_locale
 
 
 def _en() -> bool:
@@ -23,8 +23,8 @@ def alert_stop_loss_red(name: str, symbol: str, cost: float, price: float, drawd
 
 def alert_stop_loss_yellow(name: str, symbol: str, drawdown: float) -> str:
     if _en():
-        return f"{name} ({symbol}) drawdown {drawdown:.0%}, " f"approaching your 8% watch zone."
-    return f"{name}({symbol}) 回撤 {drawdown:.0%}，" f"接近你设定的止损关注区间（8%）。"
+        return f"{name} ({symbol}) drawdown {drawdown:.0%}, approaching your 8% watch zone."
+    return f"{name}({symbol}) 回撤 {drawdown:.0%}，接近你设定的止损关注区间（8%）。"
 
 
 def alert_stop_loss_yellow_short(name: str, symbol: str, drawdown: float) -> str:
@@ -35,7 +35,7 @@ def alert_stop_loss_yellow_short(name: str, symbol: str, drawdown: float) -> str
 
 def alert_black_swan_drop(name: str, change_pct: float) -> str:
     if _en():
-        return f"{name} fell sharply today ({change_pct:.1f}%) — " f"check for major negative news."
+        return f"{name} fell sharply today ({change_pct:.1f}%) — check for major negative news."
     return f"{name} 今日大跌 {change_pct}%，请关注是否有重大利空。"
 
 

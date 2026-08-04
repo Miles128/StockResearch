@@ -1,17 +1,5 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
-import {
-  applyLocale,
-  loadLocale,
-  saveLocale,
-  type AppLocale,
-} from "./localeSettings";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { applyLocale, loadLocale, saveLocale, type AppLocale } from "./localeSettings";
 import { en } from "./locales/en";
 import { zh } from "./locales/zh";
 import type { Dict } from "./locales/types";
@@ -60,10 +48,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     applyLocale(next);
   }, []);
 
-  const value = useMemo(
-    () => ({ locale, setLocale, t: createT(locale) }),
-    [locale, setLocale],
-  );
+  const value = useMemo(() => ({ locale, setLocale, t: createT(locale) }), [locale, setLocale]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }

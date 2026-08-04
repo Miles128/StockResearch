@@ -1,6 +1,6 @@
 """Tests for analysis output reading-mode and locale injection."""
 
-from stockresearch.agents.output_style import (
+from stockresearch.core.output_style import (
     apply_style_to_system,
     normalize_reading_mode,
     output_style_scope,

@@ -83,11 +83,7 @@ export function MarketPanel({
 
   const marketNews = useMemo(
     () =>
-      news
-        .filter(
-          (item) => item.category === "market" || item.category === "sector",
-        )
-        .slice(0, 16),
+      news.filter((item) => item.category === "market" || item.category === "sector").slice(0, 16),
     [news],
   );
 
@@ -108,18 +104,10 @@ export function MarketPanel({
   return (
     <div className="panel market-panel">
       <div className="panel-actions-row">
-        <button
-          className="btn btn-primary"
-          onClick={onRefreshOverview}
-          disabled={overviewLoading}
-        >
+        <button className="btn btn-primary" onClick={onRefreshOverview} disabled={overviewLoading}>
           {overviewLoading ? t("market.loading") : t("market.refresh")}
         </button>
-        <button
-          className="btn btn-ghost"
-          onClick={onLoadNews}
-          disabled={newsLoading}
-        >
+        <button className="btn btn-ghost" onClick={onLoadNews} disabled={newsLoading}>
           {newsLoading ? t("news.loading") : t("market.refreshNews")}
         </button>
       </div>
@@ -149,32 +137,31 @@ export function MarketPanel({
             </div>
           </>
         )}
-        {overview &&
-          (overview.advancers != null || overview.decliners != null) && (
-            <div className="market-breadth">
-              <span className="muted">{t("market.breadth")}</span>
-              <div className="market-breadth-bar" aria-hidden="true">
-                <span
-                  className="market-breadth-up"
-                  style={{
-                    flex: overview.advancers ?? 0,
-                  }}
-                />
-                <span
-                  className="market-breadth-down"
-                  style={{
-                    flex: overview.decliners ?? 0,
-                  }}
-                />
-              </div>
-              <span className="mono muted">
-                {t("ticker.breadth", {
-                  up: overview.advancers ?? "—",
-                  down: overview.decliners ?? "—",
-                })}
-              </span>
+        {overview && (overview.advancers != null || overview.decliners != null) && (
+          <div className="market-breadth">
+            <span className="muted">{t("market.breadth")}</span>
+            <div className="market-breadth-bar" aria-hidden="true">
+              <span
+                className="market-breadth-up"
+                style={{
+                  flex: overview.advancers ?? 0,
+                }}
+              />
+              <span
+                className="market-breadth-down"
+                style={{
+                  flex: overview.decliners ?? 0,
+                }}
+              />
             </div>
-          )}
+            <span className="mono muted">
+              {t("ticker.breadth", {
+                up: overview.advancers ?? "—",
+                down: overview.decliners ?? "—",
+              })}
+            </span>
+          </div>
+        )}
         {overview?.northbound_net_yi != null && (
           <p className="muted market-northbound">
             {t("ticker.northbound", {
@@ -186,10 +173,7 @@ export function MarketPanel({
 
       <section className="market-section">
         <h3 className="market-section-title">{t("sentiment.marketTitle")}</h3>
-        <SentimentGauge
-          variant="market"
-          pollingEnabled={loadModeSettings().uiPollingEnabled}
-        />
+        <SentimentGauge variant="market" pollingEnabled={loadModeSettings().uiPollingEnabled} />
       </section>
 
       <section className="market-section">
@@ -199,10 +183,7 @@ export function MarketPanel({
         ) : sectorCards.length === 0 ? (
           <p className="muted">{t("sectors.empty")}</p>
         ) : (
-          <SectorStripCards
-            items={sectorCards}
-            ariaLabel={t("market.sectorsTitle")}
-          />
+          <SectorStripCards items={sectorCards} ariaLabel={t("market.sectorsTitle")} />
         )}
       </section>
 
@@ -247,9 +228,7 @@ export function MarketPanel({
                 >
                   {item.title}
                 </button>
-                {item.summary ? (
-                  <p className="muted market-news-summary">{item.summary}</p>
-                ) : null}
+                {item.summary ? <p className="muted market-news-summary">{item.summary}</p> : null}
               </li>
             ))}
           </ul>

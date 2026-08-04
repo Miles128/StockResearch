@@ -1,8 +1,5 @@
 const STORAGE_KEY = "stockresearch.llm.settings";
-const LEGACY_STORAGE_KEYS = [
-  "stockbuddy.llm.settings",
-  "invesbao.llm.settings",
-];
+const LEGACY_STORAGE_KEYS = ["stockbuddy.llm.settings", "invesbao.llm.settings"];
 
 // ── In-memory cache to avoid repeated localStorage reads ──
 let _cachedSettings: LlmUserSettings | null = null;
@@ -71,9 +68,7 @@ export function loadLlmSettings(): LlmUserSettings {
       baseUrl: parsed.baseUrl ?? "",
       model: parsed.model ?? "",
       temperature:
-        typeof parsed.temperature === "number"
-          ? parsed.temperature
-          : DEFAULTS.temperature,
+        typeof parsed.temperature === "number" ? parsed.temperature : DEFAULTS.temperature,
       useMock: Boolean(parsed.useMock),
     };
     return _cachedSettings;
@@ -100,9 +95,7 @@ export function isServerLlmConfigured(meta: LlmSettingsMeta): boolean {
   return Boolean(meta.server_configured);
 }
 
-export function llmFormToApiBody(
-  form: LlmUserSettings,
-): Record<string, unknown> {
+export function llmFormToApiBody(form: LlmUserSettings): Record<string, unknown> {
   return {
     api_key: form.apiKey.trim() || null,
     base_url: form.baseUrl.trim() || null,
@@ -125,15 +118,10 @@ export function llmRequestHeaders(): Record<string, string> {
   return headers;
 }
 
-export function llmBodyField():
-  { llm: Record<string, unknown> } | Record<string, never> {
+export function llmBodyField(): { llm: Record<string, unknown> } | Record<string, never> {
   const s = loadLlmSettings();
   const hasOverride =
-    s.apiKey.trim() ||
-    s.baseUrl.trim() ||
-    s.model.trim() ||
-    s.temperature !== 0.3 ||
-    s.useMock;
+    s.apiKey.trim() || s.baseUrl.trim() || s.model.trim() || s.temperature !== 0.3 || s.useMock;
   if (!hasOverride) return {};
   return { llm: llmFormToApiBody(s) };
 }

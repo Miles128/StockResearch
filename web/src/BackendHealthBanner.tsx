@@ -52,13 +52,8 @@ export function BackendHealthBanner() {
   if (state === "ok" || state === "checking" || dismissed) return null;
 
   const title =
-    state === "unreachable"
-      ? t("health.unreachableTitle")
-      : t("health.wrongServiceTitle");
-  const hint =
-    state === "unreachable"
-      ? t("health.unreachableHint")
-      : t("health.wrongServiceHint");
+    state === "unreachable" ? t("health.unreachableTitle") : t("health.wrongServiceTitle");
+  const hint = state === "unreachable" ? t("health.unreachableHint") : t("health.wrongServiceHint");
 
   return (
     <div className="backend-health-banner" role="alert">

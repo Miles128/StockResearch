@@ -1,13 +1,8 @@
 import { describe, it, expect } from "vitest";
-import {
-  computePortfolioSummary,
-  computeSectorConcentration,
-} from "../portfolioHelpers";
+import { computePortfolioSummary, computeSectorConcentration } from "../portfolioHelpers";
 import type { HoldingEnriched } from "../api";
 
-function makeHolding(
-  overrides: Partial<HoldingEnriched> = {},
-): HoldingEnriched {
+function makeHolding(overrides: Partial<HoldingEnriched> = {}): HoldingEnriched {
   return {
     symbol: "TEST",
     name: "Test Stock",
@@ -98,9 +93,7 @@ describe("computePortfolioSummary", () => {
   });
 
   it("handles change_pct being null", () => {
-    const holdings = [
-      makeHolding({ price: 100, quantity: 10, change_pct: null }),
-    ];
+    const holdings = [makeHolding({ price: 100, quantity: 10, change_pct: null })];
     const result = computePortfolioSummary(holdings);
     expect(result.totalValue).toBe(1000);
     expect(result.todayPnl).toBe(0);

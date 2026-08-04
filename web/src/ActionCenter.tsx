@@ -32,15 +32,9 @@ export function ActionCenter({ onNavigate, onChatQuery }: ActionCenterProps) {
       >
         <span className="card-header-title">{t("actionCenter.title")}</span>
         <span className="action-center-header-right">
-          {summary ? (
-            <span className="action-center-summary-inline">{summary}</span>
-          ) : null}
+          {summary ? <span className="action-center-summary-inline">{summary}</span> : null}
           {extra}
-          <span
-            className={`action-center-chevron ${collapsed ? "collapsed" : ""}`}
-          >
-            ▾
-          </span>
+          <span className={`action-center-chevron ${collapsed ? "collapsed" : ""}`}>▾</span>
         </span>
       </div>
     );
@@ -98,12 +92,8 @@ export function ActionCenter({ onNavigate, onChatQuery }: ActionCenterProps) {
                 </span>
                 <span className="signal-title">{signal.title}</span>
               </div>
-              {signal.detail && (
-                <p className="signal-detail">{signal.detail}</p>
-              )}
-              {signal.action && (
-                <span className="signal-action">{signal.action}</span>
-              )}
+              {signal.detail && <p className="signal-detail">{signal.detail}</p>}
+              {signal.action && <span className="signal-action">{signal.action}</span>}
             </div>
           ))}
         </div>

@@ -1,4 +1,4 @@
-from stockresearch.agents.output_style import output_style_scope
+from stockresearch.core.output_style import output_style_scope
 from stockresearch.core.schemas import DimensionResult, ResearchReportOut
 from stockresearch.services.chat.response import (
     finalize_cards,

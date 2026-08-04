@@ -10,11 +10,7 @@ interface IndexSparkCardProps {
   onClick?: () => void;
 }
 
-function sparkPath(
-  points: { price: number }[],
-  width: number,
-  height: number,
-): string {
+function sparkPath(points: { price: number }[], width: number, height: number): string {
   if (points.length < 2) return "";
   const prices = points.map((p) => p.price);
   const min = Math.min(...prices);
@@ -41,16 +37,10 @@ export function IndexSparkCard({
 }: IndexSparkCardProps) {
   const up = changePct >= 0;
   const sparkClass = up ? "index-spark-up" : "index-spark-down";
-  const path = intraday?.points?.length
-    ? sparkPath(intraday.points, 120, 40)
-    : "";
+  const path = intraday?.points?.length ? sparkPath(intraday.points, 120, 40) : "";
 
   return (
-    <button
-      type="button"
-      className={`index-spark-card ${sparkClass}`}
-      onClick={onClick}
-    >
+    <button type="button" className={`index-spark-card ${sparkClass}`} onClick={onClick}>
       {path ? (
         <svg
           className="index-spark-bg"

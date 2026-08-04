@@ -1,13 +1,7 @@
-import {
-  ColorType,
-  type DeepPartial,
-  type ChartOptions,
-} from "lightweight-charts";
+import { ColorType, type DeepPartial, type ChartOptions } from "lightweight-charts";
 
 function cssVar(name: string, fallback: string): string {
-  const value = getComputedStyle(document.documentElement)
-    .getPropertyValue(name)
-    .trim();
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return value || fallback;
 }
 
@@ -25,10 +19,7 @@ export function readChartTheme() {
   return { textColor: text, gridColor: grid };
 }
 
-export function baseChartOptions(
-  width: number,
-  height: number,
-): DeepPartial<ChartOptions> {
+export function baseChartOptions(width: number, height: number): DeepPartial<ChartOptions> {
   const { textColor, gridColor } = readChartTheme();
   return {
     width: Math.max(width, 1),

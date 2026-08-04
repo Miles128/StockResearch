@@ -178,7 +178,7 @@ def _intent_from_dict(data: dict[str, object], *, source: Literal["llm"]) -> Cha
 
 async def classify_by_llm(message: str, llm: LLMClient | None) -> ChatIntent | None:
     """LLM 兜底分类;Mock 模式、llm 缺失或任何异常均返回 None。"""
-    from stockresearch.utils.llm import MockLLMClient
+    from stockresearch.services.mock_llm import MockLLMClient
 
     if llm is None or isinstance(llm, MockLLMClient):
         return None

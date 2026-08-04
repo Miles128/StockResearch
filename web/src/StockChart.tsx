@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   createChart,
   LineStyle,
@@ -19,11 +13,7 @@ import { detectTrendLines } from "./chartTrendlines";
 import { subscribeChartOverlays } from "./chartOverlayBus";
 import { useI18n } from "./i18n";
 import { getCachedKline, patchCachedKline, setCachedKline } from "./klineCache";
-import {
-  baseChartOptions,
-  applyChartEdgeAlignment,
-  readChartColors,
-} from "./ui/chartTheme";
+import { baseChartOptions, applyChartEdgeAlignment, readChartColors } from "./ui/chartTheme";
 
 export type MarketChartVariant = "stock" | "index";
 
@@ -121,11 +111,7 @@ function visibleWindow(barCount: number, compact: boolean): LogicalRange {
 }
 
 /** Unified K-line chart with volume, optional MACD/RSI, and scroll-back loading. */
-export function MarketChart({
-  symbol,
-  compact = false,
-  variant = "stock",
-}: MarketChartProps) {
+export function MarketChart({ symbol, compact = false, variant = "stock" }: MarketChartProps) {
   const { t } = useI18n();
   const rootRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
@@ -146,9 +132,7 @@ export function MarketChart({
   const syncingRangeRef = useRef(false);
   const barsRef = useRef<KlineBar[]>([]);
 
-  const [data, setData] = useState<KlineChart | null>(() =>
-    getCachedKline(symbol),
-  );
+  const [data, setData] = useState<KlineChart | null>(() => getCachedKline(symbol));
   const dataRef = useRef<KlineChart | null>(data);
   const [loading, setLoading] = useState(() => getCachedKline(symbol) == null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -190,9 +174,7 @@ export function MarketChart({
       visibleRangeRef.current = range;
       syncingRangeRef.current = true;
       try {
-        allCharts().forEach((chart) =>
-          chart.timeScale().setVisibleLogicalRange(range),
-        );
+        allCharts().forEach((chart) => chart.timeScale().setVisibleLogicalRange(range));
       } finally {
         syncingRangeRef.current = false;
       }
@@ -201,10 +183,7 @@ export function MarketChart({
   );
 
   const applyChart = useCallback(
-    (
-      chart: KlineChart,
-      opts?: { preserveRange?: boolean; added?: number; initial?: boolean },
-    ) => {
+    (chart: KlineChart, opts?: { preserveRange?: boolean; added?: number; initial?: boolean }) => {
       const rt = runtimeRef.current;
       const { up: chartUp, down: chartDown } = readChartColors();
 
@@ -238,9 +217,7 @@ export function MarketChart({
               time: barTime(b.date),
               value: chart.indicators.macd_histogram[i] ?? 0,
               color:
-                (chart.indicators.macd_histogram[i] ?? 0) >= 0
-                  ? `${chartUp}88`
-                  : `${chartDown}88`,
+                (chart.indicators.macd_histogram[i] ?? 0) >= 0 ? `${chartUp}88` : `${chartDown}88`,
             }))
             .filter((_, i) => chart.indicators.macd_histogram[i] != null),
         );
@@ -432,10 +409,7 @@ export function MarketChart({
     if (mainRef.current) {
       mainRef.current.style.height = `${mainH}px`;
       const width = Math.max(paneWidth(mainRef.current), 280);
-      const chart = createChart(
-        mainRef.current,
-        baseChartOptions(width, mainH),
-      );
+      const chart = createChart(mainRef.current, baseChartOptions(width, mainH));
       rt.mainChart = chart;
       rt.mounted.push({ el: mainRef.current, chart, h: mainH });
       const detachWheelHere = installWheelZoomNormalizer(mainRef.current);
@@ -448,9 +422,7 @@ export function MarketChart({
         wickUpColor: chartUp,
         wickDownColor: chartDown,
       });
-      chart
-        .priceScale("right")
-        .applyOptions({ scaleMargins: { top: 0.06, bottom: 0.28 } });
+      chart.priceScale("right").applyOptions({ scaleMargins: { top: 0.06, bottom: 0.28 } });
       rt.maLines = new Map();
       for (const period of selectedMa) {
         rt.maLines.set(
@@ -467,9 +439,7 @@ export function MarketChart({
         priceFormat: { type: "volume" },
         priceScaleId: "",
       });
-      rt.volume
-        .priceScale()
-        .applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } });
+      rt.volume.priceScale().applyOptions({ scaleMargins: { top: 0.78, bottom: 0 } });
       applyChartEdgeAlignment(chart);
 
       chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
@@ -507,18 +477,12 @@ export function MarketChart({
     };
 
     requestAnimationFrame(resizeAll);
-    const ro =
-      typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(() => resizeAll())
-        : null;
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => resizeAll()) : null;
     if (ro && rootRef.current) ro.observe(rootRef.current);
 
     const snapshot = dataRef.current;
     if (snapshot?.bars.length && snapshot.symbol === symbol && rt.candles) {
-      applyChart(
-        snapshot,
-        visibleRangeRef.current ? undefined : { initial: true },
-      );
+      applyChart(snapshot, visibleRangeRef.current ? undefined : { initial: true });
     }
 
     return () => {
@@ -578,8 +542,7 @@ export function MarketChart({
 
     const snapshot = dataRef.current;
     if (!showTrend || variant !== "stock") return;
-    if (!snapshot || snapshot.symbol !== symbol || snapshot.bars.length === 0)
-      return;
+    if (!snapshot || snapshot.symbol !== symbol || snapshot.bars.length === 0) return;
 
     const { up, down } = readChartColors();
     for (const line of detectTrendLines(snapshot.bars)) {
@@ -618,8 +581,7 @@ export function MarketChart({
     if (!chart) return;
     for (const series of rt.aiOverlays) chart.removeSeries(series);
     rt.aiOverlays = [];
-    if (!aiOverlays || aiOverlays.symbol !== symbol || variant !== "stock")
-      return;
+    if (!aiOverlays || aiOverlays.symbol !== symbol || variant !== "stock") return;
     const { up, down } = readChartColors();
     for (const overlay of aiOverlays.overlays) {
       if (overlay.kind !== "trend" || !overlay.a || !overlay.b) continue;
@@ -672,10 +634,7 @@ export function MarketChart({
   }
 
   return (
-    <div
-      ref={rootRef}
-      className={`market-chart${compact ? " market-chart-compact" : ""}`}
-    >
+    <div ref={rootRef} className={`market-chart${compact ? " market-chart-compact" : ""}`}>
       {variant === "stock" && (
         <div className="market-chart-toggles">
           <button
@@ -703,15 +662,11 @@ export function MarketChart({
             {t("chart.trend")}
           </button>
           {loadingMore && (
-            <span className="muted market-chart-loading-more">
-              {t("chart.loadingMore")}
-            </span>
+            <span className="muted market-chart-loading-more">{t("chart.loadingMore")}</span>
           )}
         </div>
       )}
-      {loading && !data && (
-        <p className="muted market-chart-status">{t("chart.loading")}</p>
-      )}
+      {loading && !data && <p className="muted market-chart-status">{t("chart.loading")}</p>}
       {!loading && error && !data && (
         <p className="muted market-chart-status">
           {t("chart.error")}: {error}
@@ -728,9 +683,7 @@ export function MarketChart({
             </div>
             <div className="market-chart-stage-main">
               <div className="market-chart-pane-head">
-                <span className="market-chart-pane-label">
-                  {t("chart.price")}
-                </span>
+                <span className="market-chart-pane-label">{t("chart.price")}</span>
                 <div className="chart-ma-select">
                   <button
                     type="button"
@@ -758,14 +711,9 @@ export function MarketChart({
                     </div>
                   )}
                 </div>
-                <span className="market-chart-pane-meta muted">
-                  {t("chart.volumeUnit")}
-                </span>
+                <span className="market-chart-pane-meta muted">{t("chart.volumeUnit")}</span>
               </div>
-              <div
-                ref={mainRef}
-                className="market-chart-pane market-chart-main"
-              />
+              <div ref={mainRef} className="market-chart-pane market-chart-main" />
               <div className="market-chart-axis-x" aria-hidden="true">
                 {t("chart.dateAxis")}
               </div>

@@ -4,7 +4,7 @@ import pytest
 
 from stockresearch.agents.research.debate import _format_debate_utterance, run_debate
 from stockresearch.core.schemas import DimensionResult
-from stockresearch.utils.llm import MockLLMClient
+from stockresearch.services.mock_llm import MockLLMClient
 
 
 def test_format_debate_utterance_adds_summary_marker() -> None:

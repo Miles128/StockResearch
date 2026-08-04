@@ -57,9 +57,7 @@ export function useRiskCheckup(
       }
     } finally {
       setRiskLoading(false);
-      setRiskStream((prev) =>
-        finalizeStreamState(prev, translate("chat.analysisDone")),
-      );
+      setRiskStream((prev) => finalizeStreamState(prev, translate("chat.analysisDone")));
       abortRef.current = null;
     }
   }, [onError, t]);

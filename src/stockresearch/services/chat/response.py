@@ -7,7 +7,7 @@ import logging
 from sqlalchemy.orm import Session
 
 from stockresearch.agents.orchestrator.balance_check import check_balance
-from stockresearch.agents.output_style import (
+from stockresearch.core.output_style import (
     get_custom_glossary,
     get_enable_glossary,
     get_reading_mode,

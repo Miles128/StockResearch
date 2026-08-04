@@ -10,15 +10,10 @@ export interface NewsState {
   toggleNewsSector: (sector: string) => Promise<void>;
 }
 
-export function useNews(
-  active: boolean,
-  onError?: (msg: string) => void,
-): NewsState {
+export function useNews(active: boolean, onError?: (msg: string) => void): NewsState {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [newsLoading, setNewsLoading] = useState(false);
-  const [newsSectors, setNewsSectors] = useState<SectorPreferences | null>(
-    null,
-  );
+  const [newsSectors, setNewsSectors] = useState<SectorPreferences | null>(null);
   const [sectorSaving, setSectorSaving] = useState(false);
 
   const loadNews = useCallback(async () => {

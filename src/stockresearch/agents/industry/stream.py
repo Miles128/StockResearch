@@ -23,24 +23,16 @@ from stockresearch.agents.industry.leaders import iter_leader_analysis_events
 from stockresearch.agents.master_commentary.context import build_research_context
 from stockresearch.agents.master_commentary.registry import resolve_master_ids
 from stockresearch.agents.master_commentary.stream import stream_master_commentary
-from stockresearch.agents.research.debate import (
-    iter_battle_vote_events,
-    iter_multi_round_debate_events,
-    iter_research_manager_events,
-    summarize_situation,
-    transcript_from_rounds,
-)
+from stockresearch.agents.research.battle import iter_battle_events
+from stockresearch.agents.research.debate import summarize_situation
 from stockresearch.agents.research.report_builder import build_research_report
 from stockresearch.agents.stream_typewriter import (
-    iter_llm_stream_events,
     iter_queue_merged_events,
     pump_dimension_llm_stream,
 )
-from stockresearch.agents.structured_output import ResearchJudgeOut
-from stockresearch.agents.voice import DEBATE_ROUNDS, DEBATE_VOICE, JUDGE_VOICE
+from stockresearch.agents.voice import DEBATE_VOICE, JUDGE_VOICE
 from stockresearch.core.schemas import (
     DebateResult,
-    DebateRound,
     DimensionResult,
     MasterCommentaryItem,
     ModeSettingsOut,
@@ -194,81 +186,21 @@ async def run_industry_research_stream(
         leader_note = "\n".join(f"- {ld.name}: {ld.brief}" for ld in leader_briefs)
         debate_context = f"板块：{sector}\n作战情：\n{situation}\n龙头简评：\n{leader_note}"
         yield status_event("status.industry.battle_start")
-        debate_rounds: list[DebateRound] = []
-        async for event in iter_multi_round_debate_events(
+        async for event in iter_battle_events(
             client,
-            _BULL_SYSTEM,
-            _BEAR_SYSTEM,
-            debate_context,
-            rounds=DEBATE_ROUNDS,
+            bull_system=_BULL_SYSTEM,
+            bear_system=_BEAR_SYSTEM,
+            debate_context=debate_context,
+            situation=situation,
+            dimensions=dimensions,
+            agent_labels=_AGENT_LABELS,
+            judge_system=_JUDGE_SYSTEM,
+            judge_stream_id="sector_judge",
         ):
+            if event.get("type") == "battle_result":
+                debate = event["debate"]  # type: ignore[assignment]
+                continue
             yield event
-            if event.get("type") == "debate_round":
-                round_num = event.get("round")
-                if isinstance(round_num, int):
-                    debate_rounds.append(
-                        DebateRound(
-                            round=round_num,
-                            bull_argument=str(event.get("bull", "")),
-                            bear_rebuttal=str(event.get("bear", "")),
-                        )
-                    )
-        debate_transcript = transcript_from_rounds(debate_rounds)
-        vote_tally: dict[str, int] | None = None
-        vote_summary = ""
-        async for event in iter_battle_vote_events(
-            client, dimensions, _AGENT_LABELS, debate_transcript
-        ):
-            yield event
-            if event.get("type") == "vote_tally":
-                vote_tally = {
-                    "偏多": int(event.get("bullish", 0)),
-                    "偏空": int(event.get("bearish", 0)),
-                    "中性": int(event.get("neutral", 0)),
-                }
-                vote_summary = str(event.get("message", ""))
-        manager_thesis = ""
-        async for event in iter_research_manager_events(
-            client, situation, debate_transcript, vote_summary
-        ):
-            yield event
-            if event.get("type") == "manager":
-                manager_thesis = str(event.get("content", ""))
-        judge_user = (
-            f"{debate_transcript}\n\n{vote_summary}\n\nResearch Manager：\n{manager_thesis}"
-        )
-        judge_raw = ""
-        async for event in iter_llm_stream_events(
-            stream_id="sector_judge",
-            agent_id="judge",
-            agent_name="裁判",
-            role="judge",
-            llm=client,
-            system=_JUDGE_SYSTEM,
-            user=judge_user,
-        ):
-            yield event
-            if event.get("type") == "agent_done":
-                judge_raw = str(event.get("content", ""))
-        parsed = ResearchJudgeOut.from_llm(judge_raw)
-        debate = DebateResult(
-            rounds=debate_rounds,
-            judge_verdict=f"{parsed.summary} {parsed.reason}",
-            consensus=parsed.summary,
-            core_divergence=f"{parsed.divergence}：{parsed.divergence_point}",
-            final_bias=parsed.final_bias,
-            confidence="medium",
-            vote_tally=vote_tally,
-            manager_thesis=manager_thesis or None,
-        )
-        yield {
-            "type": "judge",
-            "content": parsed.summary,
-            "verdict": debate.final_bias,
-            "summary": parsed.summary,
-            "reason": parsed.reason,
-            "divergence": parsed.divergence,
-        }
 
     news_snippets = [news_from_title(title) for title in ctx.news_snippets]
     news_text_factor = build_news_text_factor(news_snippets, subject=f"「{sector}」板块")

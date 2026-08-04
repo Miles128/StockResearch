@@ -136,8 +136,7 @@ export function bollSeries(
     for (let j = i - window + 1; j <= i; j += 1) sum += closes[j];
     const mean = sum / window;
     let varSum = 0;
-    for (let j = i - window + 1; j <= i; j += 1)
-      varSum += (closes[j] - mean) ** 2;
+    for (let j = i - window + 1; j <= i; j += 1) varSum += (closes[j] - mean) ** 2;
     const std = Math.sqrt(varSum / window);
     mid[i] = Math.round(mean * 10000) / 10000;
     upper[i] = Math.round((mean + numStd * std) * 10000) / 10000;
@@ -154,8 +153,7 @@ export function atrSeries(
 ): (number | null)[] {
   const n = closes.length;
   const out: (number | null)[] = new Array(n).fill(null);
-  if (n < 2 || highs.length !== n || lows.length !== n || period < 1)
-    return out;
+  if (n < 2 || highs.length !== n || lows.length !== n || period < 1) return out;
   const trs: number[] = new Array(n).fill(0);
   trs[0] = highs[0] - lows[0];
   for (let i = 1; i < n; i += 1) {
@@ -237,10 +235,7 @@ export function buildIndicators(
   };
 }
 
-export function mergeKlineBars(
-  older: KlineBar[],
-  existing: KlineBar[],
-): KlineBar[] {
+export function mergeKlineBars(older: KlineBar[], existing: KlineBar[]): KlineBar[] {
   if (!older.length) return existing;
   if (!existing.length) return older;
   const seen = new Set(existing.map((b) => b.date));

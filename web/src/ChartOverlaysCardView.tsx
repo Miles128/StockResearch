@@ -42,12 +42,8 @@ export function ChartOverlaysCardView({ data }: Props) {
         <ul className="chart-overlays-list">
           {data.overlays.map((overlay) => (
             <li key={overlay.id}>
-              <span
-                className={`stat-pill ${overlay.side === "support" ? "up" : "down"}`}
-              >
-                {overlay.side === "support"
-                  ? t("overlays.support")
-                  : t("overlays.resistance")}
+              <span className={`stat-pill ${overlay.side === "support" ? "up" : "down"}`}>
+                {overlay.side === "support" ? t("overlays.support") : t("overlays.resistance")}
               </span>
               <span className="muted">{overlay.rationale}</span>
             </li>

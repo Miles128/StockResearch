@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from stockresearch.agents.orchestrator.complexity import is_simple_news_explanation
 from stockresearch.agents.orchestrator.react_agent import OrchestratorAgent
 from stockresearch.db.models import User
-from stockresearch.utils.llm import MockLLMClient
+from stockresearch.services.mock_llm import MockLLMClient
 
 
 def test_news_explain_intent_matches_panel_buttons() -> None:

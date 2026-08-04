@@ -77,9 +77,7 @@ describe("detectTrendLines", () => {
     const bars = [...channelBars(40, 0), ...rally];
     const lines = detectTrendLines(bars);
     // The stale horizontal support near 98 must be dropped as irrelevant.
-    expect(lines.some((l) => l.kind === "support" && l.endPrice < 105)).toBe(
-      false,
-    );
+    expect(lines.some((l) => l.kind === "support" && l.endPrice < 105)).toBe(false);
   });
 
   it("returns empty for short series", () => {

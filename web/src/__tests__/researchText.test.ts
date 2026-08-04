@@ -3,8 +3,7 @@ import { normalizeResearchConclusion } from "../researchText";
 
 describe("normalizeResearchConclusion", () => {
   it("returns text already within 120-180 chars unchanged", () => {
-    const text =
-      "综合偏多，估值合理，基本面与情绪面共振，筹码结构相对稳定。".repeat(5);
+    const text = "综合偏多，估值合理，基本面与情绪面共振，筹码结构相对稳定。".repeat(5);
     expect(text.length).toBeGreaterThanOrEqual(120);
     expect(text.length).toBeLessThanOrEqual(180);
     expect(normalizeResearchConclusion(text)).toBe(text);

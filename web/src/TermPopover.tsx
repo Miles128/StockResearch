@@ -1,10 +1,4 @@
-import {
-  useState,
-  useRef,
-  useEffect,
-  useLayoutEffect,
-  type ReactNode,
-} from "react";
+import { useState, useRef, useEffect, useLayoutEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "./i18n";
 import { api, type GlossaryTerm } from "./api";
@@ -40,10 +34,7 @@ export function TermPopover({ term, children }: TermPopoverProps) {
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
-      if (
-        triggerRef.current &&
-        !triggerRef.current.contains(e.target as Node)
-      ) {
+      if (triggerRef.current && !triggerRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     }
@@ -134,9 +125,7 @@ function fetchGlossary(): Promise<Record<string, GlossaryTerm>> {
 
 /** 获取词库映射；首次挂载时异步拉取，之后命中模块缓存。 */
 export function useGlossary(): Record<string, GlossaryTerm> | null {
-  const [glossary, setGlossary] = useState<Record<string, GlossaryTerm> | null>(
-    _glossaryCache,
-  );
+  const [glossary, setGlossary] = useState<Record<string, GlossaryTerm> | null>(_glossaryCache);
   useEffect(() => {
     if (_glossaryCache) return;
     let active = true;

@@ -1,9 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  api,
-  type PriceAlertNotification,
-  type PriceAlertSettings,
-} from "./api";
+import { api, type PriceAlertNotification, type PriceAlertSettings } from "./api";
 import { useI18n } from "./i18n";
 import { IconBell } from "./ui/Icons";
 
@@ -88,9 +84,7 @@ export function PriceAlertBell({
               </button>
             )}
           </div>
-          {items.length === 0 && (
-            <p className="muted flat-empty">{t("alerts.empty")}</p>
-          )}
+          {items.length === 0 && <p className="muted flat-empty">{t("alerts.empty")}</p>}
           <ul className="alert-bell-list">
             {items.map((item) => (
               <li key={item.id}>

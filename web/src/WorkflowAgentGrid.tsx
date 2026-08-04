@@ -3,21 +3,9 @@ import { MarkdownContent } from "./MarkdownContent";
 import { localizeAgentDisplay } from "./uiLabels";
 import { useI18n } from "./i18n";
 import type { AgentStep } from "./types/streamTypes";
-import {
-  IconAlert,
-  IconBolt,
-  IconChart,
-  IconList,
-  IconMessages,
-} from "./ui/Icons";
+import { IconAlert, IconBolt, IconChart, IconList, IconMessages } from "./ui/Icons";
 
-function AgentWorkflowIcon({
-  agentId,
-  size = 16,
-}: {
-  agentId: string;
-  size?: number;
-}) {
+function AgentWorkflowIcon({ agentId, size = 16 }: { agentId: string; size?: number }) {
   const props = { size, className: "ui-icon workflow-agent-icon" };
   switch (agentId) {
     case "rules":
@@ -37,10 +25,7 @@ function AgentWorkflowIcon({
   }
 }
 
-function statusLabel(
-  status: AgentStep["status"],
-  t: (key: string) => string,
-): string {
+function statusLabel(status: AgentStep["status"], t: (key: string) => string): string {
   if (status === "done") return t("stream.dimDone");
   if (status === "running") return t("stream.dimStarted");
   return t("stream.dimPending");
@@ -55,9 +40,7 @@ function shortAgentLabel(agentId: string, fullName: string): string {
     research_manager: "RM",
     judge: "裁判",
   };
-  return (
-    map[agentId] ?? (fullName.length <= 4 ? fullName : fullName.slice(0, 2))
-  );
+  return map[agentId] ?? (fullName.length <= 4 ? fullName : fullName.slice(0, 2));
 }
 
 interface WorkflowAgentGridProps {
@@ -103,17 +86,11 @@ export function WorkflowAgentGrid({
   if (!compact) {
     return (
       <div className="workflow-agent-grid-wrap">
-        {sectionTitle ? (
-          <p className="stream-section-title">{sectionTitle}</p>
-        ) : null}
+        {sectionTitle ? <p className="stream-section-title">{sectionTitle}</p> : null}
         <div className="dimension-cards-grid workflow-agent-grid">
           {steps.map((step) => {
             const streaming = activeStreamIds.includes(step.agent_id);
-            const title = localizeAgentDisplay(
-              step.agent_id,
-              step.agent_name,
-              t,
-            );
+            const title = localizeAgentDisplay(step.agent_id, step.agent_name, t);
             return (
               <details
                 key={step.agent_id}
@@ -125,9 +102,7 @@ export function WorkflowAgentGrid({
                     <AgentWorkflowIcon agentId={step.agent_id} />
                     <span className="dimension-card-title">{title}</span>
                   </span>
-                  <span
-                    className={`dimension-status dimension-status-${step.status}`}
-                  >
+                  <span className={`dimension-status dimension-status-${step.status}`}>
                     {statusLabel(step.status, t)}
                   </span>
                 </summary>
@@ -143,9 +118,7 @@ export function WorkflowAgentGrid({
   return (
     <div className="workflow-agent-compact">
       <div className="workflow-agent-compact-head">
-        {sectionTitle ? (
-          <span className="workflow-agent-compact-title">{sectionTitle}</span>
-        ) : null}
+        {sectionTitle ? <span className="workflow-agent-compact-title">{sectionTitle}</span> : null}
         <span className="workflow-agent-progress muted">
           {t("risk.agentProgress", { done: doneCount, total: steps.length })}
         </span>
@@ -174,10 +147,7 @@ export function WorkflowAgentGrid({
               <span className="workflow-agent-chip-label">
                 {shortAgentLabel(step.agent_id, title)}
               </span>
-              <span
-                className={`workflow-agent-chip-dot status-${step.status}`}
-                aria-hidden
-              />
+              <span className={`workflow-agent-chip-dot status-${step.status}`} aria-hidden />
             </button>
           );
         })}
@@ -198,9 +168,7 @@ export function WorkflowAgentGrid({
                   <AgentWorkflowIcon agentId={step.agent_id} size={14} />
                   <strong>{title}</strong>
                 </span>
-                <span
-                  className={`dimension-status dimension-status-${step.status}`}
-                >
+                <span className={`dimension-status dimension-status-${step.status}`}>
                   {statusLabel(step.status, t)}
                 </span>
               </summary>

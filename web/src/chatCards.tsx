@@ -12,10 +12,7 @@ import { useI18n } from "./i18n";
 import { translateRouteOption, translateRouteReason } from "./streamI18n";
 import { localizeDebateAgentName, localizeRating } from "./uiLabels";
 import { MarkdownContent } from "./MarkdownContent";
-import {
-  normalizeResearchConclusion,
-  researchExpandHintsFromReport,
-} from "./researchText";
+import { normalizeResearchConclusion, researchExpandHintsFromReport } from "./researchText";
 import { StockChart } from "./StockChart";
 
 export function RouteChoiceCardView({
@@ -188,9 +185,7 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
             })}
           />
         </div>
-        {/^\d{6}$/.test(d.symbol) && (
-          <StockChart key={d.symbol} symbol={d.symbol} compact />
-        )}
+        {/^\d{6}$/.test(d.symbol) && <StockChart key={d.symbol} symbol={d.symbol} compact />}
       </div>
     );
   }
@@ -208,10 +203,7 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
         {d.llm_analysis && (
           <div>
             <strong>{t("card.aiBrief")}:</strong>{" "}
-            <MarkdownContent
-              className="markdown-inline"
-              text={d.llm_analysis.risk_narrative}
-            />
+            <MarkdownContent className="markdown-inline" text={d.llm_analysis.risk_narrative} />
           </div>
         )}
       </div>
@@ -282,24 +274,15 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
           <div className="stat-row">
             <span className="stat-pill">
               {t("card.long")}{" "}
-              {d.vote_tally["看多"] ||
-                d.vote_tally["Long"] ||
-                d.vote_tally["bullish"] ||
-                0}
+              {d.vote_tally["看多"] || d.vote_tally["Long"] || d.vote_tally["bullish"] || 0}
             </span>
             <span className="stat-pill">
               {t("card.short")}{" "}
-              {d.vote_tally["看空"] ||
-                d.vote_tally["Short"] ||
-                d.vote_tally["bearish"] ||
-                0}
+              {d.vote_tally["看空"] || d.vote_tally["Short"] || d.vote_tally["bearish"] || 0}
             </span>
             <span className="stat-pill">
               {t("card.neutral")}{" "}
-              {d.vote_tally["中性"] ||
-                d.vote_tally["Neutral"] ||
-                d.vote_tally["neutral"] ||
-                0}
+              {d.vote_tally["中性"] || d.vote_tally["Neutral"] || d.vote_tally["neutral"] || 0}
             </span>
             <span
               className={`stat-pill ${d.final_bias === "bullish" ? "up" : d.final_bias === "bearish" ? "down" : ""}`}
@@ -308,14 +291,9 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
             </span>
           </div>
           {d.positions.map((p, i) => (
-            <div
-              key={i}
-              className={`debate-position ${stanceColor[p.stance] || ""}`}
-            >
+            <div key={i} className={`debate-position ${stanceColor[p.stance] || ""}`}>
               <strong>{localizeDebateAgentName(p.agent, t)}</strong>{" "}
-              <span className={`stat-pill ${stanceColor[p.stance]}`}>
-                {stanceLabel(p.stance)}
-              </span>
+              <span className={`stat-pill ${stanceColor[p.stance]}`}>{stanceLabel(p.stance)}</span>
               <p className="muted" style={{ marginTop: 2 }}>
                 {p.arguments.slice(0, 200)}
                 {p.arguments.length > 200 ? "..." : ""}
@@ -377,8 +355,7 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
                     className={
                       r.assessment.includes("高") || r.assessment.includes("过")
                         ? "down"
-                        : r.assessment.includes("优") ||
-                            r.assessment.includes("良")
+                        : r.assessment.includes("优") || r.assessment.includes("良")
                           ? "up"
                           : ""
                     }

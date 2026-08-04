@@ -11,9 +11,7 @@ function compressToMax(plain: string, maxLen: number): string {
 }
 
 function joinParts(parts: string[]): string {
-  const cleaned = parts
-    .map((p) => p.trim().replace(/。+$/, ""))
-    .filter(Boolean);
+  const cleaned = parts.map((p) => p.trim().replace(/。+$/, "")).filter(Boolean);
   if (!cleaned.length) return "";
   const text = cleaned.join("。");
   return text.endsWith("。") ? text : `${text}。`;
@@ -29,11 +27,7 @@ export interface NormalizeResearchConclusionOptions {
 /** Fit composite conclusion into ~120–180 chars by compressing or expanding. */
 export function normalizeResearchConclusion(
   text: string,
-  {
-    minLen = 120,
-    maxLen = 180,
-    expandHints = [],
-  }: NormalizeResearchConclusionOptions = {},
+  { minLen = 120, maxLen = 180, expandHints = [] }: NormalizeResearchConclusionOptions = {},
 ): string {
   const trimmed = text.trim();
   if (!trimmed) return trimmed;

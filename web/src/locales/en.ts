@@ -58,8 +58,7 @@ export const en: Dict = {
     watchlistAddPh: "Symbol or name",
     watchlistRemove: "Remove",
     batchResearch: "Batch research",
-    batchResearchTip:
-      "Generate research reports for all watchlist symbols (up to 8)",
+    batchResearchTip: "Generate research reports for all watchlist symbols (up to 8)",
     watchlistPick: "No exact match — please confirm:",
     colSymbol: "Symbol",
     colName: "Name",
@@ -130,8 +129,7 @@ export const en: Dict = {
     advisor: "Personal",
     research: "Expert",
     advisorHint: "Considers your cash flow and risk tolerance, plain language",
-    researchHint:
-      "Four-dimensional deep analysis, direct terminology, no personal finance",
+    researchHint: "Four-dimensional deep analysis, direct terminology, no personal finance",
     switchTitle: "Switch mode",
     customized: "Customized",
   },
@@ -306,16 +304,13 @@ export const en: Dict = {
     exampleMarketLabel: "Market",
     exampleMarketQuery: "How is the A-share market doing today?",
     exampleStockLabel: "Stock",
-    exampleStockQuery:
-      "Please analyze Kweichow Moutai's fundamentals and price action",
+    exampleStockQuery: "Please analyze Kweichow Moutai's fundamentals and price action",
     exampleNewsLabel: "News",
     exampleNewsQuery: "Summarize today's market news related to my holdings",
     exampleRiskLabel: "Risk",
-    exampleRiskQuery:
-      "Run a risk checkup on my portfolio and flag any concerns",
+    exampleRiskQuery: "Run a risk checkup on my portfolio and flag any concerns",
     exampleSentimentLabel: "Sentiment",
-    exampleSentimentQuery:
-      "What's the A-share market sentiment today? Bullish or bearish?",
+    exampleSentimentQuery: "What's the A-share market sentiment today? Bullish or bearish?",
     exampleSectorLabel: "Sectors",
     exampleSectorQuery: "Which sectors are strongest and weakest today?",
     examplePnlLabel: "Explain P&L",
@@ -323,14 +318,11 @@ export const en: Dict = {
     exampleTopMoverLabel: "Top Mover",
     exampleTopMoverQuery: "Which holdings drove or dragged my portfolio?",
     exampleNewsImpactLabel: "News Impact",
-    exampleNewsImpactQuery:
-      "How do recent major news items affect my holdings?",
+    exampleNewsImpactQuery: "How do recent major news items affect my holdings?",
     exampleTopRiskLabel: "Top Risk",
-    exampleTopRiskQuery:
-      "Which holding contributes the most risk to my portfolio?",
+    exampleTopRiskQuery: "Which holding contributes the most risk to my portfolio?",
     exampleStressLabel: "Stress Test",
-    exampleStressQuery:
-      "How would my portfolio perform under stress scenarios?",
+    exampleStressQuery: "How would my portfolio perform under stress scenarios?",
     sending: "Analyzing...",
     send: "Send",
     disclaimer: "All AI output is for learning only — not investment advice.",
@@ -352,8 +344,7 @@ export const en: Dict = {
     routePlan: "Plan & execute",
     routePreset: "Recommended route",
     routeAuto: "Auto",
-    turnDisclaimer:
-      "AI-generated content for reference only — not investment advice.",
+    turnDisclaimer: "AI-generated content for reference only — not investment advice.",
     holdingsQuick: "Holdings",
     usageLine: "Tokens {total} (in {prompt} / out {completion})",
     usageCost: "~¥{cost}",
@@ -520,8 +511,7 @@ export const en: Dict = {
     editDone: "Done",
     deleteHolding: "Delete",
     tradeModalTitle: "Add trades",
-    tradeModalHint:
-      "Add multiple buy/sell rows; sell quantity cannot exceed holdings.",
+    tradeModalHint: "Add multiple buy/sell rows; sell quantity cannot exceed holdings.",
     tradeSide: "Side",
     tradeSideBuy: "Buy",
     tradeSideSell: "Sell",
@@ -600,8 +590,7 @@ export const en: Dict = {
     topHolding: "Top holding",
     stressTests: "Stress scenarios (numeric)",
     stressPnl: "Scenario P&L",
-    stressHint:
-      "Relative price shocks only — not historical replay; paper hypothesis.",
+    stressHint: "Relative price shocks only — not historical replay; paper hypothesis.",
     stressInteractive: "Paper shock hypothesis",
     stressTarget: "Shock target",
     stressTopHolding: "Top holding",
@@ -646,8 +635,7 @@ export const en: Dict = {
   },
   allocation: {
     title: "Asset Allocation Reference",
-    subtitle:
-      "Stock/bond/cash reference based on your risk level and cash flow",
+    subtitle: "Stock/bond/cash reference based on your risk level and cash flow",
     riskLevel: "Risk level",
     referenceConfig: "Reference allocation",
     rationale: "Rationale",
@@ -709,8 +697,7 @@ export const en: Dict = {
     planTrail: "Plan & execution",
     step: "Step",
     synthesis: "Synthesis",
-    synthesisHint:
-      "Completed {count} research steps — see the conclusion panel above",
+    synthesisHint: "Completed {count} research steps — see the conclusion panel above",
     fourDim: "Multi-dimensional analysis",
     debateSection: "Bull / bear debate",
     round: "Round {n}",
@@ -745,8 +732,7 @@ export const en: Dict = {
     highlights: "Highlights",
     risks: "Risks",
     dataGaps: "Data gaps",
-    refillGapsTip:
-      "Clear related caches, re-fetch data and re-run the four-dimension research",
+    refillGapsTip: "Clear related caches, re-fetch data and re-run the four-dimension research",
     refilling: "Refilling…",
     refillFailed: "Refill failed",
     gapCloseRerun: "Refill gaps & re-run",
@@ -824,8 +810,7 @@ export const en: Dict = {
     langZh: "中文",
     langEn: "English",
     holdingsViewTitle: "Holdings layout",
-    holdingsViewHint:
-      "Choose table or card layout for holdings; saved in this browser.",
+    holdingsViewHint: "Choose table or card layout for holdings; saved in this browser.",
     holdingsViewTable: "Table",
     holdingsViewCards: "Cards",
     llm: "Language model",
@@ -858,29 +843,22 @@ export const en: Dict = {
     analysisDepthStandard: "Standard",
     analysisDepthStandardHint: "Current four-dimension baseline",
     analysisDepthComprehensive: "Comprehensive",
-    analysisDepthComprehensiveHint:
-      "Thicker news/earnings evidence; expand factor strip",
+    analysisDepthComprehensiveHint: "Thicker news/earnings evidence; expand factor strip",
     analysisDepthDeep: "Deep",
-    analysisDepthDeepHint:
-      "Higher evidence budget; optional post-hoc verify entry",
+    analysisDepthDeepHint: "Higher evidence budget; optional post-hoc verify entry",
     enableDebate: "Enable bull/bear debate",
     enableGlossary: "Term popovers (click underlined terms)",
     glossary: "Financial glossary",
     glossaryHint:
       "In Personal mode, professional terms appear with a dotted underline; click for a plain-language card.",
-    glossaryOnNote:
-      "On: terms in chat and research cards are clickable for explanations.",
-    glossaryResearchNote:
-      "Expert mode does not offer glossary popovers (PRD §2).",
+    glossaryOnNote: "On: terms in chat and research cards are clickable for explanations.",
+    glossaryResearchNote: "Expert mode does not offer glossary popovers (PRD §2).",
     notificationsTitle: "Notifications & polling",
-    notificationsHint:
-      "When off: cron skips, no DB writes, no UI notifications (PRD §7.2).",
+    notificationsHint: "When off: cron skips, no DB writes, no UI notifications (PRD §7.2).",
     briefingAuto: "Auto-generate pre-market/intraday/postmarket briefings",
-    briefingAutoNote:
-      "Off: no briefing_records for this user, no briefing notifications.",
+    briefingAutoNote: "Off: no briefing_records for this user, no briefing notifications.",
     priceAlerts: "Price change alerts",
-    priceAlertsNote:
-      "Off: skip 5-min evaluation, no price_alert_notifications.",
+    priceAlertsNote: "Off: skip 5-min evaluation, no price_alert_notifications.",
     uiPolling: "Poll alert bell in UI",
     uiPollingNote:
       "Off by default. When on, polls at quote refresh interval; alerts may lag up to 5 min.",
@@ -893,8 +871,7 @@ export const en: Dict = {
     glossaryCustom: "Custom",
     glossaryRemove: "Remove",
     glossaryAddTitle: "Add custom term",
-    glossaryAddHint:
-      "Custom terms merge with built-ins and become clickable in chat.",
+    glossaryAddHint: "Custom terms merge with built-ins and become clickable in chat.",
     glossaryTermShort: "Term name",
     glossaryTermShortPh: "e.g. volume-price divergence",
     glossaryTermDef: "Plain definition",
@@ -904,13 +881,11 @@ export const en: Dict = {
     glossaryAddBtn: "Add to glossary",
     debateOnNote:
       "On: stock or market questions → four dimensions + 3 debate rounds + vote + Research Manager + judge summary.",
-    debateOffNote:
-      "Off: stock or market questions → multi-dim analysis only (no debate).",
+    debateOffNote: "Off: stock or market questions → multi-dim analysis only (no debate).",
     enableMasterCommentary: "Enable master commentary",
     masterCommentaryOnNote:
       "On: append selected masters' structured commentary after deep analysis (independent of reading mode).",
-    masterCommentaryOffNote:
-      "Off: results contain only the system's own analysis and conclusion.",
+    masterCommentaryOffNote: "Off: results contain only the system's own analysis and conclusion.",
     masterSelection: "Investment masters",
     masterSelectionHint:
       "Choose who comments after analysis. Edit built-in prompts under server prompts/masters/.",
@@ -930,8 +905,7 @@ export const en: Dict = {
     customMasterNamePrompt: "Display name",
     customMasterPromptPrompt: "Distilled system prompt (min 10 chars)",
     readingMode: "Reading style",
-    readingModeHint:
-      "Controls how the AI phrases answers; independent of Personal/Expert mode.",
+    readingModeHint: "Controls how the AI phrases answers; independent of Personal/Expert mode.",
     readingModeNote: "Current: {mode} · {reading}",
     readingModeCurrent: "Reading style: {reading}",
     readingModePersonal: "Personal mode defaults to Friendly",
@@ -947,8 +921,7 @@ export const en: Dict = {
     modeFriendlyShort: "Friendly",
     termAnalogyLabel: "Plain analogy",
     termAiGenerated: "AI-generated explanation",
-    outputLocaleEnNote:
-      "UI is English — all analysis output will be written in English.",
+    outputLocaleEnNote: "UI is English — all analysis output will be written in English.",
     reportHistory: "Research history",
     reportHistoryHint:
       "Streamed research from chat is saved automatically; export as Markdown or PDF.",
@@ -969,14 +942,12 @@ export const en: Dict = {
     signalBacktest: "Research signal verification",
     signalBacktestHint:
       "Forward avg/median returns and hit rates after bullish/bearish research bias (and factor tilts) at 5/10/20 days. Research verification, not a strategy backtester; sample bias and zero transaction costs.",
-    signalBacktestEmpty:
-      "Not enough samples — generate more research reports in chat first.",
+    signalBacktestEmpty: "Not enough samples — generate more research reports in chat first.",
     signalBacktestRow:
       "{days}d: n={n} · bull avg/med {bull}/{bullMed}% · bear avg/med {bear}/{bearMed}% · spread {spread}% · hit bull{bullHit}%/bear{bearHit}%",
     signalBacktestMeta: "symbols {symbols} · bias {bias} · factor tilt {tilt}",
     memorySearch: "Decision memory",
-    memorySearchHint:
-      "Search past research reports by keyword (stock, sector, view).",
+    memorySearchHint: "Search past research reports by keyword (stock, sector, view).",
     memorySearchPh: "Keyword",
     memorySearchBtn: "Search",
     memoryEmpty: "No matches",
@@ -992,8 +963,7 @@ export const en: Dict = {
     batchFailed: "Batch failed",
     eventStudyBtn: "Earnings event study",
     eventStudyBatchBtn: "Watchlist event study (batch)",
-    eventStudyKinds:
-      "Announcement groups: earnings {earnings} · risk {risk} · other {other}",
+    eventStudyKinds: "Announcement groups: earnings {earnings} · risk {risk} · other {other}",
     eventStudyRow: "{days}d: n={n} · avg {avg}% · up {pos}%",
     hypothesisRule: "Hypothesis rule",
     hypothesisBtn: "Verify hypothesis",
@@ -1010,12 +980,10 @@ export const en: Dict = {
     tushareHint:
       "Get a token at tushare.pro. Stored in this browser and sent with requests for fundamentals/valuation when AkShare fails.",
     tushareToken: "Tushare Token",
-    tushareNote:
-      "Requires the tushare package on the server; free sources still work without it.",
+    tushareNote: "Requires the tushare package on the server; free sources still work without it.",
     tushareGuideTitle: "How to get a free token",
     tushareGuideStep1: "1. Register at tushare.pro (phone number, free).",
-    tushareGuideStep2:
-      "2. Open your profile page and copy the Token in the top-right corner.",
+    tushareGuideStep2: "2. Open your profile page and copy the Token in the top-right corner.",
     tushareGuideStep3:
       "3. New accounts get 120 points by default — enough for daily quotes, financials and dividends. StockResearch calls these automatically.",
     tushareGuideStep4:
@@ -1023,14 +991,10 @@ export const en: Dict = {
     tushareRegisterLink: "Go to tushare.pro to register",
     tushareStatusChecking: "Checking server status…",
     tushareStatusOk: "Token is valid — Tushare Pro is available.",
-    tushareStatusNoToken:
-      "No token detected — using AkShare / Sina free sources.",
-    tushareStatusInvalid:
-      "Token is invalid or auth failed — check and save again.",
-    tushareStatusQuota:
-      "Insufficient points or permission — Tushare fallback skipped.",
-    tushareStatusUnavailable:
-      "Server tushare package missing — will auto-degrade.",
+    tushareStatusNoToken: "No token detected — using AkShare / Sina free sources.",
+    tushareStatusInvalid: "Token is invalid or auth failed — check and save again.",
+    tushareStatusQuota: "Insufficient points or permission — Tushare fallback skipped.",
+    tushareStatusUnavailable: "Server tushare package missing — will auto-degrade.",
     tushareUsage:
       "Currently used for: valuation fallback (after East Money) / qfq daily-bar fallback (after AkShare → efinance).",
     bochaTitle: "Bocha AI Web Search",
@@ -1193,19 +1157,15 @@ export const en: Dict = {
     },
     route: {
       reason: {
-        finance_complex:
-          "This looks like a complex finance question — choose how to run it.",
-        non_finance:
-          "This question isn't stock-related; market/news tools won't be used.",
+        finance_complex: "This looks like a complex finance question — choose how to run it.",
+        non_finance: "This question isn't stock-related; market/news tools won't be used.",
       },
       option: {
         preset: "Recommended route · {mode}",
-        preset_desc:
-          "Run the recommended professional research workflow (recommended)",
+        preset_desc: "Run the recommended professional research workflow (recommended)",
         react: "ReAct quick analysis",
         react_desc: "Call tools step by step for a faster answer",
-        react_desc_non_finance:
-          "Answer from model knowledge without market/news tools",
+        react_desc_non_finance: "Answer from model knowledge without market/news tools",
         plan_execute: "Plan & execute",
         plan_execute_desc:
           "Multi-step plan (quotes, news, synthesis); for one-line quotes use Recommended or ReAct",
@@ -1219,8 +1179,7 @@ export const en: Dict = {
     load: "Load sample holdings",
     clear: "Clear samples",
     replace: "Add holdings now",
-    active:
-      "Sample data · Replace with your own holdings to start real experience",
+    active: "Sample data · Replace with your own holdings to start real experience",
   },
   actionCenter: {
     title: "Today's Watch",

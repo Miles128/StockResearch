@@ -13,7 +13,7 @@ from stockresearch.services.chat.scope import (
     resolve_subject_symbol,
     should_run_portfolio_risk_shortcut,
 )
-from stockresearch.utils.llm import MockLLMClient
+from stockresearch.services.mock_llm import MockLLMClient
 
 
 class _HoldingStub:

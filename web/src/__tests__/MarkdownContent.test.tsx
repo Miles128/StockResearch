@@ -16,10 +16,7 @@ const sampleTerms: Record<string, GlossaryTerm> = {
   },
 };
 
-function renderMarkdown(
-  text: string,
-  props: Partial<ComponentProps<typeof MarkdownContent>> = {},
-) {
+function renderMarkdown(text: string, props: Partial<ComponentProps<typeof MarkdownContent>> = {}) {
   return render(
     <I18nProvider>
       <GlossaryProvider enabled terms={sampleTerms}>
@@ -72,9 +69,7 @@ describe("MarkdownContent", () => {
   });
 
   it("strips javascript: protocol links (XSS protection)", () => {
-    const { container } = renderMarkdown(
-      '<a href="javascript:alert(1)">click</a>',
-    );
+    const { container } = renderMarkdown('<a href="javascript:alert(1)">click</a>');
     const link = container.querySelector("a");
     const href = link?.getAttribute("href") ?? "";
     expect(href).not.toContain("javascript:");
@@ -96,9 +91,7 @@ describe("MarkdownContent", () => {
   });
 
   it("strips <iframe> (XSS protection)", () => {
-    const { container } = renderMarkdown(
-      '<iframe src="https://evil.com"></iframe>',
-    );
+    const { container } = renderMarkdown('<iframe src="https://evil.com"></iframe>');
     expect(container.querySelector("iframe")).toBeNull();
   });
 });

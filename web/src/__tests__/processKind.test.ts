@@ -39,9 +39,7 @@ describe("detectProcessFlow", () => {
       label: "个股四维投研",
     });
     expect(detectProcessFlow(state)).toBe("stock_research");
-    expect(processTrailLabel(state, true, t)).toBe(
-      "基本面/技术面/情绪面/筹码面 四维投研",
-    );
+    expect(processTrailLabel(state, true, t)).toBe("基本面/技术面/情绪面/筹码面 四维投研");
   });
 
   it("classifies bull bear debate skill", () => {

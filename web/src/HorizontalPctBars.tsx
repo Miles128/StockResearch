@@ -28,8 +28,7 @@ export function HorizontalPctBars({
 }: HorizontalPctBarsProps) {
   if (items.length === 0) return null;
 
-  const computedMax =
-    maxAbs ?? Math.max(...items.map((item) => Math.abs(item.value)), 0.01);
+  const computedMax = maxAbs ?? Math.max(...items.map((item) => Math.abs(item.value)), 0.01);
 
   return (
     <div
@@ -68,9 +67,7 @@ export function HorizontalPctBars({
             <span className={`pct-bar-value mono ${signedClass(item.value)}`}>
               {formatSignedPct(item.value)}
             </span>
-            {item.meta ? (
-              <span className="pct-bar-meta muted">{item.meta}</span>
-            ) : null}
+            {item.meta ? <span className="pct-bar-meta muted">{item.meta}</span> : null}
           </div>
         );
       })}

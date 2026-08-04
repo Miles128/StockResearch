@@ -4,7 +4,7 @@ import pytest
 
 from stockresearch.agents.risk.engine import run_risk_checkup
 from stockresearch.db.models import Holding
-from stockresearch.utils.llm import MockLLMClient
+from stockresearch.services.mock_llm import MockLLMClient
 
 
 @pytest.mark.asyncio
