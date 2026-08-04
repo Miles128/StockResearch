@@ -104,10 +104,18 @@ def _migration_003_provider_cache(conn: Connection) -> None:
     )
 
 
+def _migration_004_trades_report_link(conn: Connection) -> None:
+    if not _column_exists(conn, "trades", "report_id") and _column_exists(conn, "trades", "id"):
+        conn.execute(
+            text("ALTER TABLE trades ADD COLUMN report_id INTEGER REFERENCES research_reports(id)")
+        )
+
+
 _SQLITE_MIGRATIONS: list[tuple[int, str, Callable[[Connection], None]]] = [
     (1, "conversation_checkpoint", _migration_001_conversation_checkpoint),
     (2, "user_preferences", _migration_002_user_preferences),
     (3, "provider_cache", _migration_003_provider_cache),
+    (4, "trades_report_link", _migration_004_trades_report_link),
 ]
 
 
