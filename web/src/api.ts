@@ -284,6 +284,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  portfolioTrades: (limit = 30) => request<TradeRecord[]>(`/portfolio/trades?limit=${limit}`),
+  portfolioPerformance: (days = 90) =>
+    request<PortfolioPerformance>(`/portfolio/performance?days=${days}`),
+  portfolioEvents: (days = 45) => request<PortfolioEvents>(`/portfolio/events?days=${days}`),
+  portfolioScreen: (payload: ScreenRequest) =>
+    request<ScreenResult>("/portfolio/screen", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   lookupStock: (query: string) =>
     request<StockLookupOut>("/portfolio/holdings/lookup", {
       method: "POST",
@@ -640,6 +649,87 @@ export interface HoldingTransactionItem {
   cost_price?: number;
   lots: number;
   trade_date?: string;
+  note?: string;
+}
+
+export interface TradeRecord {
+  id: number;
+  symbol: string;
+  name: string;
+  side: "buy" | "sell";
+  price: number;
+  quantity: number;
+  trade_date: string | null;
+  realized_pnl: number | null;
+  note: string | null;
+  created_at: string;
+  report_id: number | null;
+  report_date: string | null;
+  report_bias: string | null;
+}
+
+export interface PerformancePoint {
+  date: string;
+  portfolio_index: number;
+  benchmark_index: number;
+}
+
+export interface PortfolioPerformance {
+  days: number;
+  benchmark_symbol: string;
+  benchmark_name: string;
+  series: PerformancePoint[];
+  portfolio_return_pct: number | null;
+  benchmark_return_pct: number | null;
+  realized_pnl_total: number;
+  trade_count: number;
+  partial: boolean;
+  message: string | null;
+}
+
+export interface PortfolioEvent {
+  symbol: string;
+  name: string;
+  kind: "earnings" | "lockup";
+  event_date: string;
+  detail: string | null;
+  scope: "holding" | "watchlist";
+}
+
+export interface PortfolioEvents {
+  events: PortfolioEvent[];
+  days: number;
+  period: string | null;
+  partial: boolean;
+  message: string | null;
+}
+
+export type ScreenFactorKey = "momentum_20d" | "volatility_20d" | "pe_percentile";
+
+export interface ScreenCondition {
+  key: ScreenFactorKey;
+  op: "<=" | "<" | ">=" | ">";
+  value: number;
+}
+
+export interface ScreenRequest {
+  universe: "holdings" | "watchlist" | "all";
+  conditions: ScreenCondition[];
+}
+
+export interface ScreenHit {
+  symbol: string;
+  name: string;
+  sector: string | null;
+  scope: "holding" | "watchlist";
+  factors: Record<string, number | null>;
+}
+
+export interface ScreenResult {
+  hits: ScreenHit[];
+  scanned: number;
+  skipped: number;
+  message: string | null;
 }
 
 export interface HoldingTransactionBatchPayload {

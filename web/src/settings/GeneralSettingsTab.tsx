@@ -110,9 +110,7 @@ export function GeneralSettingsTab({
           reading: t(
             modeSettings.readingMode === "professional"
               ? "settings.modeProfessional"
-              : modeSettings.readingMode === "standard"
-                ? "settings.modeStandard"
-                : "settings.modeFriendly",
+              : "settings.modeFriendly",
           ),
         })}
       </p>

@@ -3787,3 +3787,233 @@
   background: rgba(39, 174, 96, 0.12);
   color: #1e8449;
 }
+
+/* ── Portfolio ledger: NAV curve + trade history ─────────────────── */
+.ledger-perf-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ledger-perf-chart {
+  width: 100%;
+  height: 52px;
+  display: block;
+}
+.ledger-perf-legend {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 11px;
+}
+.ledger-perf-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ledger-perf-dot {
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  display: inline-block;
+}
+.ledger-perf-dot-portfolio {
+  background: var(--accent);
+}
+.ledger-perf-dot-benchmark {
+  background: var(--muted);
+}
+.ledger-perf-realized {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+}
+.ledger-perf-basis {
+  font-size: 10px;
+  margin: 2px 0 0;
+}
+.ledger-perf-summary {
+  font-size: 11px;
+}
+.ledger-trades {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ledger-trade-row {
+  display: grid;
+  grid-template-columns: 62px 26px minmax(0, 1fr) 32px 46px 62px;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 11px;
+  border-bottom: 1px solid var(--bbg-border);
+}
+.ledger-trade-row:last-child {
+  border-bottom: none;
+}
+.ledger-trade-side {
+  font-size: 10px;
+  text-align: center;
+}
+.ledger-trade-side.buy {
+  color: var(--up);
+}
+.ledger-trade-side.sell {
+  color: var(--down);
+}
+.ledger-trade-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ledger-trade-note-flag {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent-brand);
+  flex: none;
+}
+.ledger-trade-qty,
+.ledger-trade-price,
+.ledger-trade-pnl {
+  text-align: right;
+}
+.ledger-trade-bias {
+  font-size: 9px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
+  border: 1px solid var(--bbg-border);
+  color: var(--muted);
+  flex: none;
+}
+.ledger-trade-bias.bullish {
+  color: var(--up);
+}
+.ledger-trade-bias.bearish {
+  color: var(--down);
+}
+
+.ledger-events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.ledger-event-row {
+  display: grid;
+  grid-template-columns: 38px 30px minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+}
+.ledger-event-date {
+  color: var(--muted);
+}
+.ledger-event-kind {
+  font-size: 9px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
+  text-align: center;
+  border: 1px solid var(--bbg-border);
+  color: var(--muted);
+}
+.ledger-event-kind.lockup {
+  color: var(--down);
+}
+.ledger-event-kind.earnings {
+  color: var(--accent);
+}
+.ledger-event-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ledger-event-detail {
+  font-size: 10px;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ledger-events-count {
+  color: var(--accent);
+}
+
+.ledger-screen-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+.ledger-screen-chip {
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--bbg-border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.ledger-screen-chip:hover {
+  color: var(--text);
+}
+.ledger-screen-chip.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.ledger-screen-hits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.ledger-screen-hit {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.ledger-screen-hit-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ledger-screen-hit-scope {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex: none;
+}
+.ledger-screen-hit-scope.holding {
+  background: var(--accent-brand);
+}
+.ledger-screen-hit-scope.watchlist {
+  background: var(--muted);
+}
+.ledger-screen-hit-factors {
+  display: inline-flex;
+  gap: 8px;
+  font-size: 10px;
+}
+.ledger-screen-hit-factor {
+  display: inline-flex;
+  gap: 3px;
+  align-items: baseline;
+  white-space: nowrap;
+}

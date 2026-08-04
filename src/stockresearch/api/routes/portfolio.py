@@ -14,18 +14,24 @@ from stockresearch.core.schemas import (
     HoldingOut,
     HoldingTransactionBatch,
     HoldingTransactionResult,
+    PortfolioEventsOut,
+    PortfolioPerformanceOut,
+    ScreenOut,
+    ScreenRequest,
     SectorBackfillOut,
     StockCandidateOut,
     StockLookupOut,
     StockLookupRequest,
     StockQuoteOut,
+    TradeOut,
     WatchlistCreate,
     WatchlistOut,
 )
 from stockresearch.data.providers.market_overview import BatchQuoteProvider
-from stockresearch.db.models import Holding, User, WatchlistItem
+from stockresearch.db.models import Holding, ResearchReport, Trade, User, WatchlistItem
 from stockresearch.db.session import get_db
 from stockresearch.services.allocation_deviation import build_allocation_deviation
+from stockresearch.services.events_calendar import upcoming_events
 from stockresearch.services.holding_metrics import (
     annualized_return_pct,
     profit_amount,
@@ -36,7 +42,9 @@ from stockresearch.services.market_session import (
     a_share_market_session,
     price_label_for_session,
 )
+from stockresearch.services.portfolio_performance import build_portfolio_performance
 from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
+from stockresearch.services.screener import run_screen
 from stockresearch.services.stock_lookup import lookup_stock
 from stockresearch.services.stock_sector import backfill_holding_sectors, resolve_stock_sector
 from stockresearch.services.symbol_resolver import resolve_stock_query
@@ -46,6 +54,54 @@ from stockresearch.utils.llm import get_llm_client
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
 LOTS_SIZE = 100
+
+
+def _latest_report_id(db: Session, user_id: int, symbol: str) -> int | None:
+    """Attach the most recent research report for the symbol (decision journal)."""
+    report = (
+        db.query(ResearchReport)
+        .filter(
+            ResearchReport.symbol == symbol,
+            (ResearchReport.user_id == user_id) | (ResearchReport.user_id.is_(None)),
+        )
+        .order_by(ResearchReport.created_at.desc(), ResearchReport.id.desc())
+        .first()
+    )
+    return report.id if report else None
+
+
+def _record_trade(
+    db: Session,
+    *,
+    user_id: int,
+    symbol: str,
+    name: str,
+    side: str,
+    price: float,
+    quantity: int,
+    trade_date=None,
+    realized_pnl: float | None = None,
+    note: str | None = None,
+    commit: bool = False,
+) -> Trade:
+    trade = Trade(
+        user_id=user_id,
+        symbol=symbol,
+        name=name,
+        side=side,
+        price=price,
+        quantity=quantity,
+        trade_date=trade_date,
+        realized_pnl=None if realized_pnl is None else round(realized_pnl, 2),
+        note=(note.strip() or None) if note else None,
+        report_id=_latest_report_id(db, user_id, symbol),
+    )
+    db.add(trade)
+    if commit:
+        db.commit()
+    else:
+        db.flush()
+    return trade
 
 
 def _upsert_holding(
@@ -254,7 +310,7 @@ async def create_holding(
     if not sector or sector == "未知":
         sector = await resolve_stock_sector(symbol, name)
 
-    return _upsert_holding(
+    holding = _upsert_holding(
         db,
         user_id=user.id,
         symbol=symbol,
@@ -263,7 +319,22 @@ async def create_holding(
         quantity=payload.quantity,
         sector=sector,
         buy_date=payload.buy_date,
+        commit=False,
     )
+    _record_trade(
+        db,
+        user_id=user.id,
+        symbol=symbol,
+        name=name,
+        side="buy",
+        price=payload.cost_price,
+        quantity=payload.quantity,
+        trade_date=payload.buy_date,
+        note=payload.note,
+    )
+    db.commit()
+    db.refresh(holding)
+    return holding
 
 
 @router.post("/holdings/transactions", response_model=HoldingTransactionResult)
@@ -293,7 +364,24 @@ async def apply_holding_transactions(
                     buy_date=item.trade_date,
                     commit=False,
                 )
+                _record_trade(
+                    db,
+                    user_id=user.id,
+                    symbol=symbol,
+                    name=name,
+                    side="buy",
+                    price=item.cost_price,
+                    quantity=quantity,
+                    trade_date=item.trade_date,
+                    note=item.note,
+                )
             else:
+                existing = (
+                    db.query(Holding)
+                    .filter(Holding.user_id == user.id, Holding.symbol == symbol)
+                    .first()
+                )
+                avg_cost = existing.float_cost_price if existing else None
                 _sell_holding(
                     db,
                     user_id=user.id,
@@ -302,6 +390,24 @@ async def apply_holding_transactions(
                     name=name,
                     commit=False,
                 )
+                if item.cost_price is not None:
+                    realized = (
+                        round((item.cost_price - avg_cost) * quantity, 2)
+                        if avg_cost is not None
+                        else None
+                    )
+                    _record_trade(
+                        db,
+                        user_id=user.id,
+                        symbol=symbol,
+                        name=name,
+                        side="sell",
+                        price=item.cost_price,
+                        quantity=quantity,
+                        trade_date=item.trade_date,
+                        realized_pnl=realized,
+                        note=item.note,
+                    )
         db.commit()
     except ValidationError as exc:
         db.rollback()
@@ -323,7 +429,7 @@ async def confirm_holding(
     sector = payload.sector
     if not sector or sector == "未知":
         sector = await resolve_stock_sector(payload.symbol, payload.name)
-    return _upsert_holding(
+    holding = _upsert_holding(
         db,
         user_id=user.id,
         symbol=payload.symbol,
@@ -332,7 +438,74 @@ async def confirm_holding(
         quantity=payload.lots * LOTS_SIZE,
         sector=sector,
         buy_date=payload.buy_date,
+        commit=False,
     )
+    _record_trade(
+        db,
+        user_id=user.id,
+        symbol=payload.symbol,
+        name=payload.name,
+        side="buy",
+        price=payload.cost_price,
+        quantity=payload.lots * LOTS_SIZE,
+        trade_date=payload.buy_date,
+        note=payload.note,
+    )
+    db.commit()
+    db.refresh(holding)
+    return holding
+
+
+@router.get("/trades", response_model=list[TradeOut])
+def list_trades(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    limit: int = Query(default=50, ge=1, le=200),
+    symbol: str | None = Query(default=None, pattern=r"^\d{6}$"),
+) -> list[TradeOut]:
+    query = db.query(Trade).filter(Trade.user_id == user.id)
+    if symbol:
+        query = query.filter(Trade.symbol == symbol)
+    trades = query.order_by(Trade.created_at.desc(), Trade.id.desc()).limit(limit).all()
+    out: list[TradeOut] = []
+    for trade in trades:
+        item = TradeOut.model_validate(trade)
+        if trade.report_id is not None:
+            report = db.get(ResearchReport, trade.report_id)
+            if report is not None:
+                payload = report.report_json if isinstance(report.report_json, dict) else {}
+                item.report_date = report.created_at
+                bias = payload.get("bias")
+                item.report_bias = str(bias) if bias else None
+        out.append(item)
+    return out
+
+
+@router.get("/performance", response_model=PortfolioPerformanceOut)
+async def portfolio_performance(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    days: int = Query(default=90, ge=20, le=250),
+) -> PortfolioPerformanceOut:
+    return await build_portfolio_performance(db, user.id, days=days)
+
+
+@router.get("/events", response_model=PortfolioEventsOut)
+async def portfolio_events(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    days: int = Query(default=45, ge=7, le=120),
+) -> PortfolioEventsOut:
+    return await upcoming_events(db, user.id, days=days)
+
+
+@router.post("/screen", response_model=ScreenOut)
+async def screen_portfolio(
+    payload: ScreenRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ScreenOut:
+    return await run_screen(db, user.id, payload)
 
 
 @router.post("/holdings/backfill-sectors", response_model=SectorBackfillOut)

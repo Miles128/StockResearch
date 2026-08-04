@@ -873,5 +873,278 @@
     "def": "股价在一段时间内波动很小，没有明显涨跌方向",
     "analogy": "价格在原地来回晃，不涨也不跌",
     "context_template": "横盘：{assessment}"
+  },
+  "动量": {
+    "en": "Momentum",
+    "short": "动量",
+    "def": "最近一段时间的涨跌势头，动量强说明近期持续上涨或下跌",
+    "analogy": "一辆车是加速还是减速的趋势",
+    "context_template": "动量 {value}，{assessment}"
+  },
+  "风险敞口": {
+    "en": "Risk Exposure",
+    "short": "风险敞口",
+    "def": "某项投资可能让你亏钱的最大金额或程度",
+    "analogy": "你在这件事上最多可能亏多少",
+    "context_template": "风险敞口 {value}，{assessment}"
+  },
+  "预约披露": {
+    "en": "Scheduled Disclosure",
+    "short": "预约披露",
+    "def": "上市公司事先公布财报发布日期，之后可随时调整",
+    "analogy": "公司提前约好的交卷时间",
+    "context_template": "预约披露：{assessment}"
+  },
+  "PIT": {
+    "en": "Point-in-Time",
+    "short": "PIT",
+    "def": "只使用截止某个时间点已公开的数据，避免用未来信息倒推",
+    "analogy": "只看当时能看到的新闻，不事后诸葛",
+    "context_template": "PIT：{assessment}"
+  },
+  "事后核对": {
+    "en": "Post-Hoc Review",
+    "short": "事后核对",
+    "def": "用之后的实际走势验证当初判断是否正确的复盘",
+    "analogy": "考完试对答案，看看当初的判断对没对",
+    "context_template": "事后核对：{assessment}"
+  },
+  "已实现盈亏": {
+    "en": "Realized P/L",
+    "short": "已实现盈亏",
+    "def": "卖出后落袋的盈利或亏损，已变成真实结果",
+    "analogy": "已经到手的输赢",
+    "context_template": "已实现盈亏 {value}，{assessment}"
+  },
+  "止盈": {
+    "en": "Take Profit",
+    "short": "止盈",
+    "def": "提前设定价格，涨到该价位就卖出锁定利润",
+    "analogy": "设好目标，赚到就跑",
+    "context_template": "止盈 {value}，{assessment}"
+  },
+  "归母净利润": {
+    "en": "Net Profit to Parent",
+    "short": "归母净利润",
+    "def": "上市公司真正属于股东的那部分净利润，不含少数股东",
+    "analogy": "公司赚的钱里，属于股东的那份",
+    "context_template": "归母净利润 {value}，{assessment}"
+  },
+  "应收账款": {
+    "en": "Accounts Receivable",
+    "short": "应收账款",
+    "def": "已经发货但还没收回的钱，越多说明回款越慢",
+    "analogy": "货卖出去了，但钱还没到手",
+    "context_template": "应收账款 {value}，{assessment}"
+  },
+  "杠杆": {
+    "en": "Leverage",
+    "short": "杠杆",
+    "def": "借钱或放大资金做投资，盈亏同比例放大",
+    "analogy": "用别人的钱放大自己的输赢，赚得多也亏得多",
+    "context_template": "杠杆 {value}，{assessment}"
+  },
+  "贝塔": {
+    "en": "Beta",
+    "short": "贝塔",
+    "def": "衡量股票相对大盘的波动幅度，大于1说明比大盘更动荡",
+    "analogy": "这只股票比大盘容易晃多少",
+    "context_template": "贝塔 {value}，{assessment}"
+  },
+  "大盘": {
+    "en": "Broad Market",
+    "short": "大盘",
+    "def": "整体市场行情，通常指上证指数、沪深300等代表指数",
+    "analogy": "整个股市的平均体温",
+    "context_template": "大盘：{assessment}"
+  },
+  "权重股": {
+    "en": "Blue Chip / Index Heavyweight",
+    "short": "权重股",
+    "def": "在指数中占比较大、对指数涨跌影响明显的股票",
+    "analogy": "班里成绩占比最大的那几个同学",
+    "context_template": "权重股：{assessment}"
+  },
+  "流通盘": {
+    "en": "Free Float",
+    "short": "流通盘",
+    "def": "可以在市场上自由买卖的股票数量",
+    "analogy": "市面上能买到的货量",
+    "context_template": "流通盘 {value}，{assessment}"
+  },
+  "研报": {
+    "en": "Research Report",
+    "short": "研报",
+    "def": "券商或机构对股票的分析报告，含目标价、评级、逻辑",
+    "analogy": "专业机构的作业答案，但只供参考",
+    "context_template": "研报：{assessment}"
+  },
+  "财报": {
+    "en": "Financial Report",
+    "short": "财报",
+    "def": "公司定期公布的经营与财务数据，含利润、营收、负债等",
+    "analogy": "公司定期交的成绩单",
+    "context_template": "财报：{assessment}"
+  },
+  "年报": {
+    "en": "Annual Report",
+    "short": "年报",
+    "def": "公司每年一次的完整财务报告，信息最全",
+    "analogy": "一年一度的期末考试总成绩单",
+    "context_template": "年报：{assessment}"
+  },
+  "季报": {
+    "en": "Quarterly Report",
+    "short": "季报",
+    "def": "公司每季度公布的经营数据，比年报简略",
+    "analogy": "每季度一次的阶段测验",
+    "context_template": "季报：{assessment}"
+  },
+  "K线": {
+    "en": "Candlestick",
+    "short": "K线",
+    "def": "记录每天开、收、高、低四个价格的图形",
+    "analogy": "一根蜡烛记录一天的价格轨迹",
+    "context_template": "K线：{assessment}"
+  },
+  "均线": {
+    "en": "Moving Average",
+    "short": "均线",
+    "def": "一段时间内收盘价的平均值连线，帮助看趋势",
+    "analogy": "把最近的价格抹平后画的趋势线",
+    "context_template": "均线：{assessment}"
+  },
+  "跳空": {
+    "en": "Price Gap",
+    "short": "跳空",
+    "def": "开盘价明显高于或低于前一日收盘价，形成缺口",
+    "analogy": "价格直接跳过了中间区域",
+    "context_template": "跳空：{assessment}"
+  },
+  "涨停": {
+    "en": "Limit Up",
+    "short": "涨停",
+    "def": "当日价格涨到交易所允许的最大幅度，通常为10%",
+    "analogy": "一天最多只能涨这么多，封顶了",
+    "context_template": "涨停：{assessment}"
+  },
+  "除权": {
+    "en": "Ex-Rights",
+    "short": "除权",
+    "def": "送股或配股后调整股价，持股数量增加但总市值不变",
+    "analogy": "蛋糕切多几块，但总量没变",
+    "context_template": "除权：{assessment}"
+  },
+  "除息": {
+    "en": "Ex-Dividend",
+    "short": "除息",
+    "def": "分红后股价相应下调，投资者得到现金分红",
+    "analogy": "把蛋糕上的一角切下来发给你，蛋糕变小了",
+    "context_template": "除息：{assessment}"
+  },
+  "分红": {
+    "en": "Dividend",
+    "short": "分红",
+    "def": "公司把部分利润按持股比例分给股东",
+    "analogy": "公司赚了钱分给大家",
+    "context_template": "分红 {value}，{assessment}"
+  },
+  "送股": {
+    "en": "Stock Dividend",
+    "short": "送股",
+    "def": "公司用利润转为新股免费送给股东",
+    "analogy": "多送你几张蛋糕券，但每张变小了",
+    "context_template": "送股：{assessment}"
+  },
+  "配股": {
+    "en": "Rights Issue",
+    "short": "配股",
+    "def": "公司向现有股东按比例低价出售新股，股东可选择认购",
+    "analogy": "老股东有优惠价加仓的名额",
+    "context_template": "配股：{assessment}"
+  },
+  "可转债": {
+    "en": "Convertible Bond",
+    "short": "可转债",
+    "def": "可按规定价格转成股票的债券，下有保底上有弹性",
+    "analogy": "保底的债券里藏着一张股票入场券",
+    "context_template": "可转债：{assessment}"
+  },
+  "基金": {
+    "en": "Fund",
+    "short": "基金",
+    "def": "把很多人的钱集合起来由专业机构统一投资",
+    "analogy": "大家凑钱请专业的人帮忙打理",
+    "context_template": "基金：{assessment}"
+  },
+  "ETF": {
+    "en": "Exchange-Traded Fund",
+    "short": "ETF",
+    "def": "像股票一样在交易所买卖的基金，通常跟踪某个指数",
+    "analogy": "能像买股票一样买卖的一篮子股票",
+    "context_template": "ETF：{assessment}"
+  },
+  "定投": {
+    "en": "Regular Investment",
+    "short": "定投",
+    "def": "固定周期投入固定金额的长期投资方式",
+    "analogy": "每月固定存钱进同一个篮子",
+    "context_template": "定投：{assessment}"
+  },
+  "分散": {
+    "en": "Diversification",
+    "short": "分散",
+    "def": "把资金投向不同资产或行业，降低单一下跌的冲击",
+    "analogy": "鸡蛋不放一个篮子里",
+    "context_template": "分散：{assessment}"
+  },
+  "梭哈": {
+    "en": "All-in",
+    "short": "梭哈",
+    "def": "把全部资金一次性押上，风险极高",
+    "analogy": "把所有筹码一次性全压上",
+    "context_template": "梭哈：{assessment}"
+  },
+  "满仓": {
+    "en": "Full Position",
+    "short": "满仓",
+    "def": "可用资金几乎全部买成股票",
+    "analogy": "兜里的钱全花完了",
+    "context_template": "满仓：{assessment}"
+  },
+  "空仓": {
+    "en": "Cash Position",
+    "short": "空仓",
+    "def": "不持有任何股票，全部保留现金",
+    "analogy": "先不下注，钱都留在手里",
+    "context_template": "空仓：{assessment}"
+  },
+  "半仓": {
+    "en": "Half Position",
+    "short": "半仓",
+    "def": "只用一半资金买股票，留一半现金",
+    "analogy": "只下注一半，留一半后手",
+    "context_template": "半仓：{assessment}"
+  },
+  "加仓": {
+    "en": "Add to Position",
+    "short": "加仓",
+    "def": "在已持有的股票上继续买入",
+    "analogy": "觉得值就再多买一点",
+    "context_template": "加仓：{assessment}"
+  },
+  "减仓": {
+    "en": "Reduce Position",
+    "short": "减仓",
+    "def": "卖出部分持仓降低风险或锁定利润",
+    "analogy": "先卖一部分落袋为安",
+    "context_template": "减仓：{assessment}"
+  },
+  "清仓": {
+    "en": "Liquidate",
+    "short": "清仓",
+    "def": "把手上的持仓全部卖出",
+    "analogy": "全部卖出，一股不留",
+    "context_template": "清仓：{assessment}"
   }
 }

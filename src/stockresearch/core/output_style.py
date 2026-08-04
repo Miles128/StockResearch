@@ -1,9 +1,11 @@
 """Output reading-mode and locale for LLM analysis (context-scoped).
 
-Reading modes (三档表达风格):
-- friendly: 友善白话，日常语言为主，少术语
-- standard: 标准口径，中文术语+简要解释，平衡可读与专业
-- professional: 专业投研，术语直出、数据完整
+Reading modes (两档表达风格):
+- friendly: 普通版（默认），平实克制，术语首现必解释，数字翻译成影响
+- professional: 专业版，术语直出、数据完整
+
+普通版完整规范见 `prompts/advisor_plain_language.md`，此处为内联短版。
+存量三档中的 `standard` 一律归一为 `friendly`（`normalize_reading_mode`）。
 
 `enable_glossary` 独立控制词库弹窗标记，与 reading_mode 解耦。
 """
@@ -17,7 +19,7 @@ from typing import Literal
 
 from stockresearch.core.schemas import CustomGlossaryTermOut
 
-ReadingMode = Literal["friendly", "standard", "professional"]
+ReadingMode = Literal["friendly", "professional"]
 OutputLocale = Literal["zh", "en"]
 
 DEFAULT_READING_MODE: ReadingMode = "friendly"
@@ -37,23 +39,20 @@ _custom_glossary_var: ContextVar[tuple[CustomGlossaryTermOut, ...]] = ContextVar
 
 _READING_MODE_INSTRUCTIONS: dict[ReadingMode, str] = {
     "friendly": (
-        "【友善白话规则】\n"
-        "1. 以日常语言为主，尽量少用英文缩写；必须出现时可保留（系统自动加可点击解释）\n"
-        '2. 数字必须带"意味着什么"的解释，不能只列数字\n'
-        '3. 把指标翻译成钱的感受：不说"VaR 4.32%"，说"95% 概率一天亏不超过 ¥2,300"\n'
-        '4. 类比优先：PE = "花多少钱买1元年利润"，ROE = "每100元本金能赚多少"\n'
-        '5. 板块轮动类结论须在同一句话内标注偏多/偏空/中性；证据不足时说"暂时看不出明确轮动"\n'
+        "【普通版表达规则 · 必读】\n"
+        "1. 用平实、自然、克制的语言；结论清楚（一句话），原因简短（不超过 3 条），风险明确（不埋在文末）\n"
+        "2. 专业名词第一次出现必须用半句白话解释（如「估值分位——现在比过去大多数时候都贵/便宜」）；\n"
+        "   禁止不加解释地连用：估值分位、动量、风险敞口、夏普比率、回撤、边际变化等词\n"
+        "3. 数字必须翻译成对用户的影响：不说「回撤 12%」，说「从最高点算，每 100 块最多亏了 12 块」\n"
+        "4. 类比优先且不轻浮：PE = 「花多少钱买 1 元年利润」，ROE = 「每 100 元本金一年能赚多少」\n"
+        "5. 风险提示、不确定性、免责信息必须保留，放在结论附近而非末尾\n"
+        "6. 建议以选项形式给出（「可以…也可以…也可以先不动」），不下交易指令\n"
+        "7. 证据不足时明确说「暂时看不出」，不编造、不外推\n"
+        "8. 板块轮动类结论须在同一句话内标注偏多/偏空/中性\n"
         "示例：\n"
-        '  ❌ "ROE 32.1%，毛利率 52.3%"\n'
-        '  ✅ "赚钱能力很强——每100元本金一年能赚32元，行业平均才18元。"'
-    ),
-    "standard": (
-        "【标准表达规则】\n"
-        "1. 使用常见中文金融术语（市盈率、净资产收益率等），首次出现时用半句白话点明含义\n"
-        '2. 数据完整呈现，关键数字附一句"意味着什么"或行业对比\n'
-        "3. 避免堆砌英文缩写；必要时保留 PE/ROE 等并配合中文说法\n"
-        "4. 语气客观克制，结构清晰：先结论后依据\n"
-        '示例：✅ "市盈率 35 倍，略高于行业均值 28 倍，估值偏贵；净资产收益率 32%，赚钱能力仍属上游。"'
+        '  ❌ "ROE 32.1%，毛利率 52.3%，估值分位 78%，动量走强"\n'
+        '  ✅ "赚钱能力很强——每 100 元本金一年能赚 32 元，行业平均才 18 元；"\n'
+        '      "但现在价格比过去 78% 的时间都贵，留意回调风险。"'
     ),
     "professional": (
         "【专业写作规则】\n"
@@ -71,11 +70,10 @@ _LOCALE_INSTRUCTIONS: dict[OutputLocale, str] = {
 
 
 def normalize_reading_mode(value: str | None) -> ReadingMode:
-    if value in _READING_MODE_INSTRUCTIONS:
-        return value  # type: ignore[return-value]
-    if value == "standard":
-        return "standard"
-    return DEFAULT_READING_MODE
+    if value == "professional":
+        return "professional"
+    # friendly 为默认；存量三档中的 standard 一并归一为普通版
+    return "friendly"
 
 
 def normalize_locale(value: str | None) -> OutputLocale:

@@ -410,6 +410,55 @@ type Thesis = {
 
 **实现计划（本机）**：`docs/superpowers/plans/2026-08-01-phase10-deep-analysis.md`（`docs/*` 除 PRD/screenshots 外不入库；供 Agent 按任务执行 W1→W3）。
 
+### Phase 11（普通用户化 · Plain-Language）🚧 进行中
+
+**定位**：面向无金融基础的普通用户（免费数据、AI 增强投顾）。原则：不新增“看起来专业但不实用”的功能；帮用户更快理解「这是什么 / 为什么重要 / 对我有什么影响 / 有什么风险 / 下一步可以做什么」。
+
+#### 11.0 表达档位（两档）
+
+`reading_mode` 由三档收敛为**两档**：`friendly`（普通版，默认）与 `professional`（专业版）；存量 `standard` 值一律归一为 `friendly`。普通版规范见 `prompts/advisor_plain_language.md`（升级版）：平实克制、术语首现必解释、数字翻译成影响、风险/不确定性/免责必保留、建议以选项形式给出不下指令、禁用未解释术语连排（估值分位/动量/风险敞口/夏普比率/回撤/边际变化等）。
+
+#### 11.1 核心结论五件套（每份产出首屏）
+
+1. 一句话结论（≤20 字）+ 一个理由
+2. 对我意味着什么（结合持仓/成本）
+3. 风险前三条（白话）
+4. 价格贵不贵（现价 vs 成本 / vs 历史区间）
+5. 下一步可做什么（选项式）+ 不确定性声明
+
+适用于研报、简报、风险体检三类产出；专家模式才展开全部维度。
+
+#### 11.2 专业维度处置清单
+
+| 维度 | 处置 | 说明 |
+|------|------|------|
+| 多空辩论全流程 | 折叠 | 默认只显示「最终倾向 + 分歧一句话」 |
+| 大师点评 | 默认隐藏 | 附「模仿风格点评，非真实观点」声明 |
+| 四维评分明细 | 精简 | 首屏总分+一句话结论，维度明细折叠 |
+| 事后核对 PIT | 改普通版摘要 | 「当时的判断，到现在对了吗」 |
+| 研究时间线 delta | 精简 | 保留「观点变化」标记，隐藏分数增量 |
+| 因子筛选数值 | 加强解释 | 每条命中附白话点评 |
+| 净值曲线 | 加强解释 | 「投 100 变 X 块 vs 大盘 Y 块」 |
+| 研究雷达/缺口补跑/配置偏差 | 后置 | 收进设置或专家模式 |
+| `partial` 技术文案 | 改普通版 | 「数据还在准备中，稍后再看」 |
+
+#### 11.3 金融词典增强
+
+现有 125 条四字段（short/def/analogy/context_template）+ `<term>` 标注 + TermPopover 弹窗。增强：
+- 范围从 chat/简报 扩到研报、风险体检、筛选结果、告警文案；
+- 优先补录本项目高频自产词：估值分位、动量、风险敞口、预约披露、事后核对/PIT、已实现盈亏、止盈 等；
+- 风格：简版（≤15 字弹窗标题）+ 普通版（2–3 句必含“对你意味着什么”）+ 类比（生活化不轻浮）；
+- 入库 lint：analogy 必填、def 不得含未收录术语、禁用网络烂梗/夸张感叹。
+
+#### 11.4 分阶段实施
+
+| 阶段 | 目标 | 关键任务 | 验收 |
+|------|------|----------|------|
+| **S1** | 研报白话化 + 词库扩域 | 研报链路接入 reading_mode（`output_style_scope`）；research 缓存 key 加 reading_mode；研报返回过 `mark_terms`；`advisor_plain_language.md` 升级；词典补录 | friendly 档新研报无未解释术语连排；术语可弹窗；friendly/professional 缓存不串 |
+| **S2** | 专业/普通一键切换 | `report_plain_versions` 缓存表 + `POST /research/reports/{id}/plain` + 前端双态按钮 + 失败降级（显示专业版+提示） | 首次 <10s、二次 <200ms；失败不阻塞 |
+| **S3** | 全域通俗化扫尾 | 简报/体检补 reading_mode；持仓盈亏/事件日历/筛选器静态规则白话；`partial` 文案翻新；风险问卷（5 题自动定档 risk_tolerance）；告警白话+下一步 | 九域过新手视角 checklist；零技术黑话 |
+| **S4** | 引导与信任 | 新手带练 Onboarding（demo 标的走一遍流程）；场景化知识卡片；大师点评声明 | 新用户 5 分钟出第一份看得懂的研报 |
+
 ## 九、工程
 
 ```bash
@@ -425,6 +474,9 @@ cd desktop && npm install && npm run tauri dev
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **V10.20** | 2026-08-04 | 普通用户化（Phase 11）启动：`reading_mode` 三档改两档（friendly 普通版/professional 专业版，存量 standard 归一 friendly，前端选项同步收敛）；研报生成链路接入 `reading_mode`（`output_style_scope` 包裹 research 执行）+ research 缓存 key 加入 reading_mode 防串档；研报返回文本接词库 `mark_terms`；`advisor_plain_language.md` 升级为完整普通版风格规范（平实克制/术语首现必解释/数字翻译影响/风险必保留/建议选项式/禁用词）；词典补录高频自产词；PRD 新增 Phase 11 专项（处置清单+词典增强+四阶段实施） |
+| **V10.19** | 2026-08-04 | 持仓闭环第二波：①决策日志挂接研报——`trades.report_id`（迁移 004）自动挂接该标的最近一份研报，`GET /portfolio/trades` 返回 `report_date/report_bias`，交易行内显示当时结论偏向标签；②事件日历——`GET /portfolio/events`（财报预约披露 `stock_yysj_em` + 持仓解禁 `stock_restricted_release_queue_em`，6h 缓存，源失败显式 `partial`）；③因子筛选器——`POST /portfolio/screen`（持仓+自选宇宙，20日动量/年化波动/PE分位条件筛选，缺数计 `skipped` 禁编造），lists 栏新增事件日历与因子筛选（低估值/正动量/低波动/组合预设）折叠块 |
+| **V10.18** | 2026-08-04 | 持仓闭环第一波：交易流水表 `trades`（含决策备注，决策日志载体）；买入/卖出入口（新增持仓/确认/批量交易）自动落流水；卖出填成交价自动算已实现盈亏；`GET /portfolio/trades`、`GET /portfolio/performance`（交易流水×前复权日线重建组合净值曲线 vs 沪深300，首日归一 100，缺数/近似显式 `partial`）；lists 栏新增净值走势与交易记录折叠块 |
 | **V10.17** | 2026-08-04 | 每日扫描/复盘增强：盘前/盘后简报新增行业板块涨跌榜块（持仓所属行业标注），盘后复盘对照当日盘前观点，盘前 prompt 强化「今日关注点」；Phase 6 收尾：自选股批量研究前端入口（≤8，复用轻研报卡）；Phase 7b：缺口一键补跑 `POST /research/refill`（gap 关键词分类定向驱逐缓存后重跑）；Phase 9b：后端 `ChartOverlaySet` schema + Python 趋势线算法 + `GET /market/overlays` + Copilot 画线技能，对话卡片一键上屏；依赖治理：删 langgraph/langchain-core 死依赖（akshare/efinance/tushare 保持主依赖） |
 | **V10.16** | 2026-08-04 | PRD 与实现对齐：登记意图路由上下文装配、大盘宏观/外围研究、LLM 错误详情透传、K 线滚轮缩放修复与自动趋势线；Phase 9a 按实际实现修订（水平参考线与 `ChartOverlaySet` 推迟）；§八路线图加实现状态标注（✅/🚧/❌） |
 | **V10.15** | 2026-08-01 | Phase 10：深度分析三层（Impact/Pricing/Thesis）去重合并 Phase 6–7a；导出 `deep_analysis`；PIT 横切；明确非 Qlib/非完整 DCF |

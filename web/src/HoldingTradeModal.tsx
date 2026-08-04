@@ -13,6 +13,7 @@ export interface TradeDraft {
   costPrice: string;
   lots: string;
   tradeDate: string;
+  note: string;
 }
 
 interface HoldingTradeModalProps {
@@ -34,6 +35,7 @@ function emptyRow(): TradeDraft {
     costPrice: "",
     lots: "1",
     tradeDate: today,
+    note: "",
   };
 }
 
@@ -98,8 +100,14 @@ async function buildPayload(rows: TradeDraft[]): Promise<HoldingTransactionItem[
       name,
       query,
       lots,
-      cost_price: row.side === "buy" ? parseFloat(row.costPrice) : undefined,
-      trade_date: row.side === "buy" ? row.tradeDate : undefined,
+      cost_price:
+        row.side === "buy"
+          ? parseFloat(row.costPrice)
+          : row.costPrice.trim()
+            ? parseFloat(row.costPrice)
+            : undefined,
+      trade_date: row.side === "buy" ? row.tradeDate : row.tradeDate || undefined,
+      note: row.note.trim() || undefined,
     });
   }
   return payload;
@@ -265,6 +273,19 @@ export function HoldingTradeModal({
                       </label>
                     </>
                   )}
+                  {row.side === "sell" && (
+                    <label className="field">
+                      <span className="field-label">{t("portfolio.sellPrice")}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={row.costPrice}
+                        onChange={(e) => updateRow(row.key, { costPrice: e.target.value })}
+                      />
+                    </label>
+                  )}
                   <label className="field">
                     <span className="field-label">{t("portfolio.tradeLots")}</span>
                     <input
@@ -273,6 +294,15 @@ export function HoldingTradeModal({
                       step="1"
                       value={row.lots}
                       onChange={(e) => updateRow(row.key, { lots: e.target.value })}
+                    />
+                  </label>
+                  <label className="field field-wide">
+                    <span className="field-label">{t("portfolio.noteLabel")}</span>
+                    <input
+                      placeholder={t("portfolio.notePh")}
+                      maxLength={500}
+                      value={row.note}
+                      onChange={(e) => updateRow(row.key, { note: e.target.value })}
                     />
                   </label>
                 </div>

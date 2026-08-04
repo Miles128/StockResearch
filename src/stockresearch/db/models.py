@@ -90,6 +90,39 @@ class Holding(Base):
         return float(self.cost_price)
 
 
+class Trade(Base):
+    """Recorded buy/sell ledger entry (decision journal carrier)."""
+
+    __tablename__ = "trades"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    symbol: Mapped[str] = mapped_column(String(6), index=True)
+    name: Mapped[str] = mapped_column(String(50))
+    side: Mapped[str] = mapped_column(String(4))  # "buy" | "sell"
+    price: Mapped[decimal.Decimal] = mapped_column(Numeric(12, 4))
+    quantity: Mapped[int] = mapped_column(Integer)
+    trade_date: Mapped[date | None] = mapped_column(Date, nullable=True, default=None)
+    realized_pnl: Mapped[decimal.Decimal | None] = mapped_column(
+        Numeric(14, 2), nullable=True, default=None
+    )
+    note: Mapped[str | None] = mapped_column(String(500), nullable=True, default=None)
+    report_id: Mapped[int | None] = mapped_column(
+        ForeignKey("research_reports.id"), nullable=True, default=None
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
+
+    @property
+    def float_price(self) -> float:
+        return float(self.price)
+
+    @property
+    def float_realized_pnl(self) -> float | None:
+        return None if self.realized_pnl is None else float(self.realized_pnl)
+
+
 class WatchlistItem(Base):
     __tablename__ = "watchlist"
 

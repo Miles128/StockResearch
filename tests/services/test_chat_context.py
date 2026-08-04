@@ -43,7 +43,7 @@ async def test_build_long_term_context_includes_holdings(monkeypatch: pytest.Mon
     assert "贵州茅台" in text
     assert "1680.00" in text
     assert "持仓行情" in text
-    assert "个人版表达要求" not in text
+    assert "普通版表达规范" not in text
 
 
 @pytest.mark.asyncio
@@ -60,7 +60,7 @@ async def test_build_long_term_context_advisor_plain_language(
 
     monkeypatch.setattr(QuoteProvider, "get_quotes", _fake_quotes)
     text = await build_long_term_context(mode_settings=ModeSettingsOut(mode="advisor"), holdings=[])
-    assert "个人版表达要求" in text
+    assert "普通版表达规范" in text
 
 
 @pytest.mark.asyncio
