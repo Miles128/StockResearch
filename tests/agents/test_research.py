@@ -3,7 +3,7 @@
 import pytest
 
 from stockresearch.agents.research.runner import run_research
-from stockresearch.utils.llm import MockLLMClient
+from stockresearch.services.mock_llm import MockLLMClient
 
 
 @pytest.mark.asyncio

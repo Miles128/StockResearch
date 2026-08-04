@@ -7,11 +7,11 @@ from fastapi import APIRouter, Body, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from stockresearch.agents.output_style import output_style_scope
 from stockresearch.agents.risk.engine import run_risk_checkup
 from stockresearch.agents.risk.stream import run_risk_checkup_stream
 from stockresearch.api.deps import get_current_user
 from stockresearch.api.llm_deps import llm_from_headers
+from stockresearch.core.output_style import output_style_scope
 from stockresearch.core.schemas import RiskCheckupOut, RiskCheckupRequest
 from stockresearch.db.models import Holding, RiskAlertRecord, User
 from stockresearch.db.session import get_db

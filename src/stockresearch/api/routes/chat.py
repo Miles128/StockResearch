@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 
 from stockresearch.agents.orchestrator.graph import Orchestrator
 from stockresearch.agents.orchestrator.stream import run_chat_stream
-from stockresearch.agents.output_style import output_style_scope
 from stockresearch.api.deps import get_current_user
 from stockresearch.api.llm_deps import resolve_llm_client
 from stockresearch.api.rate_limit import limiter
@@ -19,6 +18,7 @@ from stockresearch.api.routes.research import (
     persist_report,
 )
 from stockresearch.core.exceptions import NotFoundError
+from stockresearch.core.output_style import output_style_scope
 from stockresearch.core.schemas import ChatRequest, ChatResponse, StreamCheckpointOut
 from stockresearch.db.models import User
 from stockresearch.db.session import get_db

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from stockresearch.agents.orchestrator.react_agent import OrchestratorAgent
 from stockresearch.agents.orchestrator.skills import SkillRunResult
 from stockresearch.db.models import User
-from stockresearch.utils.llm import MockLLMClient
+from stockresearch.services.mock_llm import MockLLMClient
 
 
 @pytest.mark.asyncio

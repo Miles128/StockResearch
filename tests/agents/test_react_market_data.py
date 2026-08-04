@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 from stockresearch.agents.orchestrator.react_agent import OrchestratorAgent
 from stockresearch.data.providers.kimi_macro import MACRO_CACHE_KEY
 from stockresearch.db.models import User
+from stockresearch.services.mock_llm import MockLLMClient
 from stockresearch.services.sqlite_cache import set_sqlite_cached
-from stockresearch.utils.llm import MockLLMClient
 
 
 def _agent(db_session: Session) -> OrchestratorAgent:

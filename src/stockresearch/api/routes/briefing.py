@@ -5,9 +5,9 @@ from typing import Literal
 from fastapi import APIRouter, Body, Depends, Query
 from sqlalchemy.orm import Session
 
-from stockresearch.agents.output_style import output_style_scope
 from stockresearch.api.deps import get_current_user
 from stockresearch.api.llm_deps import llm_from_headers
+from stockresearch.core.output_style import output_style_scope
 from stockresearch.core.schemas import (
     BriefingGenerateRequest,
     BriefingOut,

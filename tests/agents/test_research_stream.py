@@ -9,7 +9,7 @@ from stockresearch.core.schemas import (
     PricingBridgeOut,
     ResearchReportOut,
 )
-from stockresearch.utils.llm import MockLLMClient
+from stockresearch.services.mock_llm import MockLLMClient
 
 
 @pytest.mark.asyncio

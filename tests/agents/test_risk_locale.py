@@ -2,8 +2,8 @@
 
 import pytest
 
-from stockresearch.agents.output_style import output_style_scope
 from stockresearch.agents.risk.engine import run_risk_checkup
+from stockresearch.core.output_style import output_style_scope
 
 
 @pytest.mark.asyncio

@@ -16,7 +16,7 @@ from stockresearch.core.schemas import (
     ResearchReportOut,
 )
 from stockresearch.db.models import Holding, User
-from stockresearch.utils.llm import MockLLMClient
+from stockresearch.services.mock_llm import MockLLMClient
 
 
 def _research_payload(**overrides: object) -> dict[str, object]:

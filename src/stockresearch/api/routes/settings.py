@@ -18,8 +18,8 @@ from stockresearch.db.models import User
 from stockresearch.db.session import get_db
 from stockresearch.services.env_file import save_llm_env
 from stockresearch.services.glossary import get_glossary
+from stockresearch.services.mock_llm import MockLLMClient
 from stockresearch.services.user_preferences import get_mode_settings, save_mode_settings
-from stockresearch.utils.llm import MockLLMClient
 from stockresearch.utils.llm_test import verify_llm_connection
 
 router = APIRouter(prefix="/settings", tags=["settings"])
