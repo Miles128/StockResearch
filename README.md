@@ -16,6 +16,8 @@
 
 本机运行的 A 股 AI 研究助手：自研多 Agent 编排投研 + React 三栏 UI。**不连券商、不代交易**，帮助理解「今天发生了什么、与我何关、还需验证什么」。北极星：**证据是否充分 · 结论能否被事后验证**。
 
+**产品对标 Google Finance**：免费的个人投资者行情与组合跟踪体验，在同等免费数据约束下用 AI 编排把专业投研平民化。
+
 ```text
 ┌─ 顶栏：指数 · 搜索 · 模式 · 告警 · 数据源 · 设置 ─────────────────────┐
 ├ lists ─────────┬─ center: [焦点][市场][风控][新闻] ┬─ Copilot ───────────┤
@@ -147,6 +149,8 @@ MIT — 见 [LICENSE](LICENSE)。
 ## English
 
 Open-source **A-share market research agent** running locally. Custom multi-agent orchestration + React tri-shell UI (lists · focus · copilot). No broker connection, no trading.
+
+**Product benchmark: Google Finance** — free, personal-investor-grade quotes & portfolio tracking, with AI research orchestration layered on top.
 
 **Highlights**: four-dimension evidence-chained reports · three analysis depths (standard/comprehensive/deep) · deep-analysis stack (Impact → Pricing → Thesis) · portable verification (timeline, post-hoc PIT checks, event study, hypothesis verify, JSON/CSV/MD/PDF export) · intent-routed chat context · auto trendlines on K-line charts · Buffett/Munger/Burry persona commentary & bull-bear debates.
 
