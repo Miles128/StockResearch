@@ -13,8 +13,6 @@ dependencies = [
     "akshare>=1.16.0",
     "efinance>=0.5.0",
     "tushare>=1.4.0",
-    "pyyaml>=6.0.2",
-    "python-multipart>=0.0.18",
     "fpdf2>=2.8.0",
     "slowapi>=0.1.9",
     "apscheduler>=3.10.0",
@@ -26,7 +24,6 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
-    "types-PyYAML",
     "pre-commit>=3.5.0",
 ]
 
@@ -69,6 +66,5 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
-    "types-PyYAML",
     "pre-commit>=3.5.0",
 ]
