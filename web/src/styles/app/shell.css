@@ -723,8 +723,19 @@ input:focus {
   border-color: var(--bbg-orange);
 }
 
+.btn-secondary {
+  background: var(--input-bg);
+  color: var(--bbg-text);
+  border-color: var(--bbg-border-bright);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--bbg-orange);
+}
+
 .btn:disabled,
-.btn-ghost:disabled {
+.btn-ghost:disabled,
+.btn-secondary:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
