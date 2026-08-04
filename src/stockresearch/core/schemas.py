@@ -20,6 +20,7 @@ class HoldingCreate(BaseModel):
     quantity: int | None = Field(default=None, gt=0, description="股数；若提供 lots 则自动计算")
     sector: str = Field(default="未知", max_length=50)
     buy_date: date | None = Field(default=None, description="买入日期")
+    note: str | None = Field(default=None, max_length=500, description="决策备注")
 
     @model_validator(mode="after")
     def require_identifier_and_quantity(self) -> "HoldingCreate":
@@ -59,6 +60,7 @@ class HoldingConfirmCreate(BaseModel):
     lots: int = Field(gt=0, le=100000)
     sector: str = Field(default="未知", max_length=50)
     buy_date: date | None = Field(default=None, description="买入日期")
+    note: str | None = Field(default=None, max_length=500, description="决策备注")
 
     @model_validator(mode="after")
     def check_buy_date(self) -> "HoldingConfirmCreate":
@@ -71,9 +73,12 @@ class HoldingTransactionItem(BaseModel):
     symbol: str | None = Field(default=None, min_length=6, max_length=6, pattern=r"^\d{6}$")
     name: str | None = Field(default=None, min_length=1, max_length=50)
     query: str | None = Field(default=None, min_length=1, max_length=50)
-    cost_price: float | None = Field(default=None, gt=0, description="买入成交价（元/股）")
+    cost_price: float | None = Field(
+        default=None, gt=0, description="买入成交价（元/股）；卖出时为卖出成交价（可选）"
+    )
     lots: int = Field(gt=0, le=100000, description="手数")
     trade_date: date | None = Field(default=None, description="交易日期")
+    note: str | None = Field(default=None, max_length=500, description="决策备注")
 
     @model_validator(mode="after")
     def validate_transaction(self) -> "HoldingTransactionItem":
@@ -119,6 +124,86 @@ class HoldingEnrichedOut(HoldingOut):
     profit_pct: float | None = None
     annualized_pct: float | None = None
     quote_available: bool = False
+
+
+class TradeOut(BaseModel):
+    id: int
+    symbol: str
+    name: str
+    side: Literal["buy", "sell"]
+    price: float
+    quantity: int
+    trade_date: date | None = None
+    realized_pnl: float | None = None
+    note: str | None = None
+    created_at: datetime
+    report_id: int | None = None
+    report_date: datetime | None = None
+    report_bias: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class PerformancePoint(BaseModel):
+    date: date
+    portfolio_index: float
+    benchmark_index: float
+
+
+class PortfolioPerformanceOut(BaseModel):
+    days: int
+    benchmark_symbol: str = "000300"
+    benchmark_name: str = "沪深300"
+    series: list[PerformancePoint] = []
+    portfolio_return_pct: float | None = None
+    benchmark_return_pct: float | None = None
+    realized_pnl_total: float = 0.0
+    trade_count: int = 0
+    partial: bool = False
+    message: str | None = None
+
+
+class PortfolioEventOut(BaseModel):
+    symbol: str
+    name: str
+    kind: Literal["earnings", "lockup"]
+    event_date: date
+    detail: str | None = None
+    scope: Literal["holding", "watchlist"] = "holding"
+
+
+class PortfolioEventsOut(BaseModel):
+    events: list[PortfolioEventOut] = []
+    days: int
+    period: str | None = None
+    partial: bool = False
+    message: str | None = None
+
+
+class ScreenCondition(BaseModel):
+    key: Literal["momentum_20d", "volatility_20d", "pe_percentile"]
+    op: Literal["<=", "<", ">=", ">"]
+    value: float = Field(description="因子阈值；分位类因子用百分数（如 30 表示 30%）")
+
+
+class ScreenRequest(BaseModel):
+    universe: Literal["holdings", "watchlist", "all"] = "watchlist"
+    conditions: list[ScreenCondition] = Field(min_length=1, max_length=6)
+
+
+class ScreenHit(BaseModel):
+    symbol: str
+    name: str
+    sector: str | None = None
+    scope: Literal["holding", "watchlist"] = "watchlist"
+    factors: dict[str, float | None] = {}
+
+
+class ScreenOut(BaseModel):
+    hits: list[ScreenHit] = []
+    scanned: int = 0
+    skipped: int = 0
+    message: str | None = None
 
 
 class SectorBackfillOut(BaseModel):
@@ -536,7 +621,7 @@ class ModeSettingsOut(BaseModel):
     mode: Literal["advisor", "research"] = "advisor"
     risk_tolerance: Literal["conservative", "moderate", "aggressive"] = "moderate"
     monthly_income: float | None = Field(default=None, gt=0)
-    reading_mode: Literal["friendly", "standard", "professional"] = "friendly"
+    reading_mode: Literal["friendly", "professional"] = "friendly"
     analysis_depth: Literal["standard", "comprehensive", "deep"] = "standard"
     enable_debate: bool = False
     enable_glossary: bool = True
@@ -561,7 +646,7 @@ class LlmTestOut(BaseModel):
 
 
 class RiskCheckupRequest(BaseModel):
-    reading_mode: Literal["friendly", "standard", "professional"] | None = None
+    reading_mode: Literal["friendly", "professional"] | None = None
     output_locale: Literal["zh", "en"] | None = None
     enable_master_commentary: bool | None = None
     enable_llm_analysis: bool | None = None
@@ -583,7 +668,7 @@ class ChatRequest(BaseModel):
     enable_debate: bool | None = None
     enable_master_commentary: bool | None = None
     enable_glossary: bool | None = None
-    reading_mode: Literal["friendly", "standard", "professional"] | None = None
+    reading_mode: Literal["friendly", "professional"] | None = None
     output_locale: Literal["zh", "en"] | None = None
     confirmed_symbol: str | None = Field(
         default=None, min_length=6, max_length=6, pattern=r"^\d{6}$"
@@ -800,7 +885,7 @@ class BriefingSection(BaseModel):
 
 
 class BriefingGenerateRequest(BaseModel):
-    reading_mode: Literal["friendly", "standard", "professional"] | None = None
+    reading_mode: Literal["friendly", "professional"] | None = None
     output_locale: Literal["zh", "en"] | None = None
 
 
@@ -1148,7 +1233,7 @@ class AssetAllocationRequest(BaseModel):
     monthly_income: float | None = Field(
         default=None, gt=0, description="月收入（元），用于现金流换算"
     )
-    reading_mode: Literal["friendly", "standard", "professional"] | None = None
+    reading_mode: Literal["friendly", "professional"] | None = None
     output_locale: Literal["zh", "en"] | None = None
 
 

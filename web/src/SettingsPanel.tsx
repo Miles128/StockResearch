@@ -286,11 +286,6 @@ export function SettingsPanel({
       hintKey: "settings.modeFriendlyHint",
     },
     {
-      id: "standard",
-      labelKey: "settings.modeStandard",
-      hintKey: "settings.modeStandardHint",
-    },
-    {
       id: "professional",
       labelKey: "settings.modeProfessional",
       hintKey: "settings.modeProfessionalHint",

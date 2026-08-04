@@ -16,6 +16,11 @@ from stockresearch.agents.research.stream import run_research_stream
 from stockresearch.api.deps import get_current_user
 from stockresearch.api.llm_deps import llm_from_headers
 from stockresearch.core.exceptions import NotFoundError
+from stockresearch.core.output_style import (
+    get_custom_glossary,
+    get_enable_glossary,
+    output_style_scope,
+)
 from stockresearch.core.schemas import (
     BatchResearchItemOut,
     BatchResearchOut,
@@ -41,6 +46,7 @@ from stockresearch.db.session import get_db
 from stockresearch.services.cache import CacheService
 from stockresearch.services.compare_table import build_compare_table, flatten_compare_csv
 from stockresearch.services.event_study import compute_event_study, compute_event_study_batch
+from stockresearch.services.glossary import mark_terms, merge_glossary
 from stockresearch.services.hypothesis_verify import HYPOTHESIS_PRESETS, verify_hypothesis
 from stockresearch.services.refill_gaps import classify_gaps, evict_gap_caches
 from stockresearch.services.report_export import (
@@ -59,6 +65,33 @@ from stockresearch.utils.symbols import resolve_name
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/research", tags=["research"])
+
+
+def _mark_text(text: str) -> str:
+    if not text or not get_enable_glossary():
+        return text
+    return mark_terms(text, glossary=merge_glossary(get_custom_glossary()))
+
+
+def _mark_report_terms(report: ResearchReportOut) -> ResearchReportOut:
+    """研报返回层词库标注（不污染缓存与 DB 原文）。"""
+    report.summary = _mark_text(report.summary)
+    report.brief_summary = _mark_text(report.brief_summary)
+    if report.text_factor_summary:
+        report.text_factor_summary = _mark_text(report.text_factor_summary)
+    if report.factor_alignment_note:
+        report.factor_alignment_note = _mark_text(report.factor_alignment_note)
+    report.follow_up_questions = [_mark_text(q) for q in report.follow_up_questions]
+    report.data_gaps = [_mark_text(g) for g in report.data_gaps]
+    report.viewpoints = {k: _mark_text(v) for k, v in report.viewpoints.items()}
+    for dimension in report.dimensions.values():
+        if dimension.analysis:
+            dimension.analysis = _mark_text(dimension.analysis)
+    return report
+
+
+def _research_cache_key(symbol: str, depth: str, reading_mode: str) -> str:
+    return f"research:{symbol}:{depth}:{reading_mode}"
 
 
 def persist_report(db: Session, user_id: int, report: ResearchReportOut) -> ResearchReport:
@@ -133,16 +166,19 @@ async def analyze_stock(
         settings_depth=settings.analysis_depth,
     )
     cache = CacheService()
-    cache_key = f"research:{symbol}:{depth}"
+    cache_key = _research_cache_key(symbol, depth, settings.reading_mode)
     cached = cache.get_json(cache_key)
     if cached:
         report = ResearchReportOut.model_validate({**cached, "cached": True})
-    else:
+        return _mark_report_terms(report)
+    with output_style_scope(
+        reading_mode=settings.reading_mode, enable_glossary=settings.enable_glossary
+    ):
         report = await run_research(symbol, llm=llm, mode_settings=settings, analysis_depth=depth)
-        cache.set_json(cache_key, report.model_dump(mode="json"), ttl_seconds=86400)
+    cache.set_json(cache_key, report.model_dump(mode="json"), ttl_seconds=86400)
 
     row = persist_report(db, user.id, report)
-    return stamp_report_id(report, row.id)
+    return _mark_report_terms(stamp_report_id(report, row.id))
 
 
 @router.get("/analyze/stream")
@@ -159,34 +195,37 @@ async def analyze_stock_stream(
         settings_depth=settings.analysis_depth,
     )
     cache = CacheService()
-    cache_key = f"research:{symbol}:{depth}"
+    cache_key = _research_cache_key(symbol, depth, settings.reading_mode)
 
     async def event_generator() -> AsyncIterator[str]:
         cached = cache.get_json(cache_key)
         if cached:
             report = ResearchReportOut.model_validate({**cached, "cached": True})
-            yield f"data: {json.dumps({'type': 'status', 'message': '命中缓存，直接返回报告'}, ensure_ascii=False)}\n\n"
-            payload = {"type": "done", "result": report.model_dump(mode="json")}
+            yield f"data: {json.dumps({'type': 'status', 'message': '命中缓存， 直接返回报告'}, ensure_ascii=False)}\n\n"
+            payload = {"type": "done", "result": _mark_report_terms(report).model_dump(mode="json")}
             yield f"data: {json.dumps(payload, ensure_ascii=False, default=str)}\n\n"
             return
 
         final: ResearchReportOut | None = None
-        async for event in run_research_stream(
-            symbol,
-            llm=llm,
-            mode_settings=settings,
-            analysis_depth=depth,
+        with output_style_scope(
+            reading_mode=settings.reading_mode, enable_glossary=settings.enable_glossary
         ):
-            if event.get("type") == "done":
-                raw = event.get("result")
-                if isinstance(raw, dict):
-                    final = ResearchReportOut.model_validate(raw)
-                    cache.set_json(cache_key, final.model_dump(mode="json"), ttl_seconds=86400)
-                    row = persist_report(db, user.id, final)
-                    stamped = stamp_report_id(final, row.id)
-                    event = {**event, "result": stamped.model_dump(mode="json")}
-                    final = stamped
-            yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
+            async for event in run_research_stream(
+                symbol,
+                llm=llm,
+                mode_settings=settings,
+                analysis_depth=depth,
+            ):
+                if event.get("type") == "done":
+                    raw = event.get("result")
+                    if isinstance(raw, dict):
+                        final = ResearchReportOut.model_validate(raw)
+                        cache.set_json(cache_key, final.model_dump(mode="json"), ttl_seconds=86400)
+                        row = persist_report(db, user.id, final)
+                        stamped = _mark_report_terms(stamp_report_id(final, row.id))
+                        event = {**event, "result": stamped.model_dump(mode="json")}
+                        final = stamped
+                yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -291,7 +330,8 @@ def get_report(
     )
     if row is None:
         raise NotFoundError("报告不存在")
-    return ResearchReportOut.model_validate(row.report_json)
+    report = ResearchReportOut.model_validate(row.report_json)
+    return _mark_report_terms(report)
 
 
 @router.get("/reports/{report_id}/markdown", response_class=PlainTextResponse)
@@ -539,15 +579,18 @@ async def batch_research(
     for symbol in cleaned:
         name = resolve_name(symbol)
         try:
-            report = await run_research(
-                symbol,
-                llm=llm,
-                with_debate=payload.with_debate,
-                mode_settings=settings,
-                analysis_depth=depth,
-            )
+            with output_style_scope(
+                reading_mode=settings.reading_mode, enable_glossary=settings.enable_glossary
+            ):
+                report = await run_research(
+                    symbol,
+                    llm=llm,
+                    with_debate=payload.with_debate,
+                    mode_settings=settings,
+                    analysis_depth=depth,
+                )
             row = persist_report(db, user.id, report)
-            stamped = stamp_report_id(report, row.id)
+            stamped = _mark_report_terms(stamp_report_id(report, row.id))
             items.append(
                 BatchResearchItemOut(
                     symbol=symbol,
@@ -608,11 +651,18 @@ async def refill_gaps(
         explicit=payload.analysis_depth,
         settings_depth=settings.analysis_depth,
     )
-    report = await run_research(symbol, llm=llm, mode_settings=settings, analysis_depth=depth)
+    with output_style_scope(
+        reading_mode=settings.reading_mode, enable_glossary=settings.enable_glossary
+    ):
+        report = await run_research(symbol, llm=llm, mode_settings=settings, analysis_depth=depth)
     cache = CacheService()
-    cache.set_json(f"research:{symbol}:{depth}", report.model_dump(mode="json"), ttl_seconds=86400)
+    cache.set_json(
+        _research_cache_key(symbol, depth, settings.reading_mode),
+        report.model_dump(mode="json"),
+        ttl_seconds=86400,
+    )
     row = persist_report(db, user.id, report)
-    return stamp_report_id(report, row.id)
+    return _mark_report_terms(stamp_report_id(report, row.id))
 
 
 @router.get("/memory/search", response_model=MemorySearchOut)

@@ -7,7 +7,7 @@ import { loadLocale } from "./localeSettings";
 import { createLocalStorageStore } from "./settingsStore";
 
 export type AppMode = "advisor" | "research";
-export type ReadingMode = "friendly" | "standard" | "professional";
+export type ReadingMode = "friendly" | "professional";
 export type AnalysisDepth = "standard" | "comprehensive" | "deep";
 export type RiskTolerance = "conservative" | "moderate" | "aggressive";
 export type HoldingsView = "table" | "cards";
@@ -109,16 +109,17 @@ function migrateFromLegacyAnalysis(): Partial<ModeSettings> {
     if (typeof parsed.enableMasterCommentary === "boolean") {
       partial.enableMasterCommentary = parsed.enableMasterCommentary;
     }
-    if (
-      parsed.readingMode === "professional" ||
-      parsed.readingMode === "friendly" ||
-      parsed.readingMode === "standard"
-    ) {
-      partial.readingMode = parsed.readingMode;
+    if (parsed.readingMode === "professional") {
+      partial.readingMode = "professional";
+    } else if (parsed.readingMode === "friendly") {
+      partial.readingMode = "friendly";
+    } else if (parsed.readingMode === "standard") {
+      // 存量三档 → 两档：standard 归一为普通版
+      partial.readingMode = "friendly";
     } else if (parsed.outputTone === "professional") {
       partial.readingMode = "professional";
     } else if (parsed.outputTone === "standard") {
-      partial.readingMode = "standard";
+      partial.readingMode = "friendly";
     } else if (parsed.outputTone === "friendly") {
       partial.readingMode = "friendly";
     }
@@ -451,11 +452,6 @@ export const READING_MODE_I18N_KEYS: Record<
     label: "settings.modeFriendly",
     hint: "settings.modeFriendlyHint",
     short: "settings.modeFriendlyShort",
-  },
-  standard: {
-    label: "settings.modeStandard",
-    hint: "settings.modeStandardHint",
-    short: "settings.modeStandardShort",
   },
   professional: {
     label: "settings.modeProfessional",

@@ -16,6 +16,9 @@ def _coerce_mode_settings(raw: object) -> ModeSettingsOut:
     if not isinstance(raw, dict):
         return DEFAULT_MODE_SETTINGS.model_copy()
     data = dict(raw)
+    # 存量三档 → 两档：standard 归一为 friendly（普通版）
+    if str(data.get("reading_mode") or "") == "standard":
+        data["reading_mode"] = "friendly"
     if "analysis_depth" not in data:
         from stockresearch.agents.research.budget import default_depth_for_mode
 
