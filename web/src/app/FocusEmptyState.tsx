@@ -2,10 +2,14 @@ import { memo } from "react";
 import { ActionCenter } from "../ActionCenter";
 import { BackendHealthBanner } from "../BackendHealthBanner";
 import { DemoBanner } from "../DemoBanner";
+import { PortfolioCockpit } from "../PortfolioCockpit";
 import { SectorMoversPanel } from "../SectorMoversPanel";
+import type { PortfolioSummary } from "../portfolioHelpers";
 
 interface FocusEmptyStateProps {
   holdingsCount: number;
+  watchlistCount: number;
+  portfolioSummary: PortfolioSummary | null;
   isDemo: boolean;
   demoLoading: boolean;
   highlightSector: string | null;
@@ -18,9 +22,16 @@ interface FocusEmptyStateProps {
   onChatQuery: (query: string) => void;
 }
 
-/** Focus-tab landing state (health/demo banners + sector movers + action center). */
+/**
+ * Focus-tab landing state.
+ *
+ * 有持仓时 = 组合驾驶舱（组合日线 / 决策台账 / 组合事件）+ 板块异动与快讯（下沉）；
+ * 无持仓时 = 引导横幅 + 板块异动 + 行动中心。
+ */
 export const FocusEmptyState = memo(function FocusEmptyState({
   holdingsCount,
+  watchlistCount,
+  portfolioSummary,
   isDemo,
   demoLoading,
   highlightSector,
@@ -50,6 +61,13 @@ export const FocusEmptyState = memo(function FocusEmptyState({
           onGoPortfolio={onGoPortfolio}
           isDemo={isDemo}
           loading={demoLoading}
+        />
+      )}
+      {holdingsCount > 0 && (
+        <PortfolioCockpit
+          holdingsCount={holdingsCount}
+          watchlistCount={watchlistCount}
+          portfolioSummary={portfolioSummary}
         />
       )}
       <SectorMoversPanel

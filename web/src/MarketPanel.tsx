@@ -11,6 +11,7 @@ import { signedClass } from "./holdingDisplay";
 import { useI18n } from "./i18n";
 import { localizeIndexName } from "./indexLabels";
 import { SectorStripCards, type SectorStripItem } from "./SectorStripCards";
+import { FactorScreenerSection } from "./PortfolioEventsScreener";
 import { localizeSentiment } from "./uiLabels";
 import { SentimentGauge } from "./SentimentGauge";
 import { loadModeSettings } from "./modeSettings";
@@ -185,6 +186,10 @@ export function MarketPanel({
         ) : (
           <SectorStripCards items={sectorCards} ariaLabel={t("market.sectorsTitle")} />
         )}
+      </section>
+
+      <section className="market-section market-section-screener">
+        <FactorScreenerSection />
       </section>
 
       <section className="market-section">

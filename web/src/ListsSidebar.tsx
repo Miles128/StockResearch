@@ -2,8 +2,6 @@ import { useMemo, useState, type ReactNode } from "react";
 import type { HoldingEnriched, WatchlistItem, StockQuoteOut } from "./api";
 import { HoldingTradeInlineRow } from "./HoldingTradeInlineRow";
 import { ListsStockTable } from "./ListsStockTable";
-import { PortfolioLedgerSections } from "./PortfolioLedger";
-import { PortfolioEventsScreener } from "./PortfolioEventsScreener";
 import {
   formatMoney,
   formatPrice,
@@ -153,14 +151,6 @@ export function ListsSidebar({
   const listsDetail = expanded || listsWidth >= LISTS_DETAIL_WIDTH;
   const profitClass = signedClass(portfolioSummary.totalProfitPct);
   const todayClass = signedClass(portfolioSummary.todayPnlPct);
-  const ledgerTrigger = useMemo(
-    () => holdings.map((h) => `${h.symbol}:${h.quantity}`).join(","),
-    [holdings],
-  );
-  const eventsTrigger = useMemo(
-    () => `${ledgerTrigger}|${watchlist.map((w) => w.symbol).join(",")}`,
-    [ledgerTrigger, watchlist],
-  );
 
   return (
     <aside
@@ -265,12 +255,6 @@ export function ListsSidebar({
             </div>
           ))}
       </section>
-
-      {holdings.length > 0 && <PortfolioLedgerSections trigger={ledgerTrigger} />}
-
-      {(holdings.length > 0 || watchlist.length > 0) && (
-        <PortfolioEventsScreener trigger={eventsTrigger} />
-      )}
 
       {sectorMix.length > 0 && (
         <CollapsibleSection title={t("lists.sectors")}>
