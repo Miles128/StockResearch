@@ -13,10 +13,7 @@ export function stripDisclaimer(text: string): string {
   return result.trim();
 }
 
-export function isResearchTurn(
-  cards?: { type: string }[],
-  intent?: string,
-): boolean {
+export function isResearchTurn(cards?: { type: string }[], intent?: string): boolean {
   if (intent === "research") return true;
   return Boolean(cards?.some((c) => c.type === "research"));
 }

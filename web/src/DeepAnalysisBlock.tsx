@@ -20,9 +20,7 @@ function PeakDayRow({
   day: ImpactPeakDayOut;
   t: (key: string, params?: Record<string, string | number>) => string;
 }) {
-  const eventLabel = day.event_kind
-    ? t(`card.impactEventKind.${day.event_kind}`)
-    : null;
+  const eventLabel = day.event_kind ? t(`card.impactEventKind.${day.event_kind}`) : null;
   return (
     <li className={`impact-peak-day${day.unexplained ? " unexplained" : ""}`}>
       <span className="impact-peak-date">{day.date}</span>
@@ -33,9 +31,7 @@ function PeakDayRow({
           {day.event_title ?? ""}
         </span>
       ) : (
-        <span className="impact-peak-event muted">
-          {t("card.impactUnexplained")}
-        </span>
+        <span className="impact-peak-event muted">{t("card.impactUnexplained")}</span>
       )}
       {day.event_fwd_return_5d_pct != null && (
         <span className="impact-peak-fwd muted">
@@ -141,12 +137,8 @@ function PricingBlock({
       </div>
       <p className="muted impact-meta">
         {pricing.window_label ? ` · ${pricing.window_label}` : ""}
-        {pricing.pe_end != null
-          ? ` · PE(TTM) ${pricing.pe_end.toFixed(2)}`
-          : ""}
-        {pricing.pe_start != null
-          ? ` · PE 起 ${pricing.pe_start.toFixed(2)}`
-          : ""}
+        {pricing.pe_end != null ? ` · PE(TTM) ${pricing.pe_end.toFixed(2)}` : ""}
+        {pricing.pe_start != null ? ` · PE 起 ${pricing.pe_start.toFixed(2)}` : ""}
         {pricing.partial ? ` · ${t("card.factorPartial")}` : ""}
       </p>
       {pricing.gaps && pricing.gaps.length > 0 && (
@@ -201,9 +193,7 @@ function ThesisBlock({
           {thesis.evidence_ids.join(" · ")}
         </p>
       )}
-      {thesis.partial ? (
-        <p className="muted thesis-partial">{t("card.factorPartial")}</p>
-      ) : null}
+      {thesis.partial ? <p className="muted thesis-partial">{t("card.factorPartial")}</p> : null}
     </div>
   );
 }
@@ -221,10 +211,7 @@ export function DeepAnalysisBlock({
   const thesis = report.deep_analysis?.thesis;
   if (!impact && !pricing && !thesis) return null;
   return (
-    <details
-      className={`deep-analysis-block${compact ? " compact" : ""}`}
-      open={!compact}
-    >
+    <details className={`deep-analysis-block${compact ? " compact" : ""}`} open={!compact}>
       <summary>{t("card.deepAnalysisTitle")}</summary>
       {impact ? <ImpactBlock impact={impact} t={t} /> : null}
       {pricing ? <PricingBlock pricing={pricing} t={t} /> : null}

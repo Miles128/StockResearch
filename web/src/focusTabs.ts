@@ -41,10 +41,7 @@ export function removeFocusTab(
   return { tabs: next, activeId };
 }
 
-export function activeFocusContext(
-  tabs: FocusTab[],
-  activeId: string | null,
-): FocusContext | null {
+export function activeFocusContext(tabs: FocusTab[], activeId: string | null): FocusContext | null {
   if (!activeId) return null;
   return tabs.find((tab) => tab.id === activeId)?.context ?? null;
 }

@@ -19,10 +19,7 @@ export type { LlmSettingsMeta };
 
 /** Build-time optional origin, e.g. https://api.example.com (no trailing slash). */
 const API_ORIGIN =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(
-    /\/$/,
-    "",
-  ) ?? "";
+  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
 const API = API_ORIGIN ? `${API_ORIGIN}/api/v1` : "/api/v1";
 
 function apiUrl(path: string): string {
@@ -34,9 +31,7 @@ function formatApiDetail(detail: unknown): string {
   if (Array.isArray(detail)) {
     return detail
       .map((item) =>
-        typeof item === "object" && item && "msg" in item
-          ? String(item.msg)
-          : String(item),
+        typeof item === "object" && item && "msg" in item ? String(item.msg) : String(item),
       )
       .join("; ");
   }
@@ -86,10 +81,7 @@ async function fetchWithRetry(
   throw lastError;
 }
 
-async function requestPlain<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
+async function requestPlain<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
@@ -265,9 +257,7 @@ export const api = {
       },
       onEvent,
       extractResult: (event) =>
-        event.type === "done" && event.response
-          ? (event.response as ChatResponse)
-          : undefined,
+        event.type === "done" && event.response ? (event.response as ChatResponse) : undefined,
     }),
   holdings: () => request<Holding[]>("/portfolio/holdings"),
   allocationDeviation: (targets: Record<string, number>) =>
@@ -281,8 +271,7 @@ export const api = {
   },
   addHolding: (h: HoldingCreatePayload) =>
     request("/portfolio/holdings", { method: "POST", body: JSON.stringify(h) }),
-  deleteHolding: (id: number) =>
-    request(`/portfolio/holdings/${id}`, { method: "DELETE" }),
+  deleteHolding: (id: number) => request(`/portfolio/holdings/${id}`, { method: "DELETE" }),
   applyHoldingTransactions: (payload: HoldingTransactionBatchPayload) =>
     request<HoldingTransactionResult>("/portfolio/holdings/transactions", {
       method: "POST",
@@ -301,10 +290,7 @@ export const api = {
       body: JSON.stringify({ sectors }),
     }),
   ingestNews: async () => {
-    const accepted = await request<NewsIngestAccepted>(
-      "/news/ingest?limit=10",
-      { method: "POST" },
-    );
+    const accepted = await request<NewsIngestAccepted>("/news/ingest?limit=10", { method: "POST" });
     return waitForNewsIngestJob(accepted.job_id);
   },
   newsIngestJob: (jobId: string) =>
@@ -340,10 +326,7 @@ export const api = {
       },
       120_000,
     ),
-  riskCheckupStream: (
-    onEvent?: (event: AgentStreamEvent) => void,
-    signal?: AbortSignal,
-  ) =>
+  riskCheckupStream: (onEvent?: (event: AgentStreamEvent) => void, signal?: AbortSignal) =>
     createJsonSseStream<RiskCheckup, AgentStreamEvent>({
       url: apiUrl("/risk/checkup/stream"),
       method: "POST",
@@ -386,83 +369,49 @@ export const api = {
     return request<KlineChart>(`/market/kline?${params.toString()}`);
   },
   chartOverlays: (symbol: string) =>
-    request<ChartOverlaySet>(
-      `/market/overlays?symbol=${encodeURIComponent(symbol)}`,
-    ),
+    request<ChartOverlaySet>(`/market/overlays?symbol=${encodeURIComponent(symbol)}`),
   listReports: () => request<ResearchReportListItem[]>("/research/reports"),
   downloadReportMarkdown: (id: number) => {
-    window.open(
-      apiUrl(`/research/reports/${id}/markdown`),
-      "_blank",
-      "noopener,noreferrer",
-    );
+    window.open(apiUrl(`/research/reports/${id}/markdown`), "_blank", "noopener,noreferrer");
   },
   downloadReportPdf: (id: number) => {
-    window.open(
-      apiUrl(`/research/reports/${id}/pdf`),
-      "_blank",
-      "noopener,noreferrer",
-    );
+    window.open(apiUrl(`/research/reports/${id}/pdf`), "_blank", "noopener,noreferrer");
   },
   /** Download formal report from in-memory card payload (Markdown). */
   exportReportMarkdown: async (report: ResearchReport) => {
-    await downloadReportBlob(
-      "/research/export/markdown",
-      report,
-      `${report.symbol}-report.md`,
-    );
+    await downloadReportBlob("/research/export/markdown", report, `${report.symbol}-report.md`);
   },
   /** Download formal report from in-memory card payload (PDF). */
   exportReportPdf: async (report: ResearchReport) => {
-    await downloadReportBlob(
-      "/research/export/pdf",
-      report,
-      `${report.symbol}-report.pdf`,
-    );
+    await downloadReportBlob("/research/export/pdf", report, `${report.symbol}-report.pdf`);
   },
   exportReportJson: async (report: ResearchReport) => {
-    await downloadReportBlob(
-      "/research/export/json",
-      report,
-      `${report.symbol}-report.json`,
-    );
+    await downloadReportBlob("/research/export/json", report, `${report.symbol}-report.json`);
   },
   exportReportCsv: async (report: ResearchReport) => {
-    await downloadReportBlob(
-      "/research/export/csv",
-      report,
-      `${report.symbol}-factors.csv`,
-    );
+    await downloadReportBlob("/research/export/csv", report, `${report.symbol}-factors.csv`);
   },
   signalBacktest: () => request<SignalBacktest>("/research/signal-backtest"),
   researchTimeline: (symbol: string, includePostHoc = true) =>
     request<ResearchTimeline>(
       `/research/timeline?symbol=${encodeURIComponent(symbol)}&include_post_hoc=${includePostHoc}`,
     ),
-  reportPostHoc: (id: number) =>
-    request<ReportPostHoc>(`/research/reports/${id}/post-hoc`),
+  reportPostHoc: (id: number) => request<ReportPostHoc>(`/research/reports/${id}/post-hoc`),
   compareSymbols: (symbols: string[]) =>
     request<CompareTable>("/research/compare", {
       method: "POST",
       body: JSON.stringify({ symbols }),
     }),
-  eventStudy: (
-    symbol: string,
-    eventFilter: "earnings" | "risk" | "all" = "earnings",
-  ) =>
+  eventStudy: (symbol: string, eventFilter: "earnings" | "risk" | "all" = "earnings") =>
     request<EventStudy>(
       `/research/event-study?symbol=${encodeURIComponent(symbol)}&event_filter=${eventFilter}`,
     ),
-  eventStudyBatch: (
-    symbols: string[],
-    eventFilter: "earnings" | "risk" | "all" = "earnings",
-  ) =>
+  eventStudyBatch: (symbols: string[], eventFilter: "earnings" | "risk" | "all" = "earnings") =>
     request<EventStudyBatch>("/research/event-study/batch", {
       method: "POST",
       body: JSON.stringify({ symbols, event_filter: eventFilter }),
     }),
-  hypothesisPresets: () =>
-    request<Record<string, string>>("/research/hypothesis/presets"),
+  hypothesisPresets: () => request<Record<string, string>>("/research/hypothesis/presets"),
   hypothesisVerify: (symbol: string, rule: string, lookbackDays = 240) =>
     request<HypothesisVerify>("/research/hypothesis/verify", {
       method: "POST",
@@ -481,11 +430,7 @@ export const api = {
       },
       300_000,
     ),
-  refillResearch: (
-    symbol: string,
-    gaps: string[],
-    analysisDepth?: AnalysisDepth,
-  ) =>
+  refillResearch: (symbol: string, gaps: string[], analysisDepth?: AnalysisDepth) =>
     requestWithLlm<ResearchReport>(
       "/research/refill",
       {
@@ -499,9 +444,7 @@ export const api = {
       300_000,
     ),
   searchMemory: (q: string) =>
-    request<MemorySearchResult>(
-      `/research/memory/search?q=${encodeURIComponent(q)}`,
-    ),
+    request<MemorySearchResult>(`/research/memory/search?q=${encodeURIComponent(q)}`),
   generateBriefing: (kind: "premarket" | "intraday" | "postmarket") =>
     requestWithLlm<Briefing>(`/briefing/generate?kind=${kind}`, {
       method: "POST",
@@ -509,20 +452,17 @@ export const api = {
     }),
   latestBriefing: (kind: "premarket" | "intraday" | "postmarket") =>
     request<Briefing | null>(`/briefing/latest?kind=${kind}`),
-  briefingHistory: (
-    kind: "premarket" | "intraday" | "postmarket" | "all" = "all",
-    limit = 10,
-  ) => request<Briefing[]>(`/briefing/history?kind=${kind}&limit=${limit}`),
+  briefingHistory: (kind: "premarket" | "intraday" | "postmarket" | "all" = "all", limit = 10) =>
+    request<Briefing[]>(`/briefing/history?kind=${kind}&limit=${limit}`),
   briefingSchedule: () => request<BriefingSchedule>("/briefing/schedule"),
   setBriefingSchedule: (enabled: boolean) =>
     request<BriefingSchedule>(`/briefing/schedule?enabled=${enabled}`, {
       method: "PUT",
     }),
   loadDemo: () =>
-    request<{ status: string; count: number; demo: boolean }>(
-      "/portfolio/demo",
-      { method: "POST" },
-    ),
+    request<{ status: string; count: number; demo: boolean }>("/portfolio/demo", {
+      method: "POST",
+    }),
   clearDemo: () =>
     request<{ status: string; deleted: number }>("/portfolio/demo", {
       method: "DELETE",
@@ -535,10 +475,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  deleteWatchlist: (id: number) =>
-    request(`/portfolio/watchlist/${id}`, { method: "DELETE" }),
-  sectorMovers: (limit = 8) =>
-    request<SectorMovers>(`/market/sectors?limit=${limit}`),
+  deleteWatchlist: (id: number) => request(`/portfolio/watchlist/${id}`, { method: "DELETE" }),
+  sectorMovers: (limit = 8) => request<SectorMovers>(`/market/sectors?limit=${limit}`),
   sectorBoardsAll: () => request<SectorBoardsAll>(`/market/sectors?all=true`),
   indexIntraday: (symbols: string[]) =>
     request<IndexIntraday[]>(`/market/intraday?symbols=${symbols.join(",")}`),
@@ -549,9 +487,7 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   priceAlertNotifications: (unreadOnly = false) =>
-    request<PriceAlertNotification[]>(
-      `/alerts/notifications?unread_only=${unreadOnly}`,
-    ),
+    request<PriceAlertNotification[]>(`/alerts/notifications?unread_only=${unreadOnly}`),
   markPriceAlertRead: (id: number) =>
     request(`/alerts/notifications/${id}/read`, { method: "POST" }),
   markAllPriceAlertsRead: () =>
@@ -577,9 +513,7 @@ export const api = {
   glossary: () => requestPlain<GlossaryTerm[]>("/glossary"),
   marketSentiment: () => request<SentimentData>("/market/sentiment"),
   sectorSentiment: (name: string) =>
-    request<SentimentData>(
-      `/market/sector-sentiment?name=${encodeURIComponent(name)}`,
-    ),
+    request<SentimentData>(`/market/sector-sentiment?name=${encodeURIComponent(name)}`),
   stockSentiment: (symbol: string, name?: string) =>
     request<SentimentData>(
       `/market/stock-sentiment?symbol=${symbol}&name=${encodeURIComponent(name ?? "")}`,
@@ -754,15 +688,10 @@ export interface NewsIngestJob {
   error?: string | null;
 }
 
-async function waitForNewsIngestJob(
-  jobId: string,
-  timeoutMs = 60_000,
-): Promise<NewsIngestJob> {
+async function waitForNewsIngestJob(jobId: string, timeoutMs = 60_000): Promise<NewsIngestJob> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const job = await requestPlain<NewsIngestJob>(
-      `/news/ingest/${encodeURIComponent(jobId)}`,
-    );
+    const job = await requestPlain<NewsIngestJob>(`/news/ingest/${encodeURIComponent(jobId)}`);
     if (job.status === "completed") return job;
     if (job.status === "failed") {
       throw new Error(job.error || job.message || "News ingest failed");
@@ -814,13 +743,7 @@ export interface AshareFactor {
   category: string;
   name: string;
   status: "verified" | "partial" | "missing";
-  impact:
-    | "liquidity"
-    | "sentiment"
-    | "fundamental"
-    | "valuation"
-    | "event"
-    | "technical";
+  impact: "liquidity" | "sentiment" | "fundamental" | "valuation" | "event" | "technical";
   evidence: string[];
   missing: string[];
   source_details: {
@@ -1256,10 +1179,20 @@ export interface ProviderStatus {
 }
 
 export type DataConfidence =
-  "verified" | "single_source" | "delayed" | "cached" | "conflict" | "missing";
+  | "verified"
+  | "single_source"
+  | "delayed"
+  | "cached"
+  | "conflict"
+  | "missing";
 
 export type DataSourceDetailStatus =
-  "ok" | "degraded" | "missing" | "mock" | "configured" | "not_configured";
+  | "ok"
+  | "degraded"
+  | "missing"
+  | "mock"
+  | "configured"
+  | "not_configured";
 
 export interface DataSourceDetail {
   domain: string;
@@ -1442,8 +1375,7 @@ export interface BriefingSchedule {
 }
 
 export interface ActionSignal {
-  type:
-    "price" | "news" | "risk" | "fundamental" | "market" | "research" | "info";
+  type: "price" | "news" | "risk" | "fundamental" | "market" | "research" | "info";
   severity: "critical" | "warning" | "info";
   title: string;
   detail: string;

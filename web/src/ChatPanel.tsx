@@ -1,8 +1,4 @@
-import type {
-  ExecutionPreference,
-  HoldingEnriched,
-  StockChoiceCardData,
-} from "./api";
+import type { ExecutionPreference, HoldingEnriched, StockChoiceCardData } from "./api";
 import type { Message } from "./appTypes";
 import type { AppMode } from "./modeSettings";
 import { CardView, PlanCardsFold, StockChoiceCardView } from "./chatCards";
@@ -17,10 +13,7 @@ import { MarkdownContent } from "./MarkdownContent";
 import { ProcessTrail } from "./ProcessTrail";
 import { skillStepLabel } from "./processKind";
 import { CollapsibleSection } from "./CollapsibleSection";
-import {
-  cardsWithoutReplyDuplicate,
-  shouldHideReplyBubble,
-} from "./replyCardDedup";
+import { cardsWithoutReplyDuplicate, shouldHideReplyBubble } from "./replyCardDedup";
 import { StreamFeed } from "./StreamFeed";
 import type { StreamState } from "./streamEvents";
 import { hasLiveProcessContent, hasProcessContent } from "./streamEvents";
@@ -38,15 +31,8 @@ interface ChatPanelProps {
   onStartQuery: (query: string) => void;
   onSend: () => void;
   onAnalyzeHolding: (h: HoldingEnriched) => void;
-  onConfirmStock: (
-    originalMessage: string,
-    symbol: string,
-    name: string,
-  ) => void;
-  onConfirmRoute: (
-    originalMessage: string,
-    preference: ExecutionPreference,
-  ) => void;
+  onConfirmStock: (originalMessage: string, symbol: string, name: string) => void;
+  onConfirmRoute: (originalMessage: string, preference: ExecutionPreference) => void;
 }
 
 function ProcessStreamFeed({
@@ -148,8 +134,7 @@ export function ChatPanel({
   function renderAssistantConclusion(m: Message) {
     const researchReport = findResearchReport(m.cards);
     const hideReply = shouldHideReplyBubble(m.cards);
-    const showConclusionShell =
-      isResearchTurn(m.cards, m.intent) && !researchReport;
+    const showConclusionShell = isResearchTurn(m.cards, m.intent) && !researchReport;
 
     if (hideReply || !m.content.trim()) return null;
 
@@ -215,10 +200,7 @@ export function ChatPanel({
                 {renderAssistantConclusion(m)}
                 {(() => {
                   const researchReport = findResearchReport(m.cards);
-                  const visibleCards = cardsWithoutReplyDuplicate(
-                    m.cards,
-                    m.content,
-                  );
+                  const visibleCards = cardsWithoutReplyDuplicate(m.cards, m.content);
                   if (researchReport) {
                     return (
                       <LightResearchCard
@@ -252,18 +234,12 @@ export function ChatPanel({
                   );
                 })()}
                 {hasProcessContent(m.process) && m.process && (
-                  <ProcessStreamFeed
-                    process={m.process}
-                    statusMsg={statusMsg}
-                  />
+                  <ProcessStreamFeed process={m.process} statusMsg={statusMsg} />
                 )}
                 {!findResearchReport(m.cards) &&
                   m.followUpQuestions &&
                   m.followUpQuestions.length > 0 && (
-                    <FollowUpChips
-                      questions={m.followUpQuestions}
-                      onSelect={onStartQuery}
-                    />
+                    <FollowUpChips questions={m.followUpQuestions} onSelect={onStartQuery} />
                   )}
                 {m.role === "assistant" && (
                   <p className="turn-disclaimer">{t("chat.turnDisclaimer")}</p>
@@ -273,9 +249,7 @@ export function ChatPanel({
                   findResearchReport(m.cards) != null &&
                   (() => {
                     const fr = findResearchReport(m.cards);
-                    return fr ? (
-                      <FollowUpQuestions report={fr} onAsk={onStartQuery} />
-                    ) : null;
+                    return fr ? <FollowUpQuestions report={fr} onAsk={onStartQuery} /> : null;
                   })()}
               </>
             )}
@@ -283,11 +257,7 @@ export function ChatPanel({
         ))}
         {loading && (hasLiveProcessContent(chatStream) || statusMsg) && (
           <div className="message assistant stream-live-panel">
-            <ProcessStreamFeed
-              process={chatStream}
-              statusMsg={statusMsg}
-              live
-            />
+            <ProcessStreamFeed process={chatStream} statusMsg={statusMsg} live />
           </div>
         )}
       </div>
@@ -314,13 +284,7 @@ export function ChatPanel({
             title={loading ? t("chat.sending") : t("chat.send")}
             aria-label={t("chat.send")}
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              aria-hidden="true"
-            >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path
                 d="M5 12h14M13 6l6 6-6 6"
                 stroke="currentColor"

@@ -4,10 +4,7 @@ import type { HoldingEnriched } from "../api";
 
 function holding(
   partial: Partial<HoldingEnriched> &
-    Pick<
-      HoldingEnriched,
-      "symbol" | "name" | "cost_price" | "quantity" | "sector"
-    >,
+    Pick<HoldingEnriched, "symbol" | "name" | "cost_price" | "quantity" | "sector">,
 ): HoldingEnriched {
   return {
     price_label: "",

@@ -1,9 +1,4 @@
-import type {
-  AshareFactor,
-  DebateResult,
-  NumericFactor,
-  ResearchReport,
-} from "./api";
+import type { AshareFactor, DebateResult, NumericFactor, ResearchReport } from "./api";
 import { DeepAnalysisBlock } from "./DeepAnalysisBlock";
 import { DimensionCards, dimensionItemsFromResults } from "./DimensionCards";
 import { MarkdownContent } from "./MarkdownContent";
@@ -21,9 +16,7 @@ function biasLabel(bias: string, t: (key: string) => string): string {
 export function findResearchReport(
   cards?: { type: string; data: Record<string, unknown> }[],
 ): ResearchReport | null {
-  const card = cards?.find(
-    (c) => c.type === "research" && c.data && "composite_score" in c.data,
-  );
+  const card = cards?.find((c) => c.type === "research" && c.data && "composite_score" in c.data);
   return card ? (card.data as unknown as ResearchReport) : null;
 }
 
@@ -51,9 +44,7 @@ export function hasDimensionStream(process?: {
     "valuation",
     "structure",
   ]);
-  return process.agentSteps.some(
-    (s) => ids.has(s.agent_id) && s.status !== "pending",
-  );
+  return process.agentSteps.some((s) => ids.has(s.agent_id) && s.status !== "pending");
 }
 
 function ResearchDebateBlock({
@@ -117,19 +108,14 @@ function ResearchDebateBlock({
             {debate.final_bias ? ` · ${labels.bias(debate.final_bias)}` : ""}
           </strong>
           <p>{debate.consensus || debate.judge_verdict}</p>
-          {debate.core_divergence && (
-            <p className="muted">{debate.core_divergence}</p>
-          )}
+          {debate.core_divergence && <p className="muted">{debate.core_divergence}</p>}
         </div>
       )}
     </div>
   );
 }
 
-function factorStatusLabel(
-  status: AshareFactor["status"],
-  t: (key: string) => string,
-): string {
+function factorStatusLabel(status: AshareFactor["status"], t: (key: string) => string): string {
   if (status === "verified") return t("card.factorVerified");
   if (status === "partial") return t("card.factorPartial");
   return t("card.factorMissing");
@@ -177,10 +163,7 @@ function ResearchAshareFactorsBlock({
               </p>
             )}
             {factor.source_details?.length > 0 && (
-              <div
-                className="ashare-factor-sources"
-                aria-label={t("card.sourceDetails")}
-              >
+              <div className="ashare-factor-sources" aria-label={t("card.sourceDetails")}>
                 {factor.source_details.map((source) => (
                   <span
                     className={`factor-source-pill ${source.status}`}
@@ -226,19 +209,11 @@ function ResearchNumericFactorsBlock({
                 <span>{factor.key}</span>
                 <strong>{factor.label}</strong>
               </div>
-              <em>
-                {factor.partial
-                  ? t("card.factorPartial")
-                  : t("card.factorVerified")}
-              </em>
+              <em>{factor.partial ? t("card.factorPartial") : t("card.factorVerified")}</em>
             </div>
             <p>
-              {factor.value != null
-                ? `${factor.value}${factor.unit || ""}`
-                : "—"}
-              {factor.percentile != null
-                ? ` · P${Math.round(factor.percentile * 100)}`
-                : ""}
+              {factor.value != null ? `${factor.value}${factor.unit || ""}` : "—"}
+              {factor.percentile != null ? ` · P${Math.round(factor.percentile * 100)}` : ""}
               {factor.as_of ? ` · ${factor.as_of}` : ""}
             </p>
             {factor.note ? <p className="muted">{factor.note}</p> : null}
@@ -312,18 +287,15 @@ export function ResearchReportDetails({
             evidence: t("card.evidence"),
             gaps: t("card.missing"),
           }}
-          items={dimensionItemsFromResults(
-            report.dimensions ?? {},
-            (key, agent) => localizeAgentDisplay(key, agent, t),
+          items={dimensionItemsFromResults(report.dimensions ?? {}, (key, agent) =>
+            localizeAgentDisplay(key, agent, t),
           )}
         />
       )}
       {showDeepAnalysis &&
         (report.deep_analysis?.impact ||
           report.deep_analysis?.pricing ||
-          report.deep_analysis?.thesis) && (
-          <DeepAnalysisBlock report={report} />
-        )}
+          report.deep_analysis?.thesis) && <DeepAnalysisBlock report={report} />}
       {showDebate && report.debate && (
         <details className="research-debate-details">
           <summary>{t("card.debateSection")}</summary>
@@ -332,10 +304,7 @@ export function ResearchReportDetails({
       )}
       <ResearchNumericFactorsBlock
         factors={report.factors}
-        expanded={
-          Boolean(report.factors_expanded) ||
-          report.analysis_depth !== "standard"
-        }
+        expanded={Boolean(report.factors_expanded) || report.analysis_depth !== "standard"}
         alignmentNote={report.factor_alignment_note}
         t={t}
       />

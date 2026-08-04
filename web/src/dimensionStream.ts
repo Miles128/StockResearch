@@ -67,17 +67,10 @@ export function detectDimensionSet(
         ? MARKET_DIMENSIONS
         : STOCK_DIMENSIONS;
   }
-  if (
-    steps.some((s) =>
-      ["policy", "capital", "valuation", "structure"].includes(s.agent_id),
-    )
-  ) {
+  if (steps.some((s) => ["policy", "capital", "valuation", "structure"].includes(s.agent_id))) {
     return INDUSTRY_DIMENSIONS;
   }
-  if (
-    statusText.includes("五维") ||
-    (statusText.includes("板块") && statusText.includes("维"))
-  ) {
+  if (statusText.includes("五维") || (statusText.includes("板块") && statusText.includes("维"))) {
     return INDUSTRY_DIMENSIONS;
   }
   if (steps.some((s) => s.agent_id === "macro" || s.agent_id === "industry")) {
@@ -89,10 +82,7 @@ export function detectDimensionSet(
   return STOCK_DIMENSIONS;
 }
 
-export function seedDimensionSteps(
-  steps: AgentStep[],
-  defs: DimensionDef[],
-): AgentStep[] {
+export function seedDimensionSteps(steps: AgentStep[], defs: DimensionDef[]): AgentStep[] {
   const next = [...steps];
   for (const def of defs) {
     if (next.some((s) => s.agent_id === def.id)) continue;
@@ -107,14 +97,9 @@ export function seedDimensionSteps(
   return next;
 }
 
-export function orderedDimensionSteps(
-  steps: AgentStep[],
-  defs: DimensionDef[],
-): AgentStep[] {
+export function orderedDimensionSteps(steps: AgentStep[], defs: DimensionDef[]): AgentStep[] {
   const byId = new Map(
-    steps
-      .filter((s) => isDimensionAgent(s.agent_id))
-      .map((s) => [s.agent_id, s]),
+    steps.filter((s) => isDimensionAgent(s.agent_id)).map((s) => [s.agent_id, s]),
   );
   return defs.map(
     (def) =>

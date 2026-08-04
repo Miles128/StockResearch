@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  cardsWithoutReplyDuplicate,
-  shouldHideReplyBubble,
-} from "../replyCardDedup";
+import { cardsWithoutReplyDuplicate, shouldHideReplyBubble } from "../replyCardDedup";
 
 describe("replyCardDedup", () => {
   it("hides reply when research card exists", () => {
@@ -29,10 +26,7 @@ describe("replyCardDedup", () => {
         data: { symbol: "600519", name: "茅台", ratios: [], summary: "" },
       },
     ];
-    const filtered = cardsWithoutReplyDuplicate(
-      cards,
-      "茅台现价 1680 元，估值偏高。",
-    );
+    const filtered = cardsWithoutReplyDuplicate(cards, "茅台现价 1680 元，估值偏高。");
     expect(filtered).toHaveLength(1);
     expect(filtered[0]?.type).toBe("financial");
   });

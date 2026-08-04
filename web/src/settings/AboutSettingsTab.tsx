@@ -13,11 +13,7 @@ export function AboutSettingsTab() {
         <dd>{ABOUT_INFO.author}</dd>
         <dt>GitHub</dt>
         <dd>
-          <a
-            href={ABOUT_INFO.repoUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <a href={ABOUT_INFO.repoUrl} target="_blank" rel="noopener noreferrer">
             {ABOUT_INFO.repoUrl}
           </a>
         </dd>
@@ -27,11 +23,7 @@ export function AboutSettingsTab() {
         </dd>
         <dt>{t("about.xiaohongshu")}</dt>
         <dd>
-          <a
-            href={ABOUT_INFO.xiaohongshuUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <a href={ABOUT_INFO.xiaohongshuUrl} target="_blank" rel="noopener noreferrer">
             {ABOUT_INFO.xiaohongshuId}
           </a>
         </dd>

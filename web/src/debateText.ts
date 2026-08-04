@@ -24,8 +24,7 @@ export function parseDebateSpeech(text: string): ParsedDebateSpeech {
     const summary = summaryMatch[1].trim();
     const detail = detailMatch?.[1]?.trim() ?? "";
     const collapsible =
-      detail.length >= COLLAPSE_MIN_DETAIL &&
-      summary.length + detail.length >= COLLAPSE_MIN_LEN;
+      detail.length >= COLLAPSE_MIN_DETAIL && summary.length + detail.length >= COLLAPSE_MIN_LEN;
     return { summary, detail, full, collapsible };
   }
 
@@ -52,11 +51,7 @@ export function formatManagerContent(raw: string): string {
   let parsed: Record<string, string> | null = null;
   try {
     const candidate = JSON.parse(trimmed);
-    if (
-      typeof candidate === "object" &&
-      candidate !== null &&
-      !Array.isArray(candidate)
-    ) {
+    if (typeof candidate === "object" && candidate !== null && !Array.isArray(candidate)) {
       parsed = candidate as Record<string, string>;
     }
   } catch {

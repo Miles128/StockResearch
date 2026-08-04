@@ -22,14 +22,11 @@ export function DataSettingsTab({
 
   return (
     <>
-      <h4 className="settings-section-title">
-        {t("settings.quoteCacheTitle")}
-      </h4>
+      <h4 className="settings-section-title">{t("settings.quoteCacheTitle")}</h4>
       <p className="settings-hint">{t("settings.quoteCacheHint")}</p>
       <label className="settings-field">
         <span>
-          {t("settings.quoteRefreshMinutes")}{" "}
-          <strong>{modeSettings.quoteRefreshMinutes}</strong>
+          {t("settings.quoteRefreshMinutes")} <strong>{modeSettings.quoteRefreshMinutes}</strong>
         </span>
         <input
           type="range"
@@ -59,17 +56,13 @@ export function DataSettingsTab({
           type="password"
           autoComplete="off"
           value={dataForm.tushareToken}
-          onChange={(e) =>
-            onDataFormChange({ ...dataForm, tushareToken: e.target.value })
-          }
+          onChange={(e) => onDataFormChange({ ...dataForm, tushareToken: e.target.value })}
         />
       </label>
       <p className="settings-muted">{t("settings.tushareNote")}</p>
 
       <div className="tushare-guide">
-        <h5 className="tushare-guide-title">
-          {t("settings.tushareGuideTitle")}
-        </h5>
+        <h5 className="tushare-guide-title">{t("settings.tushareGuideTitle")}</h5>
         <ol className="tushare-guide-steps">
           <li>{t("settings.tushareGuideStep1")}</li>
           <li>{t("settings.tushareGuideStep2")}</li>
@@ -96,9 +89,7 @@ export function DataSettingsTab({
           type="password"
           autoComplete="off"
           value={dataForm.bochaApiKey}
-          onChange={(e) =>
-            onDataFormChange({ ...dataForm, bochaApiKey: e.target.value })
-          }
+          onChange={(e) => onDataFormChange({ ...dataForm, bochaApiKey: e.target.value })}
         />
       </label>
       <p className="settings-muted">{t("settings.bochaNote")}</p>

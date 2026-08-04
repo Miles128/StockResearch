@@ -5,10 +5,7 @@ export function signedClass(value: number | null | undefined): string {
   return value > 0 ? "up" : "down";
 }
 
-export function formatSignedPct(
-  value: number | null | undefined,
-  digits = 2,
-): string {
+export function formatSignedPct(value: number | null | undefined, digits = 2): string {
   if (value == null || Number.isNaN(value)) return "—";
   const sign = value > 0 ? "+" : "";
   return `${sign}${value.toFixed(digits)}%`;
@@ -20,10 +17,7 @@ export function formatSignedMoney(value: number | null | undefined): string {
   return `${sign}¥${Math.abs(value).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function formatMoney(
-  value: number | null | undefined,
-  locale = "zh-CN",
-): string {
+export function formatMoney(value: number | null | undefined, locale = "zh-CN"): string {
   if (value == null || Number.isNaN(value)) return "—";
   return `¥${value.toLocaleString(locale, { maximumFractionDigits: 0 })}`;
 }
@@ -38,21 +32,15 @@ export function computeDailyPnlAmount(
   quantity: number,
   changePct: number | null | undefined,
 ): number | null {
-  if (price == null || changePct == null || Number.isNaN(changePct))
-    return null;
+  if (price == null || changePct == null || Number.isNaN(changePct)) return null;
   return Math.round(price * quantity * (changePct / 100) * 100) / 100;
 }
 
-export function formatHoldingDuration(
-  buyDate: string | null | undefined,
-): string {
+export function formatHoldingDuration(buyDate: string | null | undefined): string {
   if (!buyDate) return "—";
   const start = new Date(buyDate);
   if (Number.isNaN(start.getTime())) return "—";
-  const days = Math.max(
-    1,
-    Math.floor((Date.now() - start.getTime()) / 86_400_000),
-  );
+  const days = Math.max(1, Math.floor((Date.now() - start.getTime()) / 86_400_000));
   if (days < 30) return `${days}天`;
   if (days < 365) return `${Math.floor(days / 30)}月`;
   const years = days / 365;

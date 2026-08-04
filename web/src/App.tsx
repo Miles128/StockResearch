@@ -1,28 +1,10 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
-import {
-  api,
-  HoldingEnriched,
-  LlmUsage,
-  StockQuoteOut,
-  WatchlistItem,
-} from "./api";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { api, HoldingEnriched, LlmUsage, StockQuoteOut, WatchlistItem } from "./api";
 import type { CopilotContext } from "./appTypes";
 import type { CenterTab, FocusContext, ListsLayoutMode } from "./layoutTypes";
 import { FocusTabBar } from "./FocusTabBar";
 import { PriceConflictBanner } from "./PriceConflictBanner";
-import {
-  activeFocusContext,
-  removeFocusTab,
-  upsertFocusTab,
-  type FocusTab,
-} from "./focusTabs";
+import { activeFocusContext, removeFocusTab, upsertFocusTab, type FocusTab } from "./focusTabs";
 import { buildKnownSymbols } from "./copilotFocusSync";
 import { ListsSidebar } from "./ListsSidebar";
 import { HeaderSearch } from "./HeaderSearch";
@@ -60,20 +42,13 @@ import { indexSymbolKey, localizeIndexName } from "./indexLabels";
 import { MarketTicker } from "./MarketTicker";
 import { MarketPanel } from "./MarketPanel";
 import { NewsPanel } from "./NewsPanel";
-import {
-  computePortfolioSummary,
-  computeSectorConcentration,
-} from "./portfolioHelpers";
+import { computePortfolioSummary, computeSectorConcentration } from "./portfolioHelpers";
 import { RiskPanel } from "./RiskPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { ModeSwitcher } from "./ModeSwitcher";
 import { Onboarding } from "./Onboarding";
 import { IconMessages, IconSettings, IconSignal } from "./ui/Icons";
-import {
-  READING_MODE_I18N_KEYS,
-  switchMode,
-  type AppMode,
-} from "./modeSettings";
+import { READING_MODE_I18N_KEYS, switchMode, type AppMode } from "./modeSettings";
 
 export { ErrorBoundary } from "./app/ErrorBoundary";
 
@@ -99,12 +74,8 @@ export default function App() {
           : t("rating.poor");
 
   const [centerTab, setCenterTab] = useState<CenterTab>("focus");
-  const {
-    layoutSettings,
-    setLayoutSettings,
-    startCopilotResize,
-    startListsResize,
-  } = useLayoutResize();
+  const { layoutSettings, setLayoutSettings, startCopilotResize, startListsResize } =
+    useLayoutResize();
   const [listsMode, setListsMode] = useState<ListsLayoutMode>("sidebar");
 
   const expandListsPanel = useCallback(() => {
@@ -129,8 +100,7 @@ export default function App() {
   const [dataDetailsOpen, setDataDetailsOpen] = useState(false);
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
   const [batchResearchOpen, setBatchResearchOpen] = useState(false);
-  const [tradeModalSeed, setTradeModalSeed] =
-    useState<Partial<TradeDraft> | null>(null);
+  const [tradeModalSeed, setTradeModalSeed] = useState<Partial<TradeDraft> | null>(null);
   const [inlineTradeOpen, setInlineTradeOpen] = useState(false);
 
   const showError = useCallback((msg: string) => {
@@ -138,13 +108,8 @@ export default function App() {
     setTimeout(() => setError(""), 4000);
   }, []);
 
-  const {
-    marketOverview,
-    overviewLoading,
-    dataStatus,
-    loadOverview,
-    refreshDataStatus,
-  } = useMarketOverview();
+  const { marketOverview, overviewLoading, dataStatus, loadOverview, refreshDataStatus } =
+    useMarketOverview();
   const {
     llmConfigured,
     llmCheckDone,
@@ -178,21 +143,13 @@ export default function App() {
     addWatchlistItem,
     removeWatchlistItem,
   } = useWatchlist(showError);
-  const {
-    news,
-    newsLoading,
-    newsSectors,
-    sectorSaving,
-    loadNews,
-    toggleNewsSector,
-  } = useNews(
+  const { news, newsLoading, newsSectors, sectorSaving, loadNews, toggleNewsSector } = useNews(
     centerTab === "news" ||
       centerTab === "market" ||
       (centerTab === "focus" && focusContext != null),
     showError,
   );
-  const { risk, riskLoading, riskStream, riskStatusMsg, runRisk } =
-    useRiskCheckup(showError, t);
+  const { risk, riskLoading, riskStream, riskStatusMsg, runRisk } = useRiskCheckup(showError, t);
   const riskTabRunRef = useRef(false);
 
   useEffect(() => {
@@ -200,8 +157,7 @@ export default function App() {
       riskTabRunRef.current = false;
       return;
     }
-    if (holdingsLoading || holdings.length === 0 || riskTabRunRef.current)
-      return;
+    if (holdingsLoading || holdings.length === 0 || riskTabRunRef.current) return;
     riskTabRunRef.current = true;
     void runRisk();
   }, [centerTab, holdings.length, holdingsLoading, runRisk]);
@@ -231,10 +187,7 @@ export default function App() {
     setCenterTab("focus");
   }
 
-  const knownSymbols = useMemo(
-    () => buildKnownSymbols(holdings, watchlist),
-    [holdings, watchlist],
-  );
+  const knownSymbols = useMemo(() => buildKnownSymbols(holdings, watchlist), [holdings, watchlist]);
 
   const chat = useChatExecution({
     t,
@@ -324,18 +277,10 @@ export default function App() {
     };
     return byTab[centerTab];
   }, [t, locale, centerTab]);
-  const portfolioSummary = useMemo(
-    () => computePortfolioSummary(holdings),
-    [holdings],
-  );
-  const sectorMix = useMemo(
-    () => computeSectorConcentration(holdings),
-    [holdings],
-  );
+  const portfolioSummary = useMemo(() => computePortfolioSummary(holdings), [holdings]);
+  const sectorMix = useMemo(() => computeSectorConcentration(holdings), [holdings]);
   const marketSessionLabel =
-    holdings[0]?.market_session === "trading"
-      ? t("ticker.trading")
-      : t("ticker.closed");
+    holdings[0]?.market_session === "trading" ? t("ticker.trading") : t("ticker.closed");
   const headerUsage = useMemo((): LlmUsage | null => {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       const m = messages[i];
@@ -354,14 +299,10 @@ export default function App() {
     const fallback = overview?.fallback || quotes?.fallback || "akshare";
     const degraded = Boolean(overview?.degraded || quotes?.degraded);
     if (degraded) {
-      return t("header.dataDegraded")
-        .replace("{primary}", primary)
-        .replace("{fallback}", fallback);
+      return t("header.dataDegraded").replace("{primary}", primary).replace("{fallback}", fallback);
     }
     // 默认并列展示主源 + 备源，让用户看到完整源链路
-    return t("header.dataLiveMulti")
-      .replace("{primary}", primary)
-      .replace("{fallback}", fallback);
+    return t("header.dataLiveMulti").replace("{primary}", primary).replace("{fallback}", fallback);
   }
 
   function toggleLocale() {
@@ -390,10 +331,7 @@ export default function App() {
         await refreshWatchlistQuotes({ silent: true });
         if (cancelled) return;
         const trading = data.some((h) => h.market_session === "trading");
-        timeoutId = window.setTimeout(
-          refreshQuotes,
-          trading ? tradingPollMs : closedPollMs,
-        );
+        timeoutId = window.setTimeout(refreshQuotes, trading ? tradingPollMs : closedPollMs);
       } catch {
         if (!cancelled) {
           timeoutId = window.setTimeout(refreshQuotes, tradingPollMs);
@@ -422,13 +360,8 @@ export default function App() {
         const holding = holdings.find((h) => h.symbol === sym);
         const quote = watchlistQuotes[sym];
         const price = holding?.price ?? quote?.price ?? tab.context.price;
-        const change_pct =
-          holding?.change_pct ?? quote?.change_pct ?? tab.context.change_pct;
-        if (
-          price === tab.context.price &&
-          change_pct === tab.context.change_pct
-        )
-          return tab;
+        const change_pct = holding?.change_pct ?? quote?.change_pct ?? tab.context.change_pct;
+        if (price === tab.context.price && change_pct === tab.context.change_pct) return tab;
         changed = true;
         return { ...tab, context: { ...tab.context, price, change_pct } };
       });
@@ -487,8 +420,7 @@ export default function App() {
     };
   }
 
-  const focusSymbol =
-    focusContext?.kind === "stock" ? focusContext.symbol : null;
+  const focusSymbol = focusContext?.kind === "stock" ? focusContext.symbol : null;
 
   function closeFocusTab(tabId: string) {
     const next = removeFocusTab(focusTabs, tabId);
@@ -596,9 +528,7 @@ export default function App() {
   }
 
   function alertHoldingTags(message: string): HoldingEnriched[] {
-    return holdings.filter(
-      (h) => message.includes(h.name) || message.includes(h.symbol),
-    );
+    return holdings.filter((h) => message.includes(h.name) || message.includes(h.symbol));
   }
 
   async function deleteHolding(id: number) {
@@ -643,10 +573,7 @@ export default function App() {
               pollingIntervalMs={modeSettings.quoteRefreshMinutes * 60_000}
             />
             {headerUsage && (
-              <span
-                className="chrome-usage"
-                title={formatLlmUsage(headerUsage, t)}
-              >
+              <span className="chrome-usage" title={formatLlmUsage(headerUsage, t)}>
                 {formatHeaderUsage(headerUsage, t)}
               </span>
             )}
@@ -654,9 +581,7 @@ export default function App() {
               type="button"
               className={`icon-btn data-source-icon${dataStatus && (dataStatus.quotes?.degraded || dataStatus.overview?.degraded) ? " degraded" : ""}`}
               title={
-                dataStatus?.overview?.message ||
-                dataStatus?.quotes?.message ||
-                dataSourceLabel()
+                dataStatus?.overview?.message || dataStatus?.quotes?.message || dataSourceLabel()
               }
               onClick={() => setDataDetailsOpen(true)}
             >
@@ -666,9 +591,7 @@ export default function App() {
               type="button"
               className="icon-btn"
               title={t("settings.readingModeCurrent", {
-                reading: t(
-                  READING_MODE_I18N_KEYS[modeSettings.readingMode].short,
-                ),
+                reading: t(READING_MODE_I18N_KEYS[modeSettings.readingMode].short),
               })}
               onClick={() => setSetupOpen(true)}
               aria-label={t("header.settingsTitle")}
@@ -697,16 +620,10 @@ export default function App() {
           variant="modal"
         />
         {dataDetailsOpen && (
-          <DataSourceDetails
-            status={dataStatus}
-            onClose={() => setDataDetailsOpen(false)}
-          />
+          <DataSourceDetails status={dataStatus} onClose={() => setDataDetailsOpen(false)} />
         )}
         {onboardingOpen && (
-          <Onboarding
-            onComplete={handleOnboardingComplete}
-            onSkip={handleOnboardingSkip}
-          />
+          <Onboarding onComplete={handleOnboardingComplete} onSkip={handleOnboardingSkip} />
         )}
         <HoldingTradeModal
           open={tradeModalOpen}
@@ -729,10 +646,7 @@ export default function App() {
           className={`app-body tri-shell lists-${listsMode}${!copilotOpen ? " copilot-collapsed" : ""}${settingsRequired ? " app-locked" : ""}`}
           style={
             {
-              "--lists-w":
-                listsMode === "hidden"
-                  ? "0px"
-                  : `${layoutSettings.listsWidth}px`,
+              "--lists-w": listsMode === "hidden" ? "0px" : `${layoutSettings.listsWidth}px`,
               "--copilot-w": `${layoutSettings.copilotWidth}px`,
             } as CSSProperties
           }
@@ -809,9 +723,9 @@ export default function App() {
 
             <div className="center-scroll">
               {error && <div className="error">{error}</div>}
-              {centerTab === "focus" &&
-                !focusContext &&
-                focusTabs.length === 0 && <BackendHealthBanner />}
+              {centerTab === "focus" && !focusContext && focusTabs.length === 0 && (
+                <BackendHealthBanner />
+              )}
               {centerTab === "focus" &&
                 !focusContext &&
                 focusTabs.length === 0 &&
@@ -824,18 +738,15 @@ export default function App() {
                     loading={demoLoading}
                   />
                 )}
-              {centerTab === "focus" &&
-                !focusContext &&
-                focusTabs.length === 0 &&
-                isDemo && (
-                  <DemoBanner
-                    onLoad={loadDemoHoldings}
-                    onClear={clearDemoHoldings}
-                    onGoPortfolio={() => setCenterTab("focus")}
-                    isDemo={isDemo}
-                    loading={demoLoading}
-                  />
-                )}
+              {centerTab === "focus" && !focusContext && focusTabs.length === 0 && isDemo && (
+                <DemoBanner
+                  onLoad={loadDemoHoldings}
+                  onClear={clearDemoHoldings}
+                  onGoPortfolio={() => setCenterTab("focus")}
+                  isDemo={isDemo}
+                  loading={demoLoading}
+                />
+              )}
 
               {centerTab === "focus" && focusContext && (
                 <StockFocusView
@@ -847,31 +758,27 @@ export default function App() {
                 />
               )}
 
-              {centerTab === "focus" &&
-                !focusContext &&
-                focusTabs.length === 0 && (
-                  <>
-                    <SectorMoversPanel
-                      selectedSector={highlightSector}
-                      onSelectLeader={(symbol, name) =>
-                        selectSymbol(symbol, name)
-                      }
-                      onAskSector={selectSector}
-                    />
-                    <ActionCenter
-                      onNavigate={handleActionNavigate}
-                      onChatQuery={(query) => {
-                        const context: CopilotContext = {
-                          kind: "focus",
-                          label: locale === "zh" ? "我的持仓" : "My holdings",
-                        };
-                        setPageContext(context);
-                        setCopilotOpen(true);
-                        startChatQuery(query, { context });
-                      }}
-                    />
-                  </>
-                )}
+              {centerTab === "focus" && !focusContext && focusTabs.length === 0 && (
+                <>
+                  <SectorMoversPanel
+                    selectedSector={highlightSector}
+                    onSelectLeader={(symbol, name) => selectSymbol(symbol, name)}
+                    onAskSector={selectSector}
+                  />
+                  <ActionCenter
+                    onNavigate={handleActionNavigate}
+                    onChatQuery={(query) => {
+                      const context: CopilotContext = {
+                        kind: "focus",
+                        label: locale === "zh" ? "我的持仓" : "My holdings",
+                      };
+                      setPageContext(context);
+                      setCopilotOpen(true);
+                      startChatQuery(query, { context });
+                    }}
+                  />
+                </>
+              )}
 
               {centerTab === "market" && (
                 <MarketPanel

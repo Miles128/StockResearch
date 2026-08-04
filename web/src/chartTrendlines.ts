@@ -46,10 +46,7 @@ export interface TrendLineOptions {
   relevancePct?: number;
 }
 
-export function findPivots(
-  bars: KlineBar[],
-  k: number,
-): { highs: Pivot[]; lows: Pivot[] } {
+export function findPivots(bars: KlineBar[], k: number): { highs: Pivot[]; lows: Pivot[] } {
   const highs: Pivot[] = [];
   const lows: Pivot[] = [];
   for (let i = k; i < bars.length - k; i += 1) {
@@ -66,11 +63,7 @@ export function findPivots(
   return { highs, lows };
 }
 
-function scoreLine(
-  line: TrendLine,
-  maxSpan: number,
-  lastClose: number,
-): number {
+function scoreLine(line: TrendLine, maxSpan: number, lastClose: number): number {
   const span = line.endIndex - line.startIndex;
   const spanScore = Math.min(span, maxSpan) / maxSpan;
   // Prefer lines that matter now: penalize distance from the latest close.
@@ -78,16 +71,10 @@ function scoreLine(
   return line.touches * 2 + spanScore - distance * 10;
 }
 
-function isDuplicate(
-  a: TrendLine,
-  b: TrendLine,
-  tolerancePct: number,
-): boolean {
+function isDuplicate(a: TrendLine, b: TrendLine, tolerancePct: number): boolean {
   if (a.kind !== b.kind) return false;
-  const nearStart =
-    Math.abs(a.startPrice - b.startPrice) <= tolerancePct * 2 * a.startPrice;
-  const nearEnd =
-    Math.abs(a.endPrice - b.endPrice) <= tolerancePct * 2 * a.endPrice;
+  const nearStart = Math.abs(a.startPrice - b.startPrice) <= tolerancePct * 2 * a.startPrice;
+  const nearEnd = Math.abs(a.endPrice - b.endPrice) <= tolerancePct * 2 * a.endPrice;
   return nearStart && nearEnd;
 }
 
@@ -152,10 +139,7 @@ function fitLines(
   return out;
 }
 
-export function detectTrendLines(
-  bars: KlineBar[],
-  options: TrendLineOptions = {},
-): TrendLine[] {
+export function detectTrendLines(bars: KlineBar[], options: TrendLineOptions = {}): TrendLine[] {
   const opts: Required<TrendLineOptions> = {
     pivotWindow: options.pivotWindow ?? 3,
     tolerancePct: options.tolerancePct ?? 0.006,
@@ -173,17 +157,12 @@ export function detectTrendLines(
 
   const { highs, lows } = findPivots(bars, pivotWindow);
   const supports = fitLines(bars, lows, "support", opts).filter(relevant);
-  const resistances = fitLines(bars, highs, "resistance", opts).filter(
-    relevant,
-  );
+  const resistances = fitLines(bars, highs, "resistance", opts).filter(relevant);
 
   const pick = (lines: TrendLine[], cap: number): TrendLine[] => {
     const sorted = lines
       .slice()
-      .sort(
-        (x, y) =>
-          scoreLine(y, maxSpan, lastClose) - scoreLine(x, maxSpan, lastClose),
-      );
+      .sort((x, y) => scoreLine(y, maxSpan, lastClose) - scoreLine(x, maxSpan, lastClose));
     const kept: TrendLine[] = [];
     for (const line of sorted) {
       if (kept.length >= cap) break;
@@ -194,10 +173,7 @@ export function detectTrendLines(
   };
 
   const half = Math.ceil(maxLines / 2);
-  return [...pick(supports, half), ...pick(resistances, half)].slice(
-    0,
-    maxLines,
-  );
+  return [...pick(supports, half), ...pick(resistances, half)].slice(0, maxLines);
 }
 
 /** Build the two render points for a trendline (anchor start -> extended end). */

@@ -35,9 +35,7 @@ export function GeneralSettingsTab({
 
   return (
     <>
-      <h4 className="settings-section-title">
-        {t("settings.notificationsTitle")}
-      </h4>
+      <h4 className="settings-section-title">{t("settings.notificationsTitle")}</h4>
       <p className="settings-hint">{t("settings.notificationsHint")}</p>
       <label className="settings-check">
         <input
@@ -52,9 +50,7 @@ export function GeneralSettingsTab({
         />
         <span>{t("settings.briefingAuto")}</span>
       </label>
-      <p className="settings-muted settings-analysis-note">
-        {t("settings.briefingAutoNote")}
-      </p>
+      <p className="settings-muted settings-analysis-note">{t("settings.briefingAutoNote")}</p>
       <label className="settings-check">
         <input
           type="checkbox"
@@ -63,9 +59,7 @@ export function GeneralSettingsTab({
         />
         <span>{t("settings.priceAlerts")}</span>
       </label>
-      <p className="settings-muted settings-analysis-note">
-        {t("settings.priceAlertsNote")}
-      </p>
+      <p className="settings-muted settings-analysis-note">{t("settings.priceAlertsNote")}</p>
       <label className="settings-check">
         <input
           type="checkbox"
@@ -74,9 +68,7 @@ export function GeneralSettingsTab({
         />
         <span>{t("settings.uiPolling")}</span>
       </label>
-      <p className="settings-muted settings-analysis-note">
-        {t("settings.uiPollingNote")}
-      </p>
+      <p className="settings-muted settings-analysis-note">{t("settings.uiPollingNote")}</p>
 
       <h4 className="settings-section-title">{t("settings.appearance")}</h4>
       <p className="settings-hint">{t("settings.appearanceHint")}</p>
@@ -114,9 +106,7 @@ export function GeneralSettingsTab({
       <p className="settings-hint">{t("settings.readingModeHint")}</p>
       <p className="settings-muted settings-analysis-note">
         {t("settings.readingModeNote", {
-          mode: t(
-            modeSettings.mode === "research" ? "mode.research" : "mode.advisor",
-          ),
+          mode: t(modeSettings.mode === "research" ? "mode.research" : "mode.advisor"),
           reading: t(
             modeSettings.readingMode === "professional"
               ? "settings.modeProfessional"
@@ -149,9 +139,7 @@ export function GeneralSettingsTab({
         ))}
       </div>
 
-      <h4 className="settings-section-title">
-        {t("settings.holdingsViewTitle")}
-      </h4>
+      <h4 className="settings-section-title">{t("settings.holdingsViewTitle")}</h4>
       <p className="settings-hint">{t("settings.holdingsViewHint")}</p>
       <div className="holdings-view-picker">
         {(["table", "cards"] as const).map((view) => (
@@ -159,13 +147,9 @@ export function GeneralSettingsTab({
             key={view}
             type="button"
             className={`holdings-view-option${modeSettings.holdingsView === view ? " active" : ""}`}
-            onClick={() =>
-              onPersistModeSettings({ ...modeSettings, holdingsView: view })
-            }
+            onClick={() => onPersistModeSettings({ ...modeSettings, holdingsView: view })}
           >
-            {view === "table"
-              ? t("settings.holdingsViewTable")
-              : t("settings.holdingsViewCards")}
+            {view === "table" ? t("settings.holdingsViewTable") : t("settings.holdingsViewCards")}
           </button>
         ))}
       </div>

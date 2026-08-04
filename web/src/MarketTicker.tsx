@@ -43,14 +43,10 @@ export function MarketTicker({
             >
               <span className="ticker-card-content">
                 <span className="ticker-name">{label}</span>
-                <span
-                  className={`ticker-price mono ${signedClass(idx.change_pct ?? 0)}`}
-                >
+                <span className={`ticker-price mono ${signedClass(idx.change_pct ?? 0)}`}>
                   {idx.price != null ? idx.price.toFixed(2) : "—"}
                 </span>
-                <span
-                  className={`ticker-change mono ${signedClass(idx.change_pct ?? 0)}`}
-                >
+                <span className={`ticker-change mono ${signedClass(idx.change_pct ?? 0)}`}>
                   {idx.change_pct != null
                     ? `${idx.change_pct >= 0 ? "+" : ""}${idx.change_pct.toFixed(2)}%`
                     : ""}
@@ -72,13 +68,8 @@ export function MarketTicker({
           </div>
         )}
         {overview?.northbound_net_yi != null && (
-          <span
-            className={`ticker-inline-meta ${signedClass(overview.northbound_net_yi)}`}
-          >
-            {northboundLabel.replace(
-              "{v}",
-              overview.northbound_net_yi.toFixed(1),
-            )}
+          <span className={`ticker-inline-meta ${signedClass(overview.northbound_net_yi)}`}>
+            {northboundLabel.replace("{v}", overview.northbound_net_yi.toFixed(1))}
           </span>
         )}
         {overview?.advancers != null && overview?.decliners != null && (

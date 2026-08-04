@@ -19,12 +19,7 @@ export function IconAlert({ className = "ui-icon", size = 16 }: IconProps) {
         strokeWidth="1.25"
         strokeLinejoin="round"
       />
-      <path
-        d="M8 6v3.5M8 11.5v.5"
-        stroke="currentColor"
-        strokeWidth="1.25"
-        strokeLinecap="round"
-      />
+      <path d="M8 6v3.5M8 11.5v.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
     </svg>
   );
 }
@@ -148,12 +143,7 @@ export function IconPlus({ className = "ui-icon", size = 16 }: IconProps) {
       fill="none"
       aria-hidden="true"
     >
-      <path
-        d="M8 3.5v9M3.5 8h9"
-        stroke="currentColor"
-        strokeWidth="1.25"
-        strokeLinecap="round"
-      />
+      <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
     </svg>
   );
 }
@@ -307,10 +297,7 @@ export function IconRefresh({ className = "ui-icon", size = 16 }: IconProps) {
   );
 }
 
-export function IconExternalLink({
-  className = "ui-icon",
-  size = 16,
-}: IconProps) {
+export function IconExternalLink({ className = "ui-icon", size = 16 }: IconProps) {
   return (
     <svg
       className={className}
@@ -338,13 +325,7 @@ export function IconExternalLink({
   );
 }
 
-export function SignalIcon({
-  type,
-  severity,
-}: {
-  type: string;
-  severity: string;
-}) {
+export function SignalIcon({ type, severity }: { type: string; severity: string }) {
   if (type === "risk" && severity === "critical") return <IconAlert />;
   if (type === "risk" && severity === "warning") return <IconBolt />;
   if (type === "news") return <IconNews />;

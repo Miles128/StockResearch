@@ -94,9 +94,7 @@ export function GlossarySettingsTab({
                       {t("settings.glossaryCustom")}
                     </span>
                   ) : (
-                    <span className="glossary-term-badge">
-                      {t("settings.glossaryBuiltin")}
-                    </span>
+                    <span className="glossary-term-badge">{t("settings.glossaryBuiltin")}</span>
                   )}
                   {term.custom && (
                     <button
@@ -109,16 +107,12 @@ export function GlossarySettingsTab({
                   )}
                 </div>
                 <p className="glossary-term-def">{term.def}</p>
-                {term.analogy ? (
-                  <p className="glossary-term-analogy">{term.analogy}</p>
-                ) : null}
+                {term.analogy ? <p className="glossary-term-analogy">{term.analogy}</p> : null}
               </li>
             ))}
         </ul>
 
-        <h5 className="settings-subsection-title">
-          {t("settings.glossaryAddTitle")}
-        </h5>
+        <h5 className="settings-subsection-title">{t("settings.glossaryAddTitle")}</h5>
         <p className="settings-hint">{t("settings.glossaryAddHint")}</p>
         <label className="settings-field">
           <span>{t("settings.glossaryTermShort")}</span>
@@ -152,9 +146,7 @@ export function GlossarySettingsTab({
           type="button"
           className="btn btn-ghost btn-sm"
           onClick={onAddCustomGlossaryTerm}
-          disabled={
-            !newGlossaryShort.trim() || newGlossaryDef.trim().length < 2
-          }
+          disabled={!newGlossaryShort.trim() || newGlossaryDef.trim().length < 2}
         >
           {t("settings.glossaryAddBtn")}
         </button>

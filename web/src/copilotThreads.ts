@@ -29,13 +29,8 @@ export function autoThreadTitle(firstQuery: string, fallback: string): string {
   return title || fallback;
 }
 
-export function titleFromMessages(
-  messages: Message[],
-  fallback: string,
-): string {
-  const latestUser = [...messages]
-    .reverse()
-    .find((m) => m.role === "user" && m.content.trim());
+export function titleFromMessages(messages: Message[], fallback: string): string {
+  const latestUser = [...messages].reverse().find((m) => m.role === "user" && m.content.trim());
   if (!latestUser) return fallback;
   return autoThreadTitle(latestUser.content, fallback);
 }
@@ -61,18 +56,14 @@ export function loadCopilotThreads(defaultTitle: string): CopilotThread[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [createThread(defaultTitle)];
     const parsed = JSON.parse(raw) as CopilotThread[];
-    if (!Array.isArray(parsed) || parsed.length === 0)
-      return [createThread(defaultTitle)];
+    if (!Array.isArray(parsed) || parsed.length === 0) return [createThread(defaultTitle)];
     return parsed
       .filter((t) => t && typeof t.id === "string")
       .slice(0, MAX_THREADS)
       .map((t) => ({
         ...t,
         messages: Array.isArray(t.messages) ? t.messages : [],
-        title:
-          typeof t.title === "string" && t.title.trim()
-            ? t.title
-            : defaultTitle,
+        title: typeof t.title === "string" && t.title.trim() ? t.title : defaultTitle,
       }));
   } catch {
     return [createThread(defaultTitle)];
@@ -86,9 +77,6 @@ export function saveCopilotThreads(threads: CopilotThread[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
 }
 
-export function touchThread(
-  thread: CopilotThread,
-  patch: Partial<CopilotThread>,
-): CopilotThread {
+export function touchThread(thread: CopilotThread, patch: Partial<CopilotThread>): CopilotThread {
   return { ...thread, ...patch, updatedAt: Date.now() };
 }

@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  finalizeStreamState,
-  hasProcessContent,
-  emptyStreamState,
-} from "../streamEvents";
+import { finalizeStreamState, hasProcessContent, emptyStreamState } from "../streamEvents";
 
 describe("streamEvents finalize", () => {
   it("marks stream done and clears live status lines", () => {

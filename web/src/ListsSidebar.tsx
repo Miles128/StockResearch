@@ -42,11 +42,9 @@ const SECTOR_PALETTE_DARK = [
 
 function sectorColor(sector: string): string {
   const theme = document.documentElement.dataset.theme ?? loadTheme();
-  const palette =
-    theme === "institutional-dark" ? SECTOR_PALETTE_DARK : SECTOR_PALETTE_LIGHT;
+  const palette = theme === "institutional-dark" ? SECTOR_PALETTE_DARK : SECTOR_PALETTE_LIGHT;
   let hash = 0;
-  for (let i = 0; i < sector.length; i++)
-    hash = (hash * 31 + sector.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < sector.length; i++) hash = (hash * 31 + sector.charCodeAt(i)) >>> 0;
   return palette[hash % palette.length];
 }
 
@@ -205,44 +203,32 @@ export function ListsSidebar({
             <span className="flat-section-title">{t("lists.portfolio")}</span>
           </div>
           <span className="lists-portfolio-total mono">
-            {portfolioSummary.hasQuotes
-              ? formatMoney(portfolioSummary.totalValue, numLocale)
-              : "—"}
+            {portfolioSummary.hasQuotes ? formatMoney(portfolioSummary.totalValue, numLocale) : "—"}
           </span>
         </div>
         {portfolioSummary.hasQuotes &&
           (listsDetail ? (
             <div className="lists-portfolio-metrics-grid mono">
               <div className={`lists-portfolio-metric ${todayClass}`}>
-                <span className="lists-metric-label">
-                  {t("lists.todayPnl")}
-                </span>
+                <span className="lists-metric-label">{t("lists.todayPnl")}</span>
                 <span>{formatSignedMoney(portfolioSummary.todayPnl)}</span>
               </div>
               <div className={`lists-portfolio-metric ${profitClass}`}>
-                <span className="lists-metric-label">
-                  {t("lists.totalPnl")}
-                </span>
+                <span className="lists-metric-label">{t("lists.totalPnl")}</span>
                 <span>{formatSignedMoney(portfolioSummary.totalProfit)}</span>
               </div>
               <div className={`lists-portfolio-metric ${todayClass}`}>
-                <span className="lists-metric-label">
-                  {t("lists.todayPnlPct")}
-                </span>
+                <span className="lists-metric-label">{t("lists.todayPnlPct")}</span>
                 <span>{formatSignedPct(portfolioSummary.todayPnlPct)}</span>
               </div>
               <div className={`lists-portfolio-metric ${profitClass}`}>
-                <span className="lists-metric-label">
-                  {t("lists.totalPnlPct")}
-                </span>
+                <span className="lists-metric-label">{t("lists.totalPnlPct")}</span>
                 <span>{formatSignedPct(portfolioSummary.totalProfitPct)}</span>
               </div>
               <div
                 className={`lists-portfolio-metric ${signedClass(portfolioSummary.annualizedPct)}`}
               >
-                <span className="lists-metric-label">
-                  {t("portfolio.annualized")}
-                </span>
+                <span className="lists-metric-label">{t("portfolio.annualized")}</span>
                 <span>
                   {portfolioSummary.annualizedPct != null
                     ? formatSignedPct(portfolioSummary.annualizedPct)
@@ -272,9 +258,7 @@ export function ListsSidebar({
 
       {sectorMix.length > 0 && (
         <CollapsibleSection title={t("lists.sectors")}>
-          <div
-            className={`lists-sector-panel${listsDetail ? " lists-sector-panel-detail" : ""}`}
-          >
+          <div className={`lists-sector-panel${listsDetail ? " lists-sector-panel-detail" : ""}`}>
             <div className="lists-sector-visual">
               <SectorDonut sectors={sectorMix.slice(0, 6)} />
             </div>
@@ -283,12 +267,8 @@ export function ListsSidebar({
                 {listsDetail && (
                   <thead>
                     <tr>
-                      <th className="lists-sector-col-name">
-                        {t("lists.sectors")}
-                      </th>
-                      <th className="lists-sector-col-num lists-sector-col-pct">
-                        %
-                      </th>
+                      <th className="lists-sector-col-name">{t("lists.sectors")}</th>
+                      <th className="lists-sector-col-num lists-sector-col-pct">%</th>
                       <th className="lists-sector-col-num lists-sector-col-money">
                         {t("lists.colDailyPnl")}
                       </th>
@@ -329,9 +309,7 @@ export function ListsSidebar({
                           <td
                             className={`lists-sector-col-num lists-sector-col-pct ${signedClass(s.annualizedPct)}`}
                           >
-                            {s.annualizedPct != null
-                              ? formatSignedPct(s.annualizedPct)
-                              : "—"}
+                            {s.annualizedPct != null ? formatSignedPct(s.annualizedPct) : "—"}
                           </td>
                         </>
                       ) : (
@@ -360,12 +338,8 @@ export function ListsSidebar({
               type="button"
               className={`lists-ghost-icon${holdingsEditMode ? " active" : ""}`}
               onClick={() => setHoldingsEditMode((v) => !v)}
-              title={
-                holdingsEditMode ? t("portfolio.editDone") : t("portfolio.edit")
-              }
-              aria-label={
-                holdingsEditMode ? t("portfolio.editDone") : t("portfolio.edit")
-              }
+              title={holdingsEditMode ? t("portfolio.editDone") : t("portfolio.edit")}
+              aria-label={holdingsEditMode ? t("portfolio.editDone") : t("portfolio.edit")}
               aria-pressed={holdingsEditMode}
             >
               <IconEdit size={14} />
@@ -386,14 +360,10 @@ export function ListsSidebar({
           <p className="muted flat-empty">{t("lists.loading")}</p>
         )}
         {holdingsLoading && holdings.length > 0 && (
-          <p className="muted lists-refresh-hint">
-            {t("portfolio.quotesUpdating")}
-          </p>
+          <p className="muted lists-refresh-hint">{t("portfolio.quotesUpdating")}</p>
         )}
         {holdingsRefreshing && holdings.length > 0 && (
-          <p className="muted lists-refresh-hint">
-            {t("portfolio.quotesUpdating")}
-          </p>
+          <p className="muted lists-refresh-hint">{t("portfolio.quotesUpdating")}</p>
         )}
         {!holdingsLoading && holdings.length === 0 && !inlineTradeOpen && (
           <p className="muted flat-empty">{t("portfolio.empty")}</p>
@@ -486,16 +456,8 @@ export function ListsSidebar({
               type="button"
               className={`lists-ghost-icon${watchlistEditMode ? " active" : ""}`}
               onClick={() => setWatchlistEditMode((v) => !v)}
-              title={
-                watchlistEditMode
-                  ? t("portfolio.editDone")
-                  : t("portfolio.edit")
-              }
-              aria-label={
-                watchlistEditMode
-                  ? t("portfolio.editDone")
-                  : t("portfolio.edit")
-              }
+              title={watchlistEditMode ? t("portfolio.editDone") : t("portfolio.edit")}
+              aria-label={watchlistEditMode ? t("portfolio.editDone") : t("portfolio.edit")}
               aria-pressed={watchlistEditMode}
             >
               <IconEdit size={14} />
@@ -561,9 +523,7 @@ export function ListsSidebar({
                       {label}
                     </span>
                     <span className="mono lists-stock-meta">{w.symbol}</span>
-                    <span className="mono lists-stock-price">
-                      {q ? formatPrice(q.price) : "—"}
-                    </span>
+                    <span className="mono lists-stock-price">{q ? formatPrice(q.price) : "—"}</span>
                     <span className={`mono ${signedClass(q?.change_pct ?? 0)}`}>
                       {q ? formatSignedPct(q.change_pct) : "—"}
                     </span>

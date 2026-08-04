@@ -29,9 +29,7 @@ export function SectorMoversPanel({
 
   if (loading) return null;
 
-  const hasContent =
-    data &&
-    (data.gainers.some((g) => g.name) || data.losers.some((l) => l.name));
+  const hasContent = data && (data.gainers.some((g) => g.name) || data.losers.some((l) => l.name));
   if (!hasContent) return null;
 
   function renderColumn(title: string, items: SectorMovers["gainers"]) {
@@ -55,9 +53,7 @@ export function SectorMoversPanel({
                 <button
                   type="button"
                   className="sector-movers-leader"
-                  onClick={() =>
-                    onSelectLeader(item.leader_symbol, item.leader_name)
-                  }
+                  onClick={() => onSelectLeader(item.leader_symbol, item.leader_name)}
                 >
                   {item.leader_name}
                 </button>
@@ -70,10 +66,7 @@ export function SectorMoversPanel({
   }
 
   return (
-    <CollapsibleSection
-      title={t("sectors.title")}
-      className="sector-movers-panel"
-    >
+    <CollapsibleSection title={t("sectors.title")} className="sector-movers-panel">
       <div className="sector-movers-grid">
         {renderColumn(t("sectors.gainers"), data!.gainers)}
         {renderColumn(t("sectors.losers"), data!.losers)}

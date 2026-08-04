@@ -19,11 +19,7 @@ export function GlossaryProvider({
   terms,
   children,
 }: GlossaryContextValue & { children: ReactNode }) {
-  return (
-    <GlossaryContext.Provider value={{ enabled, terms }}>
-      {children}
-    </GlossaryContext.Provider>
-  );
+  return <GlossaryContext.Provider value={{ enabled, terms }}>{children}</GlossaryContext.Provider>;
 }
 
 export function useGlossaryContext(): GlossaryContextValue {

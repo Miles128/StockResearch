@@ -885,9 +885,7 @@
   padding: 8px 4px;
 }
 
-.copilot-thread-rail.collapsed
-  .copilot-thread-rail-head
-  span:not(.copilot-thread-chevron) {
+.copilot-thread-rail.collapsed .copilot-thread-rail-head span:not(.copilot-thread-chevron) {
   display: none;
 }
 

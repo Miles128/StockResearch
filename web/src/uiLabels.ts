@@ -67,22 +67,15 @@ export function positionActionCssClass(action: string): string {
   if (key === "stream.actions.high") return "reduce";
   if (key === "stream.actions.low") return "add";
   if (key === "stream.actions.noChange") return "hold_no_change";
-  if (key === "stream.actions.control" || key === "stream.actions.neutral")
-    return "hold";
+  if (key === "stream.actions.control" || key === "stream.actions.neutral") return "hold";
   const localized = action.toLowerCase();
-  if (localized.includes("overweight") || localized.includes("high"))
-    return "reduce";
-  if (localized.includes("underweight") || localized.includes("low"))
-    return "add";
+  if (localized.includes("overweight") || localized.includes("high")) return "reduce";
+  if (localized.includes("underweight") || localized.includes("low")) return "add";
   if (localized.includes("no change")) return "hold_no_change";
   return "hold";
 }
 
-export function localizeAgentDisplay(
-  agentId: string,
-  fallback: string,
-  t: TFn,
-): string {
+export function localizeAgentDisplay(agentId: string, fallback: string, t: TFn): string {
   const byId = t(`stream.agents.${agentId}`);
   if (byId !== `stream.agents.${agentId}`) return byId;
 
@@ -129,8 +122,7 @@ export function localizeDebateAgentName(name: string, t: TFn): string {
   const key = AGENT_ZH_TO_KEY[name];
   if (key) {
     const label = t(`stream.agents.${key}`);
-    if (label !== `stream.agents.${key}`)
-      return `${label} ${t("card.analyst")}`;
+    if (label !== `stream.agents.${key}`) return `${label} ${t("card.analyst")}`;
   }
   return `${name} ${t("card.analyst")}`;
 }

@@ -29,10 +29,7 @@ function statusText(item: DataSourceDetail, locale: "zh" | "en"): string {
   return map[item.status];
 }
 
-function confidenceText(
-  confidence: DataSourceDetail["confidence"],
-  locale: "zh" | "en",
-): string {
+function confidenceText(confidence: DataSourceDetail["confidence"], locale: "zh" | "en"): string {
   if (locale === "en") {
     const map: Record<DataSourceDetail["confidence"], string> = {
       verified: "Verified",
@@ -71,9 +68,7 @@ function formatTime(value: string | null, locale: "zh" | "en"): string {
 export function DataSourceDetails({ status, onClose }: DataSourceDetailsProps) {
   const { locale } = useI18n();
   const details = status?.details ?? [];
-  const degraded = details.some(
-    (item) => item.status === "degraded" || item.status === "missing",
-  );
+  const degraded = details.some((item) => item.status === "degraded" || item.status === "missing");
 
   return (
     <div className="modal-overlay" role="presentation" onMouseDown={onClose}>
@@ -96,11 +91,7 @@ export function DataSourceDetails({ status, onClose }: DataSourceDetailsProps) {
                 : "Inspect source, cache, mock and degradation status for current market data."}
             </p>
           </div>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={onClose}
-          >
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>
             {locale === "zh" ? "关闭" : "Close"}
           </button>
         </header>
@@ -124,10 +115,7 @@ export function DataSourceDetails({ status, onClose }: DataSourceDetailsProps) {
 
         <div className="data-source-list">
           {details.map((item) => (
-            <article
-              className="data-source-item"
-              key={`${item.domain}-${item.label}`}
-            >
+            <article className="data-source-item" key={`${item.domain}-${item.label}`}>
               <div className="data-source-item-main">
                 <div>
                   <span className="data-source-layer">{item.layer}</span>
@@ -150,18 +138,12 @@ export function DataSourceDetails({ status, onClose }: DataSourceDetailsProps) {
                 <div>
                   <dt>{locale === "zh" ? "缓存 / Mock" : "Cache / Mock"}</dt>
                   <dd>
-                    {item.is_cached
-                      ? locale === "zh"
-                        ? "缓存"
-                        : "Cached"
-                      : "Live"}
+                    {item.is_cached ? (locale === "zh" ? "缓存" : "Cached") : "Live"}
                     {item.is_mock ? " · Mock" : ""}
                   </dd>
                 </div>
               </dl>
-              {item.degraded_reason && (
-                <p className="data-source-reason">{item.degraded_reason}</p>
-              )}
+              {item.degraded_reason && <p className="data-source-reason">{item.degraded_reason}</p>}
             </article>
           ))}
           {details.length === 0 && (

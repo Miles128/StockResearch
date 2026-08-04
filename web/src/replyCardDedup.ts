@@ -16,11 +16,8 @@ export function cardsWithoutReplyDuplicate(
   const reply = stripDisclaimer(replyContent).trim();
   if (!reply) return cards;
   return cards.filter((card) => {
-    if (card.type !== "text" || !card.data || !("content" in card.data))
-      return true;
-    const text = String(
-      (card.data as { content: string }).content || "",
-    ).trim();
+    if (card.type !== "text" || !card.data || !("content" in card.data)) return true;
+    const text = String((card.data as { content: string }).content || "").trim();
     if (!text) return false;
     if (text === reply || reply.includes(text)) return false;
     return true;

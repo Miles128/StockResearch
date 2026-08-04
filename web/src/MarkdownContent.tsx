@@ -24,22 +24,14 @@ interface MarkdownContentProps {
 }
 
 function resolveTermId(props: Record<string, unknown>): string {
-  const node = props.node as
-    { properties?: Record<string, unknown> } | undefined;
+  const node = props.node as { properties?: Record<string, unknown> } | undefined;
   const properties = node?.properties ?? {};
   return String(
-    properties.dataId ??
-      properties["data-id"] ??
-      props.dataId ??
-      props["data-id"] ??
-      "",
+    properties.dataId ?? properties["data-id"] ?? props.dataId ?? props["data-id"] ?? "",
   );
 }
 
-export function MarkdownContent({
-  text,
-  className = "markdown-body",
-}: MarkdownContentProps) {
+export function MarkdownContent({ text, className = "markdown-body" }: MarkdownContentProps) {
   const { enabled, terms: contextTerms } = useGlossaryContext();
   const fetchedTerms = useGlossary();
   const glossary = useMemo(() => {

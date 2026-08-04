@@ -16,11 +16,7 @@ export function ModeSwitcher({ settings, onSwitch }: ModeSwitcherProps) {
   const pristine = isPristinePreset(settings);
 
   return (
-    <div
-      className="mode-switcher"
-      role="tablist"
-      aria-label={t("mode.switchTitle")}
-    >
+    <div className="mode-switcher" role="tablist" aria-label={t("mode.switchTitle")}>
       <button
         type="button"
         role="tab"
@@ -30,9 +26,7 @@ export function ModeSwitcher({ settings, onSwitch }: ModeSwitcherProps) {
         title={t("mode.advisorHint")}
       >
         {t("mode.advisor")}
-        {settings.mode === "advisor" && !pristine && (
-          <span className="mode-dot" />
-        )}
+        {settings.mode === "advisor" && !pristine && <span className="mode-dot" />}
       </button>
       <button
         type="button"
@@ -43,9 +37,7 @@ export function ModeSwitcher({ settings, onSwitch }: ModeSwitcherProps) {
         title={t("mode.researchHint")}
       >
         {t("mode.research")}
-        {settings.mode === "research" && !pristine && (
-          <span className="mode-dot" />
-        )}
+        {settings.mode === "research" && !pristine && <span className="mode-dot" />}
       </button>
     </div>
   );

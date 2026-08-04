@@ -10,14 +10,10 @@ interface JudgeVerdictCardProps {
 
 export function JudgeVerdictCard({ verdict, isTyping }: JudgeVerdictCardProps) {
   const { t } = useI18n();
-  const actionKey = positionActionCssClass(
-    verdict.position_action ?? "仓位适中",
-  );
+  const actionKey = positionActionCssClass(verdict.position_action ?? "仓位适中");
 
   return (
-    <div
-      className={`message assistant stream-msg stream-judge action-${actionKey}`}
-    >
+    <div className={`message assistant stream-msg stream-judge action-${actionKey}`}>
       <div className="stream-msg-head">
         <strong>{t("stream.judge")}</strong>
         {isTyping && <span className="muted">{t("stream.typing")}</span>}
@@ -76,9 +72,7 @@ export function JudgeVerdictCard({ verdict, isTyping }: JudgeVerdictCardProps) {
               </div>
             ))}
           </div>
-          <p className="stream-section-title">
-            {t("stream.portfolioConclusion")}
-          </p>
+          <p className="stream-section-title">{t("stream.portfolioConclusion")}</p>
           <div className="stream-msg-body">
             <MarkdownContent text={verdict.summary} />
           </div>
@@ -89,9 +83,7 @@ export function JudgeVerdictCard({ verdict, isTyping }: JudgeVerdictCardProps) {
           )}
           {verdict.divergence && (
             <div className="stream-msg-body muted">
-              <MarkdownContent
-                text={`${t("stream.divergence")}: ${verdict.divergence}`}
-              />
+              <MarkdownContent text={`${t("stream.divergence")}: ${verdict.divergence}`} />
             </div>
           )}
         </>
@@ -108,9 +100,7 @@ export function JudgeVerdictCard({ verdict, isTyping }: JudgeVerdictCardProps) {
           )}
           {verdict.divergence && (
             <div className="stream-msg-body muted">
-              <MarkdownContent
-                text={`${t("stream.divergence")}: ${verdict.divergence}`}
-              />
+              <MarkdownContent text={`${t("stream.divergence")}: ${verdict.divergence}`} />
             </div>
           )}
         </>

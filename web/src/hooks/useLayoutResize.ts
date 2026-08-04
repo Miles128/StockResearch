@@ -1,15 +1,5 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type Dispatch,
-  type SetStateAction,
-} from "react";
-import {
-  loadLayoutSettings,
-  saveLayoutSettings,
-  type LayoutSettings,
-} from "../layoutSettings";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { loadLayoutSettings, saveLayoutSettings, type LayoutSettings } from "../layoutSettings";
 
 export type LayoutResizeAxis = "copilot-x" | "lists" | "y";
 
@@ -21,9 +11,7 @@ export interface LayoutResizeState {
 }
 
 export function useLayoutResize(): LayoutResizeState {
-  const [layoutSettings, setLayoutSettings] = useState<LayoutSettings>(() =>
-    loadLayoutSettings(),
-  );
+  const [layoutSettings, setLayoutSettings] = useState<LayoutSettings>(() => loadLayoutSettings());
   const resizingRef = useRef(false);
   const resizingAxisRef = useRef<LayoutResizeAxis>("copilot-x");
 

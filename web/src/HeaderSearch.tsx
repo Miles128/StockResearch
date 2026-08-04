@@ -88,11 +88,7 @@ export function HeaderSearch({ onSelectStock, onAskQuery }: HeaderSearchProps) {
       />
       {showDropdown && (
         <div className="search-suggest" role="listbox">
-          {loading && (
-            <div className="search-suggest-item muted">
-              {t("search.searching")}
-            </div>
-          )}
+          {loading && <div className="search-suggest-item muted">{t("search.searching")}</div>}
           {!loading &&
             showCandidates &&
             lookup.candidates.map((c) => (
@@ -107,9 +103,7 @@ export function HeaderSearch({ onSelectStock, onAskQuery }: HeaderSearchProps) {
               </button>
             ))}
           {!loading && lookup?.status === "not_found" && (
-            <div className="search-suggest-item muted">
-              {t("search.notFound")}
-            </div>
+            <div className="search-suggest-item muted">{t("search.notFound")}</div>
           )}
         </div>
       )}

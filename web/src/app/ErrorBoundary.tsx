@@ -5,10 +5,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-export class ErrorBoundary extends Component<
-  { children: ReactNode },
-  ErrorBoundaryState
-> {
+export class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
   constructor(props: { children: ReactNode }) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -27,9 +24,7 @@ export class ErrorBoundary extends Component<
       return (
         <div style={{ padding: 24, color: "#ff6b6b", fontFamily: "monospace" }}>
           <h2>Something went wrong</h2>
-          <pre style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>
-            {this.state.error?.message}
-          </pre>
+          <pre style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>{this.state.error?.message}</pre>
           <button
             type="button"
             onClick={() => this.setState({ hasError: false, error: null })}

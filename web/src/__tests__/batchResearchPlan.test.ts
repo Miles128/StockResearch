@@ -7,15 +7,14 @@ import {
 
 describe("planBatchResearchSymbols", () => {
   it("dedupes and trims symbols, keeping first-seen order", () => {
-    expect(
-      planBatchResearchSymbols([" 600519 ", "600519", "000858", "000858"]),
-    ).toEqual(["600519", "000858"]);
+    expect(planBatchResearchSymbols([" 600519 ", "600519", "000858", "000858"])).toEqual([
+      "600519",
+      "000858",
+    ]);
   });
 
   it("drops empty/null entries", () => {
-    expect(
-      planBatchResearchSymbols(["", null, undefined, "  ", "600036"]),
-    ).toEqual(["600036"]);
+    expect(planBatchResearchSymbols(["", null, undefined, "  ", "600036"])).toEqual(["600036"]);
   });
 
   it(`caps at ${BATCH_RESEARCH_LIMIT} symbols`, () => {
@@ -23,9 +22,7 @@ describe("planBatchResearchSymbols", () => {
     const out = planBatchResearchSymbols(symbols);
     expect(out).toHaveLength(BATCH_RESEARCH_LIMIT);
     expect(out[0]).toBe("600000");
-    expect(out[BATCH_RESEARCH_LIMIT - 1]).toBe(
-      String(600000 + BATCH_RESEARCH_LIMIT - 1),
-    );
+    expect(out[BATCH_RESEARCH_LIMIT - 1]).toBe(String(600000 + BATCH_RESEARCH_LIMIT - 1));
   });
 
   it("supports a custom limit", () => {
