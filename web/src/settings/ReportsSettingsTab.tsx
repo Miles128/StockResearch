@@ -442,7 +442,7 @@ export function ReportsSettingsTab({
               </strong>
               <span className="settings-muted">
                 {row.bars_adjust}/{row.bars_source}
-                {row.partial ? " · partial" : ""}
+                {row.partial ? ` · ${t("batch.partial")}` : ""}
               </span>
               <p className="settings-muted">
                 {row.factors

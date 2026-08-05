@@ -122,7 +122,7 @@ export const zh: Dict = {
     bell: "提醒",
     empty: "暂无新提醒",
     markAllRead: "全部已读",
-    threshold: "阈值 ±{pct}%",
+    threshold: "提醒线 ±{pct}%",
   },
   mode: {
     advisor: "个人",
@@ -743,7 +743,7 @@ export const zh: Dict = {
     postHocRow: "{days}日 {ret}%",
     postHocEmpty: "尚无足够后续行情",
     factorVerified: "已验证",
-    factorPartial: "部分验证",
+    factorPartial: "数据不全",
     factorMissing: "未验证",
     evidence: "证据",
     missing: "缺口",
