@@ -71,8 +71,7 @@ async def test_path_research(client: TestClient) -> None:
     data = resp.json()
     assert data["symbol"] == "600519"
     assert "dimensions" in data
-    assert "debate" in data
-    assert data["debate"] is not None
+    assert "debate" not in data
     assert "disclaimer" in data
 
 

@@ -12,10 +12,6 @@ from sqlalchemy.orm import Session
 
 from stockresearch.agents.industry.stream import run_industry_research_stream
 from stockresearch.agents.market.research_stream import run_market_research_stream
-from stockresearch.agents.master_commentary.debate import stream_master_debate
-from stockresearch.agents.master_commentary.registry import resolve_master_ids
-from stockresearch.agents.master_commentary.schemas import MasterCommentaryOut
-from stockresearch.agents.master_commentary.stream import stream_master_commentary
 from stockresearch.agents.orchestrator.complexity import extract_industry_sector
 from stockresearch.agents.research.stream import run_research_stream
 from stockresearch.agents.risk.stream import run_risk_checkup_stream
@@ -49,37 +45,24 @@ PACKAGED_SKILLS: tuple[PackagedSkill, ...] = (
     PackagedSkill(
         "skill_stock_research",
         "个股四维投研",
-        "基本面/技术面/情绪/筹码四维分析；可选多空辩论；"
+        "基本面/技术面/情绪/筹码四维分析；"
         "analysis_depth=standard|comprehensive|deep（标准/综合/深度预算）；"
         "用户说「只补缺口再跑/补充数据」时必须调用本 Skill，"
         "analysis_depth≥comprehensive，并在 context 列出待补缺口",
-        '{"symbol": "600519", "with_debate": false, "analysis_depth": "comprehensive", '
+        '{"symbol": "600519", "analysis_depth": "comprehensive", '
         '"context": "可选：缺口列表或前文补充说明"}',
     ),
     PackagedSkill(
         "skill_market_research",
         "大盘四维投研",
-        "宏观/行业/技术/情绪市场级分析；可选多空辩论",
-        '{"query": "可选聚焦问题", "with_debate": false, "context": "可选"}',
+        "宏观/行业/技术/情绪市场级分析",
+        '{"query": "可选聚焦问题", "context": "可选"}',
     ),
     PackagedSkill(
         "skill_industry_research",
         "行业板块投研",
         "板块四维分析、龙头扫描",
-        '{"sector": "半导体", "query": "可选", "with_debate": false}',
-    ),
-    PackagedSkill(
-        "skill_bull_bear_debate",
-        "多空辩论",
-        "对已完成的投研报告或指定个股启动多空辩论+裁判（需 symbol 或依赖上文投研）",
-        '{"symbol": "600519", "context": "可选：前文摘要或焦点"}',
-    ),
-    PackagedSkill(
-        "skill_master_commentary",
-        "大师风格点评",
-        "基于上文投研/风控/新闻摘要，按用户选定大师生成点评；多大师时可互相辩论",
-        '{"subject": "标的或主题", "context": "必填：待点评的摘要或报告", '
-        '"master_ids": ["buffett","munger"], "debate_masters": true}',
+        '{"sector": "半导体", "query": "可选"}',
     ),
     PackagedSkill(
         "skill_chart_overlays",
@@ -120,8 +103,6 @@ class SkillRunner:
         user_id: int,
         holdings: list[Holding],
         mode_settings: ModeSettingsOut,
-        debate_default: bool,
-        master_default: bool,
         confirmed_symbol: str | None = None,
         confirmed_name: str | None = None,
         on_event: EventCallback | None = None,
@@ -131,8 +112,6 @@ class SkillRunner:
         self._user_id = user_id
         self._holdings = holdings
         self._settings = mode_settings
-        self._debate_default = debate_default
-        self._master_default = master_default
         self._confirmed_symbol = confirmed_symbol
         self._confirmed_name = confirmed_name
         self._on_event = on_event
@@ -164,10 +143,6 @@ class SkillRunner:
                 result = await self._run_market_research(run_id, args)
             elif skill_id == "skill_industry_research":
                 result = await self._run_industry_research(run_id, args)
-            elif skill_id == "skill_bull_bear_debate":
-                result = await self._run_bull_bear(run_id, args)
-            elif skill_id == "skill_master_commentary":
-                result = await self._run_master_commentary(run_id, args)
             elif skill_id == "skill_chart_overlays":
                 result = await self._run_chart_overlays(run_id, args)
             else:
@@ -228,15 +203,8 @@ class SkillRunner:
     async def _run_risk(self, run_id: str) -> SkillRunResult:
         if not self._holdings:
             return SkillRunResult(summary="暂无持仓，无法做风控体检。", partial=True)
-        master_kwargs: dict[str, object] = {}
-        if self._master_default:
-            master_kwargs = {
-                "enable_master_commentary": True,
-                "mode_settings": self._settings,
-                "master_ids": resolve_master_ids(self._settings),
-            }
         payload: dict[str, object] | None = None
-        async for event in run_risk_checkup_stream(self._holdings, llm=self._llm, **master_kwargs):
+        async for event in run_risk_checkup_stream(self._holdings, llm=self._llm):
             if event.get("type") == "done":
                 raw = event.get("result")
                 if isinstance(raw, dict):
@@ -275,7 +243,6 @@ class SkillRunner:
                 symbol = resolved.symbol
         if not symbol:
             return SkillRunResult(summary="请提供 symbol 参数", error="missing_symbol")
-        with_debate = bool(args.get("with_debate", self._debate_default))
         from stockresearch.agents.research.budget import resolve_analysis_depth
 
         utterance = " ".join(
@@ -286,23 +253,12 @@ class SkillRunner:
             utterance=utterance or None,
             settings_depth=self._settings.analysis_depth,
         )
-        master_kwargs: dict[str, object] = {
-            "mode_settings": self._settings,
-            "analysis_depth": depth,
-        }
-        if self._master_default:
-            master_kwargs.update(
-                {
-                    "enable_master_commentary": True,
-                    "master_ids": resolve_master_ids(self._settings),
-                }
-            )
         payload: dict[str, object] | None = None
         async for event in run_research_stream(
             symbol,
             llm=self._llm,
-            with_debate=with_debate,
-            **master_kwargs,
+            mode_settings=self._settings,
+            analysis_depth=depth,
         ):
             if event.get("type") == "done":
                 raw = event.get("result")
@@ -325,20 +281,11 @@ class SkillRunner:
 
     async def _run_market_research(self, run_id: str, args: dict[str, Any]) -> SkillRunResult:
         query = str(args.get("query") or args.get("context") or "A股市场").strip()
-        with_debate = bool(args.get("with_debate", self._debate_default))
-        master_kwargs: dict[str, object] = {}
-        if self._master_default:
-            master_kwargs = {
-                "enable_master_commentary": True,
-                "mode_settings": self._settings,
-                "master_ids": resolve_master_ids(self._settings),
-            }
         payload: dict[str, object] | None = None
         async for event in run_market_research_stream(
             query,
             llm=self._llm,
-            with_debate=with_debate,
-            **master_kwargs,
+            mode_settings=self._settings,
         ):
             if event.get("type") == "done":
                 raw = event.get("result")
@@ -361,14 +308,6 @@ class SkillRunner:
             sectors = [h.sector for h in self._holdings]
             sector = extract_industry_sector(str(args.get("query", "")), sectors) or "行业"
         query = str(args.get("query") or f"{sector}行业研究").strip()
-        with_debate = bool(args.get("with_debate", self._debate_default))
-        master_kwargs: dict[str, object] = {}
-        if self._master_default:
-            master_kwargs = {
-                "enable_master_commentary": True,
-                "mode_settings": self._settings,
-                "master_ids": resolve_master_ids(self._settings),
-            }
         payload: dict[str, object] | None = None
         async for event in run_industry_research_stream(
             self._db,
@@ -376,8 +315,7 @@ class SkillRunner:
             sector,
             query,
             self._llm,
-            with_debate=with_debate,
-            **master_kwargs,
+            mode_settings=self._settings,
         ):
             if event.get("type") == "done":
                 raw = event.get("result")
@@ -393,95 +331,5 @@ class SkillRunner:
         return SkillRunResult(
             summary=report.summary,
             cards=[{"type": "research", "data": payload}],
-            intent="research",
-        )
-
-    async def _run_bull_bear(self, run_id: str, args: dict[str, Any]) -> SkillRunResult:
-        symbol = str(args.get("symbol", "")).strip()
-        if not symbol:
-            return SkillRunResult(summary="多空辩论需要 symbol 参数", error="missing_symbol")
-        return await self._run_stock_research(
-            run_id,
-            {"symbol": symbol, "with_debate": True, **args},
-        )
-
-    async def _run_master_commentary(self, run_id: str, args: dict[str, Any]) -> SkillRunResult:
-        context = str(args.get("context", "")).strip()
-        subject = str(args.get("subject", "分析标的")).strip()
-        if not context:
-            return SkillRunResult(
-                summary="大师点评需要 context 参数（前文投研/风控/新闻摘要）",
-                error="missing_context",
-            )
-        master_ids = args.get("master_ids")
-        if not isinstance(master_ids, list) or not master_ids:
-            master_ids = resolve_master_ids(self._settings)
-        else:
-            master_ids = [str(m) for m in master_ids]
-        debate_masters = bool(args.get("debate_masters", len(master_ids) >= 2))
-
-        commentary_payloads: list[dict[str, Any]] = []
-        master_models: list[MasterCommentaryOut] = []
-
-        async for event in stream_master_commentary(
-            self._llm,
-            subject,
-            context,
-            settings=self._settings,
-            masters=master_ids,
-        ):
-            if event.get("type") == "master_commentary":
-                raw = event.get("commentary")
-                if isinstance(raw, list):
-                    commentary_payloads = raw
-            else:
-                await self._forward(run_id, event)
-
-        for item in commentary_payloads:
-            sig = str(item.get("signal", "neutral"))
-            if sig not in ("bullish", "neutral", "bearish"):
-                sig = "neutral"
-            master_models.append(
-                MasterCommentaryOut(
-                    master=str(item.get("master", "")),
-                    signal=sig,  # type: ignore[arg-type]
-                    confidence=float(item.get("confidence", 0.5)),
-                    reasoning=str(item.get("reasoning", "")),
-                    key_metric=str(item.get("key_metric", "")),
-                )
-            )
-
-        debate_summary = ""
-        if debate_masters and len(master_models) >= 2:
-            async for event in stream_master_debate(
-                self._llm,
-                subject,
-                master_models,
-                settings=self._settings,
-            ):
-                await self._forward(run_id, event)
-                if event.get("type") == "master_debate_done":
-                    debate_summary = (
-                        f"共识：{event.get('consensus', '')}；分歧：{event.get('divergence', '')}"
-                    )
-
-        lines = [
-            f"[{c.get('name', c.get('master', ''))}] {c.get('reasoning', '')}"
-            for c in commentary_payloads
-        ]
-        summary = "\n".join(lines)
-        if debate_summary:
-            summary = f"{summary}\n\n大师交叉辩论：{debate_summary}"
-
-        card_data: dict[str, object] = {
-            "subject": subject,
-            "commentary": commentary_payloads,
-        }
-        if debate_summary:
-            card_data["master_debate_summary"] = debate_summary
-
-        return SkillRunResult(
-            summary=summary or "大师点评已完成",
-            cards=[{"type": "master", "data": card_data}],
             intent="research",
         )

@@ -47,12 +47,7 @@ function ProcessStreamFeed({
 }) {
   const { t } = useI18n();
   const topHasBody =
-    process.streamLog.length > 0 ||
-    process.agentSteps.length > 0 ||
-    process.debateRounds.length > 0 ||
-    process.judgeVerdict != null ||
-    process.voteTally != null ||
-    process.masterCommentary.length > 0;
+    process.streamLog.length > 0 || process.agentSteps.length > 0 || process.judgeVerdict != null;
   const singleSkill = process.skillSteps.length === 1 && !topHasBody;
 
   return (
@@ -64,10 +59,7 @@ function ProcessStreamFeed({
             streamStatus={skill.nested.streamStatus || statusMsg}
             streamLog={skill.nested.streamLog}
             agentSteps={skill.nested.agentSteps}
-            debateRounds={skill.nested.debateRounds}
             judgeVerdict={skill.nested.judgeVerdict}
-            voteTally={skill.nested.voteTally}
-            masterCommentary={skill.nested.masterCommentary}
             activeStreamIds={skill.nested.activeStreamIds}
             live={live}
           />
@@ -87,10 +79,7 @@ function ProcessStreamFeed({
               streamStatus={skill.nested.streamStatus || statusMsg}
               streamLog={skill.nested.streamLog}
               agentSteps={skill.nested.agentSteps}
-              debateRounds={skill.nested.debateRounds}
               judgeVerdict={skill.nested.judgeVerdict}
-              voteTally={skill.nested.voteTally}
-              masterCommentary={skill.nested.masterCommentary}
               activeStreamIds={skill.nested.activeStreamIds}
               live={live}
             />
@@ -102,10 +91,7 @@ function ProcessStreamFeed({
           streamStatus={process.streamStatus || statusMsg}
           streamLog={process.streamLog}
           agentSteps={process.agentSteps}
-          debateRounds={process.debateRounds}
           judgeVerdict={process.judgeVerdict}
-          voteTally={process.voteTally}
-          masterCommentary={process.masterCommentary}
           activeStreamIds={process.activeStreamIds}
           live={live}
         />

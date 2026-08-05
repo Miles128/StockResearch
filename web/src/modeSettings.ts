@@ -12,15 +12,6 @@ export type AnalysisDepth = "standard" | "comprehensive" | "deep";
 export type RiskTolerance = "conservative" | "moderate" | "aggressive";
 export type HoldingsView = "table" | "cards";
 
-export const BUILTIN_MASTER_IDS = ["buffett", "munger", "burry"] as const;
-export type BuiltinMasterId = (typeof BUILTIN_MASTER_IDS)[number];
-
-export interface CustomMaster {
-  id: string;
-  name: string;
-  systemPrompt: string;
-}
-
 export interface CustomGlossaryTerm {
   id: string;
   short: string;
@@ -35,13 +26,9 @@ export interface ModeSettings {
   monthlyIncome?: number;
   readingMode: ReadingMode;
   analysisDepth: AnalysisDepth;
-  enableDebate: boolean;
   enableGlossary: boolean;
   maxSignals: number;
   onboarded: boolean;
-  enableMasterCommentary: boolean;
-  selectedMasters: string[];
-  customMasters: CustomMaster[];
   customGlossary: CustomGlossaryTerm[];
   holdingsView: HoldingsView;
   quoteRefreshMinutes: number;
@@ -51,27 +38,6 @@ export interface ModeSettings {
 
 const STORAGE_KEY = "stockresearch.mode.settings";
 const LEGACY_ANALYSIS_KEY = "stockresearch.analysis.settings";
-
-function migrateCustomMasters(raw: unknown): CustomMaster[] {
-  if (!Array.isArray(raw)) return [];
-  const out: CustomMaster[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== "object") continue;
-    const row = item as Partial<CustomMaster & { system_prompt?: string }>;
-    const id = typeof row.id === "string" ? row.id.trim().toLowerCase() : "";
-    const name = typeof row.name === "string" ? row.name.trim() : "";
-    const systemPrompt =
-      typeof row.systemPrompt === "string"
-        ? row.systemPrompt
-        : typeof row.system_prompt === "string"
-          ? row.system_prompt
-          : "";
-    if (id && name && systemPrompt.length >= 10) {
-      out.push({ id, name, systemPrompt });
-    }
-  }
-  return out;
-}
 
 function migrateCustomGlossary(raw: unknown): CustomGlossaryTerm[] {
   if (!Array.isArray(raw)) return [];
@@ -99,16 +65,10 @@ function migrateFromLegacyAnalysis(): Partial<ModeSettings> {
     const raw = localStorage.getItem(LEGACY_ANALYSIS_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Partial<{
-      enableDebate: boolean;
       readingMode: ReadingMode;
-      enableMasterCommentary: boolean;
       outputTone?: string;
     }>;
     const partial: Partial<ModeSettings> = {};
-    if (typeof parsed.enableDebate === "boolean") partial.enableDebate = parsed.enableDebate;
-    if (typeof parsed.enableMasterCommentary === "boolean") {
-      partial.enableMasterCommentary = parsed.enableMasterCommentary;
-    }
     if (parsed.readingMode === "professional") {
       partial.readingMode = "professional";
     } else if (parsed.readingMode === "friendly") {
@@ -133,18 +93,10 @@ function migrateModeSettings(parsed: unknown): Partial<ModeSettings> {
   const legacy = migrateFromLegacyAnalysis();
   if (!parsed || typeof parsed !== "object") return legacy;
   const partial = parsed as Partial<ModeSettings> & {
-    selected_masters?: string[];
-    custom_masters?: unknown;
     custom_glossary?: unknown;
-    enable_master_commentary?: boolean;
   };
   const mode: AppMode = partial.mode === "research" ? "research" : "advisor";
   const preset = mode === "advisor" ? ADVISOR_PRESET : RESEARCH_PRESET;
-  const selectedMasters = Array.isArray(partial.selectedMasters)
-    ? partial.selectedMasters.filter((id) => typeof id === "string")
-    : Array.isArray(partial.selected_masters)
-      ? partial.selected_masters.filter((id) => typeof id === "string")
-      : preset.selectedMasters;
 
   return {
     ...legacy,
@@ -175,22 +127,10 @@ function migrateModeSettings(parsed: unknown): Partial<ModeSettings> {
             (partial as { analysis_depth?: AnalysisDepth }).analysis_depth === "deep"
           ? (partial as { analysis_depth: AnalysisDepth }).analysis_depth
           : preset.analysisDepth,
-    enableDebate:
-      typeof partial.enableDebate === "boolean"
-        ? partial.enableDebate
-        : (legacy.enableDebate ?? preset.enableDebate),
     enableGlossary:
       typeof partial.enableGlossary === "boolean" ? partial.enableGlossary : preset.enableGlossary,
     maxSignals: typeof partial.maxSignals === "number" ? partial.maxSignals : preset.maxSignals,
     onboarded: typeof partial.onboarded === "boolean" ? partial.onboarded : false,
-    enableMasterCommentary:
-      typeof partial.enableMasterCommentary === "boolean"
-        ? partial.enableMasterCommentary
-        : typeof partial.enable_master_commentary === "boolean"
-          ? partial.enable_master_commentary
-          : (legacy.enableMasterCommentary ?? preset.enableMasterCommentary),
-    selectedMasters: selectedMasters.length > 0 ? selectedMasters : [...BUILTIN_MASTER_IDS],
-    customMasters: migrateCustomMasters(partial.customMasters ?? partial.custom_masters),
     customGlossary: migrateCustomGlossary(partial.customGlossary ?? partial.custom_glossary),
     holdingsView:
       partial.holdingsView === "cards" || partial.holdingsView === "table"
@@ -212,12 +152,6 @@ function migrateModeSettings(parsed: unknown): Partial<ModeSettings> {
   };
 }
 
-export interface CustomMasterApiPayload {
-  id: string;
-  name: string;
-  system_prompt: string;
-}
-
 export interface CustomGlossaryApiPayload {
   id: string;
   short: string;
@@ -232,13 +166,9 @@ export interface ModeSettingsApiPayload {
   monthly_income?: number | null;
   reading_mode: ReadingMode;
   analysis_depth: AnalysisDepth;
-  enable_debate: boolean;
   enable_glossary: boolean;
   max_signals: number;
   onboarded: boolean;
-  enable_master_commentary: boolean;
-  selected_masters: string[];
-  custom_masters: CustomMasterApiPayload[];
   custom_glossary: CustomGlossaryApiPayload[];
   quote_refresh_minutes: number;
   briefing_auto_enabled: boolean;
@@ -251,12 +181,8 @@ export const ADVISOR_PRESET: Omit<ModeSettings, "onboarded"> = {
   monthlyIncome: undefined,
   readingMode: "friendly",
   analysisDepth: "standard",
-  enableDebate: false,
   enableGlossary: true,
   maxSignals: 5,
-  enableMasterCommentary: false,
-  selectedMasters: [...BUILTIN_MASTER_IDS],
-  customMasters: [],
   customGlossary: [],
   holdingsView: "table",
   quoteRefreshMinutes: 10,
@@ -270,12 +196,8 @@ export const RESEARCH_PRESET: Omit<ModeSettings, "onboarded"> = {
   monthlyIncome: undefined,
   readingMode: "professional",
   analysisDepth: "comprehensive",
-  enableDebate: true,
   enableGlossary: false,
   maxSignals: 20,
-  enableMasterCommentary: false,
-  selectedMasters: [...BUILTIN_MASTER_IDS],
-  customMasters: [],
   customGlossary: [],
   holdingsView: "table",
   quoteRefreshMinutes: 10,
@@ -297,16 +219,12 @@ const modeSettingsStore = createLocalStorageStore<ModeSettings>({
 export function presetForMode(
   mode: AppMode,
   current: ModeSettings,
-): Pick<
-  ModeSettings,
-  "mode" | "readingMode" | "analysisDepth" | "enableDebate" | "enableGlossary" | "maxSignals"
-> {
+): Pick<ModeSettings, "mode" | "readingMode" | "analysisDepth" | "enableGlossary" | "maxSignals"> {
   const preset = mode === "advisor" ? ADVISOR_PRESET : RESEARCH_PRESET;
   return {
     mode,
     readingMode: preset.readingMode,
     analysisDepth: preset.analysisDepth,
-    enableDebate: preset.enableDebate,
     enableGlossary: preset.enableGlossary,
     maxSignals: preset.maxSignals,
   };
@@ -317,7 +235,6 @@ export function isPristinePreset(settings: ModeSettings): boolean {
   return (
     settings.readingMode === preset.readingMode &&
     settings.analysisDepth === preset.analysisDepth &&
-    settings.enableDebate === preset.enableDebate &&
     settings.enableGlossary === preset.enableGlossary &&
     settings.maxSignals === preset.maxSignals
   );
@@ -338,17 +255,9 @@ export function modeSettingsToApiPayload(settings: ModeSettings): ModeSettingsAp
     monthly_income: settings.monthlyIncome ?? null,
     reading_mode: settings.readingMode,
     analysis_depth: settings.analysisDepth,
-    enable_debate: settings.enableDebate,
     enable_glossary: settings.enableGlossary,
     max_signals: settings.maxSignals,
     onboarded: settings.onboarded,
-    enable_master_commentary: settings.enableMasterCommentary,
-    selected_masters: settings.selectedMasters,
-    custom_masters: settings.customMasters.map((m) => ({
-      id: m.id,
-      name: m.name,
-      system_prompt: m.systemPrompt,
-    })),
     custom_glossary: settings.customGlossary.map((term) => ({
       id: term.id,
       short: term.short,
@@ -389,23 +298,12 @@ export function modeSettingsFromApiPayload(payload: Partial<ModeSettingsApiPaylo
       payload.analysis_depth === "deep"
         ? payload.analysis_depth
         : preset.analysisDepth,
-    enableDebate:
-      typeof payload.enable_debate === "boolean" ? payload.enable_debate : preset.enableDebate,
     enableGlossary:
       typeof payload.enable_glossary === "boolean"
         ? payload.enable_glossary
         : preset.enableGlossary,
     maxSignals: typeof payload.max_signals === "number" ? payload.max_signals : preset.maxSignals,
     onboarded: typeof payload.onboarded === "boolean" ? payload.onboarded : false,
-    enableMasterCommentary:
-      typeof payload.enable_master_commentary === "boolean"
-        ? payload.enable_master_commentary
-        : preset.enableMasterCommentary,
-    selectedMasters:
-      Array.isArray(payload.selected_masters) && payload.selected_masters.length > 0
-        ? payload.selected_masters
-        : [...BUILTIN_MASTER_IDS],
-    customMasters: migrateCustomMasters(payload.custom_masters),
     customGlossary: migrateCustomGlossary(payload.custom_glossary),
     holdingsView: "table",
     quoteRefreshMinutes:
@@ -461,16 +359,12 @@ export const READING_MODE_I18N_KEYS: Record<
 };
 
 export function chatBodyField(): {
-  enable_debate: boolean;
-  enable_master_commentary: boolean;
   enable_glossary: boolean;
   reading_mode: ReadingMode;
   output_locale: "zh" | "en";
 } {
   const settings = loadModeSettings();
   return {
-    enable_debate: settings.enableDebate,
-    enable_master_commentary: settings.enableMasterCommentary,
     enable_glossary: settings.enableGlossary,
     reading_mode: settings.readingMode,
     output_locale: loadLocale(),

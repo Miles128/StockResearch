@@ -1,18 +1,10 @@
-"""Streaming multi-agent risk checkup — parallel analysts + bull/bear debate + judge."""
+"""Streaming multi-agent risk checkup — parallel analysts + judge."""
 
 import asyncio
 import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from typing import Any
 
-from stockresearch.agents.master_commentary.context import build_risk_context
-from stockresearch.agents.master_commentary.registry import resolve_master_ids
-from stockresearch.agents.master_commentary.stream import stream_master_commentary
-from stockresearch.agents.research.debate import (
-    iter_triangular_debate_events,
-    triangular_transcript,
-)
 from stockresearch.agents.risk import messages as risk_msg
 from stockresearch.agents.risk.engine import (
     _attach_daily_returns,
@@ -41,10 +33,9 @@ from stockresearch.agents.stream_typewriter import (
     iter_llm_stream_events,
     iter_merged_agent_streams_from_tasks,
 )
-from stockresearch.agents.voice import JUDGE_VOICE
+from stockresearch.agents.voice import AGENT_VOICE
 from stockresearch.core.schemas import (
     LLMRiskAnalysis,
-    MasterCommentaryItem,
     ModeSettingsOut,
     PortfolioMetricsOut,
     RiskAlertOut,
@@ -64,12 +55,9 @@ from stockresearch.utils.llm import LLMClient, get_llm_client
 
 logger = logging.getLogger(__name__)
 
-# Risk tab: one debate round keeps latency acceptable (full research still uses DEBATE_ROUNDS).
-_RISK_DEBATE_ROUNDS = 1
-
-_JUDGE_RISK_SYSTEM = f"""你是风控裁判 Agent。{JUDGE_VOICE} 只输出 JSON，禁止 markdown。
+_JUDGE_RISK_SYSTEM = f"""你是风控裁判 Agent。{AGENT_VOICE} 只输出 JSON，禁止 markdown。
 {{
-  "analysis_process": "分3-5步说明您如何从告警、分析与辩论证据推到结论，每步一句",
+  "analysis_process": "分3-5步说明您如何从告警与分析证据推到结论，每步一句",
   "risk_level": "低|中|高",
   "position_action": "组合仓位倾向：仓位偏高|仓位偏低|仓位适中|建议控制仓位",
   "holding_actions": [
@@ -173,17 +161,13 @@ async def run_risk_checkup_stream(
     holdings: list[Holding],
     llm: LLMClient | None = None,
     *,
-    enable_master_commentary: bool = False,
     enable_llm_analysis: bool = True,
     mode_settings: ModeSettingsOut | None = None,
-    master_ids: list[str] | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     """Stream risk checkup.
 
     PRD §四: 规则引擎 + 可选 LLM 解读。`enable_llm_analysis=False` 时跳过
-    parallel LLM agents / 三角辩论 / Research Manager / Judge,直接返回
-    规则告警 + 量化指标。`enable_llm_analysis` 同时控制 master_commentary
-    (后者还需 `enable_master_commentary=True`)。
+    parallel LLM agents / Judge,直接返回规则告警 + 量化指标。
     """
     client = llm or get_llm_client()
 
@@ -253,7 +237,7 @@ async def run_risk_checkup_stream(
         yield {"type": "done", "result": empty.model_dump(mode="json")}
         return
 
-    # PRD §四 可选 LLM：关闭时跳过 parallel agents / debate / manager / judge
+    # PRD §四 可选 LLM：关闭时跳过 parallel agents / judge
     if not enable_llm_analysis:
         if not alerts:
             summary = risk_msg.portfolio_summary_all_clear(len(holdings))
@@ -316,49 +300,6 @@ async def run_risk_checkup_stream(
             analysis[str(event["agent_id"])] = str(event.get("content", ""))
         yield event
 
-    debate_context = (
-        f"{context} | 市场：{analysis['market']} | "
-        f"相关：{analysis['correlation']} | 情景：{analysis['scenario']}"
-    )
-
-    debate_lines: list[str] = []
-    async for event in iter_triangular_debate_events(
-        client,
-        debate_context,
-        rounds=_RISK_DEBATE_ROUNDS,
-    ):
-        yield event
-        if event.get("type") == "debate_round":
-            round_num = event.get("round")
-            if isinstance(round_num, int):
-                debate_lines.append(
-                    f"第{round_num}轮激进：{event.get('aggressive', '')}\n"
-                    f"第{round_num}轮中性：{event.get('neutral_view', '')}\n"
-                    f"第{round_num}轮审慎：{event.get('conservative', '')}"
-                )
-
-    yield status_event("status.risk.manager")
-    yield {
-        "type": "agent_start",
-        "agent_id": "research_manager",
-        "agent_name": "Research Manager",
-        "role": "manager",
-    }
-    manager_summary = ""
-    async for event in iter_llm_stream_events(
-        stream_id="research_manager",
-        agent_id="research_manager",
-        agent_name="Research Manager",
-        role="manager",
-        llm=client,
-        system=f"你是风控 Research Manager。{JUDGE_VOICE} 用3-4句综合三方观点，说明最大分歧与您的倾向。",
-        user=f"{debate_context}\n{triangular_transcript(debate_lines)}",
-    ):
-        yield event
-        if event.get("type") == "agent_done":
-            manager_summary = str(event.get("content", "")).strip()
-    yield {"type": "manager", "content": manager_summary}
-
     yield status_event("status.risk.judge")
     yield {
         "type": "agent_start",
@@ -367,8 +308,8 @@ async def run_risk_checkup_stream(
         "role": "judge",
     }
     judge_user = (
-        f"{context}\n\n{debate_context}\n"
-        f"{triangular_transcript(debate_lines)}\nResearch Manager：{manager_summary}\n\n"
+        f"{context}\n\n市场：{analysis['market']} | 相关：{analysis['correlation']} | "
+        f"情景：{analysis['scenario']}\n\n"
         f"请对以上 {len(holdings)} 只持仓逐只给出 holding_actions，不可遗漏。"
     )
     judge_raw = ""
@@ -436,25 +377,5 @@ async def run_risk_checkup_stream(
         var_result=var_out,
         stress_results=stress_out,
     )
-
-    if enable_llm_analysis and enable_master_commentary and mode_settings is not None:
-        masters = master_ids or resolve_master_ids(mode_settings)
-        commentary_context = build_risk_context(result)
-        commentary: list[dict[str, Any]] = []
-        async for mc_event in stream_master_commentary(
-            client,
-            subject="组合风险分析",
-            context=commentary_context,
-            settings=mode_settings,
-            masters=masters,
-        ):
-            yield mc_event
-            if mc_event.get("type") == "master_commentary" and isinstance(
-                mc_event.get("commentary"), list
-            ):
-                commentary = mc_event["commentary"]
-        result.master_commentary = [
-            MasterCommentaryItem.model_validate(item) for item in commentary
-        ]
 
     yield {"type": "done", "result": result.model_dump(mode="json")}

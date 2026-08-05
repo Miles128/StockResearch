@@ -1,4 +1,4 @@
-import type { SkillStep, SkillStreamSlice, StreamState } from "./streamEvents";
+import type { SkillStep, StreamState } from "./streamEvents";
 import {
   dimensionDefsForKind,
   detectDimensionSet,
@@ -14,15 +14,7 @@ export type ProcessFlow =
   | "stock_research"
   | "market_research"
   | "industry_research"
-  | "debate"
-  | "risk"
-  | "master";
-
-const RESEARCH_SKILL_IDS = new Set([
-  "skill_stock_research",
-  "skill_market_research",
-  "skill_industry_research",
-]);
+  | "risk";
 
 function primarySkill(process: StreamState): SkillStep | undefined {
   if (process.activeSkillRunId) {
@@ -39,12 +31,8 @@ function skillToFlow(skillId: string): ProcessFlow | null {
       return "market_research";
     case "skill_industry_research":
       return "industry_research";
-    case "skill_bull_bear_debate":
-      return "debate";
     case "skill_risk_checkup":
       return "risk";
-    case "skill_master_commentary":
-      return "master";
     default:
       return null;
   }
@@ -64,10 +52,6 @@ function inferDimensionKind(process: StreamState): DimensionKind {
     return "market";
   }
   return "stock";
-}
-
-function sliceHasDebate(slice: SkillStreamSlice): boolean {
-  return slice.debateRounds.length > 0 || slice.judgeVerdict != null || slice.voteTally != null;
 }
 
 function looksLikePlanExecute(process: StreamState): boolean {
@@ -95,23 +79,12 @@ export function detectProcessFlow(process: StreamState): ProcessFlow {
     return "risk";
   }
 
-  if (
-    process.debateRounds.length > 0 ||
-    process.voteTally != null ||
-    process.skillSteps.some((s) => sliceHasDebate(s.nested))
-  ) {
-    const hasResearchSkill = process.skillSteps.some((s) => RESEARCH_SKILL_IDS.has(s.skillId));
-    if (!hasResearchSkill) return "debate";
-  }
-
   if (process.agentSteps.some((s) => isDimensionAgent(s.agent_id))) {
     const kind = inferDimensionKind(process);
     if (kind === "market") return "market_research";
     if (kind === "industry") return "industry_research";
     return "stock_research";
   }
-
-  if (process.masterCommentary.length > 0) return "master";
 
   if (looksLikePlanExecute(process)) return "plan";
 

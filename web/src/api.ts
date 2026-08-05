@@ -17,6 +17,23 @@ import { createJsonSseStream } from "./apiSse";
 
 export type { LlmSettingsMeta };
 
+/** Provider doctor — one-shot diagnostics snapshot. */
+export interface DiagnosticsItem {
+  key: string;
+  label: string;
+  ok: boolean;
+  detail: string;
+  hint?: string | null;
+  elapsed_ms?: number | null;
+}
+
+export interface DiagnosticsResult {
+  llm: DiagnosticsItem;
+  providers: DiagnosticsItem[];
+  env: DiagnosticsItem[];
+  generated_at: string;
+}
+
 /** Build-time optional origin, e.g. https://api.example.com (no trailing slash). */
 const API_ORIGIN =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -153,16 +170,6 @@ export interface AgentStreamEvent {
   role?: string;
   content?: string;
   round?: number;
-  bull?: string;
-  bear?: string;
-  aggressive?: string;
-  neutral_view?: string;
-  conservative?: string;
-  vote?: string;
-  bullish?: number;
-  bearish?: number;
-  neutral?: number;
-  leading?: string;
   verdict?: string;
   summary?: string;
   reason?: string;
@@ -226,6 +233,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(llmFormToApiBody(form)),
     }),
+  runDiagnostics: () => request<DiagnosticsResult>("/settings/diagnostics"),
   chat: (message: string, sessionId?: string, options?: ChatStreamOptions) =>
     requestWithLlm<ChatResponse>("/chat", {
       method: "POST",
@@ -443,7 +451,6 @@ export const api = {
         body: JSON.stringify({
           symbols,
           analysis_depth: analysisDepth ?? loadModeSettings().analysisDepth,
-          with_debate: false,
         }),
       },
       300_000,
@@ -602,7 +609,6 @@ export interface Card {
     | "risk"
     | "text"
     | "market"
-    | "debate"
     | "plan"
     | "financial"
     | "stock_choice"
@@ -821,23 +827,6 @@ export interface DimensionResult {
   partial?: boolean;
 }
 
-export interface DebateRoundResult {
-  round: number;
-  bull_argument: string;
-  bear_rebuttal: string;
-}
-
-export interface DebateResult {
-  rounds: DebateRoundResult[];
-  judge_verdict: string;
-  consensus: string;
-  core_divergence: string;
-  final_bias: string;
-  confidence: string;
-  vote_tally?: Record<string, number> | null;
-  manager_thesis?: string | null;
-}
-
 export interface AshareFactor {
   category: string;
   name: string;
@@ -853,16 +842,6 @@ export interface AshareFactor {
     status: "verified" | "missing";
     note?: string | null;
   }[];
-}
-
-export interface MasterCommentaryItem {
-  master: string;
-  name: string;
-  signal: "bullish" | "neutral" | "bearish";
-  signal_text: string;
-  confidence: number;
-  reasoning: string;
-  key_metric: string;
 }
 
 export interface NumericFactor {
@@ -1111,8 +1090,6 @@ export interface ResearchReport {
   enable_signal_verify_hook?: boolean;
   post_hoc?: ReportPostHocHorizon[];
   dimensions?: Record<string, DimensionResult>;
-  debate?: DebateResult | null;
-  master_commentary?: MasterCommentaryItem[];
   deep_analysis?: DeepAnalysisOut | null;
   disclaimer?: string;
   cached?: boolean;
@@ -1211,7 +1188,6 @@ export interface RiskCheckup {
     }[];
   };
   stress_results?: StressResult[];
-  master_commentary?: MasterCommentaryItem[];
 }
 
 export interface AssetAllocation {
@@ -1343,7 +1319,6 @@ export interface ResearchReportListItem {
   composite_score: number;
   bias: string;
   summary: string;
-  has_debate: boolean;
   created_at: string;
 }
 

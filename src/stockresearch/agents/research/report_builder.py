@@ -12,7 +12,6 @@ from stockresearch.agents.research.scoring import (
 )
 from stockresearch.agents.research.summary_length import normalize_summary
 from stockresearch.core.schemas import (
-    DebateResult,
     DimensionResult,
     ResearchReportOut,
     SectorLeaderBrief,
@@ -70,7 +69,6 @@ def build_research_report(
     symbol: str,
     name: str,
     dimensions: dict[str, DimensionResult],
-    debate: DebateResult | None,
     *,
     dimension_labels: dict[str, str],
     news_text_factor: str | None = None,
@@ -94,18 +92,7 @@ def build_research_report(
         summary = f"{summary_prefix.rstrip('。')}。{score_tail}"
     else:
         summary = f"{name}({symbol}) {score_tail}"
-    if debate:
-        judge_label: Literal["偏多", "偏空", "中性"] = (
-            "偏多"
-            if debate.final_bias == "bullish"
-            else "偏空"
-            if debate.final_bias == "bearish"
-            else "中性"
-        )
-        summary += f" 裁判{judge_label}：{debate.consensus}"
     expand_parts = _dimension_expand_parts(dimensions)
-    if debate and debate.core_divergence.strip():
-        expand_parts.append(debate.core_divergence.strip())
     summary = normalize_summary(summary, expand_parts=expand_parts, min_len=200, max_len=320)
 
     text_factor_summary = build_text_factor_summary(
@@ -116,7 +103,6 @@ def build_research_report(
         composite_confidence=composite_confidence,
         dimension_weights=weights,
         news_text_factor=news_text_factor,
-        debate_consensus=debate.consensus if debate else None,
     )
 
     ashare_factors = build_ashare_factor_checklist(
@@ -125,7 +111,7 @@ def build_research_report(
     )
     from stockresearch.agents.research.viewpoints import build_viewpoints
 
-    viewpoints = build_viewpoints(dimensions, debate, news_text_factor=news_text_factor)
+    viewpoints = build_viewpoints(dimensions, news_text_factor=news_text_factor)
     data_gaps = _collect_report_gaps(dimensions, ashare_factors)
     if bars_provenance is not None and getattr(bars_provenance, "partial", False):
         note = getattr(bars_provenance, "note", None) or "日线前复权不完整"
@@ -152,7 +138,6 @@ def build_research_report(
         brief_summary=brief_summary,
         viewpoints=viewpoints,
         data_gaps=data_gaps,
-        debate=debate,
         leaders=leaders or [],
         news_text_factor=news_text_factor,
         text_factor_summary=text_factor_summary,

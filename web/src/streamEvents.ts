@@ -1,4 +1,4 @@
-import type { AgentStreamEvent, MasterCommentaryItem } from "./api";
+import type { AgentStreamEvent } from "./api";
 import {
   detectDimensionSet,
   dimensionDefsForKind,
@@ -15,25 +15,15 @@ import {
 import { localizePositionAction, localizeVoteLabel } from "./uiLabels";
 import type { TParams } from "./i18n";
 import { stripDisclaimer } from "./disclaimerText";
-import { formatManagerContent } from "./debateText";
-import type {
-  AgentStep,
-  DebateRound,
-  HoldingAction,
-  JudgeVerdict,
-  VoteTally,
-} from "./types/streamTypes";
+import type { AgentStep, HoldingAction, JudgeVerdict } from "./types/streamTypes";
 
-/** Per-skill nested process (dimensions, debate, judge, etc.). */
+/** Per-skill nested process (dimensions, judge, etc.). */
 export interface SkillStreamSlice {
   streamStatus: string;
   streamLog: string[];
   agentSteps: AgentStep[];
-  debateRounds: DebateRound[];
   judgeVerdict: JudgeVerdict | null;
-  voteTally: VoteTally | null;
   activeStreamIds: string[];
-  masterCommentary: MasterCommentaryItem[];
 }
 
 export interface SkillStep {
@@ -49,30 +39,11 @@ export interface StreamState {
   streamStatus: string;
   streamLog: string[];
   agentSteps: AgentStep[];
-  debateRounds: DebateRound[];
   judgeVerdict: JudgeVerdict | null;
-  voteTally: VoteTally | null;
   activeStreamIds: string[];
-  masterCommentary: MasterCommentaryItem[];
   skillSteps: SkillStep[];
   activeSkillRunId?: string;
 }
-
-const DEBATE_AGENT_SIDES: Record<string, string> = {
-  bull: "bull",
-  bear: "bear",
-  aggressive: "aggressive",
-  neutral: "neutral",
-  conservative: "conservative",
-};
-
-const DEBATE_SIDE_KEYS: Record<string, keyof DebateRound> = {
-  bull: "bull",
-  bear: "bear",
-  aggressive: "aggressive",
-  neutral: "neutral",
-  conservative: "conservative",
-};
 
 function activateStream(active: string[], streamId: string): string[] {
   if (active.includes(streamId)) {
@@ -81,14 +52,7 @@ function activateStream(active: string[], streamId: string): string[] {
   return [...active, streamId];
 }
 
-function deactivateAgentStream(active: string[], agentId: string, role?: string): string[] {
-  if (role === "vote") {
-    return active.filter((id) => id !== `vote-${agentId}` && id !== agentId);
-  }
-  const side = role ? DEBATE_AGENT_SIDES[role] : undefined;
-  if (side) {
-    return active.filter((id) => !id.endsWith(`-${side}`));
-  }
+function deactivateAgentStream(active: string[], agentId: string): string[] {
   return active.filter((id) => id !== agentId);
 }
 
@@ -119,46 +83,16 @@ function upsertAgentContent(
   ];
 }
 
-function upsertDebateDelta(
-  rounds: DebateRound[],
-  roundNum: number,
-  side: keyof DebateRound,
-  delta: string,
-): DebateRound[] {
-  const existing = rounds.find((r) => r.round === roundNum);
-  const prev = typeof existing?.[side] === "string" ? (existing[side] as string) : "";
-  const nextRound: DebateRound = {
-    round: roundNum,
-    ...existing,
-    [side]: `${prev}${delta}`,
-  };
-  return [...rounds.filter((r) => r.round !== roundNum), nextRound];
-}
-
 function applyTextDeltaToSlice(
   slice: SkillStreamSlice,
   streamId: string,
   delta: string,
   meta?: { agent_id?: string; agent_name?: string; role?: string },
-): Pick<SkillStreamSlice, "agentSteps" | "debateRounds" | "judgeVerdict"> {
-  const roundMatch = streamId.match(/^r(\d+)-(\w+)$/);
-  if (roundMatch) {
-    const roundNum = Number(roundMatch[1]);
-    const sideKey = DEBATE_SIDE_KEYS[roundMatch[2]];
-    if (sideKey) {
-      return {
-        agentSteps: slice.agentSteps,
-        debateRounds: upsertDebateDelta(slice.debateRounds, roundNum, sideKey, delta),
-        judgeVerdict: slice.judgeVerdict,
-      };
-    }
-  }
-
+): Pick<SkillStreamSlice, "agentSteps" | "judgeVerdict"> {
   if (streamId === "judge") {
     const summary = `${slice.judgeVerdict?.summary ?? ""}${delta}`;
     return {
       agentSteps: slice.agentSteps,
-      debateRounds: slice.debateRounds,
       judgeVerdict: {
         ...(slice.judgeVerdict ?? { summary: "", reason: "" }),
         summary,
@@ -169,7 +103,6 @@ function applyTextDeltaToSlice(
 
   return {
     agentSteps: upsertAgentContent(slice.agentSteps, streamId, delta, meta),
-    debateRounds: slice.debateRounds,
     judgeVerdict: slice.judgeVerdict,
   };
 }
@@ -179,11 +112,8 @@ export function emptySkillStreamSlice(): SkillStreamSlice {
     streamStatus: "",
     streamLog: [],
     agentSteps: [],
-    debateRounds: [],
     judgeVerdict: null,
-    voteTally: null,
     activeStreamIds: [],
-    masterCommentary: [],
   };
 }
 
@@ -192,23 +122,14 @@ export function emptyStreamState(): StreamState {
     streamStatus: "",
     streamLog: [],
     agentSteps: [],
-    debateRounds: [],
     judgeVerdict: null,
-    voteTally: null,
     activeStreamIds: [],
-    masterCommentary: [],
     skillSteps: [],
   };
 }
 
 function sliceHasSubstance(slice: SkillStreamSlice): boolean {
-  return (
-    slice.agentSteps.length > 0 ||
-    slice.debateRounds.length > 0 ||
-    slice.judgeVerdict != null ||
-    slice.voteTally != null ||
-    slice.masterCommentary.length > 0
-  );
+  return slice.agentSteps.length > 0 || slice.judgeVerdict != null;
 }
 
 /** Completed turns: only show process panel when there is real agent output. */
@@ -265,16 +186,7 @@ function applyCoreStreamEvent(
   event: AgentStreamEvent,
   t?: TFn,
 ): SkillStreamSlice {
-  let {
-    streamStatus,
-    streamLog,
-    agentSteps,
-    debateRounds,
-    judgeVerdict,
-    voteTally,
-    activeStreamIds,
-    masterCommentary,
-  } = slice;
+  let { streamStatus, streamLog, agentSteps, judgeVerdict, activeStreamIds } = slice;
 
   if (event.type === "status" && (event.message || event.message_key)) {
     const msg = event.message ?? "";
@@ -299,16 +211,8 @@ function applyCoreStreamEvent(
       : undefined;
     const updated = applyTextDeltaToSlice(slice, event.stream_id, event.delta, meta);
     agentSteps = updated.agentSteps;
-    debateRounds = updated.debateRounds;
     judgeVerdict = updated.judgeVerdict;
     activeStreamIds = activateStream(activeStreamIds, event.stream_id);
-  }
-
-  if (event.type === "manager" && event.content) {
-    const formatted = formatManagerContent(event.content);
-    agentSteps = agentSteps.map((s) =>
-      s.agent_id === "research_manager" ? { ...s, content: formatted, status: "done" as const } : s,
-    );
   }
 
   if (event.type === "agent_start" && event.agent_id && event.agent_name && event.role) {
@@ -379,90 +283,7 @@ function applyCoreStreamEvent(
           }
         : s,
     );
-    activeStreamIds = deactivateAgentStream(activeStreamIds, event.agent_id, event.role);
-  }
-
-  if (event.type === "debate_round" && event.round != null) {
-    const roundLine = t
-      ? t("stream.debateRoundDone", { n: event.round ?? 0 })
-      : `◆ 第 ${event.round} 轮多空交锋完成`;
-    if (streamLog[streamLog.length - 1] !== roundLine) {
-      streamLog = [...streamLog, roundLine];
-    }
-    debateRounds = [
-      ...debateRounds.filter((r) => r.round !== event.round),
-      {
-        round: event.round,
-        bull: event.bull ? stripDisclaimer(String(event.bull)) : event.bull,
-        bear: event.bear ? stripDisclaimer(String(event.bear)) : event.bear,
-        aggressive: event.aggressive ? stripDisclaimer(String(event.aggressive)) : event.aggressive,
-        neutral: event.neutral_view
-          ? stripDisclaimer(String(event.neutral_view))
-          : event.neutral_view,
-        conservative: event.conservative
-          ? stripDisclaimer(String(event.conservative))
-          : event.conservative,
-      },
-    ];
-  }
-
-  if (event.type === "vote" && event.agent_name && event.vote) {
-    const voteLine = t
-      ? t("stream.voteLine", {
-          name: event.agent_name,
-          vote: localizeVoteLabel(String(event.vote), t),
-        })
-      : `${event.agent_name} 投票：${event.vote}`;
-    streamLog = [...streamLog, voteLine];
-  }
-
-  if (event.type === "vote_tally") {
-    voteTally = {
-      bullish: event.bullish ?? 0,
-      bearish: event.bearish ?? 0,
-      neutral: event.neutral ?? 0,
-      leading: event.leading,
-    };
-    const voteMsg = t
-      ? t("stream.voteBody", {
-          bull: event.bullish ?? 0,
-          bear: event.bearish ?? 0,
-          neutral: event.neutral ?? 0,
-          leading: event.leading
-            ? t("stream.leading", {
-                value: localizeVoteLabel(String(event.leading), t),
-              })
-            : "",
-        })
-      : event.message;
-    if (voteMsg) {
-      streamStatus = voteMsg;
-      if (streamLog[streamLog.length - 1] !== voteMsg) {
-        streamLog = [...streamLog, voteMsg];
-      }
-    }
-  }
-
-  if (event.type === "master_done" && event.master) {
-    const nextItem = {
-      master: String(event.master),
-      name: String(event.name ?? ""),
-      signal: (event.signal as MasterCommentaryItem["signal"]) ?? "neutral",
-      signal_text: String(event.signal_text ?? "中性"),
-      confidence: Number(event.confidence ?? 0.5),
-      reasoning: String(event.reasoning ?? ""),
-      key_metric: String(event.key_metric ?? ""),
-    };
-    masterCommentary = [
-      ...masterCommentary.filter((item) => item.master !== nextItem.master),
-      nextItem,
-    ];
-  }
-
-  if (event.type === "master_commentary" && Array.isArray(event.commentary)) {
-    masterCommentary = (event.commentary as MasterCommentaryItem[]).filter(
-      (item) => item && typeof item === "object",
-    );
+    activeStreamIds = deactivateAgentStream(activeStreamIds, event.agent_id);
   }
 
   if (event.type === "judge") {
@@ -500,11 +321,8 @@ function applyCoreStreamEvent(
     streamStatus,
     streamLog,
     agentSteps,
-    debateRounds,
     judgeVerdict,
-    voteTally,
     activeStreamIds,
-    masterCommentary,
   };
 }
 
@@ -513,11 +331,8 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent, t?:
     streamStatus,
     streamLog,
     agentSteps,
-    debateRounds,
     judgeVerdict,
-    voteTally,
     activeStreamIds,
-    masterCommentary,
     skillSteps,
     activeSkillRunId,
   } = prev;
@@ -573,32 +388,23 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent, t?:
       streamStatus,
       streamLog,
       agentSteps,
-      debateRounds,
       judgeVerdict,
-      voteTally,
       activeStreamIds,
-      masterCommentary,
     };
     const next = applyCoreStreamEvent(topSlice, event, t);
     streamStatus = next.streamStatus;
     streamLog = next.streamLog;
     agentSteps = next.agentSteps;
-    debateRounds = next.debateRounds;
     judgeVerdict = next.judgeVerdict;
-    voteTally = next.voteTally;
     activeStreamIds = next.activeStreamIds;
-    masterCommentary = next.masterCommentary;
   }
 
   return {
     streamStatus,
     streamLog,
     agentSteps,
-    debateRounds,
     judgeVerdict,
-    voteTally,
     activeStreamIds,
-    masterCommentary,
     skillSteps,
     activeSkillRunId,
   };

@@ -25,7 +25,7 @@ def test_all_tools_registered() -> None:
 
 
 def test_get_tool_lookup() -> None:
-    tool = get_tool("skill_bull_bear_debate")
+    tool = get_tool("skill_stock_research")
     assert tool is not None
     assert tool.category == "skill"
 

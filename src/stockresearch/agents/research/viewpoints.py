@@ -1,6 +1,6 @@
 """Lightweight research card viewpoints derived from dimension evidence."""
 
-from stockresearch.core.schemas import DebateResult, DimensionResult
+from stockresearch.core.schemas import DimensionResult
 
 
 def _join_lines(items: list[str]) -> str | None:
@@ -16,11 +16,7 @@ def _first_highlight(dim: DimensionResult | None) -> str | None:
     return _join_lines(dim.highlights)
 
 
-def _first_risk_line(
-    dimensions: dict[str, DimensionResult], debate: DebateResult | None
-) -> str | None:
-    if debate and debate.consensus.strip():
-        return debate.consensus.strip()
+def _first_risk_line(dimensions: dict[str, DimensionResult]) -> str | None:
     for key in ("fundamental", "technical", "sentiment", "chips"):
         dim = dimensions.get(key)
         if dim is None:
@@ -33,7 +29,6 @@ def _first_risk_line(
 
 def build_viewpoints(
     dimensions: dict[str, DimensionResult],
-    debate: DebateResult | None,
     *,
     news_text_factor: str | None = None,
 ) -> dict[str, str]:
@@ -45,7 +40,7 @@ def build_viewpoints(
         if line:
             viewpoints[key] = line
 
-    risk_line = _first_risk_line(dimensions, debate)
+    risk_line = _first_risk_line(dimensions)
     if risk_line:
         viewpoints["risk"] = risk_line
     return viewpoints

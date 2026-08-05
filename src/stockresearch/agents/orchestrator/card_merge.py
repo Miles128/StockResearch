@@ -12,7 +12,7 @@ def merge_plan_cards(
         if ctype == "research":
             merged = [c for c in merged if c.get("type") != "research"]
             merged.append(card)
-        elif ctype in ("news", "financial", "debate", "market"):
+        elif ctype in ("news", "financial", "market"):
             if not any(c.get("type") == ctype for c in merged):
                 merged.append(card)
     return merged

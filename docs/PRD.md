@@ -28,7 +28,6 @@
 |--|----------------|-----------------|
 | 语言 | 人话、金额、关联原因 | 术语直出、全量指标 |
 | 术语弹窗 | 默认开 | 无 |
-| 辩论 | 默认关 | 默认开 |
 | 资产配置 | 按风险/现金流给参考（`/advisor/allocation`；风控 Tab 挂载 `AssetAllocationPanel`） | 用户自设板块目标权重 vs 持仓偏差（`/portfolio/allocation/deviation` + `AllocationDeviationPanel`；只展示，不做再平衡） |
 | 证据链 | 默认折叠 | 默认展开 |
 
@@ -62,8 +61,6 @@
 | 四维投研 | 基本面 / 技术面 / 情绪 / 筹码 → SSE 流式；基本面含财务/公告/研报；情绪含个股新闻；**新闻与财报是四维内证据，不是平行产品** |
 | 分析深度档 | 显式预算档 `standard` / `comprehensive` / `deep`（文案：标准 / 综合 / 深度）；只调节四维内工具与证据预算，不另开管线 |
 | 证据链 | highlights/risks 可挂 source、date、snippet；显式信息缺口（`partial`） |
-| 多空辩论 | 可选；个人默认关、专家默认开；深度档不强制打开 advisor 辩论 |
-| 大师点评 | 可选；用户勾选 1–N 位（巴菲特 / 芒格 / 伯里，可扩展自定义）→ 在四维研报与风控报告条件性挂载独立 commentary；受 `enable_master_commentary` 与 `enable_llm_analysis` 双重开关控制，默认关；不替代主结论，仅作辅助视角；**不绑分析深度档** |
 | 风控体检 | 规则引擎 + 可选 LLM 解读（`enable_llm_analysis` 开关，默认开；关时仅规则+量化指标） |
 | 新闻过滤 | 三层规则，3s SLA，零 LLM；统一 interest（持仓/自选/板块） |
 | 价格告警 | APScheduler 5min；铃铛 + 可选浏览器 Notification |
@@ -86,7 +83,7 @@
 |------|-----|------|
 | 标准 | `standard` | 现况四维基线 |
 | 综合 | `comprehensive` | 标准 + 新闻/财报证据加厚 + 因子条默认展开 |
-| 深度 | `deep` | 综合 + 更高证据预算；research 辩论默认开；可挂信号验证入口 |
+| 深度 | `deep` | 综合 + 更高证据预算；可挂信号验证入口 |
 
 **UI 契约**：
 - 设置项 `analysis_depth`（与 mode settings 同通道持久化）
@@ -106,7 +103,6 @@
 | 情绪·新闻 | 标题 + 标题分 + text_factor | + 事件聚类进情绪维 | + 1～2 条关键新闻交叉核对回注情绪维 |
 | 技术 / 筹码 | 现状 | 维持；综合结论引用 score | 维持；与其它维矛盾时须显式写出 |
 | 数值因子 | 现有 5 因子，可折叠 | 默认展开 + 与结论同向一句；起算质量/成长因子 | 同左必算；露出信号验证入口（点选/指令） |
-| 辩论 | 跟模式默认 | 同左，可被单次指令改 | research 默认开；advisor 不因 deep 强行开 |
 
 实现上收敛为内部只读 `AnalysisBudget`（公告窗口/条数/摘录长度、财务期数、新闻聚类与交叉核对次数、因子 key 列表等）；各维工具与因子计算读 budget，禁止散落 magic number。报告元数据回传 `analysis_depth`。
 
@@ -215,7 +211,7 @@ Phase 2：`stockresearch worker` 独立 Cron + 可选 launchd 示例。
 
 1. **机器可读导出**：报告 JSON（`stockresearch.report.v1`）+ CSV 因子表；Markdown/PDF 附日线口径与数值因子
 2. **点-in-time 声明**：事后核对 / 信号验证显式 `point_in_time` + `signal_as_of`；只用报告快照因子 + 之后的 qfq 日线，不重拉事后财务
-3. **自选对比与批量**：`POST /research/compare` 因子并排；`POST /research/batch` 批量四维（≤8，默认无辩论）——**工具能力，不进 DeepAnalysisBlock 核心叙事**
+3. **自选对比与批量**：`POST /research/compare` 因子并排；`POST /research/batch` 批量四维（≤8）——**工具能力，不进 DeepAnalysisBlock 核心叙事**
 4. **事件研究**：`GET /research/event-study` 以公告日为 t0 的前向收益（业绩/风险过滤）——Impact 层数据核
 5. **假设一键验证**：`POST /research/hypothesis/verify` 预设规则，历史条件触发后量收益——Thesis 层压测面
 
@@ -385,7 +381,6 @@ type Thesis = {
 
 - `hypothesis/verify` 规则加厚（估值×动量、ROE/成长等），用于压测主张相关假设；文案称「研究验证」。
 - `timeline` 展示同标的历史结论 / Thesis 变更，可挂事后收益（PIT）。
-- 辩论/大师点评若开启：对 Thesis 加压，不替代 Thesis 块。
 
 **准确性**
 
@@ -434,8 +429,6 @@ type Thesis = {
 
 | 维度 | 处置 | 说明 |
 |------|------|------|
-| 多空辩论全流程 | 折叠 | 默认只显示「最终倾向 + 分歧一句话」 |
-| 大师点评 | 默认隐藏 | 附「模仿风格点评，非真实观点」声明 |
 | 四维评分明细 | 精简 | 首屏总分+一句话结论，维度明细折叠 |
 | 事后核对 PIT | 改普通版摘要 | 「当时的判断，到现在对了吗」 |
 | 研究时间线 delta | 精简 | 保留「观点变化」标记，隐藏分数增量 |
@@ -459,7 +452,7 @@ type Thesis = {
 | **S1** | 研报白话化 + 词库扩域 | 研报链路接入 reading_mode（`output_style_scope`）；research 缓存 key 加 reading_mode；研报返回过 `mark_terms`；`advisor_plain_language.md` 升级；词典补录 | friendly 档新研报无未解释术语连排；术语可弹窗；friendly/professional 缓存不串 |
 | **S2** | 专业/普通一键切换 | `report_plain_versions` 缓存表 + `POST /research/reports/{id}/plain` + 前端双态按钮 + 失败降级（显示专业版+提示） | 首次 <10s、二次 <200ms；失败不阻塞 |
 | **S3** | 全域通俗化扫尾 | 简报/体检补 reading_mode；持仓盈亏/事件日历/筛选器静态规则白话；`partial` 文案翻新；风险问卷（5 题自动定档 risk_tolerance）；告警白话+下一步 | 九域过新手视角 checklist；零技术黑话 |
-| **S4** | 引导与信任 | 新手带练 Onboarding（demo 标的走一遍流程）；场景化知识卡片；大师点评声明 | 新用户 5 分钟出第一份看得懂的研报 |
+| **S4** | 引导与信任 | 新手带练 Onboarding（demo 标的走一遍流程）；场景化知识卡片 | 新用户 5 分钟出第一份看得懂的研报 |
 
 ## 九、工程
 
@@ -476,6 +469,7 @@ cd desktop && npm install && npm run tauri dev
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **V10.22** | 2026-08-04 | 删除大师/辩论全链路（决策：不迷信大师——不新增且移除既有功能）：后端删除多空辩论与大师点评流水线（`master_commentary` 模块、research/risk 流 `debate_round`/`vote_tally`/`manager` 事件、`skill_bull_bear_debate`/`skill_master_commentary`、`prompts/masters/*`、模式设置 `enable_debate`/`enable_master_commentary`/`selected_masters`/`custom_masters`）；前端删除 debateText 与辩论/大师卡片及设置项；保留风控裁判（judge）汇总与中立表述；§二/§四/4.1/Phase 10/11 相关描述同步收敛；测试与 PRD 同步清理 |
 | **V10.21** | 2026-08-04 | 普通用户化第二批（Phase 11 S2-S4）：①单篇普通版切换——`report_plain_versions` 缓存表（迁移 005）+ `POST /research/reports/{id}/plain`（friendly 档并行改写，全字段失败降级返回专业版原文+提示，二次命中缓存）+ 研报详情双态按钮（专业版/普通版）；②简报/体检返回层接词库 `mark_terms`（不污染 DB 原文）；③静态文案扫尾——`partial` 硬编码 i18n 化、`card.factorPartial` 翻新「数据不全」、事件日历/告警文案白话（「阈值」→「提醒线」+ 下一步引导）；④风险问卷 10 题精简 5 题自动定档 `risk_tolerance`（5-7 保守/8-11 稳健/12-15 进取）；⑤新手带练横幅（投顾模式首次进入，demo 标的自动发起白话研报）+ 大师点评声明（「AI 模仿大师风格生成，非大师本人观点」） |
 | **V10.20** | 2026-08-04 | 普通用户化（Phase 11）启动：`reading_mode` 三档改两档（friendly 普通版/professional 专业版，存量 standard 归一 friendly，前端选项同步收敛）；研报生成链路接入 `reading_mode`（`output_style_scope` 包裹 research 执行）+ research 缓存 key 加入 reading_mode 防串档；研报返回文本接词库 `mark_terms`；`advisor_plain_language.md` 升级为完整普通版风格规范（平实克制/术语首现必解释/数字翻译影响/风险必保留/建议选项式/禁用词）；词典补录高频自产词；PRD 新增 Phase 11 专项（处置清单+词典增强+四阶段实施） |
 | **V10.19** | 2026-08-04 | 持仓闭环第二波：①决策日志挂接研报——`trades.report_id`（迁移 004）自动挂接该标的最近一份研报，`GET /portfolio/trades` 返回 `report_date/report_bias`，交易行内显示当时结论偏向标签；②事件日历——`GET /portfolio/events`（财报预约披露 `stock_yysj_em` + 持仓解禁 `stock_restricted_release_queue_em`，6h 缓存，源失败显式 `partial`）；③因子筛选器——`POST /portfolio/screen`（持仓+自选宇宙，20日动量/年化波动/PE分位条件筛选，缺数计 `skipped` 禁编造），lists 栏新增事件日历与因子筛选（低估值/正动量/低波动/组合预设）折叠块 |

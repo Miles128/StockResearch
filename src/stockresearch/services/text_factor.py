@@ -145,7 +145,6 @@ def build_text_factor_summary(
     composite_confidence: str,
     dimension_weights: dict[str, float],
     news_text_factor: str | None = None,
-    debate_consensus: str | None = None,
 ) -> str:
     """Merge weighted scores, dimension factors, and optional news factor."""
     conf = _CONF_LABEL.get(composite_confidence, composite_confidence)
@@ -164,9 +163,6 @@ def build_text_factor_summary(
     if news_text_factor:
         lines.append("")
         lines.append(news_text_factor)
-    if debate_consensus:
-        lines.append("")
-        lines.append(f"■ 多空合议：{debate_consensus}")
     return _truncate("\n".join(lines), _MAX_SUMMARY_CHARS)
 
 

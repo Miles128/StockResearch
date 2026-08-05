@@ -8,6 +8,7 @@ from stockresearch.api.llm_deps import resolve_llm_client
 from stockresearch.core.config import get_settings
 from stockresearch.core.llm_config import LlmOverrides
 from stockresearch.core.schemas import (
+    DiagnosticsOut,
     LlmSettingsOut,
     LlmTestOut,
     LlmUserSettings,
@@ -16,6 +17,7 @@ from stockresearch.core.schemas import (
 )
 from stockresearch.db.models import User
 from stockresearch.db.session import get_db
+from stockresearch.services.diagnostics import run_diagnostics
 from stockresearch.services.env_file import save_llm_env
 from stockresearch.services.glossary import get_glossary
 from stockresearch.services.mock_llm import MockLLMClient
@@ -134,3 +136,9 @@ async def test_llm_settings(payload: LlmUserSettings) -> LlmTestOut:
         use_mock=payload.use_mock,
     )
     return await _run_llm_test(overrides)
+
+
+@router.get("/diagnostics", response_model=DiagnosticsOut)
+async def get_diagnostics(user: User = Depends(get_current_user)) -> DiagnosticsOut:
+    """Provider doctor — one-shot BYOK troubleshooting snapshot."""
+    return await run_diagnostics()

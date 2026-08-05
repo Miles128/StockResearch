@@ -53,7 +53,6 @@ _PLAN_SYSTEM = """你是「StockResearch」的研究规划 Agent。用户提出�
 - 大盘/市场走势类至少：get_market_data → get_news → auto 综合解读
 - 个股类至少：get_stock_quote 或 skill_stock_research → get_news → auto 解读
 - 对比多只标的：分别拉数据/投研 → get_news → auto 对比结论
-- 如果涉及个股深度投研，可用 skill_bull_bear_debate
 - 不要建议买卖"""
 
 _EXECUTE_SYSTEM = """你是「StockResearch」的执行 Agent。根据计划步骤执行研究任务。

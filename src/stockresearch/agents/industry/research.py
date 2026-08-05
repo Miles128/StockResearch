@@ -14,8 +14,6 @@ async def run_industry_research(
     sector: str,
     message: str,
     *,
-    with_debate: bool = False,
-    enable_master_commentary: bool = False,
     mode_settings: ModeSettingsOut | None = None,
 ) -> tuple[str, list[dict[str, object]]]:
     report: ResearchReportOut | None = None
@@ -25,8 +23,6 @@ async def run_industry_research(
         sector,
         message,
         llm,
-        with_debate=with_debate,
-        enable_master_commentary=enable_master_commentary,
         mode_settings=mode_settings,
     ):
         if event.get("type") == "done":

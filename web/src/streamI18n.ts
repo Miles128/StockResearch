@@ -1,6 +1,6 @@
 import type { AgentStreamEvent, RouteChoiceCardData, RouteChoiceOption } from "./api";
 import type { TParams } from "./i18n";
-import { localizeAgentDisplay, localizePositionAction, localizeVoteLabel } from "./uiLabels";
+import { localizeAgentDisplay, localizePositionAction } from "./uiLabels";
 
 type TFn = (key: string, params?: TParams) => string;
 
@@ -29,11 +29,7 @@ const SKIP_LOG_KEYS = new Set([
   "status.market.research.news_factor",
   "status.research.summarize",
   "status.market.research.summarize",
-  "status.research.battle_start",
-  "status.market.research.battle_start",
-  "status.industry.battle_start",
   "status.risk.analysis",
-  "status.risk.manager",
   "status.risk.judge",
 ]);
 
@@ -45,13 +41,6 @@ export function statusEventKey(event: AgentStreamEvent): string | null {
 export function translateStatusEvent(event: AgentStreamEvent, t: TFn): string {
   const key = event.message_key;
   if (!key) return event.message ?? "";
-  if (key === "status.route") {
-    const params = event.message_params ?? {};
-    return t("stream.status.route", {
-      debate: params.debate === "on" ? t("stream.debate.on") : t("stream.debate.off"),
-      mode: t(`stream.routeMode.${String(params.mode ?? "")}`),
-    });
-  }
   return t(`stream.${key}`, (event.message_params ?? {}) as TParams);
 }
 
@@ -86,8 +75,7 @@ export function shouldSkipStatusLog(event: AgentStreamEvent): boolean {
     msg.includes("四维") ||
     msg.includes("五维") ||
     msg.includes("作战情") ||
-    msg.includes("文本因子") ||
-    msg.includes("Battle")
+    msg.includes("文本因子")
   );
 }
 
@@ -116,17 +104,6 @@ export function normalizeStreamEvent(event: AgentStreamEvent, t: TFn): AgentStre
     return {
       ...event,
       agent_name: localizeAgentName(event.agent_id, event.agent_name, t),
-    };
-  }
-  if (event.type === "vote" && event.agent_name) {
-    const name = localizeAgentName(event.agent_id ?? "", event.agent_name, t);
-    const vote = event.vote ? localizeVoteLabel(String(event.vote), t) : event.vote;
-    return { ...event, agent_name: name, vote };
-  }
-  if (event.type === "vote_tally" && event.leading) {
-    return {
-      ...event,
-      leading: localizeVoteLabel(String(event.leading), t),
     };
   }
   if (event.type === "judge") {

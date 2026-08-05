@@ -32,7 +32,6 @@ async def test_sync_and_stream_match_for_react_chat(db_session: Session) -> None
             user.id,
             message,
             execution_preference="react",
-            enable_debate=False,
         )
         events = [
             event
@@ -41,7 +40,6 @@ async def test_sync_and_stream_match_for_react_chat(db_session: Session) -> None
                 user.id,
                 message,
                 execution_preference="react",
-                enable_debate=False,
             )
         ]
 
@@ -65,7 +63,6 @@ async def test_sync_and_stream_match_for_stock_research(db_session: Session) -> 
         sync = await Orchestrator(db_session).run(
             user.id,
             message,
-            enable_debate=False,
         )
         events = [
             event
@@ -73,7 +70,6 @@ async def test_sync_and_stream_match_for_stock_research(db_session: Session) -> 
                 db_session,
                 user.id,
                 message,
-                enable_debate=False,
             )
         ]
 

@@ -1,5 +1,7 @@
+import { useState } from "react";
 import type { DataSourceUserSettings } from "../dataSourceSettings";
 import type { ModeSettings } from "../modeSettings";
+import { api, type DiagnosticsItem, type DiagnosticsResult } from "../api";
 import { useI18n } from "../i18n";
 import { TushareStatusBadge } from "./TushareStatusBadge";
 
@@ -19,6 +21,32 @@ export function DataSettingsTab({
   onSave,
 }: DataSettingsTabProps) {
   const { t } = useI18n();
+  const [diagRunning, setDiagRunning] = useState(false);
+  const [diag, setDiag] = useState<DiagnosticsResult | null>(null);
+  const [diagError, setDiagError] = useState<string | null>(null);
+
+  const runDiagnostics = async () => {
+    setDiagRunning(true);
+    setDiagError(null);
+    try {
+      const result = await api.runDiagnostics();
+      setDiag(result);
+    } catch (err) {
+      setDiagError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDiagRunning(false);
+    }
+  };
+
+  const renderDiagItem = (item: DiagnosticsItem) => (
+    <div key={item.key} className={`diag-item${item.ok ? " diag-ok" : " diag-fail"}`}>
+      <span className="diag-label">{item.label}</span>
+      <span className="diag-detail">
+        {item.detail}
+        {item.hint ? <span className="diag-hint">（{item.hint}）</span> : null}
+      </span>
+    </div>
+  );
 
   return (
     <>
@@ -80,6 +108,27 @@ export function DataSettingsTab({
       </div>
 
       <TushareStatusBadge />
+
+      <h4 className="settings-section-title">{t("settings.diagnosticsTitle")}</h4>
+      <p className="settings-hint">{t("settings.diagnosticsHint")}</p>
+      <div className="settings-actions settings-actions-left">
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={runDiagnostics}
+          disabled={diagRunning}
+        >
+          {diagRunning ? t("settings.diagnosticsBusy") : t("settings.diagnosticsRun")}
+        </button>
+      </div>
+      {diagError ? <p className="settings-muted diag-error">{diagError}</p> : null}
+      {diag ? (
+        <div className="diag-block">
+          {renderDiagItem(diag.llm)}
+          {diag.providers.map(renderDiagItem)}
+          {diag.env.map(renderDiagItem)}
+        </div>
+      ) : null}
 
       <h4 className="settings-section-title">{t("settings.bochaTitle")}</h4>
       <p className="settings-hint">{t("settings.bochaHint")}</p>

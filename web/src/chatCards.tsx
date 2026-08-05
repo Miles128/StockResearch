@@ -10,7 +10,7 @@ import type {
 } from "./api";
 import { useI18n } from "./i18n";
 import { translateRouteOption, translateRouteReason } from "./streamI18n";
-import { localizeDebateAgentName, localizeRating } from "./uiLabels";
+import { localizeRating } from "./uiLabels";
 import { MarkdownContent } from "./MarkdownContent";
 import { normalizeResearchConclusion, researchExpandHintsFromReport } from "./researchText";
 import { StockChart } from "./StockChart";
@@ -224,96 +224,6 @@ export function CardView({ card }: { card: ChatResponse["cards"][0] }) {
               {n.summary ? ` — ${n.summary}` : ""}
             </p>
           ))}
-        </div>
-      </details>
-    );
-  }
-  if (card.type === "debate" && card.data && "positions" in card.data) {
-    const d = card.data as {
-      positions: { agent: string; stance: string; arguments: string }[];
-      vote_tally: Record<string, number>;
-      final_bias: string;
-      synthesis: string;
-      symbol: string;
-      name: string;
-    };
-    const biasLabel: Record<string, string> = {
-      bullish: t("card.bullish"),
-      bearish: t("card.bearish"),
-      neutral: t("card.neutral"),
-    };
-    const stanceColor: Record<string, string> = {
-      看多: "up",
-      看空: "down",
-      中性: "",
-      Long: "up",
-      Short: "down",
-      Neutral: "",
-      bullish: "up",
-      bearish: "down",
-    };
-    const stanceLabel = (s: string) =>
-      (
-        ({
-          看多: t("card.long"),
-          看空: t("card.short"),
-          中性: t("card.neutral"),
-          Long: t("card.long"),
-          Short: t("card.short"),
-          Neutral: t("card.neutral"),
-          bullish: t("card.long"),
-          bearish: t("card.short"),
-        }) as Record<string, string>
-      )[s] ?? s;
-    return (
-      <details className="card debate-card-fold">
-        <summary className="news-card-summary">
-          {t("card.debate")} · {d.name}({d.symbol})
-        </summary>
-        <div className="news-card-body">
-          <div className="stat-row">
-            <span className="stat-pill">
-              {t("card.long")}{" "}
-              {d.vote_tally["看多"] || d.vote_tally["Long"] || d.vote_tally["bullish"] || 0}
-            </span>
-            <span className="stat-pill">
-              {t("card.short")}{" "}
-              {d.vote_tally["看空"] || d.vote_tally["Short"] || d.vote_tally["bearish"] || 0}
-            </span>
-            <span className="stat-pill">
-              {t("card.neutral")}{" "}
-              {d.vote_tally["中性"] || d.vote_tally["Neutral"] || d.vote_tally["neutral"] || 0}
-            </span>
-            <span
-              className={`stat-pill ${d.final_bias === "bullish" ? "up" : d.final_bias === "bearish" ? "down" : ""}`}
-            >
-              {t("card.bias")} {biasLabel[d.final_bias] || d.final_bias}
-            </span>
-          </div>
-          {d.positions.map((p, i) => (
-            <div key={i} className={`debate-position ${stanceColor[p.stance] || ""}`}>
-              <strong>{localizeDebateAgentName(p.agent, t)}</strong>{" "}
-              <span className={`stat-pill ${stanceColor[p.stance]}`}>{stanceLabel(p.stance)}</span>
-              <p className="muted" style={{ marginTop: 2 }}>
-                {p.arguments.slice(0, 200)}
-                {p.arguments.length > 200 ? "..." : ""}
-              </p>
-            </div>
-          ))}
-          {d.synthesis && (
-            <div
-              style={{
-                marginTop: 8,
-                borderTop: "1px solid var(--bbg-border)",
-                paddingTop: 8,
-              }}
-            >
-              <strong>{t("card.judge")}</strong>
-              <div style={{ marginTop: 4 }}>
-                <MarkdownContent text={d.synthesis} />
-              </div>
-            </div>
-          )}
         </div>
       </details>
     );

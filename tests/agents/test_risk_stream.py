@@ -42,7 +42,7 @@ async def _collect_events(
 
 
 @pytest.mark.asyncio
-async def test_stream_emits_parallel_agents_and_debate(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_stream_emits_parallel_agents_and_judge(monkeypatch: pytest.MonkeyPatch) -> None:
     holdings = [
         Holding(
             id=1,
@@ -66,12 +66,7 @@ async def test_stream_emits_parallel_agents_and_debate(monkeypatch: pytest.Monke
     events = await _collect_events(holdings, monkeypatch)
     types = [str(e.get("type")) for e in events]
     assert "risk_snapshot" in types
-    assert types.count("agent_start") >= 6
-    assert types.count("debate_round") == 1
-    debate_events = [e for e in events if e.get("type") == "debate_round"]
-    assert debate_events[0].get("aggressive")
-    assert debate_events[0].get("neutral_view")
-    assert debate_events[0].get("conservative")
+    assert types.count("agent_start") >= 5
     judge_events = [e for e in events if e.get("type") == "judge"]
     assert judge_events
     assert judge_events[0].get("position_action") in (

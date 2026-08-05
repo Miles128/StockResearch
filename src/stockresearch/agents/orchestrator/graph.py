@@ -27,8 +27,6 @@ class Orchestrator:
         user_id: int,
         message: str,
         session_id: str | None = None,
-        enable_debate: bool | None = None,
-        enable_master_commentary: bool | None = None,
         user_context: ChatUserContext | None = None,
         mode_settings: ModeSettingsOut | None = None,
         confirmed_symbol: str | None = None,
@@ -51,13 +49,6 @@ class Orchestrator:
         )
         history = await prepare_chat_history(self._db, user_id, sid, self._llm)
 
-        debate_on = settings.enable_debate if enable_debate is None else bool(enable_debate)
-        master_on = (
-            bool(enable_master_commentary)
-            if enable_master_commentary is not None
-            else bool(settings.enable_master_commentary)
-        )
-
         reset_usage(model=str(getattr(self._llm, "_model", "") or ""))
         result = await execute_chat_turn(
             db=self._db,
@@ -65,8 +56,6 @@ class Orchestrator:
             message=prepared.message,
             llm=self._llm,
             holdings=prepared.holdings,
-            debate_on=debate_on,
-            master_on=master_on,
             mode_settings=settings,
             long_term_context=prepared.long_term_context,
             user_context_text=prepared.user_context_text,

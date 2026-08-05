@@ -327,23 +327,6 @@ class DimensionResult(BaseModel):
     partial: bool = False
 
 
-class DebateRound(BaseModel):
-    round: int
-    bull_argument: str
-    bear_rebuttal: str
-
-
-class DebateResult(BaseModel):
-    rounds: list[DebateRound]
-    judge_verdict: str
-    consensus: str
-    core_divergence: str
-    final_bias: Literal["bullish", "bearish", "neutral"]
-    confidence: Literal["high", "medium", "low"]
-    vote_tally: dict[str, int] | None = None
-    manager_thesis: str | None = None
-
-
 class FactorSourceOut(BaseModel):
     key: str
     label: str
@@ -396,16 +379,6 @@ class SectorLeaderBrief(BaseModel):
     price: float
     change_pct: float
     brief: str
-
-
-class MasterCommentaryItem(BaseModel):
-    master: str
-    name: str
-    signal: Literal["bullish", "neutral", "bearish"] = "neutral"
-    signal_text: str = "中性"
-    confidence: float = 0.5
-    reasoning: str = ""
-    key_metric: str = ""
 
 
 class ImpactPeakDayOut(BaseModel):
@@ -475,7 +448,6 @@ class ResearchReportOut(BaseModel):
     viewpoints: dict[str, str] = Field(default_factory=dict)
     data_gaps: list[str] = Field(default_factory=list, max_length=5)
     follow_up_questions: list[str] = Field(default_factory=list, max_length=4)
-    debate: DebateResult | None = None
     sector: str | None = None
     leaders: list[SectorLeaderBrief] = Field(default_factory=list)
     news_text_factor: str | None = None
@@ -484,7 +456,6 @@ class ResearchReportOut(BaseModel):
     factors: list[NumericFactorOut] = Field(default_factory=list)
     bars_provenance: BarsProvenanceOut | None = None
     dimension_weights: dict[str, float] = Field(default_factory=dict)
-    master_commentary: list[MasterCommentaryItem] = Field(default_factory=list)
     analysis_depth: Literal["standard", "comprehensive", "deep"] = "standard"
     deep_analysis: DeepAnalysisOut | None = None
     factors_expanded: bool = False
@@ -582,7 +553,6 @@ class RiskCheckupOut(BaseModel):
     metrics: PortfolioMetricsOut | None = None
     var_result: VaRResultOut | None = None
     stress_results: list[StressResultOut] = Field(default_factory=list)
-    master_commentary: list[MasterCommentaryItem] = Field(default_factory=list)
     disclaimer: str = DISCLAIMER
 
 
@@ -609,12 +579,6 @@ class LlmSettingsOut(BaseModel):
     server_has_api_key: bool
 
 
-class CustomMasterOut(BaseModel):
-    id: str = Field(min_length=1, max_length=32, pattern=r"^[a-z][a-z0-9_]{0,31}$")
-    name: str = Field(min_length=1, max_length=50)
-    system_prompt: str = Field(min_length=10, max_length=4000)
-
-
 class CustomGlossaryTermOut(BaseModel):
     id: str = Field(min_length=1, max_length=32)
     short: str = Field(min_length=1, max_length=50)
@@ -631,13 +595,9 @@ class ModeSettingsOut(BaseModel):
     monthly_income: float | None = Field(default=None, gt=0)
     reading_mode: Literal["friendly", "professional"] = "friendly"
     analysis_depth: Literal["standard", "comprehensive", "deep"] = "standard"
-    enable_debate: bool = False
     enable_glossary: bool = True
     max_signals: int = Field(default=5, ge=1, le=50)
     onboarded: bool = False
-    enable_master_commentary: bool = False
-    selected_masters: list[str] = Field(default_factory=lambda: ["buffett", "munger", "burry"])
-    custom_masters: list[CustomMasterOut] = Field(default_factory=list)
     custom_glossary: list[CustomGlossaryTermOut] = Field(default_factory=list)
     quote_refresh_minutes: int = Field(default=10, ge=1, le=120)
     briefing_auto_enabled: bool = True
@@ -653,10 +613,29 @@ class LlmTestOut(BaseModel):
     message: str
 
 
+class DiagnosticItemOut(BaseModel):
+    """Single diagnostics probe result (doctor)."""
+
+    key: str
+    label: str
+    ok: bool
+    detail: str
+    hint: str | None = None
+    elapsed_ms: int | None = None
+
+
+class DiagnosticsOut(BaseModel):
+    """Provider doctor — one-shot BYOK troubleshooting snapshot."""
+
+    llm: DiagnosticItemOut
+    providers: list[DiagnosticItemOut]
+    env: list[DiagnosticItemOut]
+    generated_at: str
+
+
 class RiskCheckupRequest(BaseModel):
     reading_mode: Literal["friendly", "professional"] | None = None
     output_locale: Literal["zh", "en"] | None = None
-    enable_master_commentary: bool | None = None
     enable_llm_analysis: bool | None = None
 
 
@@ -673,8 +652,6 @@ class ChatRequest(BaseModel):
     session_id: str | None = None
     user_context: ChatUserContext | None = None
     llm: LlmUserSettings | None = None
-    enable_debate: bool | None = None
-    enable_master_commentary: bool | None = None
     enable_glossary: bool | None = None
     reading_mode: Literal["friendly", "professional"] | None = None
     output_locale: Literal["zh", "en"] | None = None
@@ -692,7 +669,6 @@ class CardPayload(BaseModel):
         "risk",
         "text",
         "market",
-        "debate",
         "plan",
         "financial",
         "stock_choice",
@@ -877,14 +853,12 @@ class ResearchReportListItem(BaseModel):
     composite_score: float
     bias: str
     summary: str
-    has_debate: bool
     created_at: datetime
 
 
 class IndustryResearchRequest(BaseModel):
     sector: str = Field(min_length=1, max_length=50)
     query: str = Field(default="", max_length=500)
-    enable_master_commentary: bool | None = None
 
 
 class BriefingSection(BaseModel):
@@ -1115,7 +1089,6 @@ class HypothesisVerifyRequest(BaseModel):
 class BatchResearchRequest(BaseModel):
     symbols: list[str] = Field(default_factory=list, max_length=8)
     analysis_depth: Literal["standard", "comprehensive", "deep"] = "standard"
-    with_debate: bool = False
 
 
 class RefillGapsRequest(BaseModel):

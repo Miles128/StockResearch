@@ -8,16 +8,6 @@ export interface AgentStep {
   status: "pending" | "running" | "done";
 }
 
-export interface DebateRound {
-  round: number;
-  bull?: string;
-  bear?: string;
-  aggressive?: string;
-  neutral?: string;
-  neutral_view?: string;
-  conservative?: string;
-}
-
 export interface HoldingAction {
   symbol: string;
   name: string;
@@ -36,11 +26,4 @@ export interface JudgeVerdict {
   content?: string;
   analysis_process?: string;
   holding_actions?: HoldingAction[];
-}
-
-export interface VoteTally {
-  bullish: number;
-  bearish: number;
-  neutral: number;
-  leading?: string;
 }

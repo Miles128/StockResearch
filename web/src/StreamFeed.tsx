@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { DimensionCards, type DimensionCardItem } from "./DimensionCards";
-import { parseDebateSpeech } from "./debateText";
 import { stripDisclaimer } from "./disclaimerText";
 import { MarkdownContent } from "./MarkdownContent";
 import {
@@ -14,98 +13,19 @@ import { useI18n } from "./i18n";
 import { localizeAgentDisplay, localizePositionAction, positionActionCssClass } from "./uiLabels";
 import { WorkflowAgentGrid } from "./WorkflowAgentGrid";
 
-import type {
-  AgentStep,
-  DebateRound,
-  HoldingAction,
-  JudgeVerdict,
-  VoteTally,
-} from "./types/streamTypes";
+import type { AgentStep, HoldingAction, JudgeVerdict } from "./types/streamTypes";
 
-export type { AgentStep, DebateRound, HoldingAction, JudgeVerdict, VoteTally };
+export type { AgentStep, HoldingAction, JudgeVerdict };
 
 interface StreamFeedProps {
   streamStatus: string;
   streamLog: string[];
   agentSteps: AgentStep[];
-  debateRounds: DebateRound[];
   judgeVerdict: JudgeVerdict | null;
-  voteTally: {
-    bullish: number;
-    bearish: number;
-    neutral: number;
-    leading?: string;
-  } | null;
   activeStreamIds?: string[];
-  masterCommentary?: import("./api").MasterCommentaryItem[];
   live?: boolean;
-  /** Risk tab: compact agent rail + collapsible debate/judge blocks. */
+  /** Risk tab: compact agent rail + collapsible judge block. */
   riskCompact?: boolean;
-}
-
-const DEBATE_ROLES = new Set(["bull", "bear", "aggressive", "neutral", "conservative", "vote"]);
-const SUMMARY_ROLES = new Set(["manager", "judge"]);
-
-function masterDisplayName(
-  item: import("./api").MasterCommentaryItem,
-  t: (key: string) => string,
-): string {
-  if (item.name?.trim()) return item.name;
-  const key = `master.${item.master}`;
-  const translated = t(key);
-  return translated !== key ? translated : item.master;
-}
-
-function managerStep(steps: AgentStep[]): AgentStep | undefined {
-  return steps.find((step) => step.role === "manager" || step.agent_id === "research_manager");
-}
-
-function DebateRoundMessage({
-  title,
-  text,
-  streaming,
-  className,
-  expandLabel,
-  collapseLabel,
-  typingLabel,
-}: {
-  title: string;
-  text: string;
-  streaming?: boolean;
-  className?: string;
-  expandLabel: string;
-  collapseLabel: string;
-  typingLabel: string;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const parsed = parseDebateSpeech(stripDisclaimer(text));
-  const collapsible = parsed.collapsible && !streaming;
-  const showSummaryOnly = collapsible && !expanded;
-  const body = showSummaryOnly
-    ? parsed.summary
-    : parsed.full || (parsed.detail ? `${parsed.summary}\n\n${parsed.detail}` : text);
-
-  return (
-    <div className={`message assistant stream-msg debate-round-msg ${className ?? ""}`.trim()}>
-      <div className="stream-msg-head">
-        <strong>{title}</strong>
-        {streaming && <span className="muted">{typingLabel}</span>}
-      </div>
-      <div className="stream-msg-body">
-        <MarkdownContent text={body} />
-        {streaming && <span className="stream-cursor">▍</span>}
-      </div>
-      {collapsible && (
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm debate-expand-btn"
-          onClick={() => setExpanded((v) => !v)}
-        >
-          {expanded ? collapseLabel : expandLabel}
-        </button>
-      )}
-    </div>
-  );
 }
 
 function StreamMessage({
@@ -256,11 +176,8 @@ export function StreamFeed({
   streamStatus,
   streamLog,
   agentSteps,
-  debateRounds,
   judgeVerdict,
-  voteTally,
   activeStreamIds = [],
-  masterCommentary = [],
   live = false,
   riskCompact = false,
 }: StreamFeedProps) {
@@ -274,61 +191,11 @@ export function StreamFeed({
     !showRiskGrid &&
     (dimensionPhaseActive(dimensionSteps) || streamStatus.toLowerCase().includes("dimension"));
   const dimsDone = dimensionsComplete(dimensionSteps);
-  const manager = managerStep(agentSteps);
-  const sortedRounds = debateRounds.slice().sort((a, b) => a.round - b.round);
   const isTyping = (streamId: string) => activeStreamIds.includes(streamId);
-  const showDebateSection =
-    sortedRounds.length > 0 ||
-    voteTally != null ||
-    streamStatus.toLowerCase().includes("debate") ||
-    ((dimsDone || showRiskGrid) && judgeVerdict != null);
   const showConclusionSection =
     (dimsDone || showRiskGrid) &&
-    (voteTally != null ||
-      manager != null ||
-      judgeVerdict != null ||
-      streamStatus.toLowerCase().includes("judge"));
-  const hasBody =
-    streamLog.length > 0 ||
-    showRiskGrid ||
-    showDimensionGrid ||
-    showDebateSection ||
-    manager != null ||
-    judgeVerdict != null;
-
-  const sideLabel: Record<string, string> = {
-    bull: t("stream.long"),
-    bear: t("stream.short"),
-    aggressive: t("stream.aggressive"),
-    neutral: t("stream.neutral"),
-    conservative: t("stream.conservative"),
-  };
-
-  function debateSides(round: DebateRound): { key: string; label: string; text: string }[] {
-    const sides: { key: string; label: string; text: string }[] = [];
-    if (round.bull) sides.push({ key: "bull", label: sideLabel.bull, text: round.bull });
-    if (round.bear) sides.push({ key: "bear", label: sideLabel.bear, text: round.bear });
-    if (round.aggressive)
-      sides.push({
-        key: "aggressive",
-        label: sideLabel.aggressive,
-        text: round.aggressive,
-      });
-    const neutralText = round.neutral ?? round.neutral_view;
-    if (neutralText)
-      sides.push({
-        key: "neutral",
-        label: sideLabel.neutral,
-        text: neutralText,
-      });
-    if (round.conservative)
-      sides.push({
-        key: "conservative",
-        label: sideLabel.conservative,
-        text: round.conservative,
-      });
-    return sides;
-  }
+    (judgeVerdict != null || streamStatus.toLowerCase().includes("judge"));
+  const hasBody = streamLog.length > 0 || showRiskGrid || showDimensionGrid || judgeVerdict != null;
 
   const msgProps = {
     typingLabel: t("stream.typing"),
@@ -402,62 +269,6 @@ export function StreamFeed({
         </div>
       )}
 
-      {showDebateSection &&
-        (riskCompact ? (
-          <details className="risk-stream-subfold" open={live}>
-            <summary className="risk-stream-subfold-summary">{t("stream.debateSection")}</summary>
-            <div className="risk-stream-subfold-body">
-              {sortedRounds.map((round) =>
-                debateSides(round).map((side) => (
-                  <DebateRoundMessage
-                    key={`${round.round}-${side.key}`}
-                    title={`${t("stream.round", { n: round.round })} · ${side.label}`}
-                    text={side.text}
-                    streaming={isTyping(`r${round.round}-${side.key}`)}
-                    className={`stream-role-${side.key}`}
-                    expandLabel={t("stream.expandDetail")}
-                    collapseLabel={t("stream.collapseDetail")}
-                    typingLabel={t("stream.typing")}
-                  />
-                )),
-              )}
-              {voteTally && (
-                <StreamMessage
-                  title={t("stream.vote")}
-                  body={t("stream.voteBody", {
-                    bull: voteTally.bullish,
-                    bear: voteTally.bearish,
-                    neutral: voteTally.neutral,
-                    leading: voteTally.leading
-                      ? t("stream.leading", { value: voteTally.leading })
-                      : "",
-                  })}
-                  {...msgProps}
-                />
-              )}
-            </div>
-          </details>
-        ) : (
-          <p className="stream-section-title">{t("stream.debateSection")}</p>
-        ))}
-
-      {!riskCompact &&
-        showDebateSection &&
-        sortedRounds.map((round) =>
-          debateSides(round).map((side) => (
-            <DebateRoundMessage
-              key={`${round.round}-${side.key}`}
-              title={`${t("stream.round", { n: round.round })} · ${side.label}`}
-              text={side.text}
-              streaming={isTyping(`r${round.round}-${side.key}`)}
-              className={`stream-role-${side.key}`}
-              expandLabel={t("stream.expandDetail")}
-              collapseLabel={t("stream.collapseDetail")}
-              typingLabel={t("stream.typing")}
-            />
-          )),
-        )}
-
       {showConclusionSection && !riskCompact && (
         <p className="stream-section-title">{t("stream.conclusionSection")}</p>
       )}
@@ -466,17 +277,6 @@ export function StreamFeed({
         <details className="risk-stream-subfold" open={live && judgeVerdict == null}>
           <summary className="risk-stream-subfold-summary">{t("stream.conclusionSection")}</summary>
           <div className="risk-stream-subfold-body">
-            {(dimsDone || showRiskGrid) && manager && (
-              <StreamMessage
-                key={manager.agent_id}
-                title={localizeAgentDisplay(manager.agent_id, manager.agent_name, t)}
-                body={manager.content}
-                running={manager.status === "running"}
-                streaming={isTyping(manager.agent_id)}
-                className="stream-role-manager"
-                {...msgProps}
-              />
-            )}
             {(dimsDone || showRiskGrid) && judgeVerdict && (
               <JudgeVerdictBlock
                 judgeVerdict={judgeVerdict}
@@ -488,58 +288,8 @@ export function StreamFeed({
         </details>
       )}
 
-      {!riskCompact && showDebateSection && voteTally && (
-        <StreamMessage
-          title={t("stream.vote")}
-          body={t("stream.voteBody", {
-            bull: voteTally.bullish,
-            bear: voteTally.bearish,
-            neutral: voteTally.neutral,
-            leading: voteTally.leading ? t("stream.leading", { value: voteTally.leading }) : "",
-          })}
-          {...msgProps}
-        />
-      )}
-
-      {!riskCompact && (dimsDone || showRiskGrid) && manager && (
-        <StreamMessage
-          key={manager.agent_id}
-          title={localizeAgentDisplay(manager.agent_id, manager.agent_name, t)}
-          body={manager.content}
-          running={manager.status === "running"}
-          streaming={isTyping(manager.agent_id)}
-          className="stream-role-manager"
-          {...msgProps}
-        />
-      )}
-
       {!riskCompact && (dimsDone || showRiskGrid) && judgeVerdict && (
         <JudgeVerdictBlock judgeVerdict={judgeVerdict} judgeTyping={isTyping("judge")} t={t} />
-      )}
-
-      {masterCommentary.length > 0 && (
-        <>
-          <p className="stream-section-title">{t("stream.masterCommentary")}</p>
-          <div className="master-commentary-list">
-            {masterCommentary.map((item, idx) => (
-              <div key={idx} className={`master-commentary-item signal-${item.signal}`}>
-                <div className="master-commentary-head">
-                  <strong>{masterDisplayName(item, t)}</strong>
-                  <span
-                    className={`stat-pill ${item.signal === "bullish" ? "up" : item.signal === "bearish" ? "down" : ""}`}
-                  >
-                    {item.signal_text}
-                  </span>
-                  {item.key_metric && (
-                    <span className="muted master-commentary-metric">{item.key_metric}</span>
-                  )}
-                </div>
-                <p className="muted">{item.reasoning}</p>
-              </div>
-            ))}
-          </div>
-          <p className="master-commentary-note muted">{t("stream.masterCommentaryNote")}</p>
-        </>
       )}
     </div>
   );

@@ -6,7 +6,6 @@
 - 表达风格：{reading_mode_label}（由独立输出规则控制，此处仅作背景）
 - 持仓概况：{holdings_summary}
 - 持仓行情（SQLite 缓存，收盘后不再刷新）：{holdings_quotes}
-- 多空辩论：{debate_label}
 - 术语弹窗：{glossary_label}
 
 {advisor_style_block}

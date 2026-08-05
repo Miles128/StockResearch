@@ -1,8 +1,7 @@
-"""Streaming sector/industry research — parallel dimensions + leader briefs + optional debate."""
+"""Streaming sector/industry research — parallel dimensions + leader briefs."""
 
 import asyncio
 from collections.abc import AsyncIterator
-from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -20,21 +19,13 @@ from stockresearch.agents.industry.dimensions import (
     prepare_valuation,
 )
 from stockresearch.agents.industry.leaders import iter_leader_analysis_events
-from stockresearch.agents.master_commentary.context import build_research_context
-from stockresearch.agents.master_commentary.registry import resolve_master_ids
-from stockresearch.agents.master_commentary.stream import stream_master_commentary
-from stockresearch.agents.research.battle import iter_battle_events
-from stockresearch.agents.research.debate import summarize_situation
 from stockresearch.agents.research.report_builder import build_research_report
 from stockresearch.agents.stream_typewriter import (
     iter_queue_merged_events,
     pump_dimension_llm_stream,
 )
-from stockresearch.agents.voice import DEBATE_VOICE, JUDGE_VOICE
 from stockresearch.core.schemas import (
-    DebateResult,
     DimensionResult,
-    MasterCommentaryItem,
     ModeSettingsOut,
     ResearchReportOut,
     SectorLeaderBrief,
@@ -44,11 +35,6 @@ from stockresearch.db.models import Holding, NewsItem
 from stockresearch.i18n.status_events import status_event
 from stockresearch.services.text_factor import build_news_text_factor, news_from_title
 from stockresearch.utils.llm import LLMClient, get_llm_client
-
-_BULL_SYSTEM = f"你是 A 股板块看多分析师。{DEBATE_VOICE}"
-_BEAR_SYSTEM = f"你是 A 股板块看空分析师。{DEBATE_VOICE}"
-_JUDGE_SYSTEM = f"""你是板块投研裁判。{JUDGE_VOICE} 只输出 JSON，禁止 markdown。
-{{"bias":"偏多|偏空|中性","summary":"结论，2句内","reason":"为何如此判，2句内","divergence":"分歧大|分歧中等|分歧小","divergence_point":"分歧焦点，1句"}}"""
 
 _AGENT_LABELS: dict[str, str] = {
     "policy": "政策舆情",
@@ -107,7 +93,6 @@ async def _load_context(
 def _build_report(
     sector: str,
     dimensions: dict[str, DimensionResult],
-    debate: DebateResult | None,
     leaders: list[SectorLeaderBrief],
     *,
     news_text_factor: str | None = None,
@@ -124,7 +109,6 @@ def _build_report(
         board_code,
         sector,
         dimensions,
-        debate,
         dimension_labels=_AGENT_LABELS,
         news_text_factor=news_text_factor,
         sector=sector,
@@ -140,10 +124,7 @@ async def run_industry_research_stream(
     query: str,
     llm: LLMClient | None = None,
     *,
-    with_debate: bool = False,
-    enable_master_commentary: bool = False,
     mode_settings: ModeSettingsOut | None = None,
-    master_ids: list[str] | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     client = llm or get_llm_client()
     ctx = await _load_context(db, user_id, sector, query, client)
@@ -180,53 +161,9 @@ async def run_industry_research_stream(
         else:
             yield event
 
-    debate: DebateResult | None = None
-    if with_debate:
-        situation = summarize_situation(dimensions)
-        leader_note = "\n".join(f"- {ld.name}: {ld.brief}" for ld in leader_briefs)
-        debate_context = f"板块：{sector}\n作战情报：\n{situation}\n龙头简评：\n{leader_note}"
-        yield status_event("status.industry.battle_start")
-        async for event in iter_battle_events(
-            client,
-            bull_system=_BULL_SYSTEM,
-            bear_system=_BEAR_SYSTEM,
-            debate_context=debate_context,
-            situation=situation,
-            dimensions=dimensions,
-            agent_labels=_AGENT_LABELS,
-            judge_system=_JUDGE_SYSTEM,
-            judge_stream_id="sector_judge",
-        ):
-            if event.get("type") == "battle_result":
-                debate = event["debate"]  # type: ignore[assignment]
-                continue
-            yield event
-
     news_snippets = [news_from_title(title) for title in ctx.news_snippets]
     news_text_factor = build_news_text_factor(news_snippets, subject=f"「{sector}」板块")
-    report = _build_report(
-        sector, dimensions, debate, leader_briefs, news_text_factor=news_text_factor
-    )
-
-    if enable_master_commentary and mode_settings is not None:
-        masters = master_ids or resolve_master_ids(mode_settings)
-        commentary_context = build_research_context(report)
-        commentary: list[dict[str, Any]] = []
-        async for mc_event in stream_master_commentary(
-            client,
-            subject=f"「{sector}」板块",
-            context=commentary_context,
-            settings=mode_settings,
-            masters=masters,
-        ):
-            yield mc_event
-            if mc_event.get("type") == "master_commentary" and isinstance(
-                mc_event.get("commentary"), list
-            ):
-                commentary = mc_event["commentary"]
-        report.master_commentary = [
-            MasterCommentaryItem.model_validate(item) for item in commentary
-        ]
+    report = _build_report(sector, dimensions, leader_briefs, news_text_factor=news_text_factor)
 
     yield status_event("status.industry.report_done")
     yield {"type": "done", "result": report.model_dump(mode="json")}

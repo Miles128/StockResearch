@@ -161,8 +161,7 @@ export function ReportsSettingsTab({
                     {r.name} ({r.symbol})
                   </strong>
                   <span className="settings-muted">
-                    {r.composite_score}/10 ·{" "}
-                    {r.has_debate ? t("settings.reportDebate") : t("settings.reportResearchOnly")}
+                    {r.composite_score}/10 · {t("settings.reportResearchOnly")}
                   </span>
                   <span className="settings-muted report-history-time">
                     {new Date(r.created_at).toLocaleString(locale === "zh" ? "zh-CN" : "en-US")}

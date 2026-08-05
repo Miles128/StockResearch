@@ -4,9 +4,6 @@ import asyncio
 import logging
 from typing import Literal
 
-from stockresearch.agents.master_commentary.context import build_research_context
-from stockresearch.agents.master_commentary.registry import resolve_master_ids
-from stockresearch.agents.master_commentary.stream import get_master_commentary
 from stockresearch.agents.research.agents import AGENT_BY_ID, DIMENSION_AGENTS
 from stockresearch.agents.research.budget import (
     AnalysisDepth,
@@ -14,7 +11,6 @@ from stockresearch.agents.research.budget import (
     resolve_analysis_depth,
 )
 from stockresearch.agents.research.context import ResearchContext
-from stockresearch.agents.research.debate import run_debate
 from stockresearch.agents.research.react import (
     DimensionAgent,
     prepare_react_agent,
@@ -23,9 +19,7 @@ from stockresearch.agents.research.react import (
 from stockresearch.agents.research.report_builder import build_research_report
 from stockresearch.agents.research.scoring import score_bias, weighted_composite_score
 from stockresearch.core.schemas import (
-    DebateResult,
     DimensionResult,
-    MasterCommentaryItem,
     ModeSettingsOut,
     ResearchReportOut,
 )
@@ -80,10 +74,7 @@ async def run_research(
     symbol: str,
     llm: LLMClient | None = None,
     *,
-    with_debate: bool = True,
-    enable_master_commentary: bool = False,
     mode_settings: ModeSettingsOut | None = None,
-    master_ids: list[str] | None = None,
     analysis_depth: AnalysisDepth | str | None = None,
 ) -> ResearchReportOut:
     client = llm or get_llm_client()
@@ -115,12 +106,8 @@ async def run_research(
         logger.warning("numeric factors failed for %s", symbol, exc_info=True)
         factors = []
 
-    debate: DebateResult | None = None
-    if with_debate:
-        debate = await run_debate(symbol, name, dimensions, client)
-
     composite, _ = weighted_composite_score(dimensions)
-    bias_for_factors = debate.final_bias if debate is not None else score_bias(composite)
+    bias_for_factors = score_bias(composite)
     alignment = (
         factor_alignment_note(bias_for_factors, factors)
         if budget.factors_expanded and factors
@@ -137,7 +124,6 @@ async def run_research(
         symbol,
         name,
         dimensions,
-        debate,
         dimension_labels=_LABELS,
         news_text_factor=news_text_factor,
         factors=factors,
@@ -190,18 +176,5 @@ async def run_research(
                 report.deep_analysis.thesis = thesis
         except Exception:
             logger.warning("thesis build failed for %s", symbol, exc_info=True)
-
-    if enable_master_commentary and mode_settings is not None:
-        masters = master_ids or resolve_master_ids(mode_settings)
-        commentary = await get_master_commentary(
-            client,
-            subject=f"{name}({symbol})",
-            context=build_research_context(report),
-            settings=mode_settings,
-            masters=masters,
-        )
-        report.master_commentary = [
-            MasterCommentaryItem.model_validate(item) for item in commentary
-        ]
 
     return report

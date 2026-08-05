@@ -8,7 +8,7 @@ from stockresearch.utils.symbols import (
     has_stock_reference,
 )
 
-# Deep research / debate intent (stock or market)
+# Deep research intent (stock or market)
 _DEEP_INTENT_KEYWORDS: tuple[str, ...] = (
     "辩论",
     "多空",
@@ -73,19 +73,6 @@ _COMPLEX_PATTERNS = [
 
 _STOCK_NAMES = f"({STOCK_NAME_ALTERNATION})"
 
-_DEBATE_PATTERNS = [
-    r"\d{6}.*?(分析|研究|看法|观点|辩论|持有|还能|继续|值得|买卖)",
-    _STOCK_NAMES
-    + r".{0,8}(分析|研究|看法|观点|辩论|持有|还能|继续|值得|买卖|怎么样|如何|行不行|好不好)",
-    r"(这只|这个|那只|那只).{0,4}(股票|股).{0,4}(怎么样|如何|值不值得|能不能买|还能|持有|继续)",
-    r"\d{6}.*?(财报|比率|PE|PB|ROE|毛利率|净利率|市盈率|市净率|估值)",
-    _STOCK_NAMES + r".{0,6}(财报|比率|PE|PB|ROE|毛利率|净利率|市盈率|市净率|估值)",
-    r"(深度|详细|全面).{0,4}(分析|研究).{0,4}\d{6}",
-    r"\d{6}.{0,6}(深度|详细|全面).{0,4}(分析|研究)",
-    _STOCK_NAMES + r"(还能|可以|值得|继续).{0,4}(持有|买|卖|拿|留)",
-    r"\d{6}.{0,4}(吗|呢|？|\?)",
-]
-
 
 class ComplexityResult:
     """Result of complexity classification."""
@@ -93,8 +80,6 @@ class ComplexityResult:
     DIRECT = "direct"
     RESEARCH = "research"
     MARKET_RESEARCH = "market_research"
-    DEBATE = "debate"
-    MARKET_DEBATE = "market_debate"
     PLAN_EXECUTE = "plan_execute"
     INDUSTRY_RESEARCH = "industry_research"
 
@@ -190,7 +175,7 @@ def is_simple_news_explanation(message: str) -> bool:
 
 
 def should_skip_multi_agent(message: str) -> bool:
-    """Route to ReAct/simple CoT instead of research, debate, or plan-execute."""
+    """Route to ReAct/simple CoT instead of research or plan-execute."""
     msg = message.strip()
     if not msg or is_risk_intent(msg):
         return False
@@ -207,21 +192,6 @@ def should_skip_multi_agent(message: str) -> bool:
             return False
         if not re.search(r"(深度|全面|详细|辩论|投研)", compact):
             return True
-    return False
-
-
-def should_skip_debate(message: str) -> bool:
-    """Even when debate is enabled, skip for simple or narrow questions."""
-    if should_skip_multi_agent(message):
-        return True
-    compact = _compact_message(message)
-    if has_stock_reference(message) and is_stock_analysis_intent(message):
-        if wants_deep_research(message) or re.search(r"(分析|研究|投研|怎么看|值不值得)", compact):
-            return False
-    if len(compact) < 40 and not wants_deep_research(message):
-        return True
-    if is_news_intent(message) and not wants_deep_research(message):
-        return True
     return False
 
 
@@ -334,20 +304,17 @@ def classify_query(message: str) -> str:
     market = is_market_scope(msg)
     stock = has_stock_reference(msg)
 
-    # 大盘 + 深度/辩论/投研 → 市场多空辩论流
+    # 大盘 + 深度/投研 → 市场四维研究
     if deep and market and not stock:
-        return ComplexityResult.MARKET_DEBATE
+        return ComplexityResult.MARKET_RESEARCH
 
-    # 深度投研但未点名个股，且涉及市场/走势 → 市场辩论
+    # 深度投研但未点名个股，且涉及市场/走势 → 市场四维研究
     if deep and not stock and re.search(r"(市场|行情|走势|宏观|指数)", msg):
-        return ComplexityResult.MARKET_DEBATE
+        return ComplexityResult.MARKET_RESEARCH
 
-    # 个股辩论 / 深度投研
+    # 个股深度投研
     if deep and stock:
-        return ComplexityResult.DEBATE
-    for pattern in _DEBATE_PATTERNS:
-        if re.search(pattern, msg):
-            return ComplexityResult.DEBATE
+        return ComplexityResult.RESEARCH
 
     for pattern in _COMPLEX_PATTERNS:
         if re.search(pattern, msg):
@@ -459,9 +426,6 @@ def is_stock_analysis_intent(message: str) -> bool:
         return True
     if _STOCK_ANALYSIS_RE.search(msg):
         return True
-    for pattern in _DEBATE_PATTERNS:
-        if re.search(pattern, msg):
-            return True
     return False
 
 
@@ -501,10 +465,8 @@ def classify_research_scope(message: str) -> str | None:
 
 def resolve_execution_mode(
     message: str,
-    *,
-    enable_debate: bool = False,
 ) -> str:
-    """Route chat to direct / multi-dim research / debate / plan-execute."""
+    """Route chat to direct / multi-dim research / plan-execute."""
     msg = message.strip()
 
     if should_auto_plan_execute(msg):
@@ -514,11 +476,10 @@ def resolve_execution_mode(
         return ComplexityResult.DIRECT
 
     scope = classify_research_scope(msg)
-    use_debate = enable_debate and not should_skip_debate(msg)
     if scope == "stock":
-        return ComplexityResult.DEBATE if use_debate else ComplexityResult.RESEARCH
+        return ComplexityResult.RESEARCH
     if scope == "market":
-        return ComplexityResult.MARKET_DEBATE if use_debate else ComplexityResult.MARKET_RESEARCH
+        return ComplexityResult.MARKET_RESEARCH
 
     if is_industry_research(msg):
         return ComplexityResult.INDUSTRY_RESEARCH

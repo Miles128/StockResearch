@@ -1,6 +1,6 @@
 """Research report history and export tests."""
 
-from stockresearch.core.schemas import DebateResult, DimensionResult, ResearchReportOut
+from stockresearch.core.schemas import DimensionResult, ResearchReportOut
 from stockresearch.services.report_export import report_to_markdown
 
 
@@ -22,14 +22,6 @@ def _sample_report() -> ResearchReportOut:
         composite_confidence="high",
         bias="bullish",
         summary="贵州茅台综合偏多。",
-        debate=DebateResult(
-            rounds=[],
-            judge_verdict="偏多",
-            consensus="偏多",
-            core_divergence="分歧中等",
-            final_bias="bullish",
-            confidence="medium",
-        ),
     )
 
 
@@ -45,7 +37,7 @@ def test_list_and_export_reports(client, db_session) -> None:
     items = listed.json()
     assert len(items) == 1
     assert items[0]["symbol"] == "600519"
-    assert items[0]["has_debate"] is True
+    assert "has_debate" not in items[0]
 
     detail = client.get(f"/api/v1/research/reports/{row.id}")
     assert detail.status_code == 200
@@ -54,7 +46,7 @@ def test_list_and_export_reports(client, db_session) -> None:
     md = client.get(f"/api/v1/research/reports/{row.id}/markdown")
     assert md.status_code == 200
     assert "贵州茅台" in md.text
-    assert "多空辩论" in md.text
+    assert "维度分析" in md.text
 
 
 def test_report_to_markdown_includes_dimensions() -> None:

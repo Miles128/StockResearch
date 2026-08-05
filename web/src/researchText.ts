@@ -64,7 +64,6 @@ export function normalizeResearchConclusion(
 
 export function researchExpandHintsFromReport(report: {
   dimensions?: Record<string, { highlights?: string[]; risks?: string[] }>;
-  debate?: { consensus?: string; core_divergence?: string } | null;
 }): string[] {
   const hints: string[] = [];
   for (const dim of Object.values(report.dimensions ?? {})) {
@@ -73,11 +72,6 @@ export function researchExpandHintsFromReport(report: {
       if (hints.length >= 6) break;
     }
     if (hints.length >= 6) break;
-  }
-  if (report.debate?.consensus?.trim()) {
-    hints.push(report.debate.consensus.trim());
-  } else if (report.debate?.core_divergence?.trim()) {
-    hints.push(report.debate.core_divergence.trim());
   }
   return hints;
 }

@@ -1,11 +1,5 @@
 import { useState } from "react";
-import {
-  api,
-  type AshareFactor,
-  type DebateResult,
-  type NumericFactor,
-  type ResearchReport,
-} from "./api";
+import { api, type AshareFactor, type NumericFactor, type ResearchReport } from "./api";
 import { DeepAnalysisBlock } from "./DeepAnalysisBlock";
 import { DimensionCards, dimensionItemsFromResults } from "./DimensionCards";
 import { MarkdownContent } from "./MarkdownContent";
@@ -14,25 +8,11 @@ import { useI18n } from "./i18n";
 import { loadModeSettings } from "./modeSettings";
 import { localizeAgentDisplay } from "./uiLabels";
 
-function biasLabel(bias: string, t: (key: string) => string): string {
-  const key = `card.${bias}` as const;
-  const translated = t(key);
-  return translated !== key ? translated : bias;
-}
-
 export function findResearchReport(
   cards?: { type: string; data: Record<string, unknown> }[],
 ): ResearchReport | null {
   const card = cards?.find((c) => c.type === "research" && c.data && "composite_score" in c.data);
   return card ? (card.data as unknown as ResearchReport) : null;
-}
-
-export function hasDebateStream(process?: {
-  debateRounds: unknown[];
-  judgeVerdict: unknown;
-}): boolean {
-  if (!process) return false;
-  return process.debateRounds.length > 0 || process.judgeVerdict != null;
 }
 
 export function hasDimensionStream(process?: {
@@ -52,74 +32,6 @@ export function hasDimensionStream(process?: {
     "structure",
   ]);
   return process.agentSteps.some((s) => ids.has(s.agent_id) && s.status !== "pending");
-}
-
-function ResearchDebateBlock({
-  debate,
-  labels,
-}: {
-  debate: DebateResult;
-  labels: {
-    section: string;
-    long: string;
-    short: string;
-    judge: string;
-    manager: string;
-    round: (n: number) => string;
-    voteTally: (bull: number, bear: number, neutral: number) => string;
-    bias: (value: string) => string;
-  };
-}) {
-  if (!debate.rounds?.length && !debate.consensus) return null;
-  return (
-    <div className="research-debate">
-      {debate.rounds?.map((rnd) => (
-        <div key={rnd.round} className="debate-grid">
-          {rnd.bull_argument && (
-            <div className="debate-bull">
-              <strong>
-                {labels.round(rnd.round)} · {labels.long}
-              </strong>
-              <p>{rnd.bull_argument}</p>
-            </div>
-          )}
-          {rnd.bear_rebuttal && (
-            <div className="debate-bear">
-              <strong>
-                {labels.round(rnd.round)} · {labels.short}
-              </strong>
-              <p>{rnd.bear_rebuttal}</p>
-            </div>
-          )}
-        </div>
-      ))}
-      {debate.vote_tally && (
-        <p className="muted">
-          {labels.voteTally(
-            debate.vote_tally["偏多"] ?? 0,
-            debate.vote_tally["偏空"] ?? 0,
-            debate.vote_tally["中性"] ?? 0,
-          )}
-        </p>
-      )}
-      {debate.manager_thesis && (
-        <div className="debate-judge">
-          <strong>{labels.manager}</strong>
-          <p>{debate.manager_thesis}</p>
-        </div>
-      )}
-      {(debate.consensus || debate.judge_verdict) && (
-        <div className="debate-judge">
-          <strong>
-            {labels.judge}
-            {debate.final_bias ? ` · ${labels.bias(debate.final_bias)}` : ""}
-          </strong>
-          <p>{debate.consensus || debate.judge_verdict}</p>
-          {debate.core_divergence && <p className="muted">{debate.core_divergence}</p>}
-        </div>
-      )}
-    </div>
-  );
 }
 
 function factorStatusLabel(status: AshareFactor["status"], t: (key: string) => string): string {
@@ -235,13 +147,11 @@ export function ResearchReportDetails({
   report,
   reportId,
   showDimensions = true,
-  showDebate = true,
   showDeepAnalysis = true,
 }: {
   report: ResearchReport;
   reportId?: number;
   showDimensions?: boolean;
-  showDebate?: boolean;
   showDeepAnalysis?: boolean;
 }) {
   const { t } = useI18n();
@@ -278,22 +188,6 @@ export function ResearchReportDetails({
     } finally {
       setPlainLoading(false);
     }
-  };
-
-  const debateLabels = {
-    section: t("card.debateSection"),
-    long: t("card.long"),
-    short: t("card.short"),
-    judge: t("card.judge"),
-    manager: t("card.managerThesis"),
-    round: (n: number) => t("card.round", { n: String(n) }),
-    voteTally: (bull: number, bear: number, neutral: number) =>
-      t("card.voteTally", {
-        bull: String(bull),
-        bear: String(bear),
-        neutral: String(neutral),
-      }),
-    bias: (value: string) => biasLabel(value, t),
   };
 
   return (
@@ -361,12 +255,6 @@ export function ResearchReportDetails({
         (displayReport.deep_analysis?.impact ||
           displayReport.deep_analysis?.pricing ||
           displayReport.deep_analysis?.thesis) && <DeepAnalysisBlock report={displayReport} />}
-      {showDebate && displayReport.debate && (
-        <details className="research-debate-details">
-          <summary>{t("card.debateSection")}</summary>
-          <ResearchDebateBlock debate={displayReport.debate} labels={debateLabels} />
-        </details>
-      )}
       <ResearchNumericFactorsBlock
         factors={displayReport.factors}
         expanded={

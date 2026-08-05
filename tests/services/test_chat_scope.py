@@ -162,8 +162,6 @@ async def test_stock_risk_question_uses_react_not_portfolio_checkup(
         message="600519有什么风险",
         llm=MockLLMClient(),
         holdings=holdings,
-        debate_on=False,
-        master_on=False,
         mode_settings=ModeSettingsOut(),
         scope=scope,
     )

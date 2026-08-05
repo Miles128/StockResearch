@@ -179,7 +179,7 @@ def parse_judge(
     fallback_process = (
         "1. 扫描规则引擎告警，识别回撤、黑天鹅与集中度风险。\n"
         "2. 结合市场、相关性与情景分析，评估组合联动暴露。\n"
-        "3. 对照三方辩论与 Research Manager 意见，形成逐股与组合结论。"
+        "3. 结合市场、相关性与情景告警，形成逐股与组合结论。"
     )
     match = _JSON_BLOCK.search(raw)
     if match:

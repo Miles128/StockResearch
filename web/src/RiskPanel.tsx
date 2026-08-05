@@ -430,11 +430,8 @@ export function RiskPanel({
                   streamStatus={riskStream.streamStatus}
                   streamLog={riskStream.streamLog}
                   agentSteps={riskStream.agentSteps}
-                  debateRounds={riskStream.debateRounds}
                   judgeVerdict={riskStream.judgeVerdict}
-                  voteTally={riskStream.voteTally}
                   activeStreamIds={riskStream.activeStreamIds}
-                  masterCommentary={riskStream.masterCommentary}
                   live={loading}
                   riskCompact
                 />

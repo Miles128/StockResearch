@@ -1092,8 +1092,7 @@ input:focus {
   border: 1px solid var(--bbg-border);
 }
 
-.research-dimensions,
-.research-debate {
+.research-dimensions {
   margin-top: 10px;
 }
 
@@ -1105,29 +1104,6 @@ input:focus {
   margin: 4px 0 0;
   font-size: 12.5px;
   line-height: 1.45;
-}
-
-.debate-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.debate-bull,
-.debate-bear {
-  border-left: 2px solid var(--bbg-up);
-  padding: 6px 8px;
-  border-radius: 0;
-  background: var(--input-bg);
-}
-
-.debate-bear {
-  border-left-color: var(--bbg-down);
-}
-.debate-judge {
-  border-left: 2px solid var(--bbg-orange);
-  padding-left: 8px;
 }
 
 .stat-row {
@@ -1408,12 +1384,6 @@ input:focus {
   font-weight: 700;
   color: var(--bbg-orange);
   letter-spacing: 0.04em;
-}
-
-.master-commentary-note {
-  margin: 6px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
 }
 
 .practice-banner {

@@ -160,7 +160,6 @@ async def build_long_term_context(
         ),
         holdings_summary=holdings_summary,
         holdings_quotes=holdings_quotes,
-        debate_label="开启" if mode_settings.enable_debate else "关闭",
         glossary_label="开启" if mode_settings.enable_glossary else "关闭",
         advisor_style_block=advisor_block,
     )

@@ -8,7 +8,7 @@ import json
 import logging
 from pathlib import Path
 
-from stockresearch.core.schemas import DebateResult, DimensionResult, ResearchReportOut
+from stockresearch.core.schemas import DimensionResult, ResearchReportOut
 
 logger = logging.getLogger(__name__)
 
@@ -37,28 +37,6 @@ def _dim_section(key: str, dim: DimensionResult) -> list[str]:
         for ev in dim.evidence[:6]:
             date = f"（{ev.date}）" if ev.date else ""
             lines.append(f"  - {ev.snippet} · {ev.source}{date}")
-    return lines
-
-
-def _debate_section(debate: DebateResult) -> list[str]:
-    lines = [
-        "## 多空辩论",
-        f"**裁判倾向**：{_BIAS_LABEL.get(debate.final_bias, debate.final_bias)}",
-    ]
-    lines.append(f"- 共识：{debate.consensus}")
-    lines.append(f"- 核心分歧：{debate.core_divergence}")
-    if debate.vote_tally:
-        tally = debate.vote_tally
-        lines.append(
-            f"- 投票：偏多 {tally.get('偏多', 0)} · 偏空 {tally.get('偏空', 0)} · 中性 {tally.get('中性', 0)}"
-        )
-    if debate.manager_thesis:
-        lines.append(f"- Research Manager：{debate.manager_thesis}")
-    for rnd in debate.rounds:
-        lines.append(f"### 第 {rnd.round} 轮")
-        lines.append(f"**看多**：{rnd.bull_argument}")
-        lines.append(f"**看空**：{rnd.bear_rebuttal}")
-    lines.append(f"**裁判结论**：{debate.judge_verdict}")
     return lines
 
 
@@ -336,9 +314,6 @@ def report_to_markdown(report: ResearchReportOut) -> str:
     for key, dim in report.dimensions.items():
         lines.extend(_dim_section(key, dim))
         lines.append("")
-    if report.debate:
-        lines.extend(_debate_section(report.debate))
-        lines.append("")
     if report.deep_analysis is not None and report.deep_analysis.impact is not None:
         lines.extend(_impact_section(report.deep_analysis.impact))
         lines.append("")
@@ -433,13 +408,6 @@ def report_to_pdf(report: ResearchReportOut) -> bytes:
             write_line("亮点：" + "；".join(dim.highlights))
         if dim.risks:
             write_line("风险：" + "；".join(dim.risks))
-    if report.debate:
-        write_line("多空辩论", size=13, bold=True)
-        write_line(
-            f"裁判倾向：{_BIAS_LABEL.get(report.debate.final_bias, report.debate.final_bias)}"
-        )
-        write_line(f"共识：{report.debate.consensus}")
-        write_line(f"裁判结论：{report.debate.judge_verdict}")
     if report.leaders:
         write_line("板块龙头简评", size=13, bold=True)
         for ld in report.leaders:

@@ -1,4 +1,4 @@
-"""Streaming chat orchestrator — real-time progress + ReAct/Debate/PlanExecute."""
+"""Streaming chat orchestrator — real-time progress + ReAct/PlanExecute."""
 
 import asyncio
 import logging
@@ -40,23 +40,12 @@ def _describe_request_error(exc: httpx.RequestError) -> str:
     return f"{kind}({host})" if host else kind
 
 
-def _resolve_master_on(
-    request_flag: bool | None,
-    settings: ModeSettingsOut,
-) -> bool:
-    if request_flag is not None:
-        return bool(request_flag)
-    return bool(settings.enable_master_commentary)
-
-
 async def run_chat_stream(
     db: Session,
     user_id: int,
     message: str,
     session_id: str | None = None,
     llm: LLMClient | None = None,
-    enable_debate: bool | None = None,
-    enable_master_commentary: bool | None = None,
     user_context: ChatUserContext | None = None,
     mode_settings: ModeSettingsOut | None = None,
     confirmed_symbol: str | None = None,
@@ -69,7 +58,6 @@ async def run_chat_stream(
     reset_usage(model=_llm_model_name(client))
     holdings = db.query(Holding).filter(Holding.user_id == user_id).all()
     settings = mode_settings or get_mode_settings(db, user_id)
-    master_on = _resolve_master_on(enable_master_commentary, settings)
     prepared = await prepare_chat_turn(
         mode_settings=settings,
         holdings=holdings,
@@ -83,7 +71,6 @@ async def run_chat_stream(
 
     yield status_event("status.understanding")
 
-    debate_on = settings.enable_debate if enable_debate is None else bool(enable_debate)
     cards: list[dict[str, object]] = []
     reply = ""
     partial = False
@@ -97,8 +84,6 @@ async def run_chat_stream(
             sid=sid,
             client=client,
             holdings=prepared.holdings,
-            debate_on=debate_on,
-            master_on=master_on,
             prepared=prepared,
             history=history,
             confirmed_symbol=confirmed_symbol,
@@ -150,8 +135,6 @@ async def _run_chat_stream_body(
     sid: str,
     client: LLMClient,
     holdings: list[Holding],
-    debate_on: bool,
-    master_on: bool,
     prepared: PreparedChatTurn,
     history: list[dict[str, str]],
     confirmed_symbol: str | None,
@@ -179,8 +162,6 @@ async def _run_chat_stream_body(
                 message=message,
                 llm=client,
                 holdings=holdings,
-                debate_on=debate_on,
-                master_on=master_on,
                 mode_settings=mode_settings,
                 long_term_context=prepared.long_term_context,
                 user_context_text=prepared.user_context_text,

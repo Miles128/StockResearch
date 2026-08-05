@@ -9,7 +9,7 @@ from stockresearch.db.models import User
 
 
 @pytest.mark.asyncio
-async def test_chat_stream_stock_without_debate(db_session: Session) -> None:
+async def test_chat_stream_stock_runs_skill(db_session: Session) -> None:
     user = User(username="stream-choice", password_hash="")
     db_session.add(user)
     db_session.commit()
@@ -20,14 +20,12 @@ async def test_chat_stream_stock_without_debate(db_session: Session) -> None:
         db_session,
         user.id,
         "帮我分析一下600519",
-        enable_debate=False,
     ):
         events.append(event)
 
     assert events[0].get("type") == "status"
     types = [str(e.get("type")) for e in events]
     assert "skill_start" in types
-    assert "debate_round" not in types
 
 
 @pytest.mark.asyncio
@@ -42,7 +40,6 @@ async def test_chat_stream_returns_reply(db_session: Session) -> None:
         db_session,
         user.id,
         "帮我分析一下600519",
-        enable_debate=True,
     ):
         events.append(event)
 
@@ -92,7 +89,6 @@ async def test_chat_stream_ambiguous_stock_choice(db_session: Session) -> None:
         db_session,
         user.id,
         "帮我分析一下平安",
-        enable_debate=False,
     ):
         events.append(event)
 
@@ -117,7 +113,6 @@ async def test_chat_stream_confirmed_symbol_proceeds(db_session: Session) -> Non
         db_session,
         user.id,
         "帮我分析一下平安",
-        enable_debate=False,
         confirmed_symbol="601318",
         confirmed_name="中国平安",
     ):

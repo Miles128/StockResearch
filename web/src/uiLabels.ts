@@ -19,8 +19,6 @@ const AGENT_ZH_TO_KEY: Record<string, string> = {
   相关性: "correlation",
   情景推演: "scenario",
   裁判: "judge",
-  看多派: "bull_side",
-  看空派: "bear_side",
   风控: "risk_agent",
   新闻员: "news_reporter",
   财经快讯: "financial_news",
@@ -116,15 +114,6 @@ export function localizeImpactLevel(value: string, t: TFn): string {
 export function localizePositionAction(action: string, t: TFn): string {
   const i18nKey = POSITION_ACTION_ZH[action];
   return i18nKey ? t(i18nKey) : action;
-}
-
-export function localizeDebateAgentName(name: string, t: TFn): string {
-  const key = AGENT_ZH_TO_KEY[name];
-  if (key) {
-    const label = t(`stream.agents.${key}`);
-    if (label !== `stream.agents.${key}`) return `${label} ${t("card.analyst")}`;
-  }
-  return `${name} ${t("card.analyst")}`;
 }
 
 export function localizeBriefing(briefing: Briefing, t: TFn): Briefing {

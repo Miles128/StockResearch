@@ -26,7 +26,7 @@ export const ABOUT_INFO = {
     {
       name: "FinGenius",
       url: "https://github.com/HuaYaoAI/FinGenius",
-      note: "Research-Battle 双阶段",
+      note: "研究-决策双阶段",
     },
     {
       name: "Vibe-Trading",

@@ -51,3 +51,6 @@ docs/*
 # local-only
 .qoder-cn/
 StockResearch-*-src.zip
+
+*.db-shm
+*.db-wal

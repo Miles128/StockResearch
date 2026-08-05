@@ -257,7 +257,6 @@ def list_reports(
                 composite_score=float(payload.get("composite_score", 0)),
                 bias=str(payload.get("bias", "neutral")),
                 summary=str(payload.get("summary", ""))[:200],
-                has_debate=payload.get("debate") is not None,
                 created_at=row.created_at,
             )
         )
@@ -716,7 +715,6 @@ async def batch_research(
                 report = await run_research(
                     symbol,
                     llm=llm,
-                    with_debate=payload.with_debate,
                     mode_settings=settings,
                     analysis_depth=depth,
                 )
@@ -744,7 +742,7 @@ async def batch_research(
         items=items,
         as_of=datetime.now(UTC).date().isoformat(),
         notes=[
-            f"批量四维（depth={depth}，debate={payload.with_debate}），最多 8 只。",
+            f"批量四维（depth={depth}），最多 8 只。",
             "结果已写入研报历史，可导出 JSON/CSV 或做事后核对。",
         ],
     )

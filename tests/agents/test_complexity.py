@@ -9,15 +9,14 @@ from stockresearch.agents.orchestrator.complexity import (
     is_simple_news_explanation,
     is_trend_explanation_intent,
     resolve_execution_mode,
-    should_skip_debate,
     wants_deep_research,
 )
 
 
-def test_market_deep_routes_to_market_debate() -> None:
-    assert classify_query("大盘走势深度分析") == ComplexityResult.MARKET_DEBATE
-    assert classify_query("请对A股市场进行辩论投研") == ComplexityResult.MARKET_DEBATE
-    assert classify_query("宏观深度研究 指数走势") == ComplexityResult.MARKET_DEBATE
+def test_market_deep_routes_to_market_research() -> None:
+    assert classify_query("大盘走势深度分析") == ComplexityResult.MARKET_RESEARCH
+    assert classify_query("请对A股市场进行辩论投研") == ComplexityResult.MARKET_RESEARCH
+    assert classify_query("宏观深度研究 指数走势") == ComplexityResult.MARKET_RESEARCH
 
 
 def test_simple_market_stays_direct() -> None:
@@ -25,13 +24,13 @@ def test_simple_market_stays_direct() -> None:
     assert classify_query("最新市场指数") == ComplexityResult.DIRECT
 
 
-def test_stock_deep_routes_to_debate() -> None:
-    assert classify_query("600519 深度分析") == ComplexityResult.DEBATE
-    assert classify_query("茅台 辩论投研") == ComplexityResult.DEBATE
+def test_stock_deep_routes_to_research() -> None:
+    assert classify_query("600519 深度分析") == ComplexityResult.RESEARCH
+    assert classify_query("茅台 辩论投研") == ComplexityResult.RESEARCH
 
 
-def test_market_with_stock_code_is_stock_debate() -> None:
-    assert classify_query("600519 大盘深度分析") == ComplexityResult.DEBATE
+def test_market_with_stock_code_is_stock_research() -> None:
+    assert classify_query("600519 大盘深度分析") == ComplexityResult.RESEARCH
 
 
 def test_helpers() -> None:
@@ -51,39 +50,25 @@ def test_classify_research_scope() -> None:
     assert classify_research_scope("大盘深度分析") == "market"
 
 
-def test_a_share_spaced_query_routes_to_market_debate() -> None:
-    assert (
-        resolve_execution_mode("A 股走势深度分析", enable_debate=True)
-        == ComplexityResult.MARKET_DEBATE
-    )
+def test_a_share_spaced_query_routes_to_market_research() -> None:
+    assert resolve_execution_mode("A 股走势深度分析") == ComplexityResult.MARKET_RESEARCH
 
 
 def test_resolve_execution_mode() -> None:
-    assert resolve_execution_mode("今天大盘行情", enable_debate=False) == ComplexityResult.DIRECT
-    assert resolve_execution_mode("今天大盘行情", enable_debate=True) == ComplexityResult.DIRECT
-    assert (
-        resolve_execution_mode("帮我分析一下600519", enable_debate=True) == ComplexityResult.DEBATE
-    )
-    assert (
-        resolve_execution_mode("帮我分析一下600519", enable_debate=False)
-        == ComplexityResult.RESEARCH
-    )
+    assert resolve_execution_mode("今天大盘行情") == ComplexityResult.DIRECT
+    assert resolve_execution_mode("帮我分析一下600519") == ComplexityResult.RESEARCH
 
 
-def test_simple_news_stays_direct_even_with_debate() -> None:
+def test_simple_news_stays_direct() -> None:
     assert is_simple_news_explanation("解释这条新闻对持仓有什么影响")
-    assert (
-        resolve_execution_mode("解释这条新闻对持仓有什么影响", enable_debate=True)
-        == ComplexityResult.DIRECT
-    )
-    assert resolve_execution_mode("这条消息什么意思", enable_debate=True) == ComplexityResult.DIRECT
-    assert should_skip_debate("600519 现价多少")
-    assert resolve_execution_mode("600519 现价多少", enable_debate=True) == ComplexityResult.DIRECT
+    assert resolve_execution_mode("解释这条新闻对持仓有什么影响") == ComplexityResult.DIRECT
+    assert resolve_execution_mode("这条消息什么意思") == ComplexityResult.DIRECT
+    assert resolve_execution_mode("600519 现价多少") == ComplexityResult.DIRECT
 
 
-def test_deep_stock_still_debates_when_enabled() -> None:
-    assert resolve_execution_mode("600519 深度分析", enable_debate=True) == ComplexityResult.DEBATE
-    assert not should_skip_debate("600519 深度分析")
+def test_deep_stock_routes_to_research() -> None:
+    assert resolve_execution_mode("600519 深度分析") == ComplexityResult.RESEARCH
+    assert wants_deep_research("600519 深度分析")
 
 
 def test_trend_explanation_intent() -> None:

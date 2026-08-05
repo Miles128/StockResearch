@@ -59,13 +59,11 @@ def test_build_text_factor_summary_includes_weights() -> None:
         composite_confidence="medium",
         dimension_weights={"fundamental": 1.05, "technical": 0.5},
         news_text_factor="【测试 · 新闻文本因子】暂无。",
-        debate_consensus="分歧中等",
     )
     assert "文本因子·总结" in summary
     assert "维度权重" in summary
     assert "投研维度因子" in summary
     assert "新闻文本因子" in summary
-    assert "多空合议" in summary
 
 
 def test_build_dimension_text_factor_lists_highlights() -> None:

@@ -42,18 +42,6 @@ describe("detectProcessFlow", () => {
     expect(processTrailLabel(state, true, t)).toBe("基本面/技术面/情绪面/筹码面 四维投研");
   });
 
-  it("classifies bull bear debate skill", () => {
-    let state = emptyStreamState();
-    state = applyStreamEvent(state, {
-      type: "skill_start",
-      skill_id: "skill_bull_bear_debate",
-      skill_run_id: "run-2",
-      label: "多空辩论",
-    });
-    expect(detectProcessFlow(state)).toBe("debate");
-    expect(processTrailLabel(state, true, t)).toBe("多空辩论");
-  });
-
   it("classifies dimension agent output as stock research", () => {
     let state = emptyStreamState();
     state = applyStreamEvent(state, {

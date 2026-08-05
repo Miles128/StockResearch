@@ -1,21 +1,15 @@
-"""Streaming multi-agent research — parallel dimensions + debate + report."""
+"""Streaming multi-agent research — parallel dimensions + report."""
 
 import asyncio
 import logging
 from collections.abc import AsyncIterator
-from typing import Any
 
-from stockresearch.agents.master_commentary.context import build_research_context
-from stockresearch.agents.master_commentary.registry import resolve_master_ids
-from stockresearch.agents.master_commentary.stream import stream_master_commentary
-from stockresearch.agents.research.battle import iter_battle_events
 from stockresearch.agents.research.budget import (
     AnalysisDepth,
     budget_for_depth,
     resolve_analysis_depth,
 )
 from stockresearch.agents.research.context import ResearchContext
-from stockresearch.agents.research.debate import summarize_situation
 from stockresearch.agents.research.report_builder import build_research_report
 from stockresearch.agents.research.runner import (
     build_chips,
@@ -32,11 +26,8 @@ from stockresearch.agents.stream_typewriter import (
     iter_queue_merged_events,
     pump_dimension_llm_stream,
 )
-from stockresearch.agents.voice import DEBATE_VOICE
 from stockresearch.core.schemas import (
-    DebateResult,
     DimensionResult,
-    MasterCommentaryItem,
     ModeSettingsOut,
     ResearchReportOut,
 )
@@ -47,9 +38,6 @@ from stockresearch.utils.llm import LLMClient, get_llm_client
 from stockresearch.utils.symbols import resolve_name
 
 logger = logging.getLogger(__name__)
-
-_BULL_SYSTEM = f"你是看多 Agent。{DEBATE_VOICE}"
-_BEAR_SYSTEM = f"你是看空 Agent。{DEBATE_VOICE}"
 
 _AGENT_LABELS: dict[str, str] = {
     "fundamental": "基本面",
@@ -78,7 +66,6 @@ def _build_report(
     symbol: str,
     name: str,
     dimensions: dict[str, DimensionResult],
-    debate: DebateResult | None,
     *,
     news_text_factor: str | None = None,
     dimension_labels: dict[str, str] | None = None,
@@ -93,7 +80,6 @@ def _build_report(
         symbol,
         name,
         dimensions,
-        debate,
         dimension_labels=dimension_labels or _AGENT_LABELS,
         news_text_factor=news_text_factor,
         factors=factors,
@@ -160,10 +146,7 @@ async def run_research_stream(
     symbol: str,
     llm: LLMClient | None = None,
     *,
-    with_debate: bool = True,
-    enable_master_commentary: bool = False,
     mode_settings: ModeSettingsOut | None = None,
-    master_ids: list[str] | None = None,
     analysis_depth: AnalysisDepth | str | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     client = llm or get_llm_client()
@@ -217,87 +200,25 @@ async def run_research_stream(
     except Exception as exc:
         logger.warning("numeric factors failed for %s: %s", symbol, exc)
 
-    def _alignment_for(debate: DebateResult | None) -> str | None:
+    def _alignment_for() -> str | None:
         if not budget.factors_expanded or not factors:
             return None
-        if debate is not None:
-            return factor_alignment_note(debate.final_bias, factors)
         composite, _ = weighted_composite_score(dimensions)
         return factor_alignment_note(score_bias(composite), factors)
 
     yield status_event("status.research.summarize")
-    if not with_debate:
-        report = _build_report(
-            symbol,
-            name,
-            dimensions,
-            None,
-            news_text_factor=news_text_factor,
-            factors=factors,
-            bars_provenance=bars_provenance,
-            analysis_depth=budget.depth,
-            factors_expanded=budget.factors_expanded,
-            factor_alignment_note=_alignment_for(None),
-            enable_signal_verify_hook=budget.enable_signal_verify_hook,
-        )
-        await _attach_deep_analysis(report, budget.depth, symbol)
-        yield status_event("status.research.report_done")
-        yield {"type": "done", "result": report.model_dump(mode="json")}
-        return
-
-    situation = summarize_situation(dimensions)
-    yield status_event("status.research.battle_start")
-
-    debate_context = f"{name}({symbol})\n作战情报摘要：\n{situation}"
-    debate: DebateResult | None = None
-    async for event in iter_battle_events(
-        client,
-        bull_system=_BULL_SYSTEM,
-        bear_system=_BEAR_SYSTEM,
-        debate_context=debate_context,
-        situation=situation,
-        dimensions=dimensions,
-        agent_labels=_AGENT_LABELS,
-    ):
-        if event.get("type") == "battle_result":
-            debate = event["debate"]  # type: ignore[assignment]
-            continue
-        yield event
-
     report = _build_report(
         symbol,
         name,
         dimensions,
-        debate,
         news_text_factor=news_text_factor,
         factors=factors,
         bars_provenance=bars_provenance,
         analysis_depth=budget.depth,
         factors_expanded=budget.factors_expanded,
-        factor_alignment_note=_alignment_for(debate),
+        factor_alignment_note=_alignment_for(),
         enable_signal_verify_hook=budget.enable_signal_verify_hook,
     )
     await _attach_deep_analysis(report, budget.depth, symbol)
-
-    if enable_master_commentary and mode_settings is not None:
-        masters = master_ids or resolve_master_ids(mode_settings)
-        commentary_context = build_research_context(report)
-        commentary: list[dict[str, Any]] = []
-        async for mc_event in stream_master_commentary(
-            client,
-            subject=f"{name}({symbol})",
-            context=commentary_context,
-            settings=mode_settings,
-            masters=masters,
-        ):
-            yield mc_event
-            if mc_event.get("type") == "master_commentary" and isinstance(
-                mc_event.get("commentary"), list
-            ):
-                commentary = mc_event["commentary"]
-        report.master_commentary = [
-            MasterCommentaryItem.model_validate(item) for item in commentary
-        ]
-
     yield status_event("status.research.report_done")
     yield {"type": "done", "result": report.model_dump(mode="json")}

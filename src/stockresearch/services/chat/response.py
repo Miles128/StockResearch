@@ -15,7 +15,6 @@ from stockresearch.core.output_style import (
 from stockresearch.core.schemas import (
     CardPayload,
     ChatResponse,
-    DebateResult,
     DimensionResult,
     ResearchReportOut,
 )
@@ -42,7 +41,7 @@ def _finalize_text(text: str) -> str:
     """Apply compliance guard (PRD §六) then optional glossary term marking.
 
     Used for structured card text fields (highlights/risks/snippets/summary/
-    viewpoints/debate arguments) so that forbidden position language (e.g.
+    viewpoints arguments) so that forbidden position language (e.g.
     "目标价1800", "建议加仓") is scrubbed even when bypassing the chat reply
     path. Fact-layer numbers (score/confidence) are untouched because
     `neutral_guard` only does regex replacement on prose.
@@ -76,28 +75,6 @@ def _finalize_dimension(dim: DimensionResult) -> DimensionResult:
     )
 
 
-def _finalize_debate(debate: DebateResult) -> DebateResult:
-    return debate.model_copy(
-        update={
-            "rounds": [
-                rnd.model_copy(
-                    update={
-                        "bull_argument": _finalize_text(rnd.bull_argument),
-                        "bear_rebuttal": _finalize_text(rnd.bear_rebuttal),
-                    }
-                )
-                for rnd in debate.rounds
-            ],
-            "judge_verdict": _finalize_text(debate.judge_verdict),
-            "consensus": _finalize_text(debate.consensus),
-            "core_divergence": _finalize_text(debate.core_divergence),
-            "manager_thesis": _finalize_text(debate.manager_thesis or "")
-            if debate.manager_thesis
-            else debate.manager_thesis,
-        }
-    )
-
-
 def finalize_research_report(report: ResearchReportOut) -> ResearchReportOut:
     """Apply compliance guard (PRD §六) and glossary term marking to research card.
 
@@ -105,18 +82,6 @@ def finalize_research_report(report: ResearchReportOut) -> ResearchReportOut:
     glossary toggle); glossary marking is still gated by `enable_glossary`.
     """
     dimensions = {key: _finalize_dimension(dim) for key, dim in report.dimensions.items()}
-    debate = _finalize_debate(report.debate) if report.debate else None
-    master_commentary = [
-        item.model_copy(
-            update={
-                "reasoning": _finalize_text(item.reasoning),
-                "key_metric": _finalize_text(item.key_metric)
-                if item.key_metric
-                else item.key_metric,
-            }
-        )
-        for item in report.master_commentary
-    ]
     return report.model_copy(
         update={
             "summary": _finalize_text(report.summary),
@@ -131,8 +96,6 @@ def finalize_research_report(report: ResearchReportOut) -> ResearchReportOut:
             if report.news_text_factor
             else report.news_text_factor,
             "dimensions": dimensions,
-            "debate": debate,
-            "master_commentary": master_commentary,
         }
     )
 

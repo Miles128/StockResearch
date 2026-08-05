@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session
 
 from stockresearch.core.schemas import (
     AshareFactorOut,
-    DebateResult,
     DimensionResult,
     FactorSourceOut,
     ResearchReportOut,
@@ -32,14 +31,6 @@ def _sample_report() -> ResearchReportOut:
         composite_confidence="high",
         bias="bullish",
         summary="贵州茅台综合偏多，白酒板块景气度尚可。",
-        debate=DebateResult(
-            rounds=[],
-            judge_verdict="偏多",
-            consensus="偏多",
-            core_divergence="分歧中等",
-            final_bias="bullish",
-            confidence="medium",
-        ),
         ashare_factors=[
             AshareFactorOut(
                 category="资金与筹码",

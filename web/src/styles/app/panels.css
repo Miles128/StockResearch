@@ -1137,17 +1137,6 @@
   opacity: 0.72;
 }
 
-.debate-round-msg .stream-msg-body {
-  margin-bottom: 2px;
-}
-
-.debate-expand-btn {
-  margin-top: 4px;
-  padding: 2px 8px;
-  font-size: 11px;
-  align-self: flex-start;
-}
-
 .quote-row {
   display: grid;
   grid-template-columns: 1.2fr 1fr 1fr 1fr;
@@ -1448,22 +1437,6 @@
   font-size: 11.25px;
   color: var(--bbg-muted);
   margin-top: 2px;
-}
-
-/* Debate position */
-.debate-position {
-  padding: 6px 8px;
-  margin-top: 6px;
-  border-left: 2px solid var(--bbg-border);
-  background: var(--input-bg);
-}
-
-.debate-position.up {
-  border-left-color: var(--bbg-up);
-}
-
-.debate-position.down {
-  border-left-color: var(--bbg-down);
 }
 
 /* Status hint during processing */
@@ -2904,6 +2877,45 @@
 }
 .tushare-guide-link:hover {
   text-decoration: underline;
+}
+.diag-block {
+  margin: 10px 0 4px;
+  border: 1px solid var(--bbg-border-bright);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.diag-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--bbg-border-bright, rgba(255, 255, 255, 0.06));
+}
+.diag-item:last-child {
+  border-bottom: none;
+}
+.diag-label {
+  font-weight: 600;
+  color: var(--text);
+}
+.diag-detail {
+  color: var(--bbg-dim);
+  line-height: 1.5;
+}
+.diag-hint {
+  color: var(--accent, #d97706);
+}
+.diag-ok .diag-label::before {
+  content: "✓ ";
+  color: var(--positive, #16a34a);
+}
+.diag-fail .diag-label::before {
+  content: "✗ ";
+  color: var(--danger, #dc2626);
+}
+.diag-error {
+  color: var(--danger, #dc2626);
 }
 .tushare-status {
   margin: 8px 0 0;

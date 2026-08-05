@@ -25,6 +25,24 @@ def _run_worker() -> int:
     return asyncio.run(run_worker())
 
 
+def _run_doctor() -> int:
+    import asyncio
+    import json
+
+    from stockresearch.services.diagnostics import run_diagnostics
+
+    out = asyncio.run(run_diagnostics())
+    print(json.dumps(out.model_dump(), ensure_ascii=False, indent=2))
+    failed = [item for item in [out.llm, *out.providers, *out.env] if not item.ok]
+    if failed:
+        print("\n失败项：")
+        for item in failed:
+            hint = f" 提示：{item.hint}" if item.hint else ""
+            print(f"- {item.label}: {item.detail}{hint}")
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     from stockresearch.cli.research_tools import register_research_cli, run_research_cli
 
@@ -41,6 +59,7 @@ def main(argv: list[str] | None = None) -> int:
     api_parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
 
     subparsers.add_parser("worker", help="Run the background scheduler worker")
+    subparsers.add_parser("doctor", help="Provider doctor — one-shot diagnostics snapshot")
     register_research_cli(subparsers)
 
     args = parser.parse_args(argv)
@@ -49,6 +68,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "worker":
         return _run_worker()
+    if args.command == "doctor":
+        return _run_doctor()
     if args.command == "research":
         return run_research_cli(args)
 

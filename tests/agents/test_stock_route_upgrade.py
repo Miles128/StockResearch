@@ -32,4 +32,4 @@ def test_match_holding_in_message() -> None:
 
 
 def test_direct_mode_without_analysis_intent_stays() -> None:
-    assert resolve_execution_mode("什么是市盈率", enable_debate=True) == ComplexityResult.DIRECT
+    assert resolve_execution_mode("什么是市盈率") == ComplexityResult.DIRECT

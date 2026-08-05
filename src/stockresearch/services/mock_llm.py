@@ -210,20 +210,6 @@ class MockLLMClient(LLMClient):
                 "多方将基本面亮点外推为趋势延续，动量指标已现走弱迹象。"
                 "上行空间受限，短期回撤风险仍需纳入评估。"
             )
-        if "Research Manager" in system and "投研负责人" in system:
-            return (
-                '{"investment_thesis":"四维整体中性，缺乏一致方向。",'
-                '"key_risk":"估值与动量背离","debate_summary":"多空各执一词",'
-                '"recommended_bias":"中性"}'
-            )
-        if "Research Manager" in system:
-            return "三方分歧主要在集中度与波动，建议您保持纪律、控制仓位。"
-        if "投研裁判" in system:
-            return (
-                '{"bias":"中性","summary":"综合四维看，短期缺少明确单边动力。",'
-                '"reason":"基本面与技术面信号互相抵消，情绪面未形成一致预期。",'
-                '"divergence":"分歧中等","divergence_point":"估值与动量方向不一致"}'
-            )
         if "风控裁判 Agent" in system or ("裁判 Agent" in system and "position_action" in system):
             holdings = re.findall(r"(\S+)\((\d{6})\)", user)
             if not holdings:
@@ -264,13 +250,13 @@ class MockLLMClient(LLMClient):
                 "analysis_process": (
                     "1. 对照规则引擎告警，识别回撤、黑天鹅与集中度暴露。\n"
                     "2. 结合市场、相关性与情景分析，评估组合联动风险。\n"
-                    "3. 吸收三方辩论与 Research Manager 意见，逐股形成处置优先级。"
+                    "3. 综合告警与多 Agent 分析，逐股形成处置优先级。"
                 ),
                 "risk_level": "中",
                 "position_action": "仓位适中",
                 "holding_actions": holding_actions,
                 "summary": f"您当前 {len(holdings)} 只持仓整体风险可控，优先处理告警较突出的标的。",
-                "reason": "激进派看到结构性机会，审慎派强调集中度与波动，需分股处置。",
+                "reason": "市场、相关性与情景分析信号不一，需按个股告警分步处置。",
                 "divergence": "分歧中等",
             }
             return json.dumps(payload, ensure_ascii=False)

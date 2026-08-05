@@ -50,7 +50,7 @@ ORCHESTRATOR_SYSTEM = """你是「StockResearch」的编排 Agent。由你决定
 工作流程：
 1. 理解用户问题与对话上下文
 2. 简单问题：轻量工具（行情/新闻/财报）即可
-3. 深度问题：调用对应 Skill（四维投研、多空辩论、大师点评；仅当用户明确要求持仓风控时才用风控）
+3. 深度问题：调用对应 Skill（四维投研、大盘投研、行业投研；仅当用户明确要求持仓风控时才用风控）
 4. 复合问题：可串联多个 Skill，后序 Skill 的 context 参数引用前序结果摘要
 5. 先在心里形成总体结论，调用 reply 输出给用户（各 Skill 过程已自动展开）
 
@@ -74,8 +74,6 @@ ORCHESTRATOR_SYSTEM = """你是「StockResearch」的编排 Agent。由你决定
 
 规则：
 - Skill 过程会自动流式展开，reply 中写总体结论即可
-- skill_master_commentary 的 context 应传入前文投研/风控/新闻的摘要
-- 多大师点评后若需互辩，设 debate_masters: true
 - 不给出买入、卖出、加仓、减仓等操作建议
 - 末尾加上：{disclaimer}"""
 
@@ -94,7 +92,6 @@ def _build_orchestrator_system(tools_list: str, skills_note: str) -> str:
 _RESEARCH_SKILL_BLOCK = frozenset(
     {
         "skill_stock_research",
-        "skill_bull_bear_debate",
         "skill_market_research",
         "skill_industry_research",
     }
@@ -105,7 +102,6 @@ _MAX_TOOL_RESULT_CHARS = 2000
 
 _LEGACY_SKILL_ALIASES: dict[str, str] = {
     "get_stock_research": "skill_stock_research",
-    "debate_stock": "skill_bull_bear_debate",
 }
 
 
@@ -167,8 +163,6 @@ class OrchestratorAgent:
         research_tools: bool = True,
         mode_settings: ModeSettingsOut | None = None,
         holdings: list[Holding] | None = None,
-        debate_default: bool = False,
-        master_default: bool = False,
         portfolio_context: bool = False,
         news_explain_only: bool = False,
         confirmed_symbol: str | None = None,
@@ -185,8 +179,6 @@ class OrchestratorAgent:
         self._holdings = holdings or []
         self._portfolio_context = portfolio_context
         self._news_explain_only = news_explain_only
-        self._debate_default = debate_default
-        self._master_default = master_default
         self._confirmed_symbol = confirmed_symbol
         self._confirmed_name = confirmed_name
         self._page_context_kind = page_context_kind
@@ -214,8 +206,6 @@ class OrchestratorAgent:
                 user_id=self._user_id,
                 holdings=self._scope.skill_holdings if self._scope is not None else self._holdings,
                 mode_settings=settings,
-                debate_default=self._debate_default,
-                master_default=self._master_default,
                 confirmed_symbol=self._confirmed_symbol,
                 confirmed_name=self._confirmed_name,
                 on_event=self._progress,
@@ -357,8 +347,6 @@ class OrchestratorAgent:
             return f"工具 {name} 执行失败: {exc}"
 
     async def _run_skill(self, skill_id: str, args: dict[str, Any]) -> str:
-        if skill_id == "skill_stock_research" and not args.get("with_debate"):
-            args = {**args, "with_debate": self._debate_default}
         if skill_id == "skill_stock_research":
             from stockresearch.agents.research.budget import (
                 is_gap_close_utterance,
