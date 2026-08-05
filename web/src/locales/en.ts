@@ -240,6 +240,12 @@ export const en: Dict = {
     done: "Done, start using",
     skip: "Skip",
   },
+  practice: {
+    title: "New to investing?",
+    hint: "Take a guided tour: we use Kweichow Moutai (600519) to show how to read conclusions, reasons and risks.",
+    start: "Start tour",
+    later: "Later",
+  },
   header: {
     about: "About",
     aboutTitle: "About the author & references",
@@ -1070,6 +1076,8 @@ export const en: Dict = {
     portfolioConclusion: "Portfolio conclusion",
     divergence: "Divergence",
     masterCommentary: "Master commentary",
+    masterCommentaryNote:
+      "AI-generated in a master's style; not their real view. For reference only, not investment advice.",
     fourDim: "Four dimensions",
     riskAgents: "Risk agents",
     conclusionSection: "Judge & summary",

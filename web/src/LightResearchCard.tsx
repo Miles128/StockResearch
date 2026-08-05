@@ -257,6 +257,7 @@ export function LightResearchCard({
               </div>
             );
           })}
+          <p className="master-commentary-note muted">{t("stream.masterCommentaryNote")}</p>
         </div>
       )}
       {!brief && (

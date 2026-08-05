@@ -1410,6 +1410,66 @@ input:focus {
   letter-spacing: 0.04em;
 }
 
+.master-commentary-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.practice-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 10px 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--bbg-border);
+  border-left: 3px solid var(--bbg-accent, #6366f1);
+  border-radius: var(--radius);
+  background: var(--bbg-panel-2, var(--bbg-panel));
+}
+
+.practice-banner-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.practice-banner-text strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.practice-banner-text p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--bbg-muted, #999);
+}
+
+.practice-banner-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.practice-start-btn,
+.practice-later-btn {
+  border: 1px solid var(--bbg-border);
+  border-radius: var(--radius);
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--bbg-muted, #999);
+}
+
+.practice-start-btn {
+  background: var(--bbg-accent, #6366f1);
+  border-color: var(--bbg-accent, #6366f1);
+  color: #fff;
+}
+
 .holding-action-list {
   display: flex;
   flex-direction: column;

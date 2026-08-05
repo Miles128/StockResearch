@@ -538,6 +538,7 @@ export function StreamFeed({
               </div>
             ))}
           </div>
+          <p className="master-commentary-note muted">{t("stream.masterCommentaryNote")}</p>
         </>
       )}
     </div>

@@ -239,6 +239,12 @@ export const zh: Dict = {
     done: "完成，开始使用",
     skip: "跳过",
   },
+  practice: {
+    title: "第一次用投顾？",
+    hint: "跟着演示走一遍：我们用贵州茅台（600519）做例子，讲怎么看懂结论、原因和风险。",
+    start: "开始带练",
+    later: "以后再说",
+  },
   header: {
     about: "关于",
     aboutTitle: "关于作者与参考项目",
@@ -1057,6 +1063,7 @@ export const zh: Dict = {
     portfolioConclusion: "组合结论",
     divergence: "分歧",
     masterCommentary: "投资大师点评",
+    masterCommentaryNote: "AI 模仿大师风格生成，并非大师本人观点；仅供参考，不 构成投资建议",
     fourDim: "四维分析",
     riskAgents: "风控 Agent 协作",
     conclusionSection: "裁判与总结",
