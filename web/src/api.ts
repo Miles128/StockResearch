@@ -342,6 +342,8 @@ export const api = {
       },
       120_000,
     ),
+  riskCheckupHistory: (limit = 8) =>
+    request<RiskCheckupHistory>(`/risk/checkups/history?limit=${limit}`),
   riskCheckupStream: (onEvent?: (event: AgentStreamEvent) => void, signal?: AbortSignal) =>
     createJsonSseStream<RiskCheckup, AgentStreamEvent>({
       url: apiUrl("/risk/checkup/stream"),
@@ -676,6 +678,15 @@ export interface PerformancePoint {
   benchmark_index: number;
 }
 
+export interface AttributionItem {
+  symbol: string;
+  name: string;
+  return_pct: number | null;
+  avg_weight_pct: number | null;
+  contribution_pct: number | null;
+  partial: boolean;
+}
+
 export interface PortfolioPerformance {
   days: number;
   benchmark_symbol: string;
@@ -685,6 +696,7 @@ export interface PortfolioPerformance {
   benchmark_return_pct: number | null;
   realized_pnl_total: number;
   trade_count: number;
+  attribution: AttributionItem[];
   partial: boolean;
   message: string | null;
 }
@@ -1167,6 +1179,19 @@ export interface StressResult {
   pnl: number;
   pnl_pct: number;
   shocked_value?: number;
+}
+
+export interface RiskCheckupHistoryItem {
+  checked_at: string;
+  alert_count: number;
+  high_count: number;
+  medium_count: number;
+  low_count: number;
+}
+
+export interface RiskCheckupHistory {
+  items: RiskCheckupHistoryItem[];
+  total_checks: number;
 }
 
 export interface RiskCheckup {

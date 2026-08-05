@@ -1410,12 +1410,6 @@ input:focus {
   letter-spacing: 0.04em;
 }
 
-.master-commentary-note {
-  margin: 6px 0 0;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
 .practice-banner {
   display: flex;
   align-items: center;

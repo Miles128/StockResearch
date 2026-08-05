@@ -1065,6 +1065,12 @@
   font-family: var(--font-mono);
 }
 
+.alert-ask-row {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+}
+
 .lookup-price-ref {
   margin-top: 6px;
   font-family: var(--font-mono);
@@ -3957,13 +3963,23 @@
 }
 .ledger-event-row {
   display: grid;
-  grid-template-columns: 38px 30px minmax(0, 1fr) auto;
+  grid-template-columns: 38px 30px auto minmax(0, 1fr) auto;
   gap: 6px;
   align-items: center;
   font-size: 11px;
 }
 .ledger-event-date {
   color: var(--muted);
+}
+.ledger-event-countdown {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ledger-event-countdown.soon {
+  color: var(--down);
+  font-weight: 600;
 }
 .ledger-event-kind {
   font-size: 9px;
@@ -4085,6 +4101,11 @@
   flex-wrap: wrap;
   gap: 8px 20px;
 }
+.cockpit-plain-talk {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--fg);
+}
 .cockpit-perf-body {
   display: flex;
   flex-direction: column;
@@ -4098,6 +4119,53 @@
   border-radius: 8px;
   padding: 4px 2px;
   box-sizing: border-box;
+}
+.cockpit-attribution {
+  margin-top: 8px;
+}
+.cockpit-attribution th,
+.cockpit-attribution td {
+  padding: 4px 8px 4px 0;
+  text-align: right;
+}
+.cockpit-attribution th:first-child,
+.cockpit-attribution td:first-child {
+  text-align: left;
+}
+
+/* ── 风险体检历史 ─────────────────────────────────────── */
+.risk-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.risk-history-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.risk-history-date {
+  color: var(--muted);
+  min-width: 62px;
+}
+.risk-history-summary {
+  color: var(--muted);
+  font-size: 11px;
+}
+.risk-history-delta {
+  font-size: 10px;
+  font-family: var(--font-mono);
+}
+.risk-history-delta.up {
+  color: var(--up);
+}
+.risk-history-delta.down {
+  color: var(--down);
 }
 .market-section-screener {
   margin-bottom: 16px;

@@ -588,8 +588,31 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
     for (const series of rt.aiOverlays) chart.removeSeries(series);
     rt.aiOverlays = [];
     if (!aiOverlays || aiOverlays.symbol !== symbol || variant !== "stock") return;
+    const snapshot = dataRef.current;
+    if (!snapshot || snapshot.symbol !== symbol || snapshot.bars.length === 0) return;
     const { up, down } = readChartColors();
     for (const overlay of aiOverlays.overlays) {
+      if (overlay.kind === "level" && overlay.price != null) {
+        // Horizontal reference level spanning the whole visible range.
+        const support = overlay.side === "support";
+        const series = chart.addLineSeries({
+          color: support ? up : down,
+          lineWidth: 2,
+          lineStyle: LineStyle.Solid,
+          title: `${t("overlays.level")} · AI`,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          crosshairMarkerVisible: false,
+        });
+        const first = barTime(snapshot.bars[0].date);
+        const last = barTime(snapshot.bars[snapshot.bars.length - 1].date);
+        series.setData([
+          { time: first, value: overlay.price },
+          { time: last, value: overlay.price },
+        ]);
+        rt.aiOverlays.push(series);
+        continue;
+      }
       if (overlay.kind !== "trend" || !overlay.a || !overlay.b) continue;
       const support = overlay.side === "support";
       const series = chart.addLineSeries({
@@ -607,7 +630,7 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
       ]);
       rt.aiOverlays.push(series);
     }
-  }, [aiOverlays, symbol, variant, t, showMacd, showRsi, compact]);
+  }, [aiOverlays, symbol, variant, t, showMacd, showRsi, compact, data]);
 
   useEffect(() => {
     if (skipDataEffectRef.current) {

@@ -6,7 +6,13 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { api, type PortfolioPerformance, type TradeRecord } from "./api";
+import {
+  api,
+  type HoldingEnriched,
+  type PortfolioPerformance,
+  type ResearchTimeline,
+  type TradeRecord,
+} from "./api";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { PortfolioEventsSection } from "./PortfolioEventsScreener";
 import { formatSignedMoney, formatSignedPct, signedClass } from "./holdingDisplay";
@@ -83,21 +89,49 @@ const BIAS_LABEL_KEYS: Record<string, string> = {
   neutral: "portfolio.biasNeutral",
 };
 
+/** 白话解读：基于今日盈亏方向 + 持仓涨跌生成一句人话。 */
+function plainTalk(
+  holdings: HoldingEnriched[],
+  summary: PortfolioSummary,
+  t: (k: string, vars?: Record<string, string>) => string,
+): string | null {
+  if (!summary.hasQuotes) return t("portfolio.plainTodayNoQuote");
+  const pct = summary.todayPnlPct;
+  if (pct == null || Math.abs(pct) < 0.1) return t("portfolio.plainTodayPnlFlat");
+  const quoted = holdings.filter((h) => h.quote_available && h.change_pct != null);
+  if (quoted.length === 0) return null;
+  const direction = pct > 0 ? 1 : -1;
+  const tops = [...quoted]
+    .sort((a, b) => direction * ((b.change_pct ?? 0) - (a.change_pct ?? 0)))
+    .slice(0, 2)
+    .map((h) => h.name);
+  if (tops.length === 0) return null;
+  return t("portfolio.plainTodayPnlUp", {
+    verb: pct > 0 ? t("portfolio.plainTodayVerbUp") : t("portfolio.plainTodayVerbDown"),
+    tops: tops.join("、"),
+  });
+}
+
 interface PortfolioCockpitProps {
   holdingsCount: number;
   watchlistCount: number;
   portfolioSummary: PortfolioSummary | null;
+  holdings: HoldingEnriched[];
+  onSelectLeader: (symbol: string, name: string) => void;
 }
 
 export function PortfolioCockpit({
   holdingsCount,
   watchlistCount,
   portfolioSummary,
+  holdings,
+  onSelectLeader,
 }: PortfolioCockpitProps) {
   const { t } = useI18n();
   const trigger = `${holdingsCount}:${watchlistCount}`;
   const [perf, setPerf] = useState<PortfolioPerformance | null>(null);
   const [trades, setTrades] = useState<TradeRecord[]>([]);
+  const [timelines, setTimelines] = useState<ResearchTimeline[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -114,6 +148,26 @@ export function PortfolioCockpit({
     };
   }, [trigger]);
 
+  // 结论核对：对有研报结论的交易，拉取标的研报时间线（含事后收益）。
+  useEffect(() => {
+    let alive = true;
+    const symbols = [
+      ...new Set(
+        trades.filter((tr) => tr.report_id != null && tr.report_bias).map((tr) => tr.symbol),
+      ),
+    ].slice(0, 3);
+    if (symbols.length === 0) {
+      setTimelines([]);
+      return;
+    }
+    Promise.all(symbols.map((sym) => api.researchTimeline(sym).catch(() => null))).then((items) => {
+      if (alive) setTimelines(items.filter((x): x is ResearchTimeline => x !== null));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [trades]);
+
   const perfSummary =
     perf && perf.portfolio_return_pct != null ? (
       <span className={`ledger-perf-summary mono ${signedClass(perf.portfolio_return_pct)}`}>
@@ -122,6 +176,12 @@ export function PortfolioCockpit({
     ) : undefined;
 
   const pnl = portfolioSummary;
+  const plainText = pnl ? plainTalk(holdings, pnl, t) : null;
+
+  const attribution =
+    perf && perf.attribution.length > 0
+      ? perf.attribution.filter((a) => a.contribution_pct != null)
+      : [];
 
   return (
     <>
@@ -153,6 +213,12 @@ export function PortfolioCockpit({
               <span>{pnl.annualizedPct != null ? formatSignedPct(pnl.annualizedPct) : "—"}</span>
             </span>
           </div>
+          {plainText && (
+            <p className="cockpit-plain-talk">
+              <span className="lists-metric-label">{t("portfolio.plainToday")} · </span>
+              {plainText}
+            </p>
+          )}
         </section>
       )}
 
@@ -196,6 +262,38 @@ export function PortfolioCockpit({
         </CollapsibleSection>
       )}
 
+      {attribution.length > 0 && (
+        <CollapsibleSection title={t("portfolio.attributionTitle")} defaultCollapsed>
+          <p className="muted ledger-perf-basis">{t("portfolio.attributionHint")}</p>
+          <table className="metrics-table cockpit-attribution">
+            <thead>
+              <tr>
+                <th>{t("portfolio.tradeSymbol")}</th>
+                <th>{t("portfolio.attributionReturn")}</th>
+                <th>{t("portfolio.attributionWeight")}</th>
+                <th>{t("portfolio.attributionContribution")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {attribution.map((a) => (
+                <tr key={a.symbol}>
+                  <td>{a.name}</td>
+                  <td className={`mono ${signedClass(a.return_pct ?? 0)}`}>
+                    {a.return_pct != null ? formatSignedPct(a.return_pct) : "—"}
+                  </td>
+                  <td className="mono">
+                    {a.avg_weight_pct != null ? `${a.avg_weight_pct.toFixed(1)}%` : "—"}
+                  </td>
+                  <td className={`mono ${signedClass(a.contribution_pct ?? 0)}`}>
+                    {a.contribution_pct != null ? `${a.contribution_pct.toFixed(2)}%` : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CollapsibleSection>
+      )}
+
       {trades.length > 0 && (
         <CollapsibleSection title={t("portfolio.tradesTitle")} defaultCollapsed>
           <ul className="ledger-trades">
@@ -230,6 +328,42 @@ export function PortfolioCockpit({
             ))}
           </ul>
           <p className="muted ledger-perf-basis">{t("portfolio.tradesHint")}</p>
+        </CollapsibleSection>
+      )}
+
+      {timelines.length > 0 && (
+        <CollapsibleSection title={t("portfolio.timelineTitle")} defaultCollapsed>
+          <p className="muted ledger-perf-basis">{t("portfolio.timelineHint")}</p>
+          <ul className="ledger-trades">
+            {timelines.map((tl) => {
+              const entry = tl.entries[0];
+              const horizon = entry?.post_hoc?.[0];
+              const bias = entry?.bias && BIAS_LABEL_KEYS[entry.bias] ? entry.bias : "neutral";
+              return (
+                <li key={tl.symbol} className="ledger-trade-row">
+                  <span className="ledger-trade-name" title={tl.name}>
+                    {tl.name}
+                  </span>
+                  <span className={`ledger-trade-bias ${bias}`}>{t(BIAS_LABEL_KEYS[bias])}</span>
+                  {horizon && (
+                    <span
+                      className={`mono ledger-trade-pnl ${signedClass(horizon.return_pct ?? 0)}`}
+                    >
+                      {t("portfolio.timelinePostHoc", { days: String(horizon.days) })} ·{" "}
+                      {horizon.return_pct != null ? formatSignedPct(horizon.return_pct) : "—"}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="example-chip"
+                    onClick={() => onSelectLeader(tl.symbol, tl.name)}
+                  >
+                    {t("portfolio.timelineOpen")}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </CollapsibleSection>
       )}
 

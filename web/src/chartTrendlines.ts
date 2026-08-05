@@ -186,3 +186,96 @@ export function trendLinePoints(
     { index: line.endIndex, price: line.endPrice },
   ];
 }
+
+// ── Horizontal level detection (aligned with backend chart_overlays.detect_levels) ──
+
+export interface LevelLine {
+  kind: "level";
+  /** Representative price of the level bucket. */
+  price: number;
+  side: TrendLineKind;
+  /** How many pivots touched the level. */
+  touches: number;
+  /** First bar index of the lookback window. */
+  startIndex: number;
+  /** Last bar index of the series. */
+  endIndex: number;
+}
+
+export interface LevelOptions {
+  /** Bars to scan for levels. Default 120. */
+  lookback?: number;
+  /** Relative tolerance for bucket merging / touch counting. Default 0.006. */
+  tolerancePct?: number;
+  /** Max levels returned. Default 2. */
+  maxLevels?: number;
+  /** Drop levels farther than this fraction from the last close. Default 0.15. */
+  relevancePct?: number;
+  /** Min pivot touches to keep a level. Default 2. */
+  minTouches?: number;
+}
+
+/**
+ * Horizontal support/resistance detection: bucket recent fractal pivot
+ * highs/lows by price, keep the most-touched buckets near the latest close.
+ * Support and resistance are bucketed independently so nearby highs and lows
+ * don't collapse into each other.
+ */
+export function detectLevels(bars: KlineBar[], options: LevelOptions = {}): LevelLine[] {
+  const opts: Required<LevelOptions> = {
+    lookback: options.lookback ?? 120,
+    tolerancePct: options.tolerancePct ?? 0.006,
+    maxLevels: options.maxLevels ?? 2,
+    relevancePct: options.relevancePct ?? 0.15,
+    minTouches: options.minTouches ?? 2,
+  };
+  const offset = Math.max(0, bars.length - opts.lookback);
+  const window = bars.slice(offset);
+  if (window.length < 10) return [];
+
+  const lastClose = bars[bars.length - 1].close;
+  const { highs, lows } = findPivots(window, 3);
+
+  const bucketLevels = (pivots: Pivot[]): Map<number, number[]> => {
+    const buckets = new Map<number, number[]>();
+    const bucketOf = (price: number): number => {
+      const tol = opts.tolerancePct * price;
+      for (const key of buckets.keys()) {
+        if (Math.abs(key - price) <= tol) return key;
+      }
+      return price;
+    };
+    for (const pivot of pivots) {
+      const key = bucketOf(pivot.price);
+      const list = buckets.get(key) ?? [];
+      list.push(pivot.price);
+      buckets.set(key, list);
+    }
+    return buckets;
+  };
+
+  const out: LevelLine[] = [];
+  for (const [side, pivots] of [
+    ["support", lows],
+    ["resistance", highs],
+  ] as const) {
+    for (const prices of bucketLevels(pivots).values()) {
+      const touches = prices.length;
+      if (touches < opts.minTouches) continue;
+      // Level price = mean of the touching pivots.
+      const price = prices.reduce((sum, p) => sum + p, 0) / prices.length;
+      if (Math.abs(price - lastClose) / lastClose > opts.relevancePct) continue;
+      out.push({
+        kind: "level",
+        price: Math.round(price * 10000) / 10000,
+        side,
+        touches,
+        startIndex: offset,
+        endIndex: bars.length - 1,
+      });
+    }
+  }
+
+  out.sort((a, b) => b.touches - a.touches);
+  return out.slice(0, opts.maxLevels);
+}

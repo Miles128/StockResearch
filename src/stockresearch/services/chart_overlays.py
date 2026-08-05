@@ -51,6 +51,17 @@ class TrendLineOptions:
     relevance_pct: float = 0.15
 
 
+@dataclass(frozen=True)
+class LevelOptions:
+    """水平参考线参数（与前端 chartTrendlines.detectLevels 对齐）。"""
+
+    lookback: int = 120
+    tolerance_pct: float = 0.006
+    max_levels: int = 2
+    relevance_pct: float = 0.15
+    min_touches: int = 2
+
+
 def find_pivots(bars: list[Bar], k: int) -> tuple[list[Pivot], list[Pivot]]:
     highs: list[Pivot] = []
     lows: list[Pivot] = []
@@ -179,6 +190,60 @@ def detect_trend_lines(
     return (pick(supports, half) + pick(resistances, half))[: opts.max_lines]
 
 
+def detect_levels(
+    bars: list[Bar],
+    options: LevelOptions | None = None,
+) -> list[tuple[float, Literal["support", "resistance"], int]]:
+    """水平参考线：近期窗口内显著高低点（价格档位），按触碰次数评分。
+
+    返回 [(price, side, touches)]，按触碰次数降序；支撑/压力各自独立分桶，
+    避免相邻价位的高低点互相合并。
+    """
+    opts = options or LevelOptions()
+    window = bars[-opts.lookback :]
+    if len(window) < 10:
+        return []
+
+    last_close = bars[-1].close
+
+    def bucket_levels(
+        pivots: list[Pivot],
+    ) -> dict[float, list[float]]:
+        buckets: dict[float, list[float]] = {}
+
+        def bucket_of(price: float) -> float:
+            tol = opts.tolerance_pct * price
+            for key in buckets:
+                if abs(key - price) <= tol:
+                    return key
+            return price
+
+        for pivot in pivots:
+            key = bucket_of(pivot.price)
+            buckets.setdefault(key, []).append(pivot.price)
+        return buckets
+
+    k = 3
+    highs, lows = find_pivots(window, k)
+    out: list[tuple[float, Literal["support", "resistance"], int]] = []
+    for side, buckets in (
+        ("support", bucket_levels(lows)),
+        ("resistance", bucket_levels(highs)),
+    ):
+        for prices in buckets.values():
+            touches = len(prices)
+            if touches < opts.min_touches:
+                continue
+            # 档位价 = 触碰点均值
+            level_price = sum(prices) / len(prices)
+            if abs(level_price - last_close) / last_close > opts.relevance_pct:
+                continue
+            out.append((round(level_price, 4), side, touches))
+
+    out.sort(key=lambda x: -x[2])
+    return out[: opts.max_levels]
+
+
 def bars_from_kline(raw: dict[str, Any]) -> list[Bar]:
     bars: list[Bar] = []
     for item in raw.get("bars") or []:
@@ -210,6 +275,18 @@ def _overlay_rationale(line: TrendLine, bars: list[Bar]) -> str:
     )
 
 
+def _level_rationale(
+    price: float, side: Literal["support", "resistance"], touches: int, bars: list[Bar]
+) -> str:
+    side_text = "支撑位" if side == "support" else "压力位"
+    last_close = bars[-1].close
+    relation = "下方" if price <= last_close else "上方"
+    return (
+        f"水平{side_text}：近期多次在约 {price:.2f} 附近企稳/受阻（{touches} 次触碰），"
+        f"位于最新收盘价 {last_close:.2f} 的{relation}。仅为图形描述，不构成交易建议。"
+    )
+
+
 def build_overlay_set(symbol: str, bars: list[Bar]) -> ChartOverlaySet:
     lines = detect_trend_lines(bars)
     overlays: list[ChartOverlay] = []
@@ -237,6 +314,20 @@ def build_overlay_set(symbol: str, bars: list[Bar]) -> ChartOverlaySet:
                     rationale=_overlay_rationale(line, bars),
                 )
             )
+    # 水平参考线（Phase 9a）：与趋势线同层展示
+    for price, side, touches in detect_levels(bars):
+        overlays.append(
+            ChartOverlay(
+                id=f"level-{side}-{price}",
+                kind="level",
+                price=price,
+                side=side,
+                strength=round(min(touches / 4, 1.0), 2),
+                touches=touches,
+                source="ai",
+                rationale=_level_rationale(price, side, touches, bars),
+            )
+        )
     return ChartOverlaySet(
         symbol=symbol,
         generatedAt=datetime.now(UTC).isoformat(),

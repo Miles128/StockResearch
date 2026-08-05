@@ -2,8 +2,10 @@
 
 from stockresearch.services.chart_overlays import (
     Bar,
+    LevelOptions,
     TrendLineOptions,
     build_overlay_set,
+    detect_levels,
     detect_trend_lines,
     find_pivots,
 )
@@ -76,3 +78,51 @@ def test_build_overlay_set_shapes_and_language() -> None:
 def test_build_overlay_set_empty_bars() -> None:
     overlay_set = build_overlay_set("600519", [])
     assert overlay_set.overlays == []
+
+
+def _rangebound(n: int = 80) -> list[Bar]:
+    """横盘震荡：价格在 97~103 之间反复，形成同档高低点。"""
+    bars: list[Bar] = []
+    for i in range(n):
+        wave = 3.0 * ((i % 8) - 3.5) / 3.5  # -3 ~ +3
+        base = 100.0
+        bars.append(
+            Bar(
+                date=f"2026-{(i // 22) + 4:02d}-{(i % 22) + 1:02d}",
+                high=base + wave + 0.4,
+                low=base + wave - 0.4,
+                close=base + wave * 0.6,
+            )
+        )
+    return bars
+
+
+def test_detect_levels_finds_range_floor_and_ceiling() -> None:
+    bars = _rangebound()
+    levels = detect_levels(bars)
+    assert levels, "expected horizontal levels on rangebound data"
+    prices = {round(p, 0) for p, _, _ in levels}
+    assert any(96 <= p <= 98 for p in prices), "expected a ~97 support level"
+    assert any(102 <= p <= 104 for p in prices), "expected a ~103 resistance level"
+    for _, side, touches in levels:
+        assert side in ("support", "resistance")
+        assert touches >= LevelOptions().min_touches
+    assert len(levels) <= LevelOptions().max_levels
+
+
+def test_detect_levels_respects_relevance_filter() -> None:
+    bars = _rangebound()
+    levels = detect_levels(bars, LevelOptions(relevance_pct=0.0001))
+    assert levels == []
+
+
+def test_build_overlay_set_includes_level_kind() -> None:
+    overlay_set = build_overlay_set("600519", _rangebound())
+    kinds = {o.kind for o in overlay_set.overlays}
+    assert "level" in kinds, "rangebound bars should yield horizontal levels"
+    level = next(o for o in overlay_set.overlays if o.kind == "level")
+    assert level.price is not None and level.price > 0
+    assert level.side in ("support", "resistance")
+    assert level.touches and level.touches >= 2
+    assert level.rationale and "水平" in level.rationale
+    assert level.source == "ai"

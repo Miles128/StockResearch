@@ -122,9 +122,9 @@
 | 实时报价 | **新浪财经** `hq.sinajs.cn` | AkShare hist → **efinance** | 三源兜底 |
 | 日 K 线 | **AkShare**（前复权 `stock_zh_a_hist`） | efinance → **Tushare**（有 Token）→ 新浪（非 qfq） | 指数用 `index_zh_a_hist`；本地日线仓增量缓存持仓/自选/近期研报标的 |
 | 指数概览 | **新浪指数** | AkShare | 北向：AkShare `stock_hsgt_north_net_flow_in_em` |
-| K 线画线层 | 9a 前端自动趋势线 + 9b 后端算法（`GET /market/overlays`） | 水平参考线未做 | 前后端同 `ChartOverlaySet` schema（source `"algo"`/`"ai"`）；摆动点拟合支撑/压力虚线，距现价 ≤15% 过滤，≤4 条，默认开；Copilot 画线卡片可一键上屏；非交易信号；另有滚轮缩放归一化 |
+| K 线画线层 | 9a 前端自动趋势线 + 9b 后端算法（`GET /market/overlays`） | 水平参考线 9a 已做 | 前后端同 `ChartOverlaySet` schema（source `"algo"`/`"ai"`）；摆动点拟合支撑/压力虚线，距现价 ≤15% 过滤，≤4 条，默认开；水平参考线 `detect_levels`（分档触碰计数，≤2 条实线，支撑/压力分色）；Copilot 画线卡片可一键上屏；非交易信号；另有滚轮缩放归一化与可视区间重算防抖 |
 
-**画线层契约（`ChartOverlaySet`）**：见 §八 Phase 9。Phase 9a 纯前端；9b 同一 JSON 供 Copilot 筛选/解说。
+**画线层契约（`ChartOverlaySet`）**：见 §八 Phase 9。前后端共用同一 JSON（9a 自动趋势线/水平参考线与 9b 后端算法均产出 `ChartOverlaySet`），供 Copilot 筛选/解说。
 
 ### 5.2 新闻、公告、研报
 
@@ -252,13 +252,13 @@ Phase 2：`stockresearch worker` 独立 Cron + 可选 launchd 示例。
 
 **产品验收**：macOS / Windows 上 `npm run tauri dev`（或等价）能打开窗口并完成登录/持仓/对话一条主路径；退出后 8000 端口无残留本壳拉起的 uvicorn（复用外部已有服务时不杀）。
 
-### Phase 9（K 线算法画线 · 再接 Copilot）🚧 9a 部分落地 / 9b ✅ 已落地
+### Phase 9（K 线算法画线 · 再接 Copilot）✅ 已落地
 
 在现有 `lightweight-charts`（`MarketChart`：K 线 + MA + 量 + MACD/RSI）上叠加**算法画线层**；手动画线 / 斐波那契 / 通道 / 用户线持久化 **不做**。合规：线旁与 Copilot 解说均禁止买卖建议措辞。
 
-#### 9a · 前端自动层（先行落地）🚧 部分实现
+#### 9a · 前端自动层（先行落地）✅ 已落地
 
-**V10.16 实现状态**：自动趋势线已落地（`web/src/chartTrendlines.ts`，见上文 §5.1）；滚轮/触控板缩放归一化已修复。以下规格保留为后续目标（水平参考线、createPriceLine、`ChartOverlaySet` 前后端共用 schema、可视区间重算防抖）。
+**V10.23 实现状态**：自动趋势线已落地（`web/src/chartTrendlines.ts`，见上文 §5.1）；滚轮/触控板缩放归一化已修复；**水平参考线已落地**——后端 `chart_overlays.detect_levels`（fractal pivots 分档、触碰计数、relevance 过滤，参数 lookback=120/tolerance 0.6%/max_levels=2/min_touches=2）+ 前端 `detectLevels` 同参数对齐，`StockChart` 按首末 bar 跨区间渲染实线（支撑/压力分色）+ OverlaysCard level 展示（价格/支撑/压力，非 resistance 误显）；`ChartOverlaySet` 前后端共用 schema（kind=level 扩展）；可视区间重算防抖已落地。
 
 1. **开关**：`StockChart` 工具栏「画线」toggle，默认 **开**；与 MACD/RSI 并列。
 2. **算法模块**：`web/src/chartOverlays.ts`（与 `chartIndicators.ts` 并列），输入已加载 `KlineBar[]` + 可见逻辑区间。
@@ -474,6 +474,7 @@ cd desktop && npm install && npm run tauri dev
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **V10.23** | 2026-08-04 | 普通用户化收口 + 驾驶舱补强 + Phase 9a 落地：①持仓白话解读——驾驶舱今日关注白话（方向 + 主要贡献标的 top2）；②持仓归因——`portfolio_performance` 归因（区间涨幅 × 平均持仓权重），驾驶舱归因表格；③风险追踪——`GET /risk/checkups/history` 按日聚合告警数与严重级分布（red/critical→高、warning→中、yellow→低），RiskPanel 体检历史列表（含与上次告警数 delta）+ 告警「下一步：问 AI 怎么办」跳 Copilot；④事件日历倒计时（今天/3 天内/N 天后）；⑤决策日志事后核对——驾驶舱研报时间线事后核对（horizons 天数/收益率 + 「查看复盘」跳转）；⑥Phase 9a 水平参考线——后端 `detect_levels`（fractal pivots 分档触碰计数）+ 前端 `detectLevels` 同参对齐 + StockChart 支撑/压力实线渲染 + OverlaysCard level 展示（修复 resistance 误显）+ `ChartOverlaySet` 共用 schema（kind=level）+ 可视区间重算防抖 |
 | **V10.22** | 2026-08-04 | 删除「大师点评」全链路（不迷信大师）：后端移除 master_commentary 模块（context/registry/schemas/stream/debate）、prompts/masters 提示词、`enable_master_commentary`/`selected_masters`/`custom_masters` 设置与 `skill_master_commentary`；前端移除大师设置项/大师卡片/大师文案；**多空辩论完整保留**（research 多空辩论、风控三角辩论、投票、裁判） |
 | **V10.21** | 2026-08-04 | 普通用户化第二批（Phase 11 S2-S4）：①单篇普通版切换——`report_plain_versions` 缓存表（迁移 005）+ `POST /research/reports/{id}/plain`（friendly 档并行改写，全字段失败降级返回专业版原文+提示，二次命中缓存）+ 研报详情双态按钮（专业版/普通版）；②简报/体检返回层接词库 `mark_terms`（不污染 DB 原文）；③静态文案扫尾——`partial` 硬编码 i18n 化、`card.factorPartial` 翻新「数据不全」、事件日历/告警文案白话（「阈值」→「提醒线」+ 下一步引导）；④风险问卷 10 题精简 5 题自动定档 `risk_tolerance`（5-7 保守/8-11 稳健/12-15 进取）；⑤新手带练横幅（投顾模式首次进入，demo 标的自动发起白话研报）+ 大师点评声明（「AI 模仿大师风格生成，非大师本人观点」） |
 | **V10.20** | 2026-08-04 | 普通用户化（Phase 11）启动：`reading_mode` 三档改两档（friendly 普通版/professional 专业版，存量 standard 归一 friendly，前端选项同步收敛）；研报生成链路接入 `reading_mode`（`output_style_scope` 包裹 research 执行）+ research 缓存 key 加入 reading_mode 防串档；研报返回文本接词库 `mark_terms`；`advisor_plain_language.md` 升级为完整普通版风格规范（平实克制/术语首现必解释/数字翻译影响/风险必保留/建议选项式/禁用词）；词典补录高频自产词；PRD 新增 Phase 11 专项（处置清单+词典增强+四阶段实施） |
