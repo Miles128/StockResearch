@@ -23,6 +23,10 @@ const PERF_DAYS = 90;
 const TRADE_LIMIT = 10;
 const CHART_W = 480;
 const CHART_H = 132;
+const AXIS_Y_W = 48; // Y 轴标签区宽度（px）
+const AXIS_X_H = 20; // X 轴标签区高度（px）
+const Y_TICK_N = 5; // Y 轴刻度数（含两端）
+const X_TICK_N = 5; // X 轴刻度数（含两端）
 
 function linePath(values: number[], allMin: number, allMax: number): string {
   if (values.length < 2) return "";
@@ -37,44 +41,123 @@ function linePath(values: number[], allMin: number, allMax: number): string {
     .join(" ");
 }
 
+interface PerfTick {
+  value: number;
+  /** viewBox 内 y 坐标（顶 6 → 底 CHART_H-6） */
+  y: number;
+  /** 相对绘图区高度的百分比位置（用于 HTML 标签定位） */
+  pct: number;
+}
+
 function CockpitPerfChart({ perf }: { perf: PortfolioPerformance }) {
-  const { portfolio, benchmark, min, max } = useMemo(() => {
+  const { portfolio, benchmark, min, max, yTicks, xTicks } = useMemo(() => {
     const p = perf.series.map((pt) => pt.portfolio_index);
     const b = perf.series.map((pt) => pt.benchmark_index);
     const all = [...p, ...b];
-    return {
-      portfolio: p,
-      benchmark: b,
-      min: Math.min(...all),
-      max: Math.max(...all),
-    };
+    const lo = Math.min(...all);
+    const hi = Math.max(...all);
+    const span = hi - lo || 1;
+    // Y 刻度：从顶到底均匀取值，与 linePath 的映射保持一致。
+    const yTicks: PerfTick[] = Array.from({ length: Y_TICK_N }, (_, i) => {
+      const r = i / (Y_TICK_N - 1); // 0=顶, 1=底
+      return {
+        value: hi - r * span,
+        y: 6 + r * (CHART_H - 12),
+        pct: ((6 + r * (CHART_H - 12)) / CHART_H) * 100,
+      };
+    });
+    // X 刻度：首、1/4、1/2、3/4、末 对应的日期。
+    const n = perf.series.length;
+    const xTicks =
+      n < 2
+        ? []
+        : Array.from({ length: X_TICK_N }, (_, i) => ({
+            date: perf.series[Math.round((i / (X_TICK_N - 1)) * (n - 1))].date,
+            x: (i / (X_TICK_N - 1)) * CHART_W,
+          }));
+    return { portfolio: p, benchmark: b, min: lo, max: hi, yTicks, xTicks };
   }, [perf.series]);
 
   return (
-    <svg
-      className="cockpit-perf-chart"
-      viewBox={`0 0 ${CHART_W} ${CHART_H}`}
-      preserveAspectRatio="none"
-      role="img"
-      aria-label="portfolio-vs-benchmark"
+    <div
+      className="cockpit-perf-chart-wrap"
+      style={{ paddingLeft: AXIS_Y_W, paddingBottom: AXIS_X_H }}
     >
-      <path
-        d={linePath(benchmark, min, max)}
-        fill="none"
-        stroke="var(--muted)"
-        strokeWidth="1.5"
-        strokeDasharray="4 3"
-        opacity="0.8"
-      />
-      <path
-        d={linePath(portfolio, min, max)}
-        fill="none"
-        stroke="var(--accent)"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+      <svg
+        className="cockpit-perf-chart"
+        viewBox={`0 0 ${CHART_W} ${CHART_H}`}
+        preserveAspectRatio="none"
+        role="img"
+        aria-label="portfolio-vs-benchmark"
+      >
+        {/* 纵向网格线（X 刻度） */}
+        {xTicks.map((tk) => (
+          <line
+            key={`gx-${tk.x}`}
+            x1={tk.x}
+            y1={6}
+            x2={tk.x}
+            y2={CHART_H - 6}
+            className="cockpit-perf-grid"
+          />
+        ))}
+        {/* 横向网格线（Y 刻度） */}
+        {yTicks.map((tk) => (
+          <line
+            key={`gy-${tk.y}`}
+            x1={0}
+            y1={tk.y}
+            x2={CHART_W}
+            y2={tk.y}
+            className="cockpit-perf-grid"
+          />
+        ))}
+        <path
+          d={linePath(benchmark, min, max)}
+          fill="none"
+          stroke="var(--muted)"
+          strokeWidth="1.5"
+          strokeDasharray="4 3"
+          opacity="0.8"
+        />
+        <path
+          d={linePath(portfolio, min, max)}
+          fill="none"
+          stroke="var(--accent)"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      {/* Y 轴标签（数值） */}
+      <div
+        className="cockpit-perf-axis-y mono"
+        style={{ width: AXIS_Y_W, bottom: AXIS_X_H }}
+        aria-hidden="true"
+      >
+        {yTicks.map((tk) => (
+          <span key={tk.value} className="cockpit-perf-tick-y" style={{ top: `${tk.pct}%` }}>
+            {tk.value.toFixed(3)}
+          </span>
+        ))}
+      </div>
+      {/* X 轴标签（日期 MM-DD） */}
+      <div
+        className="cockpit-perf-axis-x mono"
+        style={{ left: AXIS_Y_W, height: AXIS_X_H }}
+        aria-hidden="true"
+      >
+        {xTicks.map((tk, i) => (
+          <span
+            key={`${tk.date}-${i}`}
+            className={`cockpit-perf-tick-x ${i === 0 ? "first" : i === xTicks.length - 1 ? "last" : "mid"}`}
+            style={{ left: `${(tk.x / CHART_W) * 100}%` }}
+          >
+            {tk.date.slice(5)}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
