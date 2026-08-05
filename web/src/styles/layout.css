@@ -1382,10 +1382,6 @@
   border-right: none !important;
 }
 
-.ticker-inline-meta {
-  border-left: none;
-}
-
 .chrome-search-wrap {
   flex: 0 1 420px;
   max-width: 420px;

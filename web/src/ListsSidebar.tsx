@@ -257,7 +257,7 @@ export function ListsSidebar({
       </section>
 
       {sectorMix.length > 0 && (
-        <CollapsibleSection title={t("lists.sectors")}>
+        <CollapsibleSection title={t("lists.sectors")} defaultCollapsed>
           <div className={`lists-sector-panel${listsDetail ? " lists-sector-panel-detail" : ""}`}>
             <div className="lists-sector-visual">
               <SectorDonut sectors={sectorMix.slice(0, 6)} />

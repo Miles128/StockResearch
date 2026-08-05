@@ -12,7 +12,7 @@ export function ActionCenter({ onNavigate, onChatQuery }: ActionCenterProps) {
   const { t } = useI18n();
   const [data, setData] = useState<DailyActionCenter | null>(null);
   const [loading, setLoading] = useState(true);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   useEffect(() => {
     api
