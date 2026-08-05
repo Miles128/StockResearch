@@ -631,6 +631,7 @@ export default function App() {
               {centerTab === "focus" && !focusContext && focusTabs.length === 0 && (
                 <FocusEmptyState
                   holdingsCount={holdings.length}
+                  holdings={holdings}
                   watchlistCount={watchlist.length}
                   portfolioSummary={portfolioSummary}
                   isDemo={isDemo}

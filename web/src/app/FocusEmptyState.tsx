@@ -4,12 +4,14 @@ import { BackendHealthBanner } from "../BackendHealthBanner";
 import { DemoBanner } from "../DemoBanner";
 import { PortfolioCockpit } from "../PortfolioCockpit";
 import { SectorMoversPanel } from "../SectorMoversPanel";
+import type { HoldingEnriched } from "../api";
 import type { PortfolioSummary } from "../portfolioHelpers";
 
 interface FocusEmptyStateProps {
   holdingsCount: number;
   watchlistCount: number;
   portfolioSummary: PortfolioSummary | null;
+  holdings: HoldingEnriched[];
   isDemo: boolean;
   demoLoading: boolean;
   highlightSector: string | null;
@@ -32,6 +34,7 @@ export const FocusEmptyState = memo(function FocusEmptyState({
   holdingsCount,
   watchlistCount,
   portfolioSummary,
+  holdings,
   isDemo,
   demoLoading,
   highlightSector,
@@ -68,6 +71,8 @@ export const FocusEmptyState = memo(function FocusEmptyState({
           holdingsCount={holdingsCount}
           watchlistCount={watchlistCount}
           portfolioSummary={portfolioSummary}
+          holdings={holdings}
+          onSelectLeader={onSelectLeader}
         />
       )}
       <SectorMoversPanel

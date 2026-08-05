@@ -14,6 +14,13 @@ import { useI18n } from "./i18n";
 
 const EVENT_DAYS = 45;
 
+/** Whole days from today (local, midnight-anchored) until the event date. */
+function daysUntil(eventDate: string, today = new Date()): number {
+  const target = new Date(`${eventDate}T00:00:00`);
+  const anchor = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return Math.round((target.getTime() - anchor.getTime()) / 86_400_000);
+}
+
 type PresetKey = "lowVal" | "momentum" | "lowVol" | "combo";
 
 const PRESET_ORDER: PresetKey[] = ["lowVal", "momentum", "lowVol", "combo"];
@@ -70,20 +77,33 @@ export function PortfolioEventsSection({ trigger = "" }: { trigger?: string }) {
     <CollapsibleSection title={t("portfolio.eventsTitle")} summary={eventSummary} defaultCollapsed>
       {events && events.events.length > 0 ? (
         <ul className="ledger-events">
-          {events.events.map((ev) => (
-            <li key={`${ev.kind}-${ev.symbol}-${ev.event_date}`} className="ledger-event-row">
-              <span className="mono ledger-event-date">{ev.event_date.slice(5)}</span>
-              <span className={`ledger-event-kind ${ev.kind}`}>
-                {ev.kind === "earnings"
-                  ? t("portfolio.eventsEarnings")
-                  : t("portfolio.eventsLockup")}
-              </span>
-              <span className="ledger-event-name" title={ev.detail || ev.name}>
-                {ev.name}
-              </span>
-              <span className="muted ledger-event-detail">{ev.detail || ""}</span>
-            </li>
-          ))}
+          {events.events.map((ev) => {
+            const days = daysUntil(ev.event_date);
+            return (
+              <li key={`${ev.kind}-${ev.symbol}-${ev.event_date}`} className="ledger-event-row">
+                <span className="mono ledger-event-date">{ev.event_date.slice(5)}</span>
+                <span className={`ledger-event-kind ${ev.kind}`}>
+                  {ev.kind === "earnings"
+                    ? t("portfolio.eventsEarnings")
+                    : t("portfolio.eventsLockup")}
+                </span>
+                <span
+                  className={`ledger-event-countdown${days <= 3 ? " soon" : ""}`}
+                  title={ev.event_date}
+                >
+                  {days <= 0
+                    ? t("portfolio.eventsToday")
+                    : days <= 3
+                      ? t("portfolio.eventsSoon")
+                      : t("portfolio.eventsDaysLeft", { n: String(days) })}
+                </span>
+                <span className="ledger-event-name" title={ev.detail || ev.name}>
+                  {ev.name}
+                </span>
+                <span className="muted ledger-event-detail">{ev.detail || ""}</span>
+              </li>
+            );
+          })}
         </ul>
       ) : (
         <p className="muted flat-empty">

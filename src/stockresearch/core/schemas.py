@@ -150,6 +150,17 @@ class PerformancePoint(BaseModel):
     benchmark_index: float
 
 
+class AttributionItemOut(BaseModel):
+    """区间收益归因：单只持仓对组合窗口收益的贡献（简化归因，非严格 Brinson）。"""
+
+    symbol: str
+    name: str
+    return_pct: float | None = Field(default=None, description="个股窗口收益率（%），缺数据为 None")
+    avg_weight_pct: float | None = Field(default=None, description="窗口平均市值权重（%）")
+    contribution_pct: float | None = Field(default=None, description="对组合收益的贡献（百分点）")
+    partial: bool = False
+
+
 class PortfolioPerformanceOut(BaseModel):
     days: int
     benchmark_symbol: str = "000300"
@@ -159,6 +170,9 @@ class PortfolioPerformanceOut(BaseModel):
     benchmark_return_pct: float | None = None
     realized_pnl_total: float = 0.0
     trade_count: int = 0
+    attribution: list[AttributionItemOut] = Field(
+        default_factory=list, description="窗口收益归因（按贡献降序）"
+    )
     partial: bool = False
     message: str | None = None
 
@@ -1205,6 +1219,21 @@ class DailyActionCenterOut(BaseModel):
     summary: str = ""
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     disclaimer: str = DISCLAIMER
+
+
+class RiskCheckupHistoryItemOut(BaseModel):
+    """一次风险体检的摘要（用于持续追踪：上次体检时间 / 告警数变化）。"""
+
+    checked_at: datetime
+    alert_count: int = 0
+    high_count: int = 0
+    medium_count: int = 0
+    low_count: int = 0
+
+
+class RiskCheckupHistoryOut(BaseModel):
+    items: list[RiskCheckupHistoryItemOut] = Field(default_factory=list)
+    total_checks: int = 0
 
 
 # ── Advisor Asset Allocation ───────────────────────────

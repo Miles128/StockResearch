@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from "react";
-import type { HoldingEnriched, RiskCheckup } from "./api";
+import { useEffect, useState, type ReactNode } from "react";
+import { api, type HoldingEnriched, type RiskCheckup, type RiskCheckupHistoryItem } from "./api";
 import { AllocationDeviationPanel } from "./AllocationDeviationPanel";
 import { AssetAllocationPanel } from "./AssetAllocationPanel";
 import { CollapsibleSection } from "./CollapsibleSection";
@@ -106,11 +106,51 @@ export function RiskPanel({
   const [shockTarget, setShockTarget] = useState<ShockTarget>("max_sector");
   const [shockPct, setShockPct] = useState(-0.1);
   const [paperShock, setPaperShock] = useState<PaperShockResult | null>(null);
+  const [history, setHistory] = useState<RiskCheckupHistoryItem[]>([]);
+  const [historyDays, setHistoryDays] = useState<number | null>(null);
   const showProcess = loading || hasLiveProcessContent(riskStream);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .riskCheckupHistory(5)
+      .then((data) => {
+        if (alive) {
+          setHistory(data.items);
+          const latest = data.items[0];
+          setHistoryDays(
+            latest
+              ? Math.floor((Date.now() - new Date(latest.checked_at).getTime()) / 86_400_000)
+              : null,
+          );
+        }
+      })
+      .catch(() => {
+        if (alive) {
+          setHistory([]);
+          setHistoryDays(null);
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, [risk]);
 
   const alertCount = risk?.alerts.length ?? 0;
   const hasQuantData = Boolean(risk?.var_result || risk?.metrics);
   const hasCharts = Boolean(risk && holdings.length > 0);
+
+  const latest = history[0];
+  const historySummary = latest ? (
+    <span className="mono risk-history-summary">
+      {(historyDays ?? 0) <= 0
+        ? t("risk.historyToday", { count: String(latest.alert_count) })
+        : t("risk.historyLast", {
+            days: String(historyDays),
+            count: String(latest.alert_count),
+          })}
+    </span>
+  ) : undefined;
 
   return (
     <div className="panel risk-panel">
@@ -486,6 +526,17 @@ export function RiskPanel({
                               ))}
                             </div>
                           )}
+                          {onAskCopilot && (
+                            <div className="alert-ask-row">
+                              <button
+                                type="button"
+                                className="example-chip"
+                                onClick={() => onAskCopilot(a.human_message)}
+                              >
+                                {t("risk.alertAsk")}
+                              </button>
+                            </div>
+                          )}
                         </CollapsibleSection>
                       );
                     })}
@@ -618,6 +669,55 @@ export function RiskPanel({
               )}
             </>
           )}
+
+          <CollapsibleSection
+            title={t("risk.historyTitle")}
+            summary={historySummary}
+            defaultCollapsed
+          >
+            {history.length === 0 ? (
+              <p className="muted flat-empty">{t("risk.historyEmpty")}</p>
+            ) : (
+              <ul className="risk-history-list">
+                {history.map((item, i) => {
+                  const prev = history[i + 1];
+                  const delta = prev ? item.alert_count - prev.alert_count : null;
+                  return (
+                    <li key={item.checked_at} className="risk-history-row">
+                      <span className="mono risk-history-date">{item.checked_at.slice(0, 10)}</span>
+                      <span
+                        className={`risk-level-pill risk-level-${riskLevelColor(item.alert_count)}`}
+                      >
+                        {riskLevelLabel(item.alert_count, t)}
+                      </span>
+                      {item.high_count > 0 && (
+                        <span className="stat-pill severity-high">
+                          {localizeSeverity("high", t)} {item.high_count}
+                        </span>
+                      )}
+                      {item.medium_count > 0 && (
+                        <span className="stat-pill severity-medium">
+                          {localizeSeverity("medium", t)} {item.medium_count}
+                        </span>
+                      )}
+                      {item.low_count > 0 && (
+                        <span className="stat-pill severity-low">
+                          {localizeSeverity("low", t)} {item.low_count}
+                        </span>
+                      )}
+                      {delta != null && delta !== 0 && (
+                        <span className={`risk-history-delta ${delta > 0 ? "down" : "up"}`}>
+                          {t("risk.historyDelta", {
+                            delta: delta > 0 ? `+${delta}` : String(delta),
+                          })}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </CollapsibleSection>
         </>
       )}
     </div>

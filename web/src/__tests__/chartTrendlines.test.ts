@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { KlineBar } from "../chartIndicators";
-import { detectTrendLines, findPivots } from "../chartTrendlines";
+import { detectLevels, detectTrendLines, findPivots } from "../chartTrendlines";
 
 /** Synthetic ascending channel: lows bounce on S(i)=98+0.5i, highs cap at R(i)=112+0.5i. */
 function channelBars(n: number, slope = 0.5, touchEvery = 10): KlineBar[] {
@@ -89,5 +89,68 @@ describe("detectTrendLines", () => {
     const bars = channelBars(61);
     const lines = detectTrendLines(bars, { maxLines: 1 });
     expect(lines.length).toBeLessThanOrEqual(1);
+  });
+});
+
+/** Flat range: lows bounce at 100, highs capped at 110, every 6 bars. */
+function flatRangeBars(n: number): KlineBar[] {
+  return Array.from({ length: n }, (_, i) => {
+    const lowTouch = i % 6 === 1;
+    const highTouch = i % 6 === 4;
+    const low = lowTouch ? 100 : 101 + (i % 3);
+    const high = highTouch ? 110 : 109 - (i % 3);
+    const close = (low + high) / 2;
+    return {
+      date: `L${String(i).padStart(3, "0")}`,
+      open: close,
+      high,
+      low,
+      close,
+      volume: 1,
+    };
+  });
+}
+
+describe("detectLevels", () => {
+  it("finds horizontal support and resistance near the latest close", () => {
+    const levels = detectLevels(flatRangeBars(60));
+    expect(levels.length).toBeGreaterThan(0);
+    const support = levels.find((l) => l.side === "support");
+    const resistance = levels.find((l) => l.side === "resistance");
+    expect(support).toBeDefined();
+    expect(support!.price).toBeCloseTo(100, 1);
+    expect(support!.touches).toBeGreaterThanOrEqual(2);
+    expect(resistance).toBeDefined();
+    expect(resistance!.price).toBeCloseTo(110, 1);
+  });
+
+  it("drops levels far from the latest close", () => {
+    // Range around 100-110, then a rally leaving those levels far below.
+    const rally: KlineBar[] = Array.from({ length: 20 }, (_, i) => {
+      const low = 200 + i * 0.5;
+      const high = low + 6;
+      const close = low + 3;
+      return {
+        date: `R${String(i).padStart(2, "0")}`,
+        open: close,
+        high,
+        low,
+        close,
+        volume: 1,
+      };
+    });
+    const levels = detectLevels([...flatRangeBars(40), ...rally]);
+    // The stale 100/110 levels must not survive the relevance filter.
+    expect(levels.some((l) => l.price < 105)).toBe(false);
+  });
+
+  it("returns empty for short series", () => {
+    expect(detectLevels([])).toEqual([]);
+    expect(detectLevels(flatRangeBars(6))).toEqual([]);
+  });
+
+  it("respects maxLevels", () => {
+    const levels = detectLevels(flatRangeBars(60), { maxLevels: 1 });
+    expect(levels.length).toBeLessThanOrEqual(1);
   });
 });

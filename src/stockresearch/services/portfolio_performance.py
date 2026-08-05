@@ -11,6 +11,7 @@ from datetime import date as date_type
 from sqlalchemy.orm import Session
 
 from stockresearch.core.schemas import (
+    AttributionItemOut,
     PerformancePoint,
     PortfolioPerformanceOut,
 )
@@ -55,6 +56,60 @@ def _quantity_series(
             idx += 1
         out[d] = max(qty, 0)
     return out, False
+
+
+def _build_attribution(
+    holdings: list,
+    *,
+    qty_series: dict[str, dict[date_type, int]],
+    closes: dict[str, dict[date_type, float]],
+    common: list[date_type],
+) -> list[AttributionItemOut]:
+    """简化区间收益归因：个股窗口收益 × 平均市值权重 → 贡献百分点。
+
+    平均权重 = Σ(qty×close) / Σ组合市值，逐日平均；缺日线个股 partial=True。
+    """
+    if not common or len(common) < 2:
+        return []
+    first, last = common[0], common[-1]
+    daily_weights: dict[str, list[float]] = {h.symbol: [] for h in holdings}
+    priced = [sym for sym in qty_series if sym in closes]
+    for d in common:
+        total = sum(qty_series[sym][d] * closes[sym][d] for sym in priced)
+        if total <= 0:
+            continue
+        for sym in priced:
+            daily_weights[sym].append(qty_series[sym][d] * closes[sym][d] / total)
+
+    name_by_symbol = {h.symbol: h.name or h.symbol for h in holdings}
+    items: list[AttributionItemOut] = []
+    for h in holdings:
+        sym = h.symbol
+        if sym not in closes:
+            items.append(AttributionItemOut(symbol=sym, name=name_by_symbol[sym], partial=True))
+            continue
+        start_price = closes[sym][first]
+        end_price = closes[sym][last]
+        if start_price <= 0:
+            items.append(AttributionItemOut(symbol=sym, name=name_by_symbol[sym], partial=True))
+            continue
+        ret_pct = round((end_price / start_price - 1) * 100, 2)
+        weights = daily_weights[sym]
+        avg_weight = round(sum(weights) / len(weights) * 100, 2) if weights else None
+        # 简化归因：窗口收益率 × 平均权重 → 对组合收益的贡献百分点
+        contribution = round(ret_pct * (avg_weight / 100), 2) if avg_weight is not None else None
+        items.append(
+            AttributionItemOut(
+                symbol=sym,
+                name=name_by_symbol[sym],
+                return_pct=ret_pct,
+                avg_weight_pct=avg_weight,
+                contribution_pct=contribution,
+            )
+        )
+    # 贡献降序；缺失数据的排最后
+    items.sort(key=lambda x: (x.contribution_pct is None, -(x.contribution_pct or 0)))
+    return items
 
 
 async def build_portfolio_performance(
@@ -155,6 +210,12 @@ async def build_portfolio_performance(
     base.series = points
     base.portfolio_return_pct = round(points[-1].portfolio_index - 100, 2)
     base.benchmark_return_pct = round(points[-1].benchmark_index - 100, 2)
+    base.attribution = _build_attribution(
+        holdings,
+        qty_series=qty_series,
+        closes=closes,
+        common=common,
+    )
 
     notes: list[str] = []
     if missing:

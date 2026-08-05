@@ -3,8 +3,9 @@
 import json
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Depends, Query
 from fastapi.responses import StreamingResponse
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from stockresearch.agents.risk.engine import run_risk_checkup
@@ -16,7 +17,12 @@ from stockresearch.core.output_style import (
     get_enable_glossary,
     output_style_scope,
 )
-from stockresearch.core.schemas import RiskCheckupOut, RiskCheckupRequest
+from stockresearch.core.schemas import (
+    RiskCheckupHistoryItemOut,
+    RiskCheckupHistoryOut,
+    RiskCheckupOut,
+    RiskCheckupRequest,
+)
 from stockresearch.db.models import Holding, RiskAlertRecord, User
 from stockresearch.db.session import get_db
 from stockresearch.services.glossary import mark_terms, merge_glossary
@@ -68,6 +74,44 @@ def _llm_analysis_on(payload: RiskCheckupRequest) -> bool:
     if payload.enable_llm_analysis is not None:
         return bool(payload.enable_llm_analysis)
     return True
+
+
+@router.get("/checkups/history", response_model=RiskCheckupHistoryOut)
+def risk_checkup_history(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    limit: int = Query(default=8, ge=1, le=30),
+) -> RiskCheckupHistoryOut:
+    """体检历史摘要：按日期聚合最近 N 次体检的告警数与严重级分布（持续追踪）。"""
+    rows = (
+        db.query(
+            func.date(RiskAlertRecord.created_at).label("day"),
+            func.count(RiskAlertRecord.id).label("cnt"),
+            # 规则引擎值域：red/critical → high，warning → medium，yellow → low
+            func.sum(case((RiskAlertRecord.severity.in_(["red", "critical"]), 1), else_=0)).label(
+                "high"
+            ),
+            func.sum(case((RiskAlertRecord.severity == "warning", 1), else_=0)).label("medium"),
+            func.sum(case((RiskAlertRecord.severity == "yellow", 1), else_=0)).label("low"),
+            func.max(RiskAlertRecord.created_at).label("last_at"),
+        )
+        .filter(RiskAlertRecord.user_id == user.id)
+        .group_by("day")
+        .order_by(func.max(RiskAlertRecord.created_at).desc())
+        .limit(limit)
+        .all()
+    )
+    items = [
+        RiskCheckupHistoryItemOut(
+            checked_at=row.last_at,
+            alert_count=int(row.cnt),
+            high_count=int(row.high or 0),
+            medium_count=int(row.medium or 0),
+            low_count=int(row.low or 0),
+        )
+        for row in rows
+    ]
+    return RiskCheckupHistoryOut(items=items, total_checks=len(items))
 
 
 @router.post("/checkup", response_model=RiskCheckupOut)
