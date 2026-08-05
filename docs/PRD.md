@@ -476,6 +476,7 @@ cd desktop && npm install && npm run tauri dev
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **V10.21** | 2026-08-04 | 普通用户化第二批（Phase 11 S2-S4）：①单篇普通版切换——`report_plain_versions` 缓存表（迁移 005）+ `POST /research/reports/{id}/plain`（friendly 档并行改写，全字段失败降级返回专业版原文+提示，二次命中缓存）+ 研报详情双态按钮（专业版/普通版）；②简报/体检返回层接词库 `mark_terms`（不污染 DB 原文）；③静态文案扫尾——`partial` 硬编码 i18n 化、`card.factorPartial` 翻新「数据不全」、事件日历/告警文案白话（「阈值」→「提醒线」+ 下一步引导）；④风险问卷 10 题精简 5 题自动定档 `risk_tolerance`（5-7 保守/8-11 稳健/12-15 进取）；⑤新手带练横幅（投顾模式首次进入，demo 标的自动发起白话研报）+ 大师点评声明（「AI 模仿大师风格生成，非大师本人观点」） |
 | **V10.20** | 2026-08-04 | 普通用户化（Phase 11）启动：`reading_mode` 三档改两档（friendly 普通版/professional 专业版，存量 standard 归一 friendly，前端选项同步收敛）；研报生成链路接入 `reading_mode`（`output_style_scope` 包裹 research 执行）+ research 缓存 key 加入 reading_mode 防串档；研报返回文本接词库 `mark_terms`；`advisor_plain_language.md` 升级为完整普通版风格规范（平实克制/术语首现必解释/数字翻译影响/风险必保留/建议选项式/禁用词）；词典补录高频自产词；PRD 新增 Phase 11 专项（处置清单+词典增强+四阶段实施） |
 | **V10.19** | 2026-08-04 | 持仓闭环第二波：①决策日志挂接研报——`trades.report_id`（迁移 004）自动挂接该标的最近一份研报，`GET /portfolio/trades` 返回 `report_date/report_bias`，交易行内显示当时结论偏向标签；②事件日历——`GET /portfolio/events`（财报预约披露 `stock_yysj_em` + 持仓解禁 `stock_restricted_release_queue_em`，6h 缓存，源失败显式 `partial`）；③因子筛选器——`POST /portfolio/screen`（持仓+自选宇宙，20日动量/年化波动/PE分位条件筛选，缺数计 `skipped` 禁编造），lists 栏新增事件日历与因子筛选（低估值/正动量/低波动/组合预设）折叠块 |
 | **V10.18** | 2026-08-04 | 持仓闭环第一波：交易流水表 `trades`（含决策备注，决策日志载体）；买入/卖出入口（新增持仓/确认/批量交易）自动落流水；卖出填成交价自动算已实现盈亏；`GET /portfolio/trades`、`GET /portfolio/performance`（交易流水×前复权日线重建组合净值曲线 vs 沪深300，首日归一 100，缺数/近似显式 `partial`）；lists 栏新增净值走势与交易记录折叠块 |
