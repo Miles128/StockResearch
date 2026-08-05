@@ -66,7 +66,7 @@ export function SectorMoversPanel({
   }
 
   return (
-    <CollapsibleSection title={t("sectors.title")} className="sector-movers-panel">
+    <CollapsibleSection title={t("sectors.title")} className="sector-movers-panel" defaultCollapsed>
       <div className="sector-movers-grid">
         {renderColumn(t("sectors.gainers"), data!.gainers)}
         {renderColumn(t("sectors.losers"), data!.losers)}

@@ -10,9 +10,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 0 12px;
-  min-height: 36px;
+  gap: 8px;
+  padding: 0 8px;
+  min-height: 34px;
   background: var(--header-bg);
   color: var(--header-fg);
   border-bottom: 1px solid var(--bbg-border);
@@ -138,7 +138,7 @@
 .chrome-meta {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
@@ -365,19 +365,6 @@
 
 .market-ticker-oneline .ticker-price {
   font-size: 12px;
-}
-
-.ticker-inline-meta {
-  flex: 0 0 auto;
-  padding: 0 10px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  white-space: nowrap;
-  border-left: 1px solid var(--bbg-border);
-}
-
-.ticker-inline-meta.muted {
-  color: var(--bbg-muted);
 }
 
 .ticker-strip {

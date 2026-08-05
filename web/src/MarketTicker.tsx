@@ -8,8 +8,6 @@ export function MarketTicker({
   overview,
   loading,
   sessionLabel,
-  northboundLabel,
-  breadthLabel,
   refreshTitle,
   onRefresh,
   onIndexClick,
@@ -18,8 +16,6 @@ export function MarketTicker({
   overview: MarketOverview | null;
   loading: boolean;
   sessionLabel: string;
-  northboundLabel: string;
-  breadthLabel: string;
   refreshTitle: string;
   onRefresh: () => void;
   onIndexClick: (name: string) => void;
@@ -66,18 +62,6 @@ export function MarketTicker({
           <div className="ticker-card ticker-card-empty">
             <span className="muted">—</span>
           </div>
-        )}
-        {overview?.northbound_net_yi != null && (
-          <span className={`ticker-inline-meta ${signedClass(overview.northbound_net_yi)}`}>
-            {northboundLabel.replace("{v}", overview.northbound_net_yi.toFixed(1))}
-          </span>
-        )}
-        {overview?.advancers != null && overview?.decliners != null && (
-          <span className="ticker-inline-meta muted">
-            {breadthLabel
-              .replace("{up}", String(overview.advancers))
-              .replace("{down}", String(overview.decliners))}
-          </span>
         )}
         <span className="ticker-session-inline">{sessionLabel}</span>
       </div>

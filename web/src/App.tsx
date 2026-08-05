@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { api, HoldingEnriched, LlmUsage, StockQuoteOut, WatchlistItem } from "./api";
+import { api, HoldingEnriched, StockQuoteOut, WatchlistItem } from "./api";
 import type { CopilotContext } from "./appTypes";
 import type { CenterTab, FocusContext, ListsLayoutMode } from "./layoutTypes";
 import { FocusTabBar } from "./FocusTabBar";
@@ -30,7 +30,6 @@ import { usePortfolio } from "./hooks/usePortfolio";
 import { useRiskCheckup } from "./hooks/useRiskCheckup";
 import { useQuotePolling } from "./hooks/useQuotePolling";
 import { useWatchlist } from "./hooks/useWatchlist";
-import { DataSourceDetails } from "./DataSourceDetails";
 import { HoldingTradeModal, type TradeDraft } from "./HoldingTradeModal";
 import { BatchResearchModal } from "./BatchResearchModal";
 import { useI18n } from "./i18n";
@@ -97,7 +96,6 @@ export default function App() {
   const [highlightSector, setHighlightSector] = useState<string | null>(null);
   const [pageContext, setPageContext] = useState<CopilotContext | null>(null);
   const [error, setError] = useState("");
-  const [dataDetailsOpen, setDataDetailsOpen] = useState(false);
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
   const [batchResearchOpen, setBatchResearchOpen] = useState(false);
   const [tradeModalSeed, setTradeModalSeed] = useState<Partial<TradeDraft> | null>(null);
@@ -230,15 +228,6 @@ export default function App() {
   const sectorMix = useMemo(() => computeSectorConcentration(holdings), [holdings]);
   const marketSessionLabel =
     holdings[0]?.market_session === "trading" ? t("ticker.trading") : t("ticker.closed");
-  const headerUsage = useMemo((): LlmUsage | null => {
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      const m = messages[i];
-      if (m.role === "assistant" && m.llmUsage && m.llmUsage.total_tokens > 0) {
-        return m.llmUsage;
-      }
-    }
-    return null;
-  }, [messages]);
 
   const toggleLocale = useCallback(() => {
     setLocale(locale === "zh" ? "en" : "zh");
@@ -258,10 +247,6 @@ export default function App() {
   const openSettings = useCallback(() => {
     setSetupOpen(true);
   }, [setSetupOpen]);
-
-  const openDataDetails = useCallback(() => {
-    setDataDetailsOpen(true);
-  }, []);
 
   const goPortfolio = useCallback(() => {
     setCenterTab("focus");
@@ -490,8 +475,6 @@ export default function App() {
           overview={marketOverview}
           overviewLoading={overviewLoading}
           sessionLabel={marketSessionLabel}
-          dataStatus={dataStatus}
-          headerUsage={headerUsage}
           modeSettings={modeSettings}
           onSelectStock={selectSymbol}
           onAskQuery={openCopilotQuery}
@@ -500,7 +483,6 @@ export default function App() {
           onSwitchMode={handleSwitchMode}
           onOpenSettings={openSettings}
           onToggleLocale={toggleLocale}
-          onOpenDataDetails={openDataDetails}
         />
         <PriceConflictBanner conflicts={dataStatus?.price_conflicts ?? []} />
         <SettingsPanel
@@ -513,9 +495,6 @@ export default function App() {
           onModeSettingsChange={persistModeSettings}
           variant="modal"
         />
-        {dataDetailsOpen && (
-          <DataSourceDetails status={dataStatus} onClose={() => setDataDetailsOpen(false)} />
-        )}
         {onboardingOpen && (
           <Onboarding onComplete={handleOnboardingComplete} onSkip={handleOnboardingSkip} />
         )}
