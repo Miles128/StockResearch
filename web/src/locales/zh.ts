@@ -287,7 +287,6 @@ export const zh: Dict = {
       industry_research: "{dims} 五维投研",
       debate: "多空辩论",
       risk: "风控体检",
-      master: "大师点评",
     },
     processLive: {
       react: "思考过程",
@@ -297,7 +296,6 @@ export const zh: Dict = {
       industry_research: "{dims} 五维投研",
       debate: "多空辩论",
       risk: "多 Agent 风控体检中",
-      master: "大师点评",
     },
     processDone: "完成",
     researchStreamHint: "四维分析与多空辩论将在本面板展示；完成后会保留结构化结果。",
@@ -869,7 +867,7 @@ export const zh: Dict = {
     themeDark: "金融 AI · 深色",
     themeDarkHint: "机构暗色底 · 橘红信标 · 红涨绿跌",
     analysis: "分析模式",
-    analysisHint: "股票/市场相关问题默认进行多维投研；开关控制是否追加多空辩论与投资大师点评。",
+    analysisHint: "股票/市场相关问题默认进行多维投研；开关控制是否追加多空辩论。",
     analysisDepth: "分析深度（默认档）",
     analysisDepthHint:
       "调节四维投研内的证据预算；单次说「综合分析/深度分析」可覆盖本轮，不改此处默认。",
@@ -914,28 +912,11 @@ export const zh: Dict = {
       "开启：股票或市场走势相关问题 → 四维分析 + 三轮多空交锋 + 投票 + Research Manager + 裁判总结。",
     debateOffNote:
       "关闭：股票或市场走势相关问题 → 仅多维分析（基本面/技术面/情绪面/筹码面），不进入辩论。",
-    enableMasterCommentary: "开启投资大师点评",
-    masterCommentaryOnNote:
-      "开启：深度分析完成后追加所选投资大师的结构化点评（独立于友善/专业表达风格）。",
-    masterCommentaryOffNote: "关闭：分析结果仅包含系统自身的多维分析与结论。",
-    masterSelection: "投资大师",
-    masterSelectionHint:
-      "选择在分析完成后参与点评的大师（可多选）。提示词可在服务端 prompts/masters/ 目录编辑。",
-    masters: {
-      buffett: "沃伦·巴菲特",
-      munger: "查理·芒格",
-      burry: "迈克尔·伯里",
-    },
     quoteCacheTitle: "行情缓存",
     quoteCacheHint:
       "AI 分析与对话中的行情、大盘概览优先读取本地缓存；到期后自动刷新。财报等日更数据默认缓存 24 小时。",
     quoteRefreshMinutes: "行情刷新间隔（分钟）",
     quoteRefreshNote: "当前：每 {minutes} 分钟刷新一次行情缓存（1–120 分钟）",
-    addCustomMaster: "添加自定义大师",
-    removeCustomMaster: "删除",
-    customMasterIdPrompt: "自定义大师 ID（小写英文，如 dalio）",
-    customMasterNamePrompt: "显示名称",
-    customMasterPromptPrompt: "蒸馏提示词（至少 10 字，定义投资框架与输出要求）",
     readingMode: "表达风格",
     readingModeHint: "控制 AI 回答的用语风格，与顶栏「个人/专家」模式独立。",
     readingModeNote: "当前为{mode}模式 · {reading}",
@@ -1062,8 +1043,6 @@ export const zh: Dict = {
     priority: "优先级",
     portfolioConclusion: "组合结论",
     divergence: "分歧",
-    masterCommentary: "投资大师点评",
-    masterCommentaryNote: "AI 模仿大师风格生成，并非大师本人观点；仅供参考，不 构成投资建议",
     fourDim: "四维分析",
     riskAgents: "风控 Agent 协作",
     conclusionSection: "裁判与总结",

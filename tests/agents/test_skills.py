@@ -74,7 +74,6 @@ def _runner(
         holdings=holdings or [],
         mode_settings=ModeSettingsOut(),
         debate_default=False,
-        master_default=False,
         on_event=on_event,
     )
 
@@ -325,65 +324,6 @@ async def test_skill_bull_bear_debate_enables_debate(
 
     assert captured.get("with_debate") is True
     assert result.intent == "research"
-
-
-@pytest.mark.asyncio
-async def test_skill_master_commentary_missing_context(db_session: Session) -> None:
-    user = User(username="skill-master", password_hash="")
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-
-    runner = _runner(db_session, user.id)
-    result = await runner.run("skill_master_commentary", {"subject": "600519"})
-
-    assert result.error == "missing_context"
-
-
-@pytest.mark.asyncio
-async def test_skill_master_commentary_forwards_events(
-    db_session: Session,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    user = User(username="skill-master-ok", password_hash="")
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-
-    async def fake_commentary(
-        *_args: object, **_kwargs: object
-    ) -> AsyncIterator[dict[str, object]]:
-        yield {
-            "type": "master_commentary",
-            "commentary": [
-                {
-                    "master": "buffett",
-                    "name": "巴菲特",
-                    "signal": "neutral",
-                    "confidence": 0.6,
-                    "reasoning": "估值合理",
-                    "key_metric": "ROE",
-                }
-            ],
-        }
-
-    monkeypatch.setattr(
-        "stockresearch.agents.orchestrator.skills.stream_master_commentary",
-        fake_commentary,
-    )
-
-    events: list[dict[str, object]] = []
-    runner = _runner(db_session, user.id, events=events)
-    result = await runner.run(
-        "skill_master_commentary",
-        {"subject": "600519", "context": "基本面稳健，估值中性"},
-    )
-
-    assert result.cards[0]["type"] == "master"
-    assert "估值合理" in result.summary
-    assert events[0]["type"] == "skill_start"
-    assert events[-1]["type"] == "skill_done"
-    assert events[-1]["skill_id"] == "skill_master_commentary"
 
 
 @pytest.mark.asyncio

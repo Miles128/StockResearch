@@ -106,17 +106,6 @@ def finalize_research_report(report: ResearchReportOut) -> ResearchReportOut:
     """
     dimensions = {key: _finalize_dimension(dim) for key, dim in report.dimensions.items()}
     debate = _finalize_debate(report.debate) if report.debate else None
-    master_commentary = [
-        item.model_copy(
-            update={
-                "reasoning": _finalize_text(item.reasoning),
-                "key_metric": _finalize_text(item.key_metric)
-                if item.key_metric
-                else item.key_metric,
-            }
-        )
-        for item in report.master_commentary
-    ]
     return report.model_copy(
         update={
             "summary": _finalize_text(report.summary),
@@ -132,7 +121,6 @@ def finalize_research_report(report: ResearchReportOut) -> ResearchReportOut:
             else report.news_text_factor,
             "dimensions": dimensions,
             "debate": debate,
-            "master_commentary": master_commentary,
         }
     )
 

@@ -37,7 +37,6 @@ interface StreamFeedProps {
     leading?: string;
   } | null;
   activeStreamIds?: string[];
-  masterCommentary?: import("./api").MasterCommentaryItem[];
   live?: boolean;
   /** Risk tab: compact agent rail + collapsible debate/judge blocks. */
   riskCompact?: boolean;
@@ -45,16 +44,6 @@ interface StreamFeedProps {
 
 const DEBATE_ROLES = new Set(["bull", "bear", "aggressive", "neutral", "conservative", "vote"]);
 const SUMMARY_ROLES = new Set(["manager", "judge"]);
-
-function masterDisplayName(
-  item: import("./api").MasterCommentaryItem,
-  t: (key: string) => string,
-): string {
-  if (item.name?.trim()) return item.name;
-  const key = `master.${item.master}`;
-  const translated = t(key);
-  return translated !== key ? translated : item.master;
-}
 
 function managerStep(steps: AgentStep[]): AgentStep | undefined {
   return steps.find((step) => step.role === "manager" || step.agent_id === "research_manager");
@@ -260,7 +249,6 @@ export function StreamFeed({
   judgeVerdict,
   voteTally,
   activeStreamIds = [],
-  masterCommentary = [],
   live = false,
   riskCompact = false,
 }: StreamFeedProps) {
@@ -515,31 +503,6 @@ export function StreamFeed({
 
       {!riskCompact && (dimsDone || showRiskGrid) && judgeVerdict && (
         <JudgeVerdictBlock judgeVerdict={judgeVerdict} judgeTyping={isTyping("judge")} t={t} />
-      )}
-
-      {masterCommentary.length > 0 && (
-        <>
-          <p className="stream-section-title">{t("stream.masterCommentary")}</p>
-          <div className="master-commentary-list">
-            {masterCommentary.map((item, idx) => (
-              <div key={idx} className={`master-commentary-item signal-${item.signal}`}>
-                <div className="master-commentary-head">
-                  <strong>{masterDisplayName(item, t)}</strong>
-                  <span
-                    className={`stat-pill ${item.signal === "bullish" ? "up" : item.signal === "bearish" ? "down" : ""}`}
-                  >
-                    {item.signal_text}
-                  </span>
-                  {item.key_metric && (
-                    <span className="muted master-commentary-metric">{item.key_metric}</span>
-                  )}
-                </div>
-                <p className="muted">{item.reasoning}</p>
-              </div>
-            ))}
-          </div>
-          <p className="master-commentary-note muted">{t("stream.masterCommentaryNote")}</p>
-        </>
       )}
     </div>
   );

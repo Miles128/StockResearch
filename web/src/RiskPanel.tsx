@@ -434,7 +434,6 @@ export function RiskPanel({
                   judgeVerdict={riskStream.judgeVerdict}
                   voteTally={riskStream.voteTally}
                   activeStreamIds={riskStream.activeStreamIds}
-                  masterCommentary={riskStream.masterCommentary}
                   live={loading}
                   riskCompact
                 />

@@ -15,8 +15,7 @@ export type ProcessFlow =
   | "market_research"
   | "industry_research"
   | "debate"
-  | "risk"
-  | "master";
+  | "risk";
 
 const RESEARCH_SKILL_IDS = new Set([
   "skill_stock_research",
@@ -43,8 +42,6 @@ function skillToFlow(skillId: string): ProcessFlow | null {
       return "debate";
     case "skill_risk_checkup":
       return "risk";
-    case "skill_master_commentary":
-      return "master";
     default:
       return null;
   }
@@ -110,8 +107,6 @@ export function detectProcessFlow(process: StreamState): ProcessFlow {
     if (kind === "industry") return "industry_research";
     return "stock_research";
   }
-
-  if (process.masterCommentary.length > 0) return "master";
 
   if (looksLikePlanExecute(process)) return "plan";
 

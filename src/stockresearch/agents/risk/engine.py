@@ -3,9 +3,6 @@
 import asyncio
 import logging
 
-from stockresearch.agents.master_commentary.context import build_risk_context
-from stockresearch.agents.master_commentary.registry import resolve_master_ids
-from stockresearch.agents.master_commentary.stream import get_master_commentary
 from stockresearch.agents.risk import messages as risk_msg
 from stockresearch.agents.risk.metrics import (
     SECTOR_CONCENTRATION_LIMIT,
@@ -25,7 +22,6 @@ from stockresearch.core.constants import (
 )
 from stockresearch.core.schemas import (
     LLMRiskAnalysis,
-    MasterCommentaryItem,
     ModeSettingsOut,
     PortfolioMetricsOut,
     RiskAlertOut,
@@ -264,10 +260,8 @@ async def run_risk_checkup(
     holdings: list[Holding],
     llm: LLMClient | None = None,
     *,
-    enable_master_commentary: bool = False,
     enable_llm_analysis: bool = True,
     mode_settings: ModeSettingsOut | None = None,
-    master_ids: list[str] | None = None,
 ) -> RiskCheckupOut:
     """Run risk checkup.
 
@@ -387,17 +381,4 @@ async def run_risk_checkup(
         var_result=var_out,
         stress_results=stress_out,
     )
-    if enable_llm_analysis and enable_master_commentary and mode_settings is not None:
-        masters = master_ids or resolve_master_ids(mode_settings)
-        commentary_context = build_risk_context(result)
-        commentary = await get_master_commentary(
-            client,
-            subject="组合风险分析",
-            context=commentary_context,
-            settings=mode_settings,
-            masters=masters,
-        )
-        result.master_commentary = [
-            MasterCommentaryItem.model_validate(item) for item in commentary
-        ]
     return result

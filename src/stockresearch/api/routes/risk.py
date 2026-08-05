@@ -60,16 +60,7 @@ def _mark_risk_result(result: RiskCheckupOut) -> RiskCheckupOut:
         a.scenario_analysis = [_mark_text(x) for x in a.scenario_analysis]
         a.position_action = _mark_text(a.position_action)
         a.analysis_process = _mark_text(a.analysis_process)
-    for item in result.master_commentary:
-        item.reasoning = _mark_text(item.reasoning)
-        item.key_metric = _mark_text(item.key_metric)
     return result
-
-
-def _master_on(payload: RiskCheckupRequest, settings) -> bool:
-    if payload.enable_master_commentary is not None:
-        return bool(payload.enable_master_commentary)
-    return bool(settings.enable_master_commentary)
 
 
 def _llm_analysis_on(payload: RiskCheckupRequest) -> bool:
@@ -95,7 +86,6 @@ async def risk_checkup(
         result = await run_risk_checkup(
             holdings,
             llm=llm,
-            enable_master_commentary=_master_on(payload, settings),
             enable_llm_analysis=_llm_analysis_on(payload),
             mode_settings=settings,
         )
@@ -124,7 +114,6 @@ async def risk_checkup_stream(
             async for event in run_risk_checkup_stream(
                 holdings,
                 llm=llm,
-                enable_master_commentary=_master_on(payload, settings),
                 enable_llm_analysis=_llm_analysis_on(payload),
                 mode_settings=settings,
             ):

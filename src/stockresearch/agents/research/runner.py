@@ -4,9 +4,6 @@ import asyncio
 import logging
 from typing import Literal
 
-from stockresearch.agents.master_commentary.context import build_research_context
-from stockresearch.agents.master_commentary.registry import resolve_master_ids
-from stockresearch.agents.master_commentary.stream import get_master_commentary
 from stockresearch.agents.research.agents import AGENT_BY_ID, DIMENSION_AGENTS
 from stockresearch.agents.research.budget import (
     AnalysisDepth,
@@ -25,7 +22,6 @@ from stockresearch.agents.research.scoring import score_bias, weighted_composite
 from stockresearch.core.schemas import (
     DebateResult,
     DimensionResult,
-    MasterCommentaryItem,
     ModeSettingsOut,
     ResearchReportOut,
 )
@@ -81,9 +77,7 @@ async def run_research(
     llm: LLMClient | None = None,
     *,
     with_debate: bool = True,
-    enable_master_commentary: bool = False,
     mode_settings: ModeSettingsOut | None = None,
-    master_ids: list[str] | None = None,
     analysis_depth: AnalysisDepth | str | None = None,
 ) -> ResearchReportOut:
     client = llm or get_llm_client()
@@ -190,18 +184,5 @@ async def run_research(
                 report.deep_analysis.thesis = thesis
         except Exception:
             logger.warning("thesis build failed for %s", symbol, exc_info=True)
-
-    if enable_master_commentary and mode_settings is not None:
-        masters = master_ids or resolve_master_ids(mode_settings)
-        commentary = await get_master_commentary(
-            client,
-            subject=f"{name}({symbol})",
-            context=build_research_context(report),
-            settings=mode_settings,
-            masters=masters,
-        )
-        report.master_commentary = [
-            MasterCommentaryItem.model_validate(item) for item in commentary
-        ]
 
     return report

@@ -3,11 +3,7 @@
 import asyncio
 import logging
 from collections.abc import AsyncIterator
-from typing import Any
 
-from stockresearch.agents.master_commentary.context import build_research_context
-from stockresearch.agents.master_commentary.registry import resolve_master_ids
-from stockresearch.agents.master_commentary.stream import stream_master_commentary
 from stockresearch.agents.research.battle import iter_battle_events
 from stockresearch.agents.research.budget import (
     AnalysisDepth,
@@ -36,7 +32,6 @@ from stockresearch.agents.voice import DEBATE_VOICE
 from stockresearch.core.schemas import (
     DebateResult,
     DimensionResult,
-    MasterCommentaryItem,
     ModeSettingsOut,
     ResearchReportOut,
 )
@@ -161,9 +156,7 @@ async def run_research_stream(
     llm: LLMClient | None = None,
     *,
     with_debate: bool = True,
-    enable_master_commentary: bool = False,
     mode_settings: ModeSettingsOut | None = None,
-    master_ids: list[str] | None = None,
     analysis_depth: AnalysisDepth | str | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     client = llm or get_llm_client()
@@ -278,26 +271,6 @@ async def run_research_stream(
         enable_signal_verify_hook=budget.enable_signal_verify_hook,
     )
     await _attach_deep_analysis(report, budget.depth, symbol)
-
-    if enable_master_commentary and mode_settings is not None:
-        masters = master_ids or resolve_master_ids(mode_settings)
-        commentary_context = build_research_context(report)
-        commentary: list[dict[str, Any]] = []
-        async for mc_event in stream_master_commentary(
-            client,
-            subject=f"{name}({symbol})",
-            context=commentary_context,
-            settings=mode_settings,
-            masters=masters,
-        ):
-            yield mc_event
-            if mc_event.get("type") == "master_commentary" and isinstance(
-                mc_event.get("commentary"), list
-            ):
-                commentary = mc_event["commentary"]
-        report.master_commentary = [
-            MasterCommentaryItem.model_validate(item) for item in commentary
-        ]
 
     yield status_event("status.research.report_done")
     yield {"type": "done", "result": report.model_dump(mode="json")}

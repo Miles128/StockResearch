@@ -4,11 +4,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from typing import Any
 
-from stockresearch.agents.master_commentary.context import build_risk_context
-from stockresearch.agents.master_commentary.registry import resolve_master_ids
-from stockresearch.agents.master_commentary.stream import stream_master_commentary
 from stockresearch.agents.research.debate import (
     iter_triangular_debate_events,
     triangular_transcript,
@@ -44,7 +40,6 @@ from stockresearch.agents.stream_typewriter import (
 from stockresearch.agents.voice import JUDGE_VOICE
 from stockresearch.core.schemas import (
     LLMRiskAnalysis,
-    MasterCommentaryItem,
     ModeSettingsOut,
     PortfolioMetricsOut,
     RiskAlertOut,
@@ -173,17 +168,14 @@ async def run_risk_checkup_stream(
     holdings: list[Holding],
     llm: LLMClient | None = None,
     *,
-    enable_master_commentary: bool = False,
     enable_llm_analysis: bool = True,
     mode_settings: ModeSettingsOut | None = None,
-    master_ids: list[str] | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     """Stream risk checkup.
 
     PRD §四: 规则引擎 + 可选 LLM 解读。`enable_llm_analysis=False` 时跳过
     parallel LLM agents / 三角辩论 / Research Manager / Judge,直接返回
-    规则告警 + 量化指标。`enable_llm_analysis` 同时控制 master_commentary
-    (后者还需 `enable_master_commentary=True`)。
+    规则告警 + 量化指标。
     """
     client = llm or get_llm_client()
 
@@ -436,25 +428,5 @@ async def run_risk_checkup_stream(
         var_result=var_out,
         stress_results=stress_out,
     )
-
-    if enable_llm_analysis and enable_master_commentary and mode_settings is not None:
-        masters = master_ids or resolve_master_ids(mode_settings)
-        commentary_context = build_risk_context(result)
-        commentary: list[dict[str, Any]] = []
-        async for mc_event in stream_master_commentary(
-            client,
-            subject="组合风险分析",
-            context=commentary_context,
-            settings=mode_settings,
-            masters=masters,
-        ):
-            yield mc_event
-            if mc_event.get("type") == "master_commentary" and isinstance(
-                mc_event.get("commentary"), list
-            ):
-                commentary = mc_event["commentary"]
-        result.master_commentary = [
-            MasterCommentaryItem.model_validate(item) for item in commentary
-        ]
 
     yield {"type": "done", "result": result.model_dump(mode="json")}

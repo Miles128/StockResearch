@@ -855,16 +855,6 @@ export interface AshareFactor {
   }[];
 }
 
-export interface MasterCommentaryItem {
-  master: string;
-  name: string;
-  signal: "bullish" | "neutral" | "bearish";
-  signal_text: string;
-  confidence: number;
-  reasoning: string;
-  key_metric: string;
-}
-
 export interface NumericFactor {
   key: string;
   label: string;
@@ -1112,7 +1102,6 @@ export interface ResearchReport {
   post_hoc?: ReportPostHocHorizon[];
   dimensions?: Record<string, DimensionResult>;
   debate?: DebateResult | null;
-  master_commentary?: MasterCommentaryItem[];
   deep_analysis?: DeepAnalysisOut | null;
   disclaimer?: string;
   cached?: boolean;
@@ -1211,7 +1200,6 @@ export interface RiskCheckup {
     }[];
   };
   stress_results?: StressResult[];
-  master_commentary?: MasterCommentaryItem[];
 }
 
 export interface AssetAllocation {

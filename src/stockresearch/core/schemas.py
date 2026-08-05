@@ -398,16 +398,6 @@ class SectorLeaderBrief(BaseModel):
     brief: str
 
 
-class MasterCommentaryItem(BaseModel):
-    master: str
-    name: str
-    signal: Literal["bullish", "neutral", "bearish"] = "neutral"
-    signal_text: str = "中性"
-    confidence: float = 0.5
-    reasoning: str = ""
-    key_metric: str = ""
-
-
 class ImpactPeakDayOut(BaseModel):
     date: str
     idio_return_pct: float
@@ -484,7 +474,6 @@ class ResearchReportOut(BaseModel):
     factors: list[NumericFactorOut] = Field(default_factory=list)
     bars_provenance: BarsProvenanceOut | None = None
     dimension_weights: dict[str, float] = Field(default_factory=dict)
-    master_commentary: list[MasterCommentaryItem] = Field(default_factory=list)
     analysis_depth: Literal["standard", "comprehensive", "deep"] = "standard"
     deep_analysis: DeepAnalysisOut | None = None
     factors_expanded: bool = False
@@ -582,7 +571,6 @@ class RiskCheckupOut(BaseModel):
     metrics: PortfolioMetricsOut | None = None
     var_result: VaRResultOut | None = None
     stress_results: list[StressResultOut] = Field(default_factory=list)
-    master_commentary: list[MasterCommentaryItem] = Field(default_factory=list)
     disclaimer: str = DISCLAIMER
 
 
@@ -609,12 +597,6 @@ class LlmSettingsOut(BaseModel):
     server_has_api_key: bool
 
 
-class CustomMasterOut(BaseModel):
-    id: str = Field(min_length=1, max_length=32, pattern=r"^[a-z][a-z0-9_]{0,31}$")
-    name: str = Field(min_length=1, max_length=50)
-    system_prompt: str = Field(min_length=10, max_length=4000)
-
-
 class CustomGlossaryTermOut(BaseModel):
     id: str = Field(min_length=1, max_length=32)
     short: str = Field(min_length=1, max_length=50)
@@ -635,9 +617,6 @@ class ModeSettingsOut(BaseModel):
     enable_glossary: bool = True
     max_signals: int = Field(default=5, ge=1, le=50)
     onboarded: bool = False
-    enable_master_commentary: bool = False
-    selected_masters: list[str] = Field(default_factory=lambda: ["buffett", "munger", "burry"])
-    custom_masters: list[CustomMasterOut] = Field(default_factory=list)
     custom_glossary: list[CustomGlossaryTermOut] = Field(default_factory=list)
     quote_refresh_minutes: int = Field(default=10, ge=1, le=120)
     briefing_auto_enabled: bool = True
@@ -656,7 +635,6 @@ class LlmTestOut(BaseModel):
 class RiskCheckupRequest(BaseModel):
     reading_mode: Literal["friendly", "professional"] | None = None
     output_locale: Literal["zh", "en"] | None = None
-    enable_master_commentary: bool | None = None
     enable_llm_analysis: bool | None = None
 
 
@@ -674,7 +652,6 @@ class ChatRequest(BaseModel):
     user_context: ChatUserContext | None = None
     llm: LlmUserSettings | None = None
     enable_debate: bool | None = None
-    enable_master_commentary: bool | None = None
     enable_glossary: bool | None = None
     reading_mode: Literal["friendly", "professional"] | None = None
     output_locale: Literal["zh", "en"] | None = None
@@ -884,7 +861,6 @@ class ResearchReportListItem(BaseModel):
 class IndustryResearchRequest(BaseModel):
     sector: str = Field(min_length=1, max_length=50)
     query: str = Field(default="", max_length=500)
-    enable_master_commentary: bool | None = None
 
 
 class BriefingSection(BaseModel):

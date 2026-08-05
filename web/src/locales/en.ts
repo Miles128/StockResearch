@@ -289,7 +289,6 @@ export const en: Dict = {
       industry_research: "{dims} · 5D sector research",
       debate: "Bull/bear debate",
       risk: "Risk checkup",
-      master: "Master commentary",
     },
     processLive: {
       react: "Reasoning",
@@ -299,7 +298,6 @@ export const en: Dict = {
       industry_research: "{dims} · 5D sector research",
       debate: "Bull/bear debate",
       risk: "Risk checkup",
-      master: "Master commentary",
     },
     processDone: "Done",
     researchStreamHint:
@@ -877,7 +875,7 @@ export const en: Dict = {
     themeDarkHint: "Institutional dark · orange-red accent · A-share colors",
     analysis: "Analysis",
     analysisHint:
-      "Stock/market questions use multi-dimensional research by default; toggles add bull/bear debate and master commentary.",
+      "Stock/market questions use multi-dimensional research by default; toggles add bull/bear debate.",
     analysisDepth: "Analysis depth (default)",
     analysisDepthHint:
       "Budgets evidence inside four-dimension research. Saying “comprehensive/deep analysis” overrides this turn only.",
@@ -923,28 +921,11 @@ export const en: Dict = {
     debateOnNote:
       "On: stock or market questions → four dimensions + 3 debate rounds + vote + Research Manager + judge summary.",
     debateOffNote: "Off: stock or market questions → multi-dim analysis only (no debate).",
-    enableMasterCommentary: "Enable master commentary",
-    masterCommentaryOnNote:
-      "On: append selected masters' structured commentary after deep analysis (independent of reading mode).",
-    masterCommentaryOffNote: "Off: results contain only the system's own analysis and conclusion.",
-    masterSelection: "Investment masters",
-    masterSelectionHint:
-      "Choose who comments after analysis. Edit built-in prompts under server prompts/masters/.",
-    masters: {
-      buffett: "Warren Buffett",
-      munger: "Charlie Munger",
-      burry: "Michael Burry",
-    },
     quoteCacheTitle: "Quote cache",
     quoteCacheHint:
       "Chat and AI analysis read cached quotes and market overview first; financial and daily data cache for 24h.",
     quoteRefreshMinutes: "Quote refresh interval (minutes)",
     quoteRefreshNote: "Quotes refresh every {minutes} minutes (1–120).",
-    addCustomMaster: "Add custom master",
-    removeCustomMaster: "Remove",
-    customMasterIdPrompt: "Custom master ID (lowercase, e.g. dalio)",
-    customMasterNamePrompt: "Display name",
-    customMasterPromptPrompt: "Distilled system prompt (min 10 chars)",
     readingMode: "Reading style",
     readingModeHint: "Controls how the AI phrases answers; independent of Personal/Expert mode.",
     readingModeNote: "Current: {mode} · {reading}",
@@ -1075,9 +1056,6 @@ export const en: Dict = {
     priority: "Priority",
     portfolioConclusion: "Portfolio conclusion",
     divergence: "Divergence",
-    masterCommentary: "Master commentary",
-    masterCommentaryNote:
-      "AI-generated in a master's style; not their real view. For reference only, not investment advice.",
     fourDim: "Four dimensions",
     riskAgents: "Risk agents",
     conclusionSection: "Judge & summary",

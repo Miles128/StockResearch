@@ -9,7 +9,6 @@ from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
-from stockresearch.agents.master_commentary.registry import resolve_master_ids
 from stockresearch.agents.orchestrator.card_merge import merge_plan_cards
 from stockresearch.agents.orchestrator.complexity import (
     is_market_scope,
@@ -49,7 +48,6 @@ class ChatRunContext:
     mode_settings: ModeSettingsOut
     holdings: list[Holding]
     debate_on: bool
-    master_on: bool
     finance_tools: bool = True
     long_term_context: str = ""
     user_context_text: str = ""
@@ -70,7 +68,6 @@ async def execute_chat_turn(
     llm: object,
     holdings: list[Holding],
     debate_on: bool,
-    master_on: bool,
     mode_settings: ModeSettingsOut,
     long_term_context: str = "",
     user_context_text: str = "",
@@ -102,7 +99,6 @@ async def execute_chat_turn(
         return await _run_risk_sync(
             turn_scope.holdings,
             llm,
-            master_on=master_on,
             mode_settings=mode_settings,
         )
 
@@ -114,7 +110,6 @@ async def execute_chat_turn(
         mode_settings=mode_settings,
         holdings=turn_scope.holdings,
         debate_on=debate_on,
-        master_on=master_on,
         long_term_context=long_term_context,
         user_context_text=user_context_text,
         history=history,
@@ -134,7 +129,6 @@ async def _run_risk_sync(
     holdings: list[Holding],
     llm: object,
     *,
-    master_on: bool,
     mode_settings: ModeSettingsOut,
 ) -> ChatExecuteResult:
     try:
@@ -142,9 +136,7 @@ async def _run_risk_sync(
             run_risk_checkup(
                 holdings,
                 llm=llm,  # type: ignore[arg-type]
-                enable_master_commentary=master_on,
                 mode_settings=mode_settings,
-                master_ids=resolve_master_ids(mode_settings) if master_on else None,
             ),
             timeout=get_settings().agent_timeout_seconds,
         )
@@ -178,7 +170,6 @@ def _build_orchestrator_agent(
         mode_settings=ctx.mode_settings,
         holdings=ctx.holdings,
         debate_default=ctx.debate_on,
-        master_default=ctx.master_on,
         portfolio_context=ctx.portfolio_context,
         news_explain_only=news_explain_only,
         confirmed_symbol=ctx.confirmed_symbol,

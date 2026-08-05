@@ -2,7 +2,6 @@
 
 import asyncio
 from collections.abc import AsyncIterator
-from typing import Any
 
 from stockresearch.agents.market.context import MARKET_NAME, MARKET_SYMBOL, MarketResearchContext
 from stockresearch.agents.market.dimensions import (
@@ -17,9 +16,6 @@ from stockresearch.agents.market.dimensions import (
     prepare_sentiment,
     prepare_technical,
 )
-from stockresearch.agents.master_commentary.context import build_market_context
-from stockresearch.agents.master_commentary.registry import resolve_master_ids
-from stockresearch.agents.master_commentary.stream import stream_master_commentary
 from stockresearch.agents.research.battle import iter_battle_events
 from stockresearch.agents.research.debate import summarize_situation
 from stockresearch.agents.research.report_builder import build_research_report
@@ -31,7 +27,6 @@ from stockresearch.agents.voice import DEBATE_VOICE
 from stockresearch.core.schemas import (
     DebateResult,
     DimensionResult,
-    MasterCommentaryItem,
     ModeSettingsOut,
 )
 from stockresearch.data.providers.global_markets import (
@@ -67,9 +62,7 @@ async def run_market_research_stream(
     llm: LLMClient | None = None,
     *,
     with_debate: bool = True,
-    enable_master_commentary: bool = False,
     mode_settings: ModeSettingsOut | None = None,
-    master_ids: list[str] | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     """Market deep research with the same bull/bear + judge flow as stock research."""
     client = llm or get_llm_client()
@@ -164,26 +157,6 @@ async def run_market_research_stream(
         news_text_factor=news_text_factor,
         dimension_labels=_AGENT_LABELS,
     )
-
-    if enable_master_commentary and mode_settings is not None:
-        masters = master_ids or resolve_master_ids(mode_settings)
-        commentary_context = build_market_context(report.summary)
-        commentary: list[dict[str, Any]] = []
-        async for mc_event in stream_master_commentary(
-            client,
-            subject=MARKET_NAME,
-            context=commentary_context,
-            settings=mode_settings,
-            masters=masters,
-        ):
-            yield mc_event
-            if mc_event.get("type") == "master_commentary" and isinstance(
-                mc_event.get("commentary"), list
-            ):
-                commentary = mc_event["commentary"]
-        report.master_commentary = [
-            MasterCommentaryItem.model_validate(item) for item in commentary
-        ]
 
     yield status_event("status.market.research.report_done")
     yield {"type": "done", "result": report.model_dump(mode="json")}

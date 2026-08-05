@@ -17,15 +17,6 @@ describe("modeSettings API conversion", () => {
       enableGlossary: true,
       maxSignals: 5,
       onboarded: true,
-      enableMasterCommentary: true,
-      selectedMasters: ["buffett", "munger"],
-      customMasters: [
-        {
-          id: "dalio",
-          name: "Dalio",
-          systemPrompt: "Macro cycles and risk parity.",
-        },
-      ],
       customGlossary: [{ id: "测试术语", short: "测试术语", def: "用于单测的自定义词条" }],
       holdingsView: "table",
       quoteRefreshMinutes: 10,
@@ -43,15 +34,6 @@ describe("modeSettings API conversion", () => {
       enable_glossary: true,
       max_signals: 5,
       onboarded: true,
-      enable_master_commentary: true,
-      selected_masters: ["buffett", "munger"],
-      custom_masters: [
-        {
-          id: "dalio",
-          name: "Dalio",
-          system_prompt: "Macro cycles and risk parity.",
-        },
-      ],
       custom_glossary: [
         {
           id: "测试术语",
@@ -79,9 +61,6 @@ describe("modeSettings API conversion", () => {
         enable_glossary: false,
         max_signals: 20,
         onboarded: true,
-        enable_master_commentary: false,
-        selected_masters: ["burry"],
-        custom_masters: [],
         custom_glossary: [],
         quote_refresh_minutes: 20,
         briefing_auto_enabled: false,
@@ -97,9 +76,6 @@ describe("modeSettings API conversion", () => {
       enableGlossary: false,
       maxSignals: 20,
       onboarded: true,
-      enableMasterCommentary: false,
-      selectedMasters: ["burry"],
-      customMasters: [],
       customGlossary: [],
       holdingsView: "table",
       quoteRefreshMinutes: 20,
