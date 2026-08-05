@@ -51,8 +51,7 @@ function ProcessStreamFeed({
     process.agentSteps.length > 0 ||
     process.debateRounds.length > 0 ||
     process.judgeVerdict != null ||
-    process.voteTally != null ||
-    process.masterCommentary.length > 0;
+    process.voteTally != null;
   const singleSkill = process.skillSteps.length === 1 && !topHasBody;
 
   return (
@@ -67,7 +66,6 @@ function ProcessStreamFeed({
             debateRounds={skill.nested.debateRounds}
             judgeVerdict={skill.nested.judgeVerdict}
             voteTally={skill.nested.voteTally}
-            masterCommentary={skill.nested.masterCommentary}
             activeStreamIds={skill.nested.activeStreamIds}
             live={live}
           />
@@ -90,7 +88,6 @@ function ProcessStreamFeed({
               debateRounds={skill.nested.debateRounds}
               judgeVerdict={skill.nested.judgeVerdict}
               voteTally={skill.nested.voteTally}
-              masterCommentary={skill.nested.masterCommentary}
               activeStreamIds={skill.nested.activeStreamIds}
               live={live}
             />
@@ -105,7 +102,6 @@ function ProcessStreamFeed({
           debateRounds={process.debateRounds}
           judgeVerdict={process.judgeVerdict}
           voteTally={process.voteTally}
-          masterCommentary={process.masterCommentary}
           activeStreamIds={process.activeStreamIds}
           live={live}
         />

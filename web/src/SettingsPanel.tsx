@@ -20,7 +20,6 @@ import {
   modeSettingsToApiPayload,
   saveModeSettings,
   type CustomGlossaryTerm,
-  type CustomMaster,
   type AnalysisDepth,
   type ModeSettings,
   type ReadingMode,
@@ -193,50 +192,6 @@ export function SettingsPanel({
 
   function toggleDebate(enabled: boolean) {
     persistModeSettings({ ...modeSettingsState, enableDebate: enabled });
-  }
-
-  function toggleMasterCommentary(enabled: boolean) {
-    persistModeSettings({
-      ...modeSettingsState,
-      enableMasterCommentary: enabled,
-    });
-  }
-
-  function toggleMasterSelection(masterId: string, enabled: boolean) {
-    const selected = new Set(modeSettingsState.selectedMasters);
-    if (enabled) selected.add(masterId);
-    else selected.delete(masterId);
-    persistModeSettings({
-      ...modeSettingsState,
-      selectedMasters: Array.from(selected),
-    });
-  }
-
-  function addCustomMaster() {
-    const id = window.prompt(t("settings.customMasterIdPrompt"), "my_master");
-    if (!id) return;
-    const name = window.prompt(t("settings.customMasterNamePrompt"), id);
-    if (!name) return;
-    const systemPrompt = window.prompt(t("settings.customMasterPromptPrompt"), "");
-    if (!systemPrompt || systemPrompt.trim().length < 10) return;
-    const next: CustomMaster = {
-      id: id.trim().toLowerCase(),
-      name: name.trim(),
-      systemPrompt: systemPrompt.trim(),
-    };
-    persistModeSettings({
-      ...modeSettingsState,
-      customMasters: [...modeSettingsState.customMasters, next],
-      selectedMasters: [...modeSettingsState.selectedMasters, next.id],
-    });
-  }
-
-  function removeCustomMaster(masterId: string) {
-    persistModeSettings({
-      ...modeSettingsState,
-      customMasters: modeSettingsState.customMasters.filter((m) => m.id !== masterId),
-      selectedMasters: modeSettingsState.selectedMasters.filter((id) => id !== masterId),
-    });
   }
 
   function addCustomGlossaryTerm() {
@@ -439,10 +394,6 @@ export function SettingsPanel({
                 modeSettings={modeSettingsState}
                 onToggleDebate={toggleDebate}
                 onSelectAnalysisDepth={selectAnalysisDepth}
-                onToggleMasterCommentary={toggleMasterCommentary}
-                onToggleMasterSelection={toggleMasterSelection}
-                onAddCustomMaster={addCustomMaster}
-                onRemoveCustomMaster={removeCustomMaster}
               />
             )}
 

@@ -1,4 +1,4 @@
-import type { AgentStreamEvent, MasterCommentaryItem } from "./api";
+import type { AgentStreamEvent } from "./api";
 import {
   detectDimensionSet,
   dimensionDefsForKind,
@@ -33,7 +33,6 @@ export interface SkillStreamSlice {
   judgeVerdict: JudgeVerdict | null;
   voteTally: VoteTally | null;
   activeStreamIds: string[];
-  masterCommentary: MasterCommentaryItem[];
 }
 
 export interface SkillStep {
@@ -53,7 +52,6 @@ export interface StreamState {
   judgeVerdict: JudgeVerdict | null;
   voteTally: VoteTally | null;
   activeStreamIds: string[];
-  masterCommentary: MasterCommentaryItem[];
   skillSteps: SkillStep[];
   activeSkillRunId?: string;
 }
@@ -183,7 +181,6 @@ export function emptySkillStreamSlice(): SkillStreamSlice {
     judgeVerdict: null,
     voteTally: null,
     activeStreamIds: [],
-    masterCommentary: [],
   };
 }
 
@@ -196,7 +193,6 @@ export function emptyStreamState(): StreamState {
     judgeVerdict: null,
     voteTally: null,
     activeStreamIds: [],
-    masterCommentary: [],
     skillSteps: [],
   };
 }
@@ -206,8 +202,7 @@ function sliceHasSubstance(slice: SkillStreamSlice): boolean {
     slice.agentSteps.length > 0 ||
     slice.debateRounds.length > 0 ||
     slice.judgeVerdict != null ||
-    slice.voteTally != null ||
-    slice.masterCommentary.length > 0
+    slice.voteTally != null
   );
 }
 
@@ -273,7 +268,6 @@ function applyCoreStreamEvent(
     judgeVerdict,
     voteTally,
     activeStreamIds,
-    masterCommentary,
   } = slice;
 
   if (event.type === "status" && (event.message || event.message_key)) {
@@ -443,28 +437,6 @@ function applyCoreStreamEvent(
     }
   }
 
-  if (event.type === "master_done" && event.master) {
-    const nextItem = {
-      master: String(event.master),
-      name: String(event.name ?? ""),
-      signal: (event.signal as MasterCommentaryItem["signal"]) ?? "neutral",
-      signal_text: String(event.signal_text ?? "中性"),
-      confidence: Number(event.confidence ?? 0.5),
-      reasoning: String(event.reasoning ?? ""),
-      key_metric: String(event.key_metric ?? ""),
-    };
-    masterCommentary = [
-      ...masterCommentary.filter((item) => item.master !== nextItem.master),
-      nextItem,
-    ];
-  }
-
-  if (event.type === "master_commentary" && Array.isArray(event.commentary)) {
-    masterCommentary = (event.commentary as MasterCommentaryItem[]).filter(
-      (item) => item && typeof item === "object",
-    );
-  }
-
   if (event.type === "judge") {
     activeStreamIds = activeStreamIds.filter((id) => id !== "judge");
     const biasLabel =
@@ -504,7 +476,6 @@ function applyCoreStreamEvent(
     judgeVerdict,
     voteTally,
     activeStreamIds,
-    masterCommentary,
   };
 }
 
@@ -517,7 +488,6 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent, t?:
     judgeVerdict,
     voteTally,
     activeStreamIds,
-    masterCommentary,
     skillSteps,
     activeSkillRunId,
   } = prev;
@@ -577,7 +547,6 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent, t?:
       judgeVerdict,
       voteTally,
       activeStreamIds,
-      masterCommentary,
     };
     const next = applyCoreStreamEvent(topSlice, event, t);
     streamStatus = next.streamStatus;
@@ -587,7 +556,6 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent, t?:
     judgeVerdict = next.judgeVerdict;
     voteTally = next.voteTally;
     activeStreamIds = next.activeStreamIds;
-    masterCommentary = next.masterCommentary;
   }
 
   return {
@@ -598,7 +566,6 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent, t?:
     judgeVerdict,
     voteTally,
     activeStreamIds,
-    masterCommentary,
     skillSteps,
     activeSkillRunId,
   };

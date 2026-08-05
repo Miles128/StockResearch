@@ -1,6 +1,6 @@
 # StockResearch <img src="../desktop/branding/app-icon.png" alt="StockResearch logo" width="32" height="32" align="middle"> 产品需求文档
 
-**V10.17 · 开源 A 股市场研究 Agent**
+**V10.22 · 开源 A 股市场研究 Agent**
 
 > 唯一 PRD：`docs/PRD.md`。Git 中 `docs/` 还推送 `screenshots/` 界面预览图。本地可选 `docs/meta.yaml` 供 prd-first 工具读取。
 
@@ -63,7 +63,6 @@
 | 分析深度档 | 显式预算档 `standard` / `comprehensive` / `deep`（文案：标准 / 综合 / 深度）；只调节四维内工具与证据预算，不另开管线 |
 | 证据链 | highlights/risks 可挂 source、date、snippet；显式信息缺口（`partial`） |
 | 多空辩论 | 可选；个人默认关、专家默认开；深度档不强制打开 advisor 辩论 |
-| 大师点评 | 可选；用户勾选 1–N 位（巴菲特 / 芒格 / 伯里，可扩展自定义）→ 在四维研报与风控报告条件性挂载独立 commentary；受 `enable_master_commentary` 与 `enable_llm_analysis` 双重开关控制，默认关；不替代主结论，仅作辅助视角；**不绑分析深度档** |
 | 风控体检 | 规则引擎 + 可选 LLM 解读（`enable_llm_analysis` 开关，默认开；关时仅规则+量化指标） |
 | 新闻过滤 | 三层规则，3s SLA，零 LLM；统一 interest（持仓/自选/板块） |
 | 价格告警 | APScheduler 5min；铃铛 + 可选浏览器 Notification |
@@ -435,7 +434,6 @@ type Thesis = {
 | 维度 | 处置 | 说明 |
 |------|------|------|
 | 多空辩论全流程 | 折叠 | 默认只显示「最终倾向 + 分歧一句话」 |
-| 大师点评 | 默认隐藏 | 附「模仿风格点评，非真实观点」声明 |
 | 四维评分明细 | 精简 | 首屏总分+一句话结论，维度明细折叠 |
 | 事后核对 PIT | 改普通版摘要 | 「当时的判断，到现在对了吗」 |
 | 研究时间线 delta | 精简 | 保留「观点变化」标记，隐藏分数增量 |
@@ -459,7 +457,7 @@ type Thesis = {
 | **S1** | 研报白话化 + 词库扩域 | 研报链路接入 reading_mode（`output_style_scope`）；research 缓存 key 加 reading_mode；研报返回过 `mark_terms`；`advisor_plain_language.md` 升级；词典补录 | friendly 档新研报无未解释术语连排；术语可弹窗；friendly/professional 缓存不串 |
 | **S2** | 专业/普通一键切换 | `report_plain_versions` 缓存表 + `POST /research/reports/{id}/plain` + 前端双态按钮 + 失败降级（显示专业版+提示） | 首次 <10s、二次 <200ms；失败不阻塞 |
 | **S3** | 全域通俗化扫尾 | 简报/体检补 reading_mode；持仓盈亏/事件日历/筛选器静态规则白话；`partial` 文案翻新；风险问卷（5 题自动定档 risk_tolerance）；告警白话+下一步 | 九域过新手视角 checklist；零技术黑话 |
-| **S4** | 引导与信任 | 新手带练 Onboarding（demo 标的走一遍流程）；场景化知识卡片；大师点评声明 | 新用户 5 分钟出第一份看得懂的研报 |
+| **S4** | 引导与信任 | 新手带练 Onboarding（demo 标的走一遍流程）；场景化知识卡片 | 新用户 5 分钟出第一份看得懂的研报 |
 
 ## 九、工程
 
@@ -476,6 +474,7 @@ cd desktop && npm install && npm run tauri dev
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **V10.22** | 2026-08-04 | 删除「大师点评」全链路（不迷信大师）：后端移除 master_commentary 模块（context/registry/schemas/stream/debate）、prompts/masters 提示词、`enable_master_commentary`/`selected_masters`/`custom_masters` 设置与 `skill_master_commentary`；前端移除大师设置项/大师卡片/大师文案；**多空辩论完整保留**（research 多空辩论、风控三角辩论、投票、裁判） |
 | **V10.21** | 2026-08-04 | 普通用户化第二批（Phase 11 S2-S4）：①单篇普通版切换——`report_plain_versions` 缓存表（迁移 005）+ `POST /research/reports/{id}/plain`（friendly 档并行改写，全字段失败降级返回专业版原文+提示，二次命中缓存）+ 研报详情双态按钮（专业版/普通版）；②简报/体检返回层接词库 `mark_terms`（不污染 DB 原文）；③静态文案扫尾——`partial` 硬编码 i18n 化、`card.factorPartial` 翻新「数据不全」、事件日历/告警文案白话（「阈值」→「提醒线」+ 下一步引导）；④风险问卷 10 题精简 5 题自动定档 `risk_tolerance`（5-7 保守/8-11 稳健/12-15 进取）；⑤新手带练横幅（投顾模式首次进入，demo 标的自动发起白话研报）+ 大师点评声明（「AI 模仿大师风格生成，非大师本人观点」） |
 | **V10.20** | 2026-08-04 | 普通用户化（Phase 11）启动：`reading_mode` 三档改两档（friendly 普通版/professional 专业版，存量 standard 归一 friendly，前端选项同步收敛）；研报生成链路接入 `reading_mode`（`output_style_scope` 包裹 research 执行）+ research 缓存 key 加入 reading_mode 防串档；研报返回文本接词库 `mark_terms`；`advisor_plain_language.md` 升级为完整普通版风格规范（平实克制/术语首现必解释/数字翻译影响/风险必保留/建议选项式/禁用词）；词典补录高频自产词；PRD 新增 Phase 11 专项（处置清单+词典增强+四阶段实施） |
 | **V10.19** | 2026-08-04 | 持仓闭环第二波：①决策日志挂接研报——`trades.report_id`（迁移 004）自动挂接该标的最近一份研报，`GET /portfolio/trades` 返回 `report_date/report_bias`，交易行内显示当时结论偏向标签；②事件日历——`GET /portfolio/events`（财报预约披露 `stock_yysj_em` + 持仓解禁 `stock_restricted_release_queue_em`，6h 缓存，源失败显式 `partial`）；③因子筛选器——`POST /portfolio/screen`（持仓+自选宇宙，20日动量/年化波动/PE分位条件筛选，缺数计 `skipped` 禁编造），lists 栏新增事件日历与因子筛选（低估值/正动量/低波动/组合预设）折叠块 |

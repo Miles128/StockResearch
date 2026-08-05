@@ -51,7 +51,6 @@ async def test_secondary_block_appended_to_user_message(
         llm=MockLLMClient(),
         holdings=[],
         debate_on=False,
-        master_on=False,
         mode_settings=ModeSettingsOut(),
         scope=scope,
     )
@@ -78,7 +77,6 @@ async def test_empty_secondary_block_leaves_message_unchanged(
         llm=MockLLMClient(),
         holdings=[],
         debate_on=False,
-        master_on=False,
         mode_settings=ModeSettingsOut(),
         scope=scope,
     )

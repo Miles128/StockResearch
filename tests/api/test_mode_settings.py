@@ -10,9 +10,6 @@ def test_get_mode_settings_defaults(client) -> None:
     assert data["reading_mode"] == "friendly"
     assert data["analysis_depth"] == "standard"
     assert data["onboarded"] is False
-    assert data["enable_master_commentary"] is False
-    assert data["selected_masters"] == ["buffett", "munger", "burry"]
-    assert data["custom_masters"] == []
 
 
 def test_put_mode_settings_persists(client) -> None:
@@ -24,9 +21,6 @@ def test_put_mode_settings_persists(client) -> None:
         "analysis_depth": "comprehensive",
         "enable_debate": False,
         "enable_glossary": True,
-        "enable_master_commentary": True,
-        "selected_masters": ["buffett", "munger"],
-        "custom_masters": [],
         "custom_glossary": [],
         "quote_refresh_minutes": 10,
         "briefing_auto_enabled": True,
