@@ -41,6 +41,7 @@ import { computePortfolioSummary, computeSectorConcentration } from "./portfolio
 import { RiskPanel } from "./RiskPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { Onboarding } from "./Onboarding";
+import { PracticeBanner } from "./PracticeBanner";
 import { IconMessages } from "./ui/Icons";
 import { switchMode, type AppMode } from "./modeSettings";
 import { AppHeader } from "./app/AppHeader";
@@ -89,6 +90,9 @@ export default function App() {
   const [copilotOpen, setCopilotOpen] = useState(true);
   const [focusTabs, setFocusTabs] = useState<FocusTab[]>([]);
   const [activeFocusTabId, setActiveFocusTabId] = useState<string | null>(null);
+  const [practiceDismissed, setPracticeDismissed] = useState(
+    () => localStorage.getItem("advisor_practice_done") === "1",
+  );
   const focusContext = activeFocusContext(focusTabs, activeFocusTabId);
   const [highlightSector, setHighlightSector] = useState<string | null>(null);
   const [pageContext, setPageContext] = useState<CopilotContext | null>(null);
@@ -728,6 +732,23 @@ export default function App() {
                 onDeleteThread={deleteThread}
                 onResizeStart={startCopilotResize}
               >
+                {modeSettings.mode === "advisor" &&
+                  modeSettings.onboarded &&
+                  !practiceDismissed && (
+                    <PracticeBanner
+                      onStart={() => {
+                        localStorage.setItem("advisor_practice_done", "1");
+                        setPracticeDismissed(true);
+                        startChatQuery(
+                          "帮我分析一下贵州茅台（600519），用大白话讲清楚结论、原因和风险",
+                        );
+                      }}
+                      onDismiss={() => {
+                        localStorage.setItem("advisor_practice_done", "1");
+                        setPracticeDismissed(true);
+                      }}
+                    />
+                  )}
                 <ChatPanel
                   messages={messages}
                   loading={chatLoading}

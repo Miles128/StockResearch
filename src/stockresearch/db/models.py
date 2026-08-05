@@ -161,6 +161,22 @@ class ResearchReport(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class ReportPlainVersion(Base):
+    """单篇研报的普通版（friendly）衍生缓存：同一报告按需生成一次，二次直接复用。"""
+
+    __tablename__ = "report_plain_versions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    report_id: Mapped[int] = mapped_column(
+        ForeignKey("research_reports.id"), index=True, unique=True
+    )
+    report_json: Mapped[dict[str, object]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
 class RiskAlertRecord(Base):
     __tablename__ = "risk_alerts"
 

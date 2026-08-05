@@ -1,10 +1,10 @@
 /**
- * 首次引导：选模式 →（投顾专属）10 题风险问卷 → 完成
+ * 首次引导：选模式 →（投顾专属）5 题风险问卷 → 完成
  * PRD §4.5
  *
- * 问卷设计：10 题，每题 3 个选项（保守 1 分 / 稳健 2 分 / 进取 3 分）
- * 总分 10-16 → 保守，17-23 → 稳健，24-30 → 进取
- * 月收入单独一题（可选）
+ * 问卷设计：5 题，每题 3 个选项（保守 1 分 / 稳健 2 分 / 进取 3 分）
+ * 总分 5-7 → 保守，8-11 → 稳健，12-15 → 进取
+ * 月收入单独一步（可选）
  */
 
 import { useState } from "react";
@@ -32,17 +32,16 @@ interface QuestionDef {
   }[];
 }
 
+/**
+ * 5 题精简问卷：经验（q1）/ 跌 20% 反应（q4）/ 目标（q5）/ 亏损承受（q6）/ 杠杆（q9）
+ * 覆盖经验、态度、目标、承受力、行为五个核心维度，映射 risk_tolerance。
+ */
 const QUESTIONS: QuestionDef[] = [
   { key: "q1", options: buildOptions() },
-  { key: "q2", options: buildOptions() },
-  { key: "q3", options: buildOptions() },
   { key: "q4", options: buildOptions() },
   { key: "q5", options: buildOptions() },
   { key: "q6", options: buildOptions() },
-  { key: "q7", options: buildOptions() },
-  { key: "q8", options: buildOptions() },
   { key: "q9", options: buildOptions() },
-  { key: "q10", options: buildOptions() },
 ];
 
 function buildOptions(): QuestionDef["options"] {
@@ -53,10 +52,10 @@ function buildOptions(): QuestionDef["options"] {
   ];
 }
 
-/** 总分映射风险等级 */
+/** 总分映射风险等级（5 题，5-15 分） */
 function scoreToTolerance(total: number): RiskTolerance {
-  if (total <= 16) return "conservative";
-  if (total <= 23) return "moderate";
+  if (total <= 7) return "conservative";
+  if (total <= 11) return "moderate";
   return "aggressive";
 }
 

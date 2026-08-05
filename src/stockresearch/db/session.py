@@ -64,6 +64,11 @@ def _column_exists(conn: Connection, table: str, column: str) -> bool:
     return column in {col["name"] for col in inspector.get_columns(table)}
 
 
+def _table_exists(conn: Connection, table: str) -> bool:
+    """检测表是否存在。"""
+    return table in inspect(conn).get_table_names()
+
+
 def _migration_001_conversation_checkpoint(conn: Connection) -> None:
     if not _column_exists(conn, "conversations", "checkpoint"):
         conn.execute(text("ALTER TABLE conversations ADD COLUMN checkpoint JSON"))
@@ -111,11 +116,27 @@ def _migration_004_trades_report_link(conn: Connection) -> None:
         )
 
 
+def _migration_005_report_plain_versions(conn: Connection) -> None:
+    if not _table_exists(conn, "report_plain_versions"):
+        conn.execute(
+            text(
+                """CREATE TABLE report_plain_versions (
+                    id INTEGER PRIMARY KEY,
+                    report_id INTEGER NOT NULL UNIQUE REFERENCES research_reports(id),
+                    report_json JSON NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )"""
+            )
+        )
+
+
 _SQLITE_MIGRATIONS: list[tuple[int, str, Callable[[Connection], None]]] = [
     (1, "conversation_checkpoint", _migration_001_conversation_checkpoint),
     (2, "user_preferences", _migration_002_user_preferences),
     (3, "provider_cache", _migration_003_provider_cache),
     (4, "trades_report_link", _migration_004_trades_report_link),
+    (5, "report_plain_versions", _migration_005_report_plain_versions),
 ]
 
 

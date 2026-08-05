@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session
 
 from stockresearch.api.deps import get_current_user
 from stockresearch.api.llm_deps import llm_from_headers
-from stockresearch.core.output_style import output_style_scope
+from stockresearch.core.output_style import (
+    get_custom_glossary,
+    get_enable_glossary,
+    output_style_scope,
+)
 from stockresearch.core.schemas import (
     BriefingGenerateRequest,
     BriefingOut,
@@ -23,6 +27,7 @@ from stockresearch.services.briefing import (
     normalize_briefing_kind,
 )
 from stockresearch.services.briefing_scheduler import get_scheduler
+from stockresearch.services.glossary import mark_terms, merge_glossary
 from stockresearch.services.user_preferences import get_mode_settings
 from stockresearch.utils.llm import LLMClient
 
@@ -33,19 +38,35 @@ BriefingKindParam = Literal[
 ]
 
 
-def _record_to_out(record: BriefingRecord) -> BriefingRecordOut:
-    sections = [
-        BriefingSection.model_validate(item) if isinstance(item, dict) else item
-        for item in (record.sections or [])
-    ]
-    return BriefingRecordOut(
-        id=record.id,
-        kind=normalize_briefing_kind(record.kind),
-        title=record.title,
-        summary=record.summary,
-        sections=sections,
-        generated_at=record.generated_at,
-    )
+def _mark_text(text: str) -> str:
+    """词库标注：仅在用户开启词库解释时生效，不污染 DB 原文。"""
+    if not text or not get_enable_glossary():
+        return text
+    return mark_terms(text, glossary=merge_glossary(get_custom_glossary()))
+
+
+def _record_to_out(record: BriefingRecord, db: Session, user_id: int) -> BriefingRecordOut:
+    settings = get_mode_settings(db, user_id)
+    with output_style_scope(
+        reading_mode=settings.reading_mode,
+        locale="zh",
+        enable_glossary=settings.enable_glossary,
+    ):
+        sections = [
+            BriefingSection.model_validate(item) if isinstance(item, dict) else item
+            for item in (record.sections or [])
+        ]
+        return BriefingRecordOut(
+            id=record.id,
+            kind=normalize_briefing_kind(record.kind),
+            title=_mark_text(record.title),
+            summary=_mark_text(record.summary),
+            sections=[
+                BriefingSection(title=_mark_text(s.title), content=_mark_text(s.content))
+                for s in sections
+            ],
+            generated_at=record.generated_at,
+        )
 
 
 @router.post("/generate", response_model=BriefingOut)
@@ -63,7 +84,15 @@ async def generate_portfolio_briefing(
         locale=payload.output_locale or "zh",
         enable_glossary=settings.enable_glossary,
     ):
-        return await generate_briefing(db, user.id, normalized, llm=llm)
+        briefing = await generate_briefing(db, user.id, normalized, llm=llm)
+        # 返回层词库标注（不污染 DB 原文）
+        briefing.title = _mark_text(briefing.title)
+        briefing.summary = _mark_text(briefing.summary)
+        briefing.sections = [
+            BriefingSection(title=_mark_text(s.title), content=_mark_text(s.content))
+            for s in briefing.sections
+        ]
+    return briefing
 
 
 @router.get("/latest", response_model=BriefingRecordOut | None)
@@ -81,7 +110,7 @@ def get_latest_briefing(
     )
     if record is None:
         return None
-    return _record_to_out(record)
+    return _record_to_out(record, db, user.id)
 
 
 @router.get("/history", response_model=list[BriefingRecordOut])
@@ -97,7 +126,7 @@ def get_briefing_history(
     if kind != "all":
         query = query.filter(BriefingRecord.kind.in_(briefing_kind_aliases(kind)))
     records = query.order_by(BriefingRecord.generated_at.desc()).limit(limit).all()
-    return [_record_to_out(r) for r in records]
+    return [_record_to_out(r, db, user.id) for r in records]
 
 
 @router.get("/schedule", response_model=BriefingScheduleStatus)

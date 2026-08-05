@@ -11,10 +11,15 @@ from stockresearch.agents.risk.engine import run_risk_checkup
 from stockresearch.agents.risk.stream import run_risk_checkup_stream
 from stockresearch.api.deps import get_current_user
 from stockresearch.api.llm_deps import llm_from_headers
-from stockresearch.core.output_style import output_style_scope
+from stockresearch.core.output_style import (
+    get_custom_glossary,
+    get_enable_glossary,
+    output_style_scope,
+)
 from stockresearch.core.schemas import RiskCheckupOut, RiskCheckupRequest
 from stockresearch.db.models import Holding, RiskAlertRecord, User
 from stockresearch.db.session import get_db
+from stockresearch.services.glossary import mark_terms, merge_glossary
 from stockresearch.services.user_preferences import get_mode_settings
 from stockresearch.utils.llm import LLMClient
 
@@ -33,6 +38,32 @@ def _persist_alerts(db: Session, user_id: int, result: RiskCheckupOut) -> None:
             )
         )
     db.commit()
+
+
+def _mark_text(text: str) -> str:
+    """词库标注：仅在用户开启词库解释时生效，不污染 DB 原文。"""
+    if not text or not get_enable_glossary():
+        return text
+    return mark_terms(text, glossary=merge_glossary(get_custom_glossary()))
+
+
+def _mark_risk_result(result: RiskCheckupOut) -> RiskCheckupOut:
+    """返回层词库标注（仅展示用，DB 落库原文已在此之前完成）。"""
+    result.portfolio_summary = _mark_text(result.portfolio_summary)
+    for alert in result.alerts:
+        alert.human_message = _mark_text(alert.human_message)
+    if result.llm_analysis:
+        a = result.llm_analysis
+        a.market_assessment = _mark_text(a.market_assessment)
+        a.correlation_analysis = _mark_text(a.correlation_analysis)
+        a.risk_narrative = _mark_text(a.risk_narrative)
+        a.scenario_analysis = [_mark_text(x) for x in a.scenario_analysis]
+        a.position_action = _mark_text(a.position_action)
+        a.analysis_process = _mark_text(a.analysis_process)
+    for item in result.master_commentary:
+        item.reasoning = _mark_text(item.reasoning)
+        item.key_metric = _mark_text(item.key_metric)
+    return result
 
 
 def _master_on(payload: RiskCheckupRequest, settings) -> bool:
@@ -68,7 +99,9 @@ async def risk_checkup(
             enable_llm_analysis=_llm_analysis_on(payload),
             mode_settings=settings,
         )
-    _persist_alerts(db, user.id, result)
+        _persist_alerts(db, user.id, result)
+        # 返回层词库标注（不污染 DB 原文）
+        result = _mark_risk_result(result)
     return result
 
 

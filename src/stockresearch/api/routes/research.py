@@ -1,5 +1,6 @@
 """Research routes."""
 
+import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator
@@ -20,6 +21,7 @@ from stockresearch.core.output_style import (
     get_custom_glossary,
     get_enable_glossary,
     output_style_scope,
+    style_instruction_suffix,
 )
 from stockresearch.core.schemas import (
     BatchResearchItemOut,
@@ -34,6 +36,7 @@ from stockresearch.core.schemas import (
     HypothesisVerifyRequest,
     IndustryResearchRequest,
     MemorySearchOut,
+    PlainReportOut,
     RefillGapsRequest,
     ReportPostHocOut,
     ResearchReportListItem,
@@ -41,7 +44,7 @@ from stockresearch.core.schemas import (
     ResearchTimelineOut,
     SignalBacktestOut,
 )
-from stockresearch.db.models import ResearchReport, User
+from stockresearch.db.models import ReportPlainVersion, ResearchReport, User
 from stockresearch.db.session import get_db
 from stockresearch.services.cache import CacheService
 from stockresearch.services.compare_table import build_compare_table, flatten_compare_csv
@@ -317,21 +320,149 @@ def export_report_csv_body(
     )
 
 
+def _get_report_row(db: Session, report_id: int, user_id: int) -> ResearchReport:
+    """按用户归属取研报行，不存在抛 404。"""
+    row = (
+        db.query(ResearchReport)
+        .filter(ResearchReport.id == report_id, ResearchReport.user_id == user_id)
+        .first()
+    )
+    if row is None:
+        raise NotFoundError("报告不存在")
+    return row
+
+
 @router.get("/reports/{report_id}", response_model=ResearchReportOut)
 def get_report(
     report_id: int,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ResearchReportOut:
-    row = (
-        db.query(ResearchReport)
-        .filter(ResearchReport.id == report_id, ResearchReport.user_id == user.id)
-        .first()
-    )
-    if row is None:
-        raise NotFoundError("报告不存在")
+    row = _get_report_row(db, report_id, user.id)
     report = ResearchReportOut.model_validate(row.report_json)
     return _mark_report_terms(report)
+
+
+_PLAIN_REWRITE_PROMPT = (
+    "你是一名把投研报告翻译成普通人语言的改写助手。\n"
+    "正在改写报告的【{label}】部分。\n"
+    "{style}\n"
+    "改写要求：\n"
+    "1. 保留全部事实、数字与结论，只换说法，不增删信息\n"
+    "2. 结论一句话在前，原因不超过 3 条\n"
+    "3. 专业名词第一次出现用「术语——意思」解释\n"
+    "4. 数字翻译成对用户的影响（如「每 100 元亏 12 元」）\n"
+    "5. 风险提示保留在结论附近，不省略\n"
+    "6. 不编造、不外推、不下交易指令\n"
+    "直接输出改写后的文本本身，不要标题、不要解释。\n\n"
+    "待改写文本：\n{text}"
+)
+
+
+async def _plain_rewrite_report(llm: LLMClient, report: ResearchReportOut) -> ResearchReportOut:
+    """在 friendly scope 内并行改写文本字段，单项失败保留原文，全部失败则抛错触发降级。"""
+    data = report.model_dump(mode="json")
+    state = {"total": 0, "failed": 0}
+
+    async def _rewrite(label: str, text: object) -> object:
+        if not isinstance(text, str) or not text.strip():
+            return text
+        state["total"] += 1
+        try:
+            out = await llm.complete(
+                "你是把投研报告翻译成普通人语言的改写助手。",
+                _PLAIN_REWRITE_PROMPT.format(
+                    label=label, style=style_instruction_suffix(), text=text
+                ),
+            )
+            return (out or "").strip() or text
+        except Exception:
+            state["failed"] += 1
+            logger.warning("plain rewrite failed for %s", label, exc_info=True)
+            return text
+
+    sem = asyncio.Semaphore(3)
+
+    async def _limited(label: str, text: object) -> object:
+        async with sem:
+            return await _rewrite(label, text)
+
+    async def _rewrite_field(key: str, label: str, text: object) -> None:
+        data[key] = await _limited(label, text)
+
+    async def _viewpoint(key: str, text: object) -> None:
+        (data.setdefault("viewpoints", {}) or {})[key] = await _limited(f"viewpoint:{key}", text)
+
+    async def _dimension(dim: dict[str, object]) -> None:
+        analysis = dim.get("analysis")
+        if isinstance(analysis, str) and analysis.strip():
+            dim["analysis"] = await _limited("维度分析", analysis)
+
+    tasks: list[asyncio.Task[object]] = [
+        asyncio.create_task(_rewrite_field("summary", "summary", data.get("summary"))),
+        asyncio.create_task(
+            _rewrite_field("brief_summary", "brief_summary", data.get("brief_summary"))
+        ),
+        asyncio.create_task(
+            _rewrite_field(
+                "text_factor_summary", "text_factor_summary", data.get("text_factor_summary")
+            )
+        ),
+        asyncio.create_task(
+            _rewrite_field(
+                "factor_alignment_note", "factor_alignment_note", data.get("factor_alignment_note")
+            )
+        ),
+    ]
+    for key, value in (data.get("viewpoints") or {}).items():
+        tasks.append(asyncio.create_task(_viewpoint(key, value)))
+    for dim in (data.get("dimensions") or {}).values():
+        if isinstance(dim, dict):
+            tasks.append(asyncio.create_task(_dimension(dim)))
+
+    if tasks:
+        await asyncio.gather(*tasks)
+    if state["total"] > 0 and state["failed"] >= state["total"]:
+        raise RuntimeError("plain rewrite: all fields failed")
+    return ResearchReportOut.model_validate(data)
+
+
+@router.post("/reports/{report_id}/plain", response_model=PlainReportOut)
+async def get_report_plain_version(
+    report_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    llm: LLMClient = Depends(llm_from_headers),
+) -> PlainReportOut:
+    """单篇普通版：优先缓存，无则 friendly 改写落库；失败降级返回专业版原文。"""
+    row = _get_report_row(db, report_id, user.id)
+
+    cached = db.query(ReportPlainVersion).filter(ReportPlainVersion.report_id == report_id).first()
+    if cached is not None:
+        report = ResearchReportOut.model_validate(cached.report_json)
+        return PlainReportOut(report=_mark_report_terms(report), source="cache")
+
+    settings = get_mode_settings(db, user.id)
+    try:
+        with output_style_scope(
+            reading_mode="friendly",
+            locale="zh",
+            enable_glossary=settings.enable_glossary,
+        ):
+            plain = await _plain_rewrite_report(
+                llm, ResearchReportOut.model_validate(row.report_json)
+            )
+        db.add(ReportPlainVersion(report_id=report_id, report_json=plain.model_dump(mode="json")))
+        db.commit()
+        return PlainReportOut(report=_mark_report_terms(plain), source="generated")
+    except Exception:
+        logger.warning("plain version generation failed", exc_info=True)
+        original = ResearchReportOut.model_validate(row.report_json)
+        return PlainReportOut(
+            report=original,
+            source="degraded",
+            message="普通版生成失败，先展示专业版原文",
+        )
 
 
 @router.get("/reports/{report_id}/markdown", response_class=PlainTextResponse)

@@ -36,7 +36,8 @@ def _format_message(name: str, symbol: str, change_pct: float, threshold_pct: fl
     direction = "上涨" if change_pct >= 0 else "下跌"
     return (
         f"{name}（{symbol}）今日{direction}{abs(change_pct):.2f}%，"
-        f"已超过设定阈值 ±{threshold_pct:.1f}%。{DISCLAIMER}"
+        f"已超过你设定的提醒线 ±{threshold_pct:.1f}%。"
+        f"下一步：先看最新研报和风险体检，再决定要不要调整。{DISCLAIMER}"
     )
 
 

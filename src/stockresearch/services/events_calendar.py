@@ -171,5 +171,7 @@ async def upcoming_events(db: Session, user_id: int, *, days: int = 45) -> Portf
     base.events = events
     if failures:
         base.partial = True
-        base.message = "部分事件源暂不可用：" + "、".join(sorted(set(failures)))
+        base.message = (
+            "部分数据暂时没取到（" + "、".join(sorted(set(failures))) + "），其余事件已展示"
+        )
     return base

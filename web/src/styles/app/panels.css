@@ -2035,6 +2035,52 @@
   font-size: 12px;
 }
 
+.report-tone-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 10px;
+  flex-wrap: wrap;
+}
+
+.report-tone-label {
+  font-size: 12px;
+  color: var(--bbg-muted, #999);
+}
+
+.tone-toggle {
+  display: inline-flex;
+  border: 1px solid var(--bbg-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.tone-toggle button {
+  border: 0;
+  background: transparent;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--bbg-muted, #999);
+}
+
+.tone-toggle button.active {
+  background: var(--bbg-accent, #6366f1);
+  color: #fff;
+}
+
+.tone-toggle button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.report-tone-notice {
+  width: 100%;
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--bbg-warn, #d97706);
+}
+
 .research-trust-strip {
   margin: 8px 0 12px;
   padding: 10px 12px;

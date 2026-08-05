@@ -29,6 +29,7 @@ interface DimensionCardsProps {
     evidence?: string;
     gaps?: string;
     analyzing?: string;
+    partial?: string;
   };
   defaultOpen?: boolean;
 }
@@ -115,7 +116,7 @@ export function DimensionCards({ items, labels, defaultOpen = false }: Dimension
                     {item.confidence
                       ? ` · ${labels.confidence} ${confidenceLabel(item.confidence, labels)}`
                       : ""}
-                    {item.partial ? " · partial" : ""}
+                    {item.partial ? ` · ${labels.partial ?? "partial"}` : ""}
                   </span>
                 ) : null}
               </span>

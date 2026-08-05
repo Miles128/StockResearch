@@ -71,19 +71,26 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     finally:
         db.close()
     settings = get_settings()
+    if not settings.run_schedulers_in_api:
+        # Schedulers belong to the separate worker process; do NOT grab the
+        # cross-process scheduler lock here, otherwise the worker can never
+        # acquire it and scheduled jobs (briefings / price alerts / daily bars)
+        # silently never run.
+        yield
+        return
     with scheduler_lock() as lock_acquired:
-        if settings.run_schedulers_in_api and not lock_acquired:
+        if not lock_acquired:
             logging.warning(
                 "Schedulers disabled in API: another process holds the scheduler lock. "
                 "Run schedulers in only one process (worker OR API, not both)."
             )
-        if settings.run_schedulers_in_api and lock_acquired:
+        else:
             get_scheduler().start()
             get_price_alert_scheduler().start()
         try:
             yield
         finally:
-            if settings.run_schedulers_in_api and lock_acquired:
+            if lock_acquired:
                 get_price_alert_scheduler().shutdown()
                 get_scheduler().shutdown()
 
