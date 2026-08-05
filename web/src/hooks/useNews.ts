@@ -55,7 +55,11 @@ export function useNews(active: boolean, onError?: (msg: string) => void): NewsS
       .newsSectors()
       .then(setNewsSectors)
       .catch(() => setNewsSectors(null));
-    if (news.length === 0) void loadNews();
+    if (news.length === 0) {
+      // 首次进入时加载新闻：惯用加载模式
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      void loadNews();
+    }
   }, [active, loadNews, news.length]);
 
   return {

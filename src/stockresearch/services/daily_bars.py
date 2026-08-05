@@ -6,13 +6,16 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 from stockresearch.data.providers.market import TechnicalDataProvider
 from stockresearch.db.models import DailyBar, Holding, ResearchReport, WatchlistItem
 from stockresearch.db.session import SessionLocal
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -119,14 +122,14 @@ def load_bars(
     if require_adj and adj != require_adj:
         return [], adj
     rows = list(reversed(rows))
-    bars = [
+    bars: list[dict[str, float | str]] = [
         {
             "date": row.trade_date.isoformat(),
-            "open": row.open,
-            "high": row.high,
-            "low": row.low,
-            "close": row.close,
-            "volume": row.volume,
+            "open": float(row.open),
+            "high": float(row.high),
+            "low": float(row.low),
+            "close": float(row.close),
+            "volume": float(row.volume),
         }
         for row in rows
     ]

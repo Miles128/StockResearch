@@ -168,7 +168,7 @@ class SentimentDataProvider:
                 "available": True,
                 "source": "mock",
             }
-        return await run_sync_fetch(
+        result = await run_sync_fetch(
             f"xueqiu hot {symbol}",
             lambda: _fetch_xueqiu_hot_sync(symbol, name or resolve_name(symbol)),
             timeout=_DATA_TIMEOUT_SEC * 3,
@@ -182,6 +182,8 @@ class SentimentDataProvider:
                 "available": False,
             },
         )
+        assert result is not None
+        return result
 
     async def get_news_sentiment_score(self, symbol: str, name: str = "") -> float:
         news = await self.get_symbol_news(symbol, name)

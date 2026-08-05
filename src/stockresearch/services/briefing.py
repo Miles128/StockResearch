@@ -4,19 +4,21 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
-from typing import Literal
-
-from sqlalchemy.orm import Session
+from typing import TYPE_CHECKING, Literal
 
 from stockresearch.agents.news.agent import get_news_for_user
 from stockresearch.agents.structured_output import extract_json_dict
 from stockresearch.core.constants import DISCLAIMER
-from stockresearch.core.schemas import BriefingOut, BriefingSection, NewsItemOut
+from stockresearch.core.schemas import BriefingOut, BriefingSection, MarketOverviewOut, NewsItemOut
 from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.data.providers.market_overview import MarketOverviewProvider
 from stockresearch.db.models import Holding, RiskAlertRecord
 from stockresearch.utils.format import arrow_for_change
-from stockresearch.utils.llm import LLMClient
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+    from stockresearch.utils.llm import LLMClient
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +118,7 @@ async def _collect_holdings_block(holdings: list[Holding], kind: BriefingKind) -
     return "\n".join(lines)
 
 
-def _collect_market_block(overview) -> str:
+def _collect_market_block(overview: MarketOverviewOut) -> str:
     lines = ["【大盘概况】"]
     if not overview.indices:
         lines.append("指数数据暂不可用")
@@ -370,7 +372,7 @@ async def generate_briefing(
             "【风控提醒】\n" + "\n".join(f"- [{a.severity}] {a.message}" for a in alerts)
         )
     has_premarket_view = bool(premarket_view and premarket_view.strip())
-    if normalized == "postmarket" and has_premarket_view:
+    if normalized == "postmarket" and has_premarket_view and premarket_view:
         context_parts.append("【今日盘前简报观点（复盘对照用）】\n" + premarket_view.strip()[:1200])
     context = "\n\n".join(context_parts)
 

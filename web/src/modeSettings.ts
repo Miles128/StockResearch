@@ -228,7 +228,7 @@ const modeSettingsStore = createLocalStorageStore<ModeSettings>({
 
 export function presetForMode(
   mode: AppMode,
-  current: ModeSettings,
+  _current: ModeSettings,
 ): Pick<
   ModeSettings,
   "mode" | "readingMode" | "analysisDepth" | "enableDebate" | "enableGlossary" | "maxSignals"

@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import time
+from typing import Literal, cast
 
 from sqlalchemy.orm import Session
 
@@ -104,7 +105,7 @@ async def get_news_for_user(
             impact_level=item.impact_level,
             entities=item.entities,
             related_to_user=related,
-            category=category,
+            category=cast(Literal["market", "sector", "holding"], category),
             published_at=item.published_at,
         )
         for item, related, category in rows

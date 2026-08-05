@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
-from stockresearch.core.schemas import ModeSettingsOut
 from stockresearch.data.provider_meta import get_provider_meta
 from stockresearch.services.sqlite_cache import get_sqlite_cached, set_sqlite_cached
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from stockresearch.core.schemas import ModeSettingsOut
 
 DEFAULT_QUOTE_CACHE_TTL_SECONDS = 600
 DAILY_CACHE_TTL_SECONDS = 86400

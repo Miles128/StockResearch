@@ -135,6 +135,8 @@ export function HoldingTradeModal({
             query: initialRow.query ?? initialRow.name ?? initialRow.symbol ?? "",
           }
         : base;
+      // 打开时重置草稿行：初始化模式，属预期级联
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRows([seed]);
       setError("");
     }

@@ -18,6 +18,8 @@ function resolve(dict: Dict, path: string): string | undefined {
 
 export type TParams = Record<string, string | number>;
 
+// 供 processKind.test 等单测直接构造 t；与组件同文件仅影响 HMR 精确度
+// eslint-disable-next-line react-refresh/only-export-components
 export function createT(locale: AppLocale) {
   const dict = dictionaries[locale];
   return (key: string, params?: TParams): string => {
@@ -53,6 +55,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 
+// context hook 与 Provider 同文件是 React 官方模式；HMR 对本 hook 导出不做精确刷新
+// eslint-disable-next-line react-refresh/only-export-components
 export function useI18n(): I18nContextValue {
   const ctx = useContext(I18nContext);
   if (!ctx) throw new Error("useI18n must be used within I18nProvider");

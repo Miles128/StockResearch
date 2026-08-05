@@ -107,7 +107,7 @@ async def run_chat_stream(
             ):
                 yield event
     except LLMConfigError as exc:
-        logger.warning("LLM config error in chat stream: %s", exc)
+        logger.warning("[sid=%s] LLM config error in chat stream: %s", sid, exc)
         yield {
             "type": "error",
             "code": "llm_not_configured",
@@ -177,13 +177,14 @@ async def _run_chat_stream_body(
                 user_context=user_context,
                 scope=prepared.scope,
                 on_progress=on_progress,
+                session_id=sid,
             )
             reply = result.reply
             cards = result.cards
             intent = result.intent
             partial = result.partial
         except LLMConfigError as exc:
-            logger.warning("LLM config error in chat turn: %s", exc)
+            logger.warning("[sid=%s] LLM config error in chat turn: %s", sid, exc)
             reply = "LLM 未配置，请在设置中填写 API Key 或开启 Mock 模式。"
             partial = True
             await on_progress(
@@ -194,7 +195,7 @@ async def _run_chat_stream_body(
                 }
             )
         except httpx.RequestError as exc:
-            logger.exception("LLM request failed: %s", exc)
+            logger.exception("[sid=%s] LLM request failed: %s", sid, exc)
             detail = _describe_request_error(exc)
             reply = f"无法连接 LLM 服务（{detail}）。请检查网络或代理设置后重试。"
             partial = True
@@ -206,7 +207,7 @@ async def _run_chat_stream_body(
                 }
             )
         except Exception as exc:
-            logger.exception("Chat stream turn failed: %s", exc)
+            logger.exception("[sid=%s] Chat stream turn failed: %s", sid, exc)
             reply = (
                 f"分析过程出错（{type(exc).__name__}），请稍后重试。详细错误已记录到服务端日志。"
             )

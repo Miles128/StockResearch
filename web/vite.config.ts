@@ -9,12 +9,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           react: ["react", "react-dom"],
-          markdown: [
-            "react-markdown",
-            "remark-gfm",
-            "rehype-raw",
-            "rehype-sanitize",
-          ],
+          markdown: ["react-markdown", "remark-gfm", "rehype-raw", "rehype-sanitize"],
           charts: ["lightweight-charts"],
         },
       },
@@ -34,9 +29,7 @@ export default defineConfig({
         // SSE: disable response buffering
         configure: (proxy) => {
           proxy.on("proxyRes", (proxyRes) => {
-            if (
-              proxyRes.headers["content-type"]?.includes("text/event-stream")
-            ) {
+            if (proxyRes.headers["content-type"]?.includes("text/event-stream")) {
               proxyRes.headers["cache-control"] = "no-cache";
               proxyRes.headers["x-accel-buffering"] = "no";
             }

@@ -7,8 +7,7 @@
 from __future__ import annotations
 
 from datetime import date as date_type
-
-from sqlalchemy.orm import Session
+from typing import TYPE_CHECKING
 
 from stockresearch.core.schemas import (
     AttributionItemOut,
@@ -18,13 +17,16 @@ from stockresearch.core.schemas import (
 from stockresearch.data.providers.market import TechnicalDataProvider
 from stockresearch.db.models import Holding, Trade
 
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
 BENCHMARK_SYMBOL = "000300"
 BENCHMARK_NAME = "沪深300"
 MIN_POINTS = 2
 
 
 def _realized_total(trades: list[Trade]) -> float:
-    return round(sum(t.float_realized_pnl for t in trades if t.realized_pnl is not None), 2)
+    return round(sum(t.float_realized_pnl or 0.0 for t in trades if t.realized_pnl is not None), 2)
 
 
 def _quantity_series(

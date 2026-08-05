@@ -105,7 +105,7 @@ class TechnicalDataProvider:
         if _use_mock_market_data():
             quote = _mock_quote(symbol)
             base = quote.price
-            bars = [
+            bars: list[dict[str, float | str]] = [
                 {
                     "date": (datetime.now(UTC).date().isoformat()),
                     "open": round(base * 0.99, 4),
@@ -137,7 +137,7 @@ class TechnicalDataProvider:
                 source = str(cached.get("source") or "unknown")
                 return cached_bars, source, self._kline_adjust(source)  # type: ignore[return-value]
 
-        bars: list[dict[str, float | str]] = []
+        bars = []
         source = "unknown"
 
         # PRD §5.1: 日 K 线 AkShare 优先（前复权 stock_zh_a_hist），efinance →

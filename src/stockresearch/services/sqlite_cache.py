@@ -2,17 +2,21 @@
 
 import json
 from datetime import UTC, datetime, timedelta
+from typing import Any, cast
 
 from sqlalchemy import text
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from stockresearch.db.session import SessionLocal
 
 
-def get_sqlite_cached(key: str) -> dict[str, object] | None:
+# JSON payloads hold arbitrary values; use Any rather than object so callers can
+# index/convert cached entries without casts.
+def get_sqlite_cached(key: str) -> dict[str, Any] | None:
     with SessionLocal() as db:
         row = db.execute(
-            text("SELECT payload, expires_at FROM provider_cache " "WHERE cache_key = :key"),
+            text("SELECT payload, expires_at FROM provider_cache WHERE cache_key = :key"),
             {"key": key},
         ).first()
         if row is None:
@@ -61,7 +65,7 @@ def evict_sqlite_prefixes(
     with SessionLocal() as db:
         result = db.execute(text(sql), params)
         db.commit()
-        return result.rowcount or 0
+        return cast(CursorResult, result).rowcount or 0
 
 
 def _upsert_cache(db: Session, key: str, payload: str, expires_at: datetime) -> None:

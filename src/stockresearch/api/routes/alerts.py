@@ -98,7 +98,7 @@ def mark_all_read(
 async def trigger_alert_check(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> dict[str, int]:
+) -> dict[str, str | int]:
     """Manual trigger for dev / immediate check."""
     from stockresearch.services.price_alerts import check_price_alerts_for_user
 

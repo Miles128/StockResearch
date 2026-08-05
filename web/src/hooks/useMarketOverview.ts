@@ -34,6 +34,8 @@ export function useMarketOverview(): MarketOverviewState {
   }, [refreshDataStatus]);
 
   useEffect(() => {
+    // 挂载时发起加载：同步设置 loading 属惯用加载模式
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadOverview();
   }, [loadOverview]);
 

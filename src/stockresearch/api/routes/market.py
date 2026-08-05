@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Literal, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -29,7 +29,7 @@ from stockresearch.core.schemas import (
 from stockresearch.data.provider_meta import list_provider_catalog
 from stockresearch.data.providers.market import TechnicalDataProvider
 from stockresearch.data.providers.market_overview import BatchQuoteProvider, MarketOverviewProvider
-from stockresearch.data.providers.sector import SectorDataProvider
+from stockresearch.data.providers.sector import SectorBoard, SectorDataProvider
 from stockresearch.data.providers.sina_kline import fetch_sina_intraday
 from stockresearch.data.registry import ProviderSnapshot, get_quote_conflicts, get_snapshots
 from stockresearch.db.models import Holding, User
@@ -75,7 +75,7 @@ async def stock_quotes(
     )
 
 
-def _sector_board_out(board) -> SectorBoardOut:
+def _sector_board_out(board: SectorBoard) -> SectorBoardOut:
     return SectorBoardOut(
         code=board.code,
         name=board.name,
@@ -390,7 +390,10 @@ def _data_source_details(
             degraded=tushare_configured and not tushare_available,
             degraded_reason=tushare_reason,
             confidence="single_source" if tushare_available else "missing",
-            status=tushare_detail_status,
+            status=cast(
+                Literal["ok", "degraded", "missing", "mock", "configured", "not_configured"],
+                tushare_detail_status,
+            ),
         )
     )
     return details

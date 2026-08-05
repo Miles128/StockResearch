@@ -53,6 +53,8 @@ function confidenceLabel(
   return map[key] ?? map[raw.trim()] ?? raw;
 }
 
+// 纯函数导出供 researchReportView/LightResearchCard 复用；仅影响 HMR 精确度
+// eslint-disable-next-line react-refresh/only-export-components
 export function dimensionItemsFromResults(
   dimensions: Record<string, DimensionResult>,
   titleForKey?: (key: string, agent: string) => string,

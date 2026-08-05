@@ -33,6 +33,8 @@ export function PriceAlertBell({
   }
 
   useEffect(() => {
+    // 挂载/轮询参数变化时发起加载：惯用加载模式
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh();
     if (!pollingEnabled) return;
     const id = window.setInterval(() => void refresh(), pollingIntervalMs);

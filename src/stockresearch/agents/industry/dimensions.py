@@ -1,6 +1,7 @@
 """Sector-level dimension prepare/build — policy, capital, valuation, technical, structure."""
 
 import logging
+from typing import Any
 
 from stockresearch.agents.industry.context import SectorResearchContext
 from stockresearch.agents.research.agents._scoring import as_confidence
@@ -22,11 +23,11 @@ def _board_change(ctx: SectorResearchContext) -> float:
 async def prepare_policy(ctx: SectorResearchContext) -> tuple[str, str, dict[str, object]]:
     news = "\n".join(f"- {line}" for line in ctx.news_snippets[:6]) or "暂无板块相关快讯"
     system = f"你是 A 股行业政策与舆情分析师。{_SUFFIX}"
-    user = f"板块：{ctx.sector}\n用户问题：{ctx.query}\n\n" f"相关快讯：\n{news}"
+    user = f"板块：{ctx.sector}\n用户问题：{ctx.query}\n\n相关快讯：\n{news}"
     return system, user, {"news_count": len(ctx.news_snippets)}
 
 
-def build_policy(data: dict[str, object], analysis: str) -> DimensionResult:
+def build_policy(data: dict[str, Any], analysis: str) -> DimensionResult:
     count = int(data.get("news_count", 0))
     score = 5.5 if count >= 3 else 5.0 if count else 4.5
     return finalize_dimension(
@@ -56,7 +57,7 @@ async def prepare_capital(ctx: SectorResearchContext) -> tuple[str, str, dict[st
     )
 
 
-def build_capital(data: dict[str, object], analysis: str) -> DimensionResult:
+def build_capital(data: dict[str, Any], analysis: str) -> DimensionResult:
     change = float(data.get("board_change", 0))
     score = 5.0
     if change > 1.0:
@@ -107,7 +108,7 @@ async def prepare_valuation(ctx: SectorResearchContext) -> tuple[str, str, dict[
             }
         )
 
-    pe_values = [float(v["pe_ttm"]) for v in valuations if isinstance(v.get("pe_ttm"), int | float)]
+    pe_values = [float(pe) for v in valuations if isinstance(pe := v.get("pe_ttm"), int | float)]
     avg_pe = round(sum(pe_values) / len(pe_values), 2) if pe_values else None
     pe_lines = []
     for v in valuations:
@@ -138,7 +139,7 @@ async def prepare_valuation(ctx: SectorResearchContext) -> tuple[str, str, dict[
     )
 
 
-def build_valuation(data: dict[str, object], analysis: str) -> DimensionResult:
+def build_valuation(data: dict[str, Any], analysis: str) -> DimensionResult:
     count = int(data.get("leader_count", 0))
     pe_available = int(data.get("pe_available", 0))
     avg_pe = data.get("avg_pe")
@@ -190,7 +191,7 @@ async def prepare_technical(ctx: SectorResearchContext) -> tuple[str, str, dict[
     return system, user, {"board_change": change, "leader_avg": leader_avg}
 
 
-def build_technical(data: dict[str, object], analysis: str) -> DimensionResult:
+def build_technical(data: dict[str, Any], analysis: str) -> DimensionResult:
     change = float(data.get("board_change", 0))
     avg = float(data.get("leader_avg", 0))
     score = 5.0
@@ -223,7 +224,7 @@ async def prepare_structure(ctx: SectorResearchContext) -> tuple[str, str, dict[
     return system, user, {"holding_count": len(ctx.holding_lines)}
 
 
-def build_structure(data: dict[str, object], analysis: str) -> DimensionResult:
+def build_structure(data: dict[str, Any], analysis: str) -> DimensionResult:
     count = int(data.get("holding_count", 0))
     score = 5.8 if count else 5.0
     return finalize_dimension(

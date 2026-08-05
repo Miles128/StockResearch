@@ -84,6 +84,8 @@ export function useWatchlist(onError?: (msg: string) => void): WatchlistState {
   );
 
   useEffect(() => {
+    // 挂载时加载自选列表：惯用加载模式
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadWatchlist();
   }, [loadWatchlist]);
 

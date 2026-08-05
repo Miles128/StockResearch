@@ -17,9 +17,7 @@ def test_describe_request_error_without_request_falls_back_to_type() -> None:
 
 
 def test_describe_request_error_never_leaks_key_or_path() -> None:
-    request = httpx.Request(
-        "POST", "https://api.example.com/v1/chat/completions?api_key=sk-secret"
-    )
+    request = httpx.Request("POST", "https://api.example.com/v1/chat/completions?api_key=sk-secret")
     exc = httpx.ConnectError("boom", request=request)
     detail = _describe_request_error(exc)
     assert "sk-secret" not in detail

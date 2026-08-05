@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from collections.abc import Callable
+from typing import cast
 
 logger = logging.getLogger(__name__)
 _RAISE = object()
@@ -24,4 +25,4 @@ async def run_sync_fetch[T](
             raise
         if callable(fallback):
             return fallback()
-        return fallback
+        return cast("T | None", fallback)

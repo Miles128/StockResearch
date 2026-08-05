@@ -1,10 +1,12 @@
 """Demo holdings — zero-barrier onboarding with pre-loaded sample portfolio."""
 
+from typing import Any
+
 from sqlalchemy.orm import Session
 
 from stockresearch.db.models import Holding
 
-DEMO_HOLDINGS = [
+DEMO_HOLDINGS: list[dict[str, Any]] = [
     {"symbol": "600519", "name": "贵州茅台", "cost_price": 1680.0, "lots": 2, "sector": "白酒"},
     {"symbol": "300750", "name": "宁德时代", "cost_price": 195.0, "lots": 5, "sector": "新能源"},
     {"symbol": "600036", "name": "招商银行", "cost_price": 35.0, "lots": 10, "sector": "银行"},

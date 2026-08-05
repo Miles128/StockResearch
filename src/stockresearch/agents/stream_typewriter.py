@@ -4,6 +4,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from typing import Any
 
 from stockresearch.core.config import get_settings
 from stockresearch.core.schemas import DimensionResult
@@ -140,7 +141,7 @@ async def pump_dimension_llm_stream(
     agent_name: str,
     prepare: object,
     build: object,
-    dimensions: dict[str, object],
+    dimensions: dict[str, Any],
 ) -> None:
     """Fetch market data, stream LLM analysis, store DimensionResult."""
     await queue.put(

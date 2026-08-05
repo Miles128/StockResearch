@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 
-from stockresearch.core.schemas import CompareRowOut, CompareTableOut, NumericFactorOut
+from stockresearch.core.schemas import CompareRowOut, CompareTableOut
 from stockresearch.services.factors import compute_numeric_factors
 from stockresearch.utils.symbols import resolve_name
 
@@ -93,7 +93,7 @@ def flatten_compare_csv(table: CompareTableOut) -> str:
             "1" if row.partial else "0",
         ]
         for k in keys:
-            f: NumericFactorOut | None = by_key.get(k)
-            cells.append("" if f is None or f.value is None else f.value)
+            factor = by_key.get(k)
+            cells.append("" if factor is None or factor.value is None else str(factor.value))
         writer.writerow(cells)
     return buf.getvalue()

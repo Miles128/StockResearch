@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from stockresearch.core.constants import DISCLAIMER
 from stockresearch.core.schemas import AllocationDeviationOut, AllocationDeviationRow
-from stockresearch.db.models import Holding
+
+if TYPE_CHECKING:
+    from stockresearch.db.models import Holding
 
 
 def sector_weights(holdings: list[Holding]) -> dict[str, float]:

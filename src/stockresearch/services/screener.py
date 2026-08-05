@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
-
-from sqlalchemy.orm import Session
+from typing import TYPE_CHECKING
 
 from stockresearch.core.schemas import ScreenCondition, ScreenHit, ScreenOut, ScreenRequest
 from stockresearch.db.models import Holding, WatchlistItem
 from stockresearch.services.factors import compute_numeric_factors
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +91,7 @@ async def run_screen(db: Session, user_id: int, payload: ScreenRequest) -> Scree
         if factors is None:
             skipped += 1
             continue
-        values = {key: _factor_value(factors, key) for key in needed_keys}
+        values = {str(key): _factor_value(factors, key) for key in needed_keys}
         if any(v is None for v in values.values()):
             skipped += 1
             continue

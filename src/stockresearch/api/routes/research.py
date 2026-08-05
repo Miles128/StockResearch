@@ -249,12 +249,14 @@ def list_reports(
     items: list[ResearchReportListItem] = []
     for row in rows:
         payload = row.report_json if isinstance(row.report_json, dict) else {}
+        composite_raw = payload.get("composite_score")
+        composite_score = float(composite_raw) if isinstance(composite_raw, int | float) else 0.0
         items.append(
             ResearchReportListItem(
                 id=row.id,
                 symbol=row.symbol,
                 name=row.name,
-                composite_score=float(payload.get("composite_score", 0)),
+                composite_score=composite_score,
                 bias=str(payload.get("bias", "neutral")),
                 summary=str(payload.get("summary", ""))[:200],
                 has_debate=payload.get("debate") is not None,

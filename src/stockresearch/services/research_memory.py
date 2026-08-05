@@ -1,6 +1,7 @@
 """Search historical research reports (decision memory)."""
 
 import json
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -28,7 +29,7 @@ def search_research_memory(
     )
     hits: list[MemorySearchHit] = []
     for row in rows:
-        payload = row.report_json if isinstance(row.report_json, dict) else {}
+        payload: dict[str, Any] = row.report_json if isinstance(row.report_json, dict) else {}
         summary = str(payload.get("summary", ""))
         haystack = " ".join(
             [

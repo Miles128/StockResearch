@@ -61,6 +61,8 @@ export function WorkflowAgentGrid({
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
+    // running 步骤自动展开：基于 steps 的状态同步，属预期级联
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setExpanded((prev) => {
       const next = new Set(prev);
       for (const step of steps) {

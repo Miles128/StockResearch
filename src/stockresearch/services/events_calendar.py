@@ -9,11 +9,13 @@ from __future__ import annotations
 import asyncio
 import math
 from datetime import UTC, date, datetime, timedelta
-
-from sqlalchemy.orm import Session
+from typing import TYPE_CHECKING
 
 from stockresearch.core.schemas import PortfolioEventOut, PortfolioEventsOut
 from stockresearch.db.models import Holding, WatchlistItem
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 _CACHE_TTL = timedelta(hours=6)
 _LOCKUP_MAX_SYMBOLS = 12
@@ -147,7 +149,7 @@ async def upcoming_events(db: Session, user_id: int, *, days: int = 45) -> Portf
             *[_fetch_lockups(s) for s in lockup_symbols], return_exceptions=True
         )
         lockup_failed = 0
-        for symbol, result in zip(lockup_symbols, results):
+        for symbol, result in zip(lockup_symbols, results, strict=True):
             if isinstance(result, BaseException):
                 lockup_failed += 1
                 continue

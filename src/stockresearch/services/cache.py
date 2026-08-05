@@ -16,6 +16,7 @@ import json
 import time
 from collections import OrderedDict
 from collections.abc import Callable
+from typing import Any, cast
 
 _MAX_MEMORY_ENTRIES = 1000
 _MAX_FACTORY_ENTRIES = 200
@@ -39,7 +40,7 @@ def _sweep_expired() -> None:
         del _memory_store[k]
 
 
-def _evict_if_full(store: OrderedDict[str, object], max_size: int) -> None:
+def _evict_if_full[T](store: OrderedDict[str, T], max_size: int) -> None:
     while len(store) > max_size:
         store.popitem(last=False)
 
@@ -93,13 +94,13 @@ def get_cached[T](key: str, ttl_sec: float, factory: Callable[[], T]) -> T:
     return value
 
 
-def peek_cached(key: str, ttl_sec: float) -> object | None:
+def peek_cached(key: str, ttl_sec: float) -> Any | None:
     """Return a cached factory value without invoking the factory."""
     now = time.monotonic()
     entry = _factory_store.get(key)
     if entry is not None and now - entry[0] < ttl_sec:
         _factory_store.move_to_end(key)
-        return entry[1]  # type: ignore[return-value]
+        return cast(Any, entry[1])
     return None
 
 

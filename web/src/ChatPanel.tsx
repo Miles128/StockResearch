@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { ExecutionPreference, HoldingEnriched, StockChoiceCardData } from "./api";
+import type { HoldingEnriched, StockChoiceCardData } from "./api";
 import type { Message } from "./appTypes";
 import type { AppMode } from "./modeSettings";
 import { CardView, PlanCardsFold, StockChoiceCardView } from "./chatCards";
@@ -33,7 +33,6 @@ interface ChatPanelProps {
   onSend: () => void;
   onAnalyzeHolding: (h: HoldingEnriched) => void;
   onConfirmStock: (originalMessage: string, symbol: string, name: string) => void;
-  onConfirmRoute: (originalMessage: string, preference: ExecutionPreference) => void;
 }
 
 function ProcessStreamFeed({
@@ -152,7 +151,6 @@ export function ChatPanel({
   onSend,
   onAnalyzeHolding,
   onConfirmStock,
-  onConfirmRoute,
 }: ChatPanelProps) {
   const { t } = useI18n();
   const { containerRef, handleScroll } = useAutoScroll(messages.length);

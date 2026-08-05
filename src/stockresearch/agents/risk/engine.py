@@ -8,6 +8,7 @@ from stockresearch.agents.risk.metrics import (
     SECTOR_CONCENTRATION_LIMIT,
     SINGLE_NAME_CONCENTRATION_LIMIT,
     HoldingQuote,
+    PortfolioMetrics,
     calculate_portfolio_metrics,
     calculate_var,
     closes_to_daily_returns,
@@ -217,7 +218,7 @@ def _parse_rule_alerts(holdings: list[Holding], quotes: list) -> list[RiskAlertO
     return alerts
 
 
-def _metrics_to_out(pm) -> PortfolioMetricsOut:
+def _metrics_to_out(pm: PortfolioMetrics) -> PortfolioMetricsOut:
     return PortfolioMetricsOut(
         sharpe_ratio=round(pm.sharpe_ratio, 4),
         sortino_ratio=round(pm.sortino_ratio, 4),
@@ -290,7 +291,7 @@ async def run_risk_checkup(
             ]
 
             humanize_results = await asyncio.gather(*humanize_tasks, return_exceptions=True)
-            for alert, result in zip(alerts, humanize_results):
+            for alert, result in zip(alerts, humanize_results, strict=True):
                 alert.human_message = result if isinstance(result, str) else alert.message
 
             analysis_results = await asyncio.gather(*analysis_tasks, return_exceptions=True)
@@ -373,7 +374,7 @@ async def run_risk_checkup(
         except Exception:
             logger.warning("Quantitative metrics calculation failed", exc_info=True)
 
-    result = RiskCheckupOut(
+    checkup = RiskCheckupOut(
         alerts=alerts,
         portfolio_summary=summary,
         llm_analysis=llm_analysis,
@@ -381,4 +382,4 @@ async def run_risk_checkup(
         var_result=var_out,
         stress_results=stress_out,
     )
-    return result
+    return checkup

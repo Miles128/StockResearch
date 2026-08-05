@@ -13,11 +13,14 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from stockresearch.core.config import get_settings
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 logger = logging.getLogger(__name__)
 

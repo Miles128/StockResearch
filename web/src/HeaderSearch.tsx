@@ -29,6 +29,8 @@ export function HeaderSearch({ onSelectStock, onAskQuery }: HeaderSearchProps) {
   useEffect(() => {
     const q = query.trim();
     if (q.length < 2) {
+      // 输入不足时同步清空结果：派生状态重置，属预期级联
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLookup(null);
       return;
     }

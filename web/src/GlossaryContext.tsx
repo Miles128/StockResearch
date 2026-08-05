@@ -22,6 +22,8 @@ export function GlossaryProvider({
   return <GlossaryContext.Provider value={{ enabled, terms }}>{children}</GlossaryContext.Provider>;
 }
 
+// context hook 与 Provider 同文件是 React 官方模式；HMR 对本 hook 导出不做精确刷新
+// eslint-disable-next-line react-refresh/only-export-components
 export function useGlossaryContext(): GlossaryContextValue {
   return useContext(GlossaryContext);
 }

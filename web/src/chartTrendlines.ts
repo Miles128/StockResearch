@@ -179,7 +179,7 @@ export function detectTrendLines(bars: KlineBar[], options: TrendLineOptions = {
 /** Build the two render points for a trendline (anchor start -> extended end). */
 export function trendLinePoints(
   line: TrendLine,
-  bars: KlineBar[],
+  _bars: KlineBar[],
 ): { index: number; price: number }[] {
   return [
     { index: line.startIndex, price: line.startPrice },

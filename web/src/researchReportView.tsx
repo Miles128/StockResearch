@@ -8,7 +8,6 @@ import {
 } from "./api";
 import { DeepAnalysisBlock } from "./DeepAnalysisBlock";
 import { DimensionCards, dimensionItemsFromResults } from "./DimensionCards";
-import { MarkdownContent } from "./MarkdownContent";
 import { ResearchTrustStrip } from "./ResearchTrustStrip";
 import { useI18n } from "./i18n";
 import { loadModeSettings } from "./modeSettings";
@@ -20,6 +19,8 @@ function biasLabel(bias: string, t: (key: string) => string): string {
   return translated !== key ? translated : bias;
 }
 
+// 纯函数导出供 ChatPanel/replyCardDedup 复用；与组件同文件仅影响 HMR 精确度
+// eslint-disable-next-line react-refresh/only-export-components
 export function findResearchReport(
   cards?: { type: string; data: Record<string, unknown> }[],
 ): ResearchReport | null {
@@ -27,6 +28,7 @@ export function findResearchReport(
   return card ? (card.data as unknown as ResearchReport) : null;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function hasDebateStream(process?: {
   debateRounds: unknown[];
   judgeVerdict: unknown;
@@ -35,6 +37,7 @@ export function hasDebateStream(process?: {
   return process.debateRounds.length > 0 || process.judgeVerdict != null;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function hasDimensionStream(process?: {
   agentSteps: { agent_id: string; status: string }[];
 }): boolean {

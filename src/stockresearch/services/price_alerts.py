@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date, datetime
-
-from sqlalchemy.orm import Session
+from typing import TYPE_CHECKING
 
 from stockresearch.core.constants import DISCLAIMER
 from stockresearch.data.providers.market_overview import BatchQuoteProvider
@@ -15,6 +14,11 @@ from stockresearch.db.models import (
     PriceAlertSetting,
     WatchlistItem,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +108,7 @@ async def check_price_alerts_for_user(db: Session, user_id: int) -> int:
     return created
 
 
-async def check_price_alerts_for_all_users(db_factory) -> None:
+async def check_price_alerts_for_all_users(db_factory: Callable[[], Session]) -> None:
     db = db_factory()
     try:
         from stockresearch.db.models import User

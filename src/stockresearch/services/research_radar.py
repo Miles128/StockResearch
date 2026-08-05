@@ -2,27 +2,30 @@
 
 from __future__ import annotations
 
-from sqlalchemy.orm import Session
+from typing import TYPE_CHECKING, Any
 
 from stockresearch.core.schemas import ActionSignal
 from stockresearch.db.models import Holding, ResearchReport, WatchlistItem
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 _MAX_RADAR = 3
 _MAX_SYMBOLS = 12
 
 
-def _bias_of(payload: dict[str, object]) -> str:
+def _bias_of(payload: dict[str, Any]) -> str:
     return str(payload.get("bias") or "neutral")
 
 
-def _score_of(payload: dict[str, object]) -> float:
+def _score_of(payload: dict[str, Any]) -> float:
     try:
         return float(payload.get("composite_score") or 0)
     except (TypeError, ValueError):
         return 0.0
 
 
-def _alignment_of(payload: dict[str, object]) -> str | None:
+def _alignment_of(payload: dict[str, Any]) -> str | None:
     note = payload.get("factor_alignment_note")
     return str(note) if note else None
 

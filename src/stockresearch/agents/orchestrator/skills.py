@@ -6,9 +6,7 @@ import logging
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any
-
-from sqlalchemy.orm import Session
+from typing import TYPE_CHECKING, Any
 
 from stockresearch.agents.industry.stream import run_industry_research_stream
 from stockresearch.agents.market.research_stream import run_market_research_stream
@@ -16,11 +14,15 @@ from stockresearch.agents.orchestrator.complexity import extract_industry_sector
 from stockresearch.agents.research.stream import run_research_stream
 from stockresearch.agents.risk.stream import run_risk_checkup_stream
 from stockresearch.core.schemas import ModeSettingsOut, ResearchReportOut, RiskCheckupOut
-from stockresearch.db.models import Holding
 from stockresearch.services.chat.message_stock import resolve_message_stock, stock_choice_card
 from stockresearch.services.stock_lookup import StockLookupResult
-from stockresearch.utils.llm import LLMClient
 from stockresearch.utils.symbols import resolve_name
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+    from stockresearch.db.models import Holding
+    from stockresearch.utils.llm import LLMClient
 
 logger = logging.getLogger(__name__)
 
@@ -264,16 +266,13 @@ class SkillRunner:
             utterance=utterance or None,
             settings_depth=self._settings.analysis_depth,
         )
-        stream_kwargs: dict[str, object] = {
-            "mode_settings": self._settings,
-            "analysis_depth": depth,
-        }
         payload: dict[str, object] | None = None
         async for event in run_research_stream(
             symbol,
             llm=self._llm,
             with_debate=with_debate,
-            **stream_kwargs,
+            mode_settings=self._settings,
+            analysis_depth=depth,
         ):
             if event.get("type") == "done":
                 raw = event.get("result")

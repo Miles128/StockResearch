@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import logging
-
-from sqlalchemy.orm import Session
+from typing import TYPE_CHECKING
 
 from stockresearch.agents.orchestrator.balance_check import check_balance
 from stockresearch.core.output_style import (
@@ -26,7 +25,11 @@ from stockresearch.services.glossary import mark_terms, merge_glossary
 from stockresearch.services.neutral_guard import neutral_guard
 from stockresearch.services.rotation_signal_guard import ensure_rotation_signals
 from stockresearch.utils.disclaimer import strip_disclaimer
-from stockresearch.utils.llm_usage import LlmUsageOut
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+    from stockresearch.utils.llm_usage import LlmUsageOut
 
 logger = logging.getLogger(__name__)
 

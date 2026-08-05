@@ -12,14 +12,14 @@ from stockresearch.agents.orchestrator.complexity import (
     is_risk_intent,
     is_vague_query,
 )
-from stockresearch.core.schemas import ChatUserContext, ModeSettingsOut
 from stockresearch.data.providers.market import QuoteProvider
-from stockresearch.db.models import Holding
 from stockresearch.prompts import load_prompt
 from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
 from stockresearch.utils.format import arrow_for_change
 
 if TYPE_CHECKING:
+    from stockresearch.core.schemas import ChatUserContext, ModeSettingsOut
+    from stockresearch.db.models import Holding
     from stockresearch.services.chat.scope import ChatContextScope
 
 logger = logging.getLogger(__name__)
