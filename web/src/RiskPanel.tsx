@@ -107,6 +107,7 @@ export function RiskPanel({
   const [shockPct, setShockPct] = useState(-0.1);
   const [paperShock, setPaperShock] = useState<PaperShockResult | null>(null);
   const [history, setHistory] = useState<RiskCheckupHistoryItem[]>([]);
+  const [historyDays, setHistoryDays] = useState<number | null>(null);
   const showProcess = loading || hasLiveProcessContent(riskStream);
 
   useEffect(() => {
@@ -114,10 +115,21 @@ export function RiskPanel({
     api
       .riskCheckupHistory(5)
       .then((data) => {
-        if (alive) setHistory(data.items);
+        if (alive) {
+          setHistory(data.items);
+          const latest = data.items[0];
+          setHistoryDays(
+            latest
+              ? Math.floor((Date.now() - new Date(latest.checked_at).getTime()) / 86_400_000)
+              : null,
+          );
+        }
       })
       .catch(() => {
-        if (alive) setHistory([]);
+        if (alive) {
+          setHistory([]);
+          setHistoryDays(null);
+        }
       });
     return () => {
       alive = false;
@@ -129,9 +141,6 @@ export function RiskPanel({
   const hasCharts = Boolean(risk && holdings.length > 0);
 
   const latest = history[0];
-  const historyDays = latest
-    ? Math.floor((Date.now() - new Date(latest.checked_at).getTime()) / 86_400_000)
-    : null;
   const historySummary = latest ? (
     <span className="mono risk-history-summary">
       {(historyDays ?? 0) <= 0
