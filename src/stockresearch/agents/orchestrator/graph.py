@@ -69,6 +69,7 @@ class Orchestrator:
             execution_preference=execution_preference,
             user_context=user_context,
             scope=prepared.scope,
+            session_id=sid,
         )
 
         intent = INTENT_CHAT

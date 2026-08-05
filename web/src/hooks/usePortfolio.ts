@@ -136,6 +136,8 @@ export function usePortfolio(
   }, [loadHoldings, onError]);
 
   useEffect(() => {
+    // 挂载时加载持仓与演示状态：惯用加载模式
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadHoldings().then(() => {
       api
         .demoStatus()

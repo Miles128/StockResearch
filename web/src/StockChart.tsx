@@ -342,6 +342,8 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
     const cached = getCachedKline(symbol);
     if (cached) {
       barsRef.current = cached.bars;
+      // 切换标的时应用缓存/重置加载态：初始化模式，属预期级联
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setData(cached);
       setLoading(false);
       setError("");
@@ -496,6 +498,8 @@ export function MarketChart({ symbol, compact = false, variant = "stock" }: Mark
       detachWheel?.();
       dispose();
     };
+    // MA 线仅用于初始化主图：后续增删由下方 dedicated effect 处理，重建代价高
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     symbol,
     compact,

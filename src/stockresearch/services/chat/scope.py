@@ -4,27 +4,29 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from stockresearch.agents.orchestrator.complexity import (
     is_holdings_intent,
     is_risk_intent,
 )
-from stockresearch.core.schemas import ChatUserContext, ModeSettingsOut
-from stockresearch.db.models import Holding
 from stockresearch.services.chat.context import (
     build_long_term_context,
     format_user_context_block,
     should_include_holdings_context,
 )
 from stockresearch.services.chat.intent import ChatIntent, classify_chat_intent
-from stockresearch.utils.llm import LLMClient
 from stockresearch.utils.symbols import (
     extract_symbols,
     has_stock_reference,
     normalize_symbol,
     resolve_name,
 )
+
+if TYPE_CHECKING:
+    from stockresearch.core.schemas import ChatUserContext, ModeSettingsOut
+    from stockresearch.db.models import Holding
+    from stockresearch.utils.llm import LLMClient
 
 logger = logging.getLogger(__name__)
 

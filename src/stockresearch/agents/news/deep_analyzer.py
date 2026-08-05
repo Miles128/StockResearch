@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from collections.abc import AsyncIterator
+from typing import Literal
 
 from stockresearch.agents.voice import AGENT_VOICE
 from stockresearch.core.schemas import NewsAnalysisOut, NewsAnalysisStockImpact
@@ -176,7 +177,7 @@ def _classify_technical(kline: dict | None) -> str:
     return "neutral"
 
 
-def _classify_impact(text: str) -> str:
+def _classify_impact(text: str) -> Literal["positive", "negative", "neutral"]:
     t = text[:300]
     if "正面" in t:
         return "positive"

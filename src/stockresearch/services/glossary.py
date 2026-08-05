@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Sequence
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from stockresearch.core.schemas import CustomGlossaryTermOut
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from stockresearch.core.schemas import CustomGlossaryTermOut
 
 _GLOSSARY_PATH = Path(__file__).resolve().parent.parent / "data" / "glossary.json"
 

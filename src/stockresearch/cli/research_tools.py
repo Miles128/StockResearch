@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 import json
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from stockresearch.core.schemas import ResearchReportOut
 from stockresearch.db.models import ResearchReport, User
@@ -16,8 +16,13 @@ from stockresearch.services.hypothesis_verify import HYPOTHESIS_PRESETS, verify_
 from stockresearch.services.report_export import report_to_csv, report_to_json, report_to_markdown
 from stockresearch.services.research_timeline import compute_research_timeline
 
+if TYPE_CHECKING:
+    import argparse
 
-def _resolve_user_id(db, user_id: int | None) -> int:
+    from sqlalchemy.orm import Session
+
+
+def _resolve_user_id(db: Session, user_id: int | None) -> int:
     if user_id is not None:
         return user_id
     row = db.query(User).order_by(User.id.asc()).first()

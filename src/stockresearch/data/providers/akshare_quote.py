@@ -12,7 +12,9 @@ from stockresearch.utils.symbols import resolve_name
 logger = logging.getLogger(__name__)
 
 
-def fetch_akshare_hist_quotes(symbols: list[str]) -> dict[str, dict[str, float | str]]:
+def fetch_akshare_hist_quotes(
+    symbols: list[str],
+) -> dict[str, dict[str, float | str | datetime]]:
     """Last trading day OHLCV per symbol via AkShare hist (slower, more reliable)."""
     unique = list(dict.fromkeys(symbols))
     if not unique:
@@ -20,7 +22,7 @@ def fetch_akshare_hist_quotes(symbols: list[str]) -> dict[str, dict[str, float |
 
     end_date = datetime.now(UTC).strftime("%Y%m%d")
     start_date = (datetime.now(UTC) - timedelta(days=20)).strftime("%Y%m%d")
-    results: dict[str, dict[str, float | str]] = {}
+    results: dict[str, dict[str, float | str | datetime]] = {}
 
     for symbol in unique:
         try:

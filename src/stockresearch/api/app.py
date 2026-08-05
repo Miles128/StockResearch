@@ -1,11 +1,12 @@
 """FastAPI application factory."""
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import cast
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -100,7 +101,10 @@ def create_app() -> FastAPI:
 
     # Rate limiting
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_exception_handler(
+        RateLimitExceeded,
+        cast(Callable[[Request, Exception], Response], _rate_limit_exceeded_handler),
+    )
     app.add_middleware(SlowAPIMiddleware)
 
     # CORS — restrict origins in production.
@@ -127,7 +131,9 @@ def create_app() -> FastAPI:
     )
 
     @app.middleware("http")
-    async def bind_data_source_context(request: Request, call_next):
+    async def bind_data_source_context(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         set_tushare_token(request.headers.get("X-Tushare-Token"))
         set_bocha_api_key(request.headers.get("X-Bocha-Api-Key"))
         try:

@@ -61,6 +61,7 @@ class ChipsDataProvider:
                 "gaps": ["龙虎榜不可用"],
             },
         )
+        assert result is not None
         self._cache_chips_result(cache_key, ttl, dict(result))
         return result
 
@@ -93,6 +94,7 @@ class ChipsDataProvider:
                 "gaps": ["主力资金流向不可用"],
             },
         )
+        assert result is not None
         self._cache_chips_result(cache_key, ttl, dict(result))
         return result
 
@@ -126,6 +128,7 @@ class ChipsDataProvider:
                 "gaps": ["北向资金不可用"],
             },
         )
+        assert result is not None
         self._cache_chips_result(cache_key, ttl, dict(result))
         return result
 
@@ -157,6 +160,7 @@ class ChipsDataProvider:
                 "gaps": ["融资融券不可用"],
             },
         )
+        assert result is not None
         self._cache_chips_result(cache_key, ttl, dict(result))
         return result
 
@@ -181,6 +185,7 @@ class ChipsDataProvider:
                 "gaps": ["股东户数不可用"],
             },
         )
+        assert result is not None
         self._cache_chips_result(cache_key, ttl, dict(result))
         return result
 
@@ -206,6 +211,7 @@ class ChipsDataProvider:
                 "gaps": ["限售解禁不可用"],
             },
         )
+        assert result is not None
         self._cache_chips_result(cache_key, ttl, dict(result))
         return result
 

@@ -3,7 +3,7 @@
 import asyncio
 import re
 from collections.abc import AsyncIterator, Callable
-from typing import Literal
+from typing import Any, Literal
 
 from stockresearch.agents.stream_typewriter import (
     iter_llm_stream_events,
@@ -160,7 +160,7 @@ async def iter_battle_vote_events(
     *,
     max_len: int | None = None,
     compact: Callable[[str, int], str] | None = None,
-) -> AsyncIterator[dict[str, object]]:
+) -> AsyncIterator[dict[str, Any]]:
     tally: dict[str, int] = {"偏多": 0, "偏空": 0, "中性": 0}
     yield status_event("status.debate.voting")
 
@@ -231,7 +231,7 @@ async def iter_research_manager_events(
     *,
     max_len: int | None = None,
     compact: Callable[[str, int], str] | None = None,
-) -> AsyncIterator[dict[str, object]]:
+) -> AsyncIterator[dict[str, Any]]:
     yield status_event("status.debate.manager")
     yield {
         "type": "agent_start",
@@ -263,7 +263,7 @@ async def iter_triangular_debate_events(
     rounds: int = DEBATE_ROUNDS,
     max_len: int | None = None,
     compact: Callable[[str, int], str] | None = None,
-) -> AsyncIterator[dict[str, object]]:
+) -> AsyncIterator[dict[str, Any]]:
     agents: list[tuple[str, str, str, str, str]] = [
         (
             "aggressive",
@@ -321,12 +321,13 @@ async def iter_triangular_debate_events(
                 aname: str = agent_name,
                 arole: str = role,
                 asystem: str = system,
-                alabel: str = side_label,
                 sid: str = stream_id,
                 user_prompt: str = prompt,
+                q: asyncio.Queue[object] = queue,
             ) -> str:
+                # 绑定默认参数：避免闭包延迟捕获轮次循环变量（B023）
                 return await pump_llm_stream_events_to_queue(
-                    queue,
+                    q,
                     stream_id=sid,
                     agent_id=aid,
                     agent_name=aname,
@@ -420,7 +421,7 @@ async def iter_multi_round_debate_events(
     bear_name: str = "看空派",
     bull_side_label: str = "看多",
     bear_side_label: str = "看空",
-) -> AsyncIterator[dict[str, object]]:
+) -> AsyncIterator[dict[str, Any]]:
     transcript: list[str] = []
     for round_num in range(1, rounds + 1):
         yield status_event("status.debate.round", round=round_num)

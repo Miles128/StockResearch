@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import date, datetime
 from statistics import median
-
-from sqlalchemy.orm import Session
+from typing import TYPE_CHECKING
 
 from stockresearch.core.constants import DISCLAIMER
 from stockresearch.core.schemas import (
@@ -16,6 +15,9 @@ from stockresearch.core.schemas import (
 )
 from stockresearch.db.models import ResearchReport
 from stockresearch.services.daily_bars import get_bars_meta_for_symbol
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +142,7 @@ async def _load_qfq_bars(
         return None
 
 
-def _start_idx_for_day(bars: list[dict[str, float | str]], report_day) -> int:
+def _start_idx_for_day(bars: list[dict[str, float | str]], report_day: date) -> int:
     start_idx = -1
     for i, bar in enumerate(bars):
         bar_dt = _parse_date(str(bar.get("date", "")))
@@ -314,10 +316,18 @@ async def compute_signal_backtest(
                 bullish_positive_rate_pct=round(bull_hit, 1) if bull_hit is not None else None,
                 bearish_negative_rate_pct=round(bear_hit, 1) if bear_hit is not None else None,
                 spread_avg_return_pct=spread,
-                bias_bullish_avg_return_pct=round(_avg(bias_bull), 2) if bias_bull else None,
-                bias_bearish_avg_return_pct=round(_avg(bias_bear), 2) if bias_bear else None,
-                factor_tilt_bullish_avg_return_pct=round(_avg(tilt_bull), 2) if tilt_bull else None,
-                factor_tilt_bearish_avg_return_pct=round(_avg(tilt_bear), 2) if tilt_bear else None,
+                bias_bullish_avg_return_pct=(
+                    round(sum(bias_bull) / len(bias_bull), 2) if bias_bull else None
+                ),
+                bias_bearish_avg_return_pct=(
+                    round(sum(bias_bear) / len(bias_bear), 2) if bias_bear else None
+                ),
+                factor_tilt_bullish_avg_return_pct=(
+                    round(sum(tilt_bull) / len(tilt_bull), 2) if tilt_bull else None
+                ),
+                factor_tilt_bearish_avg_return_pct=(
+                    round(sum(tilt_bear) / len(tilt_bear), 2) if tilt_bear else None
+                ),
             )
         )
 

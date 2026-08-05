@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { HoldingEnriched, WatchlistItem, StockQuoteOut } from "./api";
 import { HoldingTradeInlineRow } from "./HoldingTradeInlineRow";
 import { ListsStockTable } from "./ListsStockTable";

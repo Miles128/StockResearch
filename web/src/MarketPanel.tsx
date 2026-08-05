@@ -45,7 +45,6 @@ export function MarketPanel({
   const [intraday, setIntraday] = useState<Record<string, IndexIntraday>>({});
 
   useEffect(() => {
-    setSectorsLoading(true);
     api
       .sectorBoardsAll()
       .then((resp) => setSectors(resp.boards ?? []))
@@ -61,11 +60,14 @@ export function MarketPanel({
     [overview?.indices],
   );
 
+  const indexSymbolsKey = indexSymbols.join(",");
+
   useEffect(() => {
-    if (indexSymbols.length === 0) return;
+    const symbols = indexSymbolsKey ? indexSymbolsKey.split(",") : [];
+    if (symbols.length === 0) return;
     let cancelled = false;
     api
-      .indexIntraday(indexSymbols)
+      .indexIntraday(symbols)
       .then((rows) => {
         if (cancelled) return;
         const map: Record<string, IndexIntraday> = {};
@@ -80,7 +82,7 @@ export function MarketPanel({
     return () => {
       cancelled = true;
     };
-  }, [indexSymbols.join(",")]);
+  }, [indexSymbolsKey]);
 
   const marketNews = useMemo(
     () =>

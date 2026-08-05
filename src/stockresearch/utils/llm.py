@@ -5,6 +5,7 @@ import json
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
+from typing import Any, cast
 
 import httpx
 
@@ -82,7 +83,7 @@ class OpenAICompatibleClient(LLMClient):
 
     async def _post_with_retry(
         self, headers: dict[str, str], payload: dict[str, object]
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         """POST a chat-completion request, retrying on transient failures."""
         for attempt in range(_MAX_LLM_RETRIES + 1):
             try:
@@ -201,7 +202,8 @@ class OpenAICompatibleClient(LLMClient):
         }
         data = await self._post_with_retry(headers, payload)
         content = str(data["choices"][0]["message"]["content"])
-        usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+        usage_raw = data.get("usage")
+        usage = cast(dict[str, Any], usage_raw if isinstance(usage_raw, dict) else {})
         if usage.get("total_tokens"):
             record_usage(
                 prompt_tokens=int(usage.get("prompt_tokens") or 0),

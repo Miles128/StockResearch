@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from stockresearch.db.models import Holding
+if TYPE_CHECKING:
+    from stockresearch.db.models import Holding
 
 
 def build_portfolio_brief(holdings: list[Holding]) -> dict[str, Any]:

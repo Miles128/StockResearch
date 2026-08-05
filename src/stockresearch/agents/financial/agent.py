@@ -12,6 +12,127 @@ from stockresearch.utils.llm import LLMClient
 
 logger = logging.getLogger(__name__)
 
+# AkShare 年度摘要列名 -> 数据键
+_COL_MAP: dict[str, str] = {
+    "基本每股收益": "eps",
+    "每股净资产": "bvps",
+    "销售净利率": "net_margin",
+    "销售毛利率": "gross_margin",
+    "净资产收益率": "roe",
+    "净资产收益率-摊薄": "roe_diluted",
+    "资产负债率": "debt_ratio",
+    "流动比率": "current_ratio",
+    "速动比率": "quick_ratio",
+    "营业总收入同比增长率": "revenue_growth",
+    "净利润同比增长率": "profit_growth",
+    "产权比率": "equity_ratio",
+    "存货周转率": "inventory_turnover",
+    "应收账款周转天数": "ar_turnover_days",
+}
+
+_TREND_KEYS = (
+    "roe",
+    "gross_margin",
+    "net_margin",
+    "revenue_growth",
+    "profit_growth",
+    "debt_ratio",
+)
+
+
+def _parse_pct(val: Any) -> float | None:
+    """Parse percentage string like '52.49%' to float 52.49."""
+    if val is None:
+        return None
+    s = str(val).strip().replace(",", "")
+    if s in ("False", "True", "", "-", "nan"):
+        return None
+    if s.endswith("%"):
+        s = s[:-1]
+    try:
+        return float(s)
+    except (ValueError, TypeError):
+        return None
+
+
+def _parse_num(val: Any) -> float | None:
+    """Parse number string, handling '亿' suffix."""
+    if val is None:
+        return None
+    s = str(val).strip().replace(",", "")
+    if s in ("False", "True", "", "-", "nan"):
+        return None
+    multiplier = 1.0
+    if s.endswith("亿"):
+        s = s[:-1]
+        multiplier = 1e8
+    elif s.endswith("万"):
+        s = s[:-1]
+        multiplier = 1e4
+    try:
+        return float(s) * multiplier
+    except (ValueError, TypeError):
+        return None
+
+
+def _blank_financial_data(symbol: str) -> dict[str, Any]:
+    """全 None 占位结构，避免 KeyError。"""
+    return {
+        "symbol": symbol,
+        "pe": None,
+        "pb": None,
+        "roe": None,
+        "roe_diluted": None,
+        "gross_margin": None,
+        "net_margin": None,
+        "revenue_growth": None,
+        "profit_growth": None,
+        "debt_ratio": None,
+        "current_ratio": None,
+        "quick_ratio": None,
+        "price": None,
+        "eps": None,
+        "bvps": None,
+        "inventory_turnover": None,
+        "ar_turnover_days": None,
+        "equity_ratio": None,
+        "trends": {},
+    }
+
+
+def _apply_pe_pb(data: dict[str, Any]) -> None:
+    """按现价与 EPS/BVPS 重算 PE/PB。"""
+    if data.get("price") and data.get("eps") and data["eps"] > 0:
+        data["pe"] = round(data["price"] / data["eps"], 2)
+    if data.get("price") and data.get("bvps") and data["bvps"] > 0:
+        data["pb"] = round(data["price"] / data["bvps"], 2)
+
+
+def _extract_latest_row(data: dict[str, Any], latest: Any) -> None:
+    """解析最新年度各比率到 data。"""
+    for col, key in _COL_MAP.items():
+        if col in latest.index or col in latest:
+            val = latest.get(col)
+            parsed = _parse_pct(val) if "率" in col or "增长" in col else _parse_num(val)
+            if parsed is not None:
+                data[key] = parsed
+
+
+def _extract_trends(data: dict[str, Any], year3: Any, prev: Any, latest: Any) -> None:
+    """构建近 3 年趋势数据。"""
+    for period_idx, period_df in enumerate([year3, prev, latest]):
+        if period_df is None:
+            continue
+        year = str(period_df.get("报告期", f"Y-{period_idx}"))
+        for col, key in _COL_MAP.items():
+            if key in _TREND_KEYS:
+                val = period_df.get(col)
+                is_pct = "率" in col or "增长" in col
+                parsed = _parse_pct(val) if is_pct else _parse_num(val)
+                if parsed is not None:
+                    data["trends"].setdefault(key, {})[year] = parsed
+
+
 _SYSTEM_PROMPT = """你是财报比率分析 Agent。根据提供的财务数据，分析以下关键比率及其趋势：
 
 1. 估值比率：市盈率(PE)、市净率(PB)
@@ -98,49 +219,36 @@ class FinancialRatioAgent:
         ttl = provider_ttl("akshare_financials")
         cached = await asyncio.to_thread(get_sqlite_cached, cache_key)
         if cached is not None:
-            data = json.loads(json.dumps(cached))
-            try:
-                provider = QuoteProvider()
-                quote = await provider.get_quote(
-                    symbol,
-                    cache_ttl_seconds=self._quote_cache_ttl,
-                )
-                data["price"] = quote.price
-                if data.get("eps") and data["eps"] > 0:
-                    data["pe"] = round(data["price"] / data["eps"], 2)
-                if data.get("bvps") and data["bvps"] > 0:
-                    data["pb"] = round(data["price"] / data["bvps"], 2)
-            except Exception:
-                logger.warning(
-                    "quote refresh for cached financials failed for %s",
-                    symbol,
-                    exc_info=True,
-                )
+            data: dict[str, Any] = json.loads(json.dumps(cached))
+            await self._refresh_quote_pe(data, symbol)
             return data
 
-        data: dict[str, Any] = {
-            "symbol": symbol,
-            "pe": None,
-            "pb": None,
-            "roe": None,
-            "roe_diluted": None,
-            "gross_margin": None,
-            "net_margin": None,
-            "revenue_growth": None,
-            "profit_growth": None,
-            "debt_ratio": None,
-            "current_ratio": None,
-            "quick_ratio": None,
-            "price": None,
-            "eps": None,
-            "bvps": None,
-            "inventory_turnover": None,
-            "ar_turnover_days": None,
-            "equity_ratio": None,
-            "trends": {},
-        }
+        data = _blank_financial_data(symbol)
+        await self._fetch_price(data, symbol)
+        await self._fetch_abstract(data, symbol)
+        if data.get("roe") is not None or data.get("eps") is not None:
+            await asyncio.to_thread(set_sqlite_cached, cache_key, json.loads(json.dumps(data)), ttl)
+        return data
 
-        # Get current price for PE/PB calculation
+    async def _refresh_quote_pe(self, data: dict[str, Any], symbol: str) -> None:
+        """缓存命中：刷新现价并按最新 EPS/BVPS 重算 PE/PB。"""
+        try:
+            provider = QuoteProvider()
+            quote = await provider.get_quote(
+                symbol,
+                cache_ttl_seconds=self._quote_cache_ttl,
+            )
+            data["price"] = quote.price
+            _apply_pe_pb(data)
+        except Exception:
+            logger.warning(
+                "quote refresh for cached financials failed for %s",
+                symbol,
+                exc_info=True,
+            )
+
+    async def _fetch_price(self, data: dict[str, Any], symbol: str) -> None:
+        """Get current price for PE/PB calculation."""
         try:
             provider = QuoteProvider()
             quote = await provider.get_quote(
@@ -151,7 +259,8 @@ class FinancialRatioAgent:
         except Exception:
             logger.warning("quote fetch failed for %s during financials", symbol, exc_info=True)
 
-        # Use stock_financial_abstract_ths (the only working API)
+    async def _fetch_abstract(self, data: dict[str, Any], symbol: str) -> None:
+        """Use stock_financial_abstract_ths (the only working API)."""
         try:
             import akshare as ak
 
@@ -160,110 +269,18 @@ class FinancialRatioAgent:
             )
             if df is None or df.empty:
                 logger.warning("No financial data returned for %s", symbol)
-                return data
+                return
 
-            # Latest year data
             latest = df.iloc[-1]
-            # Previous year for trend
             prev = df.iloc[-2] if len(df) > 1 else None
-            # 3 years ago for trend
             year3 = df.iloc[-3] if len(df) > 2 else None
-
-            # Column mapping: AkShare column -> data key
-            col_map = {
-                "基本每股收益": "eps",
-                "每股净资产": "bvps",
-                "销售净利率": "net_margin",
-                "销售毛利率": "gross_margin",
-                "净资产收益率": "roe",
-                "净资产收益率-摊薄": "roe_diluted",
-                "资产负债率": "debt_ratio",
-                "流动比率": "current_ratio",
-                "速动比率": "quick_ratio",
-                "营业总收入同比增长率": "revenue_growth",
-                "净利润同比增长率": "profit_growth",
-                "产权比率": "equity_ratio",
-                "存货周转率": "inventory_turnover",
-                "应收账款周转天数": "ar_turnover_days",
-            }
-
-            def _parse_pct(val: Any) -> float | None:
-                """Parse percentage string like '52.49%' to float 52.49."""
-                if val is None:
-                    return None
-                s = str(val).strip().replace(",", "")
-                if s in ("False", "True", "", "-", "nan"):
-                    return None
-                if s.endswith("%"):
-                    s = s[:-1]
-                try:
-                    return float(s)
-                except (ValueError, TypeError):
-                    return None
-
-            def _parse_num(val: Any) -> float | None:
-                """Parse number string, handling '亿' suffix."""
-                if val is None:
-                    return None
-                s = str(val).strip().replace(",", "")
-                if s in ("False", "True", "", "-", "nan"):
-                    return None
-                multiplier = 1.0
-                if s.endswith("亿"):
-                    s = s[:-1]
-                    multiplier = 1e8
-                elif s.endswith("万"):
-                    s = s[:-1]
-                    multiplier = 1e4
-                try:
-                    return float(s) * multiplier
-                except (ValueError, TypeError):
-                    return None
-
-            for col, key in col_map.items():
-                if col in latest.index or col in latest:
-                    val = latest.get(col)
-                    parsed = _parse_pct(val) if "率" in col or "增长" in col else _parse_num(val)
-                    if parsed is not None:
-                        data[key] = parsed
-
-            # Calculate PE = price / eps
-            if data["price"] and data["eps"] and data["eps"] > 0:
-                data["pe"] = round(data["price"] / data["eps"], 2)
-
-            # Calculate PB = price / bvps
-            if data["price"] and data["bvps"] and data["bvps"] > 0:
-                data["pb"] = round(data["price"] / data["bvps"], 2)
-
-            # Build trend data (last 3 years)
-            trend_keys = [
-                "roe",
-                "gross_margin",
-                "net_margin",
-                "revenue_growth",
-                "profit_growth",
-                "debt_ratio",
-            ]
-            for period_idx, period_df in enumerate([year3, prev, latest]):
-                if period_df is None:
-                    continue
-                year = str(period_df.get("报告期", f"Y-{period_idx}"))
-                for col, key in col_map.items():
-                    if key in trend_keys:
-                        val = period_df.get(col)
-                        is_pct = "率" in col or "增长" in col
-                        parsed = _parse_pct(val) if is_pct else _parse_num(val)
-                        if parsed is not None:
-                            data["trends"].setdefault(key, {})[year] = parsed
-
+            _extract_latest_row(data, latest)
+            _apply_pe_pb(data)
+            _extract_trends(data, year3, prev, latest)
         except ImportError:
             logger.warning("akshare not available")
         except Exception as exc:
             logger.warning("Financial data fetch failed for %s: %s", symbol, exc)
-
-        if data.get("roe") is not None or data.get("eps") is not None:
-            await asyncio.to_thread(set_sqlite_cached, cache_key, json.loads(json.dumps(data)), ttl)
-        return data
 
     def _compute_ratios(self, raw: dict[str, Any], symbol: str, name: str) -> list[dict[str, str]]:
         """Compute and format financial ratios with industry references."""

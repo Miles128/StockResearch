@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 from stockresearch.agents.research.agents._scoring import as_confidence
-from stockresearch.agents.research.context import ResearchContext
 from stockresearch.agents.research.dimension_text import REPORT_DIM_VOICE, finalize_dimension
 from stockresearch.agents.research.react import DimensionAgent, ResearchTool
 from stockresearch.core.config import get_settings
@@ -15,6 +15,9 @@ from stockresearch.data.providers.announcements import AnnouncementProvider
 from stockresearch.data.providers.market import FinancialDataProvider
 from stockresearch.data.providers.research_reports import ResearchReportProvider
 from stockresearch.utils.symbols import resolve_name
+
+if TYPE_CHECKING:
+    from stockresearch.agents.research.context import ResearchContext
 
 _SYSTEM = (
     f"你是 A 股基本面分析师。{REPORT_DIM_VOICE} "
@@ -248,6 +251,11 @@ def _as_dict(data: dict[str, object], key: str) -> dict[str, object]:
 def _as_list(data: dict[str, object], key: str) -> list[object]:
     raw = data.get(key)
     return raw if isinstance(raw, list) else []
+
+
+def _as_int(data: dict[str, object], key: str) -> int:
+    raw = data.get(key)
+    return int(raw) if isinstance(raw, int | float) else 0
 
 
 def _collect_evidence(data: dict[str, object]) -> list[DimensionEvidence]:
@@ -496,10 +504,10 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
     if bool(peers_payload.get("partial")) or not _as_list(peers_payload, "peers"):
         peer_gaps = [str(g) for g in _as_list(peers_payload, "gaps") if str(g).strip()]
         gaps.extend(peer_gaps or ["可比公司不足"])
-    if bool(ann.get("partial")) or int(ann.get("count", 0) or 0) == 0:
+    if bool(ann.get("partial")) or _as_int(ann, "count") == 0:
         ann_gaps = [str(g) for g in _as_list(ann, "gaps") if str(g).strip()]
         gaps.extend(ann_gaps or ["近期公告未取到"])
-    if bool(reports.get("partial")) or int(reports.get("count", 0) or 0) == 0:
+    if bool(reports.get("partial")) or _as_int(reports, "count") == 0:
         report_gaps = [str(g) for g in _as_list(reports, "gaps") if str(g).strip()]
         gaps.extend(report_gaps or ["机构研报未取到"])
 
@@ -511,9 +519,9 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
         "cninfo_announcements",
         "em_research_reports",
     ]
-    if int(ann.get("count", 0) or 0) == 0:
+    if _as_int(ann, "count") == 0:
         sources = [s for s in sources if s != "cninfo_announcements"]
-    if int(reports.get("count", 0) or 0) == 0:
+    if _as_int(reports, "count") == 0:
         sources = [s for s in sources if s != "em_research_reports"]
 
     evidence = _collect_evidence(data)

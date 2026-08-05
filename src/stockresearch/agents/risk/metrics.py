@@ -187,6 +187,157 @@ def _z_score(confidence_level: float) -> float:
     return Z_SCORES[0.95]
 
 
+def _individual_drawdowns(holding_quotes: list[HoldingQuote]) -> list[dict[str, Any]]:
+    """个股回撤列表（基于成本价）。"""
+    out: list[dict[str, Any]] = []
+    for h in holding_quotes:
+        dd = (h.current_price - h.cost_price) / h.cost_price if h.cost_price > 0 else 0.0
+        out.append(
+            {
+                "symbol": h.symbol,
+                "name": h.name,
+                "cost_price": h.cost_price,
+                "current_price": h.current_price,
+                "drawdown_pct": dd,
+            }
+        )
+    return out
+
+
+def _portfolio_max_drawdown(holding_quotes: list[HoldingQuote], total_value: float) -> float:
+    """最大回撤（基于成本价的加权平均涨跌）。"""
+    if total_value <= 0:
+        return 0.0
+    weighted_dd = 0.0
+    for h in holding_quotes:
+        w = _holding_weight(h, total_value)
+        dd = (h.current_price - h.cost_price) / h.cost_price if h.cost_price > 0 else 0.0
+        weighted_dd += w * dd
+    return weighted_dd
+
+
+def _portfolio_daily_returns(holding_quotes: list[HoldingQuote], total_value: float) -> list[float]:
+    """组合日收益率序列（按权重加权，不足的尾部补 0）。"""
+    max_len = max((len(h.daily_returns) for h in holding_quotes), default=0)
+    if max_len < 2 or total_value <= 0:
+        return []
+    aligned: list[list[float]] = []
+    for h in holding_quotes:
+        rets = h.daily_returns[:]
+        if len(rets) < max_len:
+            rets = [0.0] * (max_len - len(rets)) + rets
+        aligned.append(rets)
+    weights = [_holding_weight(h, total_value) for h in holding_quotes]
+    return [
+        sum(weights[i] * aligned[i][day_idx] for i in range(len(holding_quotes)))
+        for day_idx in range(max_len)
+    ]
+
+
+def _portfolio_volatility(
+    holding_quotes: list[HoldingQuote],
+    total_value: float,
+    portfolio_daily_returns: list[float],
+) -> float:
+    """年化波动率：优先日收益 std，否则行业默认加权。"""
+    if len(portfolio_daily_returns) >= 2:
+        daily_vol = statistics.stdev(portfolio_daily_returns)
+        return daily_vol * math.sqrt(TRADING_DAYS_PER_YEAR)
+    if total_value > 0:
+        return sum(
+            _holding_weight(h, total_value) * _estimate_annual_volatility(h) for h in holding_quotes
+        )
+    return DEFAULT_ANNUAL_VOLATILITY
+
+
+def _portfolio_return(holding_quotes: list[HoldingQuote], total_value: float) -> float:
+    """组合累计收益率（基于成本价加权）。"""
+    if total_value <= 0:
+        return 0.0
+    total = 0.0
+    for h in holding_quotes:
+        w = _holding_weight(h, total_value)
+        total_ret = (h.current_price - h.cost_price) / h.cost_price if h.cost_price > 0 else 0.0
+        total += w * total_ret
+    return total
+
+
+def _avg_holding_days(holding_quotes: list[HoldingQuote], total_value: float) -> float:
+    """按权重加权平均持有交易日数。"""
+    if total_value <= 0:
+        return float(_ASSUMED_HOLDING_DAYS)
+    total_weighted_days = sum(
+        _holding_weight(h, total_value) * _parse_holding_days(h.buy_date) for h in holding_quotes
+    )
+    return max(total_weighted_days, 1)
+
+
+def _sortino_ratio(
+    annualized_return: float,
+    portfolio_daily_returns: list[float],
+    volatility: float,
+    portfolio_return: float,
+) -> float:
+    """索提诺比率：仅计下行波动。"""
+    downside_returns: list[float] = []
+    if len(portfolio_daily_returns) >= 2:
+        daily_rf = RISK_FREE_RATE / TRADING_DAYS_PER_YEAR
+        for r in portfolio_daily_returns:
+            if r < daily_rf:
+                downside_returns.append((r - daily_rf) ** 2)
+        if downside_returns:
+            downside_vol = math.sqrt(
+                sum(downside_returns) / len(portfolio_daily_returns)
+            ) * math.sqrt(TRADING_DAYS_PER_YEAR)
+        else:
+            downside_vol = 0.0
+    else:
+        # 无日收益时，假设下行波动率为总波动率的 70%（经验近似）
+        downside_vol = volatility * 0.7
+    if downside_vol > 0:
+        return (annualized_return - RISK_FREE_RATE) / downside_vol
+    return 0.0 if portfolio_return <= RISK_FREE_RATE else float("inf")
+
+
+def _sector_concentration(
+    holding_quotes: list[HoldingQuote], total_value: float
+) -> tuple[float, str | None, list[dict[str, Any]]]:
+    """行业集中度：最大行业权重、行业及明细列表。"""
+    sector_weight_map: dict[str, float] = {}
+    if total_value > 0:
+        for h in holding_quotes:
+            sector_weight_map[h.sector] = sector_weight_map.get(h.sector, 0.0) + _holding_weight(
+                h, total_value
+            )
+    concentration_ratio = max(sector_weight_map.values()) if sector_weight_map else 0.0
+    concentration_sector = (
+        max(sector_weight_map, key=lambda s: sector_weight_map.get(s, 0.0))
+        if sector_weight_map
+        else None
+    )
+    sector_weights = [
+        {
+            "sector": sector,
+            "weight": round(weight, 4),
+            "value": round(weight * total_value, 2),
+        }
+        for sector, weight in sorted(
+            sector_weight_map.items(), key=lambda item: item[1], reverse=True
+        )
+    ]
+    return concentration_ratio, concentration_sector, sector_weights
+
+
+def _top_holding(
+    holding_quotes: list[HoldingQuote], total_value: float
+) -> tuple[float, str | None, str | None]:
+    """第一大持仓的权重、代码与名称。"""
+    if total_value <= 0:
+        return 0.0, None, None
+    top = max(holding_quotes, key=lambda h: _holding_value(h))
+    return _holding_weight(top, total_value), top.symbol, top.name
+
+
 # ── 主计算函数 ────────────────────────────────────────
 def calculate_portfolio_metrics(
     holding_quotes: list[HoldingQuote],
@@ -213,94 +364,12 @@ def calculate_portfolio_metrics(
         )
 
     total_value = _portfolio_value(holding_quotes)
-
-    # ── 个股回撤 ──
-    individual_drawdowns: list[dict[str, Any]] = []
-    for h in holding_quotes:
-        if h.cost_price > 0:
-            dd = (h.current_price - h.cost_price) / h.cost_price
-        else:
-            dd = 0.0
-        individual_drawdowns.append(
-            {
-                "symbol": h.symbol,
-                "name": h.name,
-                "cost_price": h.cost_price,
-                "current_price": h.current_price,
-                "drawdown_pct": dd,
-            }
-        )
-
-    # ── 最大回撤（基于成本价） ──
-    max_drawdown = 0.0
-    if total_value > 0:
-        weighted_dd = 0.0
-        for h in holding_quotes:
-            w = _holding_weight(h, total_value)
-            if h.cost_price > 0:
-                dd = (h.current_price - h.cost_price) / h.cost_price
-            else:
-                dd = 0.0
-            weighted_dd += w * dd
-        max_drawdown = weighted_dd
-
-    # ── 组合日收益率序列（加权） ──
-    # 找到最长日收益序列长度，不足的用 0 填充
-    max_len = max((len(h.daily_returns) for h in holding_quotes), default=0)
-    portfolio_daily_returns: list[float] = []
-
-    if max_len >= 2 and total_value > 0:
-        # 对齐日收益：假设各持仓日收益同期，不足的尾部补 0
-        aligned: list[list[float]] = []
-        for h in holding_quotes:
-            rets = h.daily_returns[:]
-            # 前端对齐：如果长度不足，在前面补 0
-            if len(rets) < max_len:
-                rets = [0.0] * (max_len - len(rets)) + rets
-            aligned.append(rets)
-
-        weights = [_holding_weight(h, total_value) for h in holding_quotes]
-
-        for day_idx in range(max_len):
-            day_ret = sum(weights[i] * aligned[i][day_idx] for i in range(len(holding_quotes)))
-            portfolio_daily_returns.append(day_ret)
-
-    # ── 年化波动率 ──
-    if len(portfolio_daily_returns) >= 2:
-        daily_vol = statistics.stdev(portfolio_daily_returns)
-        volatility = daily_vol * math.sqrt(TRADING_DAYS_PER_YEAR)
-    else:
-        # 无日收益数据，用加权行业默认波动率估算
-        if total_value > 0:
-            volatility = sum(
-                _holding_weight(h, total_value) * _estimate_annual_volatility(h)
-                for h in holding_quotes
-            )
-        else:
-            volatility = DEFAULT_ANNUAL_VOLATILITY
-
-    # ── 组合收益率（年化） ──
-    # 基于成本价到现价的涨幅，按实际持有天数年化
-    portfolio_return = 0.0
-    if total_value > 0:
-        for h in holding_quotes:
-            w = _holding_weight(h, total_value)
-            if h.cost_price > 0:
-                total_ret = (h.current_price - h.cost_price) / h.cost_price
-            else:
-                total_ret = 0.0
-            portfolio_return += w * total_ret
-
-    # 年化：用实际持有天数
-    # 计算加权平均持有天数
-    avg_holding_days = _ASSUMED_HOLDING_DAYS  # 默认 120 个交易日
-    if total_value > 0:
-        total_weighted_days = 0.0
-        for h in holding_quotes:
-            w = _holding_weight(h, total_value)
-            days = _parse_holding_days(h.buy_date)
-            total_weighted_days += w * days
-        avg_holding_days = max(total_weighted_days, 1)
+    individual_drawdowns = _individual_drawdowns(holding_quotes)
+    max_drawdown = _portfolio_max_drawdown(holding_quotes, total_value)
+    portfolio_daily_returns = _portfolio_daily_returns(holding_quotes, total_value)
+    volatility = _portfolio_volatility(holding_quotes, total_value, portfolio_daily_returns)
+    portfolio_return = _portfolio_return(holding_quotes, total_value)
+    avg_holding_days = _avg_holding_days(holding_quotes, total_value)
 
     annualized_return = (
         (1 + portfolio_return) ** (TRADING_DAYS_PER_YEAR / avg_holding_days) - 1
@@ -309,80 +378,25 @@ def calculate_portfolio_metrics(
     )
 
     # ── 夏普比率 ──
-    if volatility > 0:
-        sharpe_ratio = (annualized_return - RISK_FREE_RATE) / volatility
-    else:
-        sharpe_ratio = 0.0
-
-    # ── 索提诺比率 ──
-    downside_returns: list[float] = []
-    if len(portfolio_daily_returns) >= 2:
-        # 下偏离差：只考虑低于目标收益（无风险利率日化）的收益
-        daily_rf = RISK_FREE_RATE / TRADING_DAYS_PER_YEAR
-        for r in portfolio_daily_returns:
-            if r < daily_rf:
-                downside_returns.append((r - daily_rf) ** 2)
-
-        if downside_returns:
-            downside_vol = math.sqrt(
-                sum(downside_returns) / len(portfolio_daily_returns)
-            ) * math.sqrt(TRADING_DAYS_PER_YEAR)
-        else:
-            downside_vol = 0.0
-    else:
-        # 无日收益时，假设下行波动率为总波动率的 70%（经验近似）
-        downside_vol = volatility * 0.7
-
-    if downside_vol > 0:
-        sortino_ratio = (annualized_return - RISK_FREE_RATE) / downside_vol
-    else:
-        sortino_ratio = 0.0 if portfolio_return <= RISK_FREE_RATE else float("inf")
-
-    # ── 行业集中度 ──
-    sector_weight_map: dict[str, float] = {}
-    if total_value > 0:
-        for h in holding_quotes:
-            sector_weight_map[h.sector] = sector_weight_map.get(h.sector, 0.0) + _holding_weight(
-                h, total_value
-            )
-
-    concentration_ratio = max(sector_weight_map.values()) if sector_weight_map else 0.0
-    concentration_sector = (
-        max(sector_weight_map, key=sector_weight_map.get) if sector_weight_map else None
+    sharpe_ratio = (annualized_return - RISK_FREE_RATE) / volatility if volatility > 0 else 0.0
+    sortino_ratio = _sortino_ratio(
+        annualized_return, portfolio_daily_returns, volatility, portfolio_return
     )
-    sector_weights = [
-        {
-            "sector": sector,
-            "weight": round(weight, 4),
-            "value": round(weight * total_value, 2),
-        }
-        for sector, weight in sorted(
-            sector_weight_map.items(), key=lambda item: item[1], reverse=True
-        )
-    ]
 
-    top_holding_weight = 0.0
-    top_holding_symbol: str | None = None
-    top_holding_name: str | None = None
-    if total_value > 0:
-        top = max(holding_quotes, key=lambda h: _holding_value(h))
-        top_holding_weight = _holding_weight(top, total_value)
-        top_holding_symbol = top.symbol
-        top_holding_name = top.name
+    # ── 行业集中度与第一大持仓 ──
+    concentration_ratio, concentration_sector, sector_weights = _sector_concentration(
+        holding_quotes, total_value
+    )
+    top_holding_weight, top_holding_symbol, top_holding_name = _top_holding(
+        holding_quotes, total_value
+    )
 
     # ── Calmar 比率（年化收益 / |最大回撤|） ──
     abs_dd = abs(max_drawdown)
-    if abs_dd > 0.001:
-        calmar_ratio = annualized_return / abs_dd
-    else:
-        calmar_ratio = 0.0
+    calmar_ratio = annualized_return / abs_dd if abs_dd > 0.001 else 0.0
 
-    # ── 信息比率（超额收益 / 跟踪误差） ──
-    # 跟踪误差 = 组合波动率（简化假设基准为无风险利率）
-    if volatility > 0:
-        information_ratio = (annualized_return - RISK_FREE_RATE) / volatility
-    else:
-        information_ratio = 0.0
+    # ── 信息比率（超额收益 / 跟踪误差，基准为无风险利率） ──
+    information_ratio = (annualized_return - RISK_FREE_RATE) / volatility if volatility > 0 else 0.0
 
     # ── 单日最大可能损失（3σ 原则） ──
     daily_vol = volatility / math.sqrt(TRADING_DAYS_PER_YEAR)
@@ -390,9 +404,6 @@ def calculate_portfolio_metrics(
     max_loss_1d = total_value * max_loss_1d_pct
 
     # ── 期望损失 (Expected Loss = PD × LGD × EAD) ──
-    # PD: 违约概率，用日波动率 × 2 近似（极端下跌概率）
-    # LGD: 违约损失率，假设 60%（股票流动性折价）
-    # EAD: 风险敞口 = 组合市值
     pd_approx = daily_vol * 2  # 近似违约概率
     lgd = 0.60  # 违约损失率
     expected_loss_pct = pd_approx * lgd

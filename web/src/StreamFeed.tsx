@@ -42,9 +42,6 @@ interface StreamFeedProps {
   riskCompact?: boolean;
 }
 
-const DEBATE_ROLES = new Set(["bull", "bear", "aggressive", "neutral", "conservative", "vote"]);
-const SUMMARY_ROLES = new Set(["manager", "judge"]);
-
 function managerStep(steps: AgentStep[]): AgentStep | undefined {
   return steps.find((step) => step.role === "manager" || step.agent_id === "research_manager");
 }

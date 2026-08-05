@@ -1,11 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import {
-  api,
-  type AgentStreamEvent,
-  type ChatStreamOptions,
-  type ExecutionPreference,
-  type HoldingEnriched,
-} from "../api";
+import { api, type AgentStreamEvent, type ChatStreamOptions, type HoldingEnriched } from "../api";
 import type { CopilotContext, Message } from "../appTypes";
 import type { FocusContext } from "../layoutTypes";
 import { copilotContextToPayload } from "../chatContext";
@@ -73,7 +67,6 @@ export interface ChatExecutionState {
     kind: "premarket" | "intraday" | "postmarket",
   ) => Promise<void>;
   confirmChatStock: (originalMessage: string, symbol: string, name: string) => void;
-  confirmChatRoute: (originalMessage: string, preference: ExecutionPreference) => void;
   openCopilotQuery: (query: string) => void;
 }
 
@@ -319,27 +312,6 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
     [appendMessages, chatLoading, executeChat, openFocus],
   );
 
-  const confirmChatRoute = useCallback(
-    (originalMessage: string, preference: ExecutionPreference) => {
-      if (chatLoading) return;
-      const labels: Record<ExecutionPreference, string> = {
-        react: t("chat.routeReact"),
-        plan_execute: t("chat.routePlan"),
-        preset: t("chat.routePreset"),
-        auto: t("chat.routeAuto"),
-      };
-      appendMessages((m) => [
-        ...m,
-        {
-          role: "user",
-          content: t("chat.selectedMode", { mode: labels[preference] }),
-        },
-      ]);
-      void executeChat(originalMessage, { executionPreference: preference });
-    },
-    [appendMessages, chatLoading, executeChat, t],
-  );
-
   const openCopilotQuery = useCallback(
     (query: string) => {
       setCopilotOpen(true);
@@ -357,7 +329,6 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
     analyzeHolding,
     runBriefingInCopilot,
     confirmChatStock,
-    confirmChatRoute,
     openCopilotQuery,
   };
 }

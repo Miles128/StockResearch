@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
-from sqlalchemy.orm import Session
+from typing import TYPE_CHECKING
 
 from stockresearch.core.constants import DISCLAIMER
 from stockresearch.core.schemas import (
@@ -17,6 +15,11 @@ from stockresearch.db.models import ResearchReport
 from stockresearch.services.daily_bars import get_bars_meta_for_symbol
 from stockresearch.services.signal_backtest import _forward_return_pct, _start_idx_for_day
 from stockresearch.utils.symbols import resolve_name
+
+if TYPE_CHECKING:
+    from datetime import date, datetime
+
+    from sqlalchemy.orm import Session
 
 _SNAP_KEYS: tuple[str, ...] = (
     "momentum_20d",
@@ -76,11 +79,13 @@ def entry_from_payload(
     payload: dict[str, object],
 ) -> ResearchTimelineEntryOut:
     summary = str(payload.get("summary") or payload.get("brief_summary") or "")
+    composite_raw = payload.get("composite_score")
+    composite_score = float(composite_raw) if isinstance(composite_raw, int | float) else 0.0
     return ResearchTimelineEntryOut(
         report_id=report_id,
         created_at=created_at,
         bias=str(payload.get("bias") or "neutral"),
-        composite_score=float(payload.get("composite_score") or 0),
+        composite_score=composite_score,
         analysis_depth=str(payload.get("analysis_depth") or "standard"),
         summary=summary[:160],
         factor_alignment_note=(
@@ -107,7 +112,7 @@ def _thesis_claim(payload: dict[str, object]) -> str | None:
 
 def _post_hoc_for_day(
     bars: list[dict[str, float | str]] | None,
-    report_day,
+    report_day: date,
     *,
     horizons: tuple[int, ...],
     bars_source: str,

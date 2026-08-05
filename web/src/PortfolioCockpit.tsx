@@ -240,6 +240,8 @@ export function PortfolioCockpit({
       ),
     ].slice(0, 3);
     if (symbols.length === 0) {
+      // 无持仓报告时清空时间线：派生状态重置
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTimelines([]);
       return;
     }

@@ -12,12 +12,14 @@ Reading modes (两档表达风格):
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
-from stockresearch.core.schemas import CustomGlossaryTermOut
+if TYPE_CHECKING:
+    from collections.abc import Iterator, Sequence
+
+    from stockresearch.core.schemas import CustomGlossaryTermOut
 
 ReadingMode = Literal["friendly", "professional"]
 OutputLocale = Literal["zh", "en"]

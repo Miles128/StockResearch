@@ -6,8 +6,7 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-
-from sqlalchemy.orm import Session
+from typing import TYPE_CHECKING
 
 from stockresearch.agents.orchestrator.card_merge import merge_plan_cards
 from stockresearch.agents.orchestrator.complexity import (
@@ -21,8 +20,12 @@ from stockresearch.agents.risk.engine import run_risk_checkup
 from stockresearch.core.config import get_settings
 from stockresearch.core.constants import INTENT_RISK
 from stockresearch.core.schemas import ChatUserContext, ModeSettingsOut, RiskCheckupOut
-from stockresearch.db.models import Holding
 from stockresearch.services.chat.scope import ChatContextScope, build_chat_context_scope
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+    from stockresearch.db.models import Holding
 
 ProgressCallback = Callable[[dict[str, object]], Awaitable[None]]
 
@@ -58,6 +61,7 @@ class ChatRunContext:
     page_context_kind: str | None = None
     scope: ChatContextScope | None = None
     on_progress: ProgressCallback | None = None
+    trace_id: str | None = None
 
 
 async def execute_chat_turn(
@@ -78,6 +82,7 @@ async def execute_chat_turn(
     user_context: ChatUserContext | None = None,
     scope: ChatContextScope | None = None,
     on_progress: ProgressCallback | None = None,
+    session_id: str | None = None,
 ) -> ChatExecuteResult:
     """Run one chat turn — ReAct skills, plan-execute, or risk shortcut."""
     msg = message.strip()
@@ -119,6 +124,7 @@ async def execute_chat_turn(
         page_context_kind=page_kind,
         scope=turn_scope,
         on_progress=on_progress,
+        trace_id=session_id,
     )
     if execution_preference == "plan_execute":
         return await _run_plan_execute_sync(ctx)
@@ -176,6 +182,7 @@ def _build_orchestrator_agent(
         confirmed_name=ctx.confirmed_name,
         page_context_kind=ctx.page_context_kind,
         scope=ctx.scope,
+        trace_id=ctx.trace_id,
     )
     if ctx.on_progress:
         agent.set_progress_callback(ctx.on_progress)
@@ -224,7 +231,9 @@ async def _run_plan_execute_sync(ctx: ChatRunContext) -> ChatExecuteResult:
         )
     except TimeoutError:
         logger.warning(
-            "plan-execute turn timed out after %ss", get_settings().agent_timeout_seconds
+            "[sid=%s] plan-execute turn timed out after %ss",
+            ctx.trace_id or "-",
+            get_settings().agent_timeout_seconds,
         )
         return ChatExecuteResult(
             reply="分析耗时较长已超时，请您稍后重试，或把问题描述得更具体一些。",
@@ -271,7 +280,11 @@ async def _run_react_sync(ctx: ChatRunContext) -> ChatExecuteResult:
             timeout=get_settings().agent_timeout_seconds,
         )
     except TimeoutError:
-        logger.warning("react turn timed out after %ss", get_settings().agent_timeout_seconds)
+        logger.warning(
+            "[sid=%s] react turn timed out after %ss",
+            ctx.trace_id or "-",
+            get_settings().agent_timeout_seconds,
+        )
         return ChatExecuteResult(
             reply="分析耗时较长已超时，请您稍后重试，或把问题描述得更具体一些。",
             partial=True,

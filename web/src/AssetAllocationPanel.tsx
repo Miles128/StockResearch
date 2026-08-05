@@ -41,6 +41,8 @@ export function AssetAllocationPanel({ riskTolerance, monthlyIncome }: AssetAllo
   }
 
   useEffect(() => {
+    // 参数变化时发起加载：同步设置 loading 属惯用加载模式
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadAllocation();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [riskTolerance, monthlyIncome]);

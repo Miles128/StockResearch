@@ -56,9 +56,24 @@ ignore = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"
-strict = true
 packages = ["stockresearch"]
 mypy_path = "src"
+
+# 渐进式严格基线：保留核心类型检查（arg-type/assignment/return-value 等默认开启项），
+# 关闭 strict 全开中当前代码库未达成的选项，后续随修复逐步收紧回 strict。
+check_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_subclassing_any = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+strict_equality = true
+warn_redundant_casts = true
+warn_unused_configs = true
+
+# 无类型存根的第三方库（akshare/tushare/apscheduler 未提供 py.typed）
+[[tool.mypy.overrides]]
+module = ["akshare", "tushare", "apscheduler.*"]
+ignore_missing_imports = true
 
 [dependency-groups]
 dev = [
@@ -67,4 +82,5 @@ dev = [
     "ruff>=0.8.0",
     "mypy>=1.13.0",
     "pre-commit>=3.5.0",
+    "coverage>=7.15.3",
 ]

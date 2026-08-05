@@ -16,7 +16,7 @@ from stockresearch.services.briefing import (
 )
 from stockresearch.services.trading_calendar import is_a_share_trading_day
 from stockresearch.services.user_preferences import get_mode_settings
-from stockresearch.utils.llm import LLMClient
+from stockresearch.utils.llm import get_llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +166,7 @@ class BriefingScheduler:
 
         logger.info("Generating %s briefing for user %s", normalized, user_id)
         briefing = await generate_briefing(
-            db, user_id, normalized, llm=LLMClient(), premarket_view=premarket_view
+            db, user_id, normalized, llm=get_llm_client(), premarket_view=premarket_view
         )
         generated_at = briefing.generated_at
         if generated_at.tzinfo:

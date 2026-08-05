@@ -100,6 +100,8 @@ export function TermPopover({ term, children }: TermPopoverProps) {
 let _glossaryCache: Record<string, GlossaryTerm> | null = null;
 let _glossaryPromise: Promise<Record<string, GlossaryTerm>> | null = null;
 
+// 缓存种子函数供 useAppBootstrap 预取；仅影响 HMR 精确度
+// eslint-disable-next-line react-refresh/only-export-components
 export function seedGlossaryCache(terms: Record<string, GlossaryTerm>): void {
   _glossaryCache = terms;
 }
@@ -124,6 +126,8 @@ function fetchGlossary(): Promise<Record<string, GlossaryTerm>> {
 }
 
 /** 获取词库映射；首次挂载时异步拉取，之后命中模块缓存。 */
+// context/hook 与组件同文件：HMR 对本 hook 导出不做精确刷新
+// eslint-disable-next-line react-refresh/only-export-components
 export function useGlossary(): Record<string, GlossaryTerm> | null {
   const [glossary, setGlossary] = useState<Record<string, GlossaryTerm> | null>(_glossaryCache);
   useEffect(() => {

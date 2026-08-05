@@ -16,11 +16,15 @@ marked partial. Event attachment to idio peaks is Task 3.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from stockresearch.core.schemas import EventStudyEventOut, ImpactOut, ImpactPeakDayOut
-from stockresearch.data.providers.market import TechnicalDataProvider
+from stockresearch.data.providers.market import FinancialDataProvider, TechnicalDataProvider
 from stockresearch.services.daily_bars import get_bars_meta_for_symbol
 from stockresearch.services.event_study import compute_event_study
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -144,7 +148,7 @@ def _normalize_event_for_peak(
 
 def _attach_peaks_from_events(
     peaks: list[ImpactPeakDayOut],
-    events: list[dict[str, object] | EventStudyEventOut],
+    events: Sequence[dict[str, object] | EventStudyEventOut],
 ) -> list[ImpactPeakDayOut]:
     """Map announcement events to idio peak days by exact calendar date (±0)."""
     by_date: dict[str, dict[str, object]] = {}
@@ -229,7 +233,7 @@ async def _load_peer_ew_returns(
     daily-return proxy aligned to `dates`. Returns (proxy_rets, gaps)."""
     gaps: list[str] = []
     try:
-        peers = await provider.get_industry_peers(symbol)
+        peers = await FinancialDataProvider().get_industry_peers(symbol)
     except Exception as exc:  # pragma: no cover - network path
         logger.warning("industry peers failed for %s: %s", symbol, exc)
         peers = []

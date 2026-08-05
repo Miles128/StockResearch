@@ -1,5 +1,7 @@
 """Market-level dimension prepare/build — macro, industry, technical, sentiment."""
 
+from typing import Any
+
 from stockresearch.agents.market.context import MarketResearchContext
 from stockresearch.agents.research.agents._scoring import as_confidence
 from stockresearch.agents.research.dimension_text import REPORT_DIM_VOICE, finalize_dimension
@@ -33,7 +35,7 @@ def format_enrichment_block(global_text: str, macro_text: str) -> str:
     return "\n".join(blocks)
 
 
-def _avg_index_change(data: dict[str, object]) -> float:
+def _avg_index_change(data: dict[str, Any]) -> float:
     changes = data.get("index_changes", [])
     if not isinstance(changes, list) or not changes:
         return 0.0
@@ -69,7 +71,7 @@ async def prepare_macro(ctx: MarketResearchContext) -> tuple[str, str, dict[str,
     )
 
 
-def build_macro(data: dict[str, object], analysis: str) -> DimensionResult:
+def build_macro(data: dict[str, Any], analysis: str) -> DimensionResult:
     avg = _avg_index_change(data)
     north = data.get("northbound_net_yi")
     score = 5.0
@@ -105,7 +107,7 @@ async def prepare_industry(ctx: MarketResearchContext) -> tuple[str, str, dict[s
     return system, user, {"advancers": adv, "decliners": dec, "breadth_note": breadth}
 
 
-def build_industry(data: dict[str, object], analysis: str) -> DimensionResult:
+def build_industry(data: dict[str, Any], analysis: str) -> DimensionResult:
     adv = data.get("advancers")
     dec = data.get("decliners")
     score = 5.0
@@ -135,7 +137,7 @@ async def prepare_technical(ctx: MarketResearchContext) -> tuple[str, str, dict[
     return system, user, {"index_changes": changes}
 
 
-def build_technical(data: dict[str, object], analysis: str) -> DimensionResult:
+def build_technical(data: dict[str, Any], analysis: str) -> DimensionResult:
     avg = _avg_index_change(data)
     score = 5.0
     if avg > 0.3:
@@ -169,7 +171,7 @@ async def prepare_sentiment(ctx: MarketResearchContext) -> tuple[str, str, dict[
     )
 
 
-def build_sentiment(data: dict[str, object], analysis: str) -> DimensionResult:
+def build_sentiment(data: dict[str, Any], analysis: str) -> DimensionResult:
     adv = int(data.get("advancers", 0) or 0)
     dec = int(data.get("decliners", 0) or 0)
     total = adv + dec

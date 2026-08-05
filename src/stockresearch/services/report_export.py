@@ -7,8 +7,17 @@ import io
 import json
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from stockresearch.core.schemas import DebateResult, DimensionResult, ResearchReportOut
+if TYPE_CHECKING:
+    from stockresearch.core.schemas import (
+        DebateResult,
+        DimensionResult,
+        ImpactOut,
+        PricingBridgeOut,
+        ResearchReportOut,
+        ThesisOut,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -199,7 +208,7 @@ def report_to_csv(report: ResearchReportOut) -> str:
     return buf.getvalue()
 
 
-def _impact_section(impact) -> list[str]:
+def _impact_section(impact: ImpactOut) -> list[str]:
     """深度分析 · 影响 — attribution lines only, no trade verbs."""
     lines = [
         "## 深度分析 · 影响",
@@ -220,7 +229,7 @@ def _impact_section(impact) -> list[str]:
     return lines
 
 
-def _pricing_section(pricing) -> list[str]:
+def _pricing_section(pricing: PricingBridgeOut) -> list[str]:
     """深度分析 · 定价桥 — PE/earnings decomposition of recent return.
 
     Honest-partial: only emits the lines whose values are present; gaps are
@@ -249,7 +258,7 @@ def _pricing_section(pricing) -> list[str]:
     return lines
 
 
-def _thesis_section(thesis) -> list[str]:
+def _thesis_section(thesis: ThesisOut) -> list[str]:
     """深度分析 · 研究论点 — claim, monitors, invalidate_if, horizon.
 
     Descriptive only (no trade verbs). Lists are emitted only when non-empty

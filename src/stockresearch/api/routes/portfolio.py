@@ -1,5 +1,8 @@
 """Holdings and watchlist routes."""
 
+from datetime import date
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -13,6 +16,7 @@ from stockresearch.core.schemas import (
     HoldingEnrichedOut,
     HoldingOut,
     HoldingTransactionBatch,
+    HoldingTransactionItem,
     HoldingTransactionResult,
     PortfolioEventsOut,
     PortfolioPerformanceOut,
@@ -79,7 +83,7 @@ def _record_trade(
     side: str,
     price: float,
     quantity: int,
-    trade_date=None,
+    trade_date: date | None = None,
     realized_pnl: float | None = None,
     note: str | None = None,
     commit: bool = False,
@@ -113,7 +117,7 @@ def _upsert_holding(
     cost_price: float,
     quantity: int,
     sector: str | None = None,
-    buy_date=None,
+    buy_date: date | None = None,
     commit: bool = True,
 ) -> Holding:
     existing = (
@@ -121,9 +125,9 @@ def _upsert_holding(
     )
     if existing is not None:
         total_qty = existing.quantity + quantity
-        existing.cost_price = (
-            float(existing.cost_price) * existing.quantity + cost_price * quantity
-        ) / total_qty
+        existing.cost_price = Decimal(
+            (float(existing.cost_price) * existing.quantity + cost_price * quantity) / total_qty
+        )
         existing.quantity = total_qty
         existing.name = name
         if sector:
@@ -177,7 +181,7 @@ def _sell_holding(
 
 
 async def _resolve_transaction_symbol_name(
-    item,
+    item: HoldingTransactionItem,
 ) -> tuple[str, str, str | None]:
     if item.symbol and item.name:
         sector = await resolve_stock_sector(item.symbol, item.name)
@@ -192,7 +196,7 @@ async def _resolve_transaction_symbol_name(
     lookup = await lookup_stock(query, llm=get_llm_client())
     if lookup.status != "confirmed" or not lookup.symbol or not lookup.name:
         raise ValidationError(lookup.message or f"无法识别股票：{query}")
-    sector = lookup.sector or await resolve_stock_sector(lookup.symbol, lookup.name)
+    sector = await resolve_stock_sector(lookup.symbol, lookup.name)
     return lookup.symbol, lookup.name, sector
 
 

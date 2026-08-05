@@ -172,6 +172,7 @@ class OrchestratorAgent:
         confirmed_name: str | None = None,
         page_context_kind: str | None = None,
         scope: ChatContextScope | None = None,
+        trace_id: str | None = None,
     ) -> None:
         self._db = db
         self._llm = llm
@@ -187,6 +188,7 @@ class OrchestratorAgent:
         self._confirmed_name = confirmed_name
         self._page_context_kind = page_context_kind
         self._scope = scope
+        self._trace_id = trace_id
         self._quote_cache_ttl = quote_cache_ttl_seconds(mode_settings)
         self._cards: list[dict[str, Any]] = []
         self._on_progress: Any = None
@@ -196,6 +198,12 @@ class OrchestratorAgent:
     def set_progress_callback(self, cb: Any) -> None:
         """Set async callback for status + skill stream events."""
         self._on_progress = cb
+
+    def _log_ctx(self, msg: str) -> str:
+        """Prefix log messages with a stable session/request correlation ID."""
+        if self._trace_id:
+            return f"[sid={self._trace_id}] {msg}"
+        return msg
 
     def _skills(self) -> SkillRunner:
         if self._skill_runner is None:
@@ -259,15 +267,15 @@ class OrchestratorAgent:
         for i in range(_MAX_ITERATIONS):
             await self._progress(status_event("status.react.thinking", step=i + 1))
             response = await self._llm.complete_messages(messages)
-            logger.info("ReAct iter %d: response=%s", i, response[:200])
+            logger.info(self._log_ctx("ReAct iter %d: response=%s"), i, response[:200])
 
             tool_calls = _extract_tool_calls(response)
-            logger.info("ReAct iter %d: tool_calls=%s", i, tool_calls)
+            logger.info(self._log_ctx("ReAct iter %d: tool_calls=%s"), i, tool_calls)
 
             if not tool_calls:
                 reply = _clean_reply(response)
                 reply = _reply_from_cards(self._cards) or reply
-                logger.info("ReAct final reply (no tool): %s", reply[:200])
+                logger.info(self._log_ctx("ReAct final reply (no tool): %s"), reply[:200])
                 return reply, self._cards
 
             messages.append({"role": "assistant", "content": response})
@@ -300,9 +308,16 @@ class OrchestratorAgent:
 
                 if tool_name == "reply":
                     reply = tool_args.get("message", result)
-                    logger.info("ReAct final reply (via reply tool): %s", reply[:200])
+                    logger.info(
+                        self._log_ctx("ReAct final reply (via reply tool): %s"),
+                        reply[:200],
+                    )
                     return reply, self._cards
 
+        logger.warning(
+            self._log_ctx("ReAct exceeded max iterations (%d), degrading to fallback"),
+            _MAX_ITERATIONS,
+        )
         reply = _reply_from_cards(self._cards) or (
             "抱歉，分析过程超出最大步骤数，以下是目前已获取的信息摘要。"
         )
@@ -348,7 +363,7 @@ class OrchestratorAgent:
                 return args.get("message", "")
             return f"未知工具: {name}"
         except Exception as exc:
-            logger.warning("Tool %s failed: %s", name, exc)
+            logger.warning(self._log_ctx("Tool %s failed: %s"), name, exc)
             return f"工具 {name} 执行失败: {exc}"
 
     async def _run_skill(self, skill_id: str, args: dict[str, Any]) -> str:
@@ -421,7 +436,7 @@ class OrchestratorAgent:
             if macro_text:
                 lines.append(macro_text)
         except Exception:  # noqa: BLE001 — 外围/宏观为可选增强，失败静默降级
-            logger.warning("global/macro enrichment failed", exc_info=True)
+            logger.warning(self._log_ctx("global/macro enrichment failed"), exc_info=True)
         return "\n".join(lines) if lines else "市场数据暂不可用"
 
     async def _tool_stock_quote(self, symbol: str) -> str:

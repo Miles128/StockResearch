@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import logging
-
-from sqlalchemy.orm import Session
+from typing import TYPE_CHECKING
 
 from stockresearch.db.models import Conversation
-from stockresearch.utils.llm import LLMClient
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+    from stockresearch.utils.llm import LLMClient
 
 logger = logging.getLogger(__name__)
 

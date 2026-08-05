@@ -23,7 +23,11 @@ logger = logging.getLogger(__name__)
 class KimiPrefetchScheduler:
     """交易日 8:20 / 16:20 预取 Kimi 宏观与 Wind 数据。"""
 
-    def __init__(self, macro_provider=None, wind_provider=None) -> None:
+    def __init__(
+        self,
+        macro_provider: KimiMacroProvider | None = None,
+        wind_provider: KimiWindProvider | None = None,
+    ) -> None:
         self._scheduler: AsyncIOScheduler | None = None
         self._macro = macro_provider or KimiMacroProvider()
         self._wind = wind_provider or KimiWindProvider()

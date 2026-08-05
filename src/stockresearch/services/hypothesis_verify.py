@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from statistics import mean
 
 from stockresearch.core.constants import DISCLAIMER
-from stockresearch.core.schemas import HypothesisVerifyOut, HypothesisWindowOut
+from stockresearch.core.schemas import HypothesisVerifyOut, HypothesisWindowOut, NumericFactorOut
 from stockresearch.services.daily_bars import get_bars_meta_for_symbol
 from stockresearch.services.factors import compute_numeric_factors
 from stockresearch.services.signal_backtest import _forward_return_pct
@@ -132,7 +132,9 @@ def _hit_rate(rule: str, vals: list[float]) -> float | None:
     return round(sum(1 for v in vals if v > 0) / len(vals) * 100.0, 1)
 
 
-def _factor_dict_for_rule(rule: str, factor_list) -> dict[str, float | None]:
+def _factor_dict_for_rule(
+    rule: str, factor_list: list[NumericFactorOut]
+) -> dict[str, float | None]:
     """Build a {key: value, key_partial: bool} dict for current-condition rules."""
     by_key = {f.key: f for f in factor_list}
     out: dict[str, float | None] = {}

@@ -38,6 +38,8 @@ export function AllocationDeviationPanel({ holdings }: { holdings: HoldingEnrich
     for (const s of sectors) {
       next[s] = saved[s] != null ? String(Math.round(saved[s] * 100)) : "";
     }
+    // sectors 变化时重置草稿：派生状态同步，属预期级联
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDraft(next);
   }, [sectors]);
 

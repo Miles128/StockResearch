@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from stockresearch.core.constants import INTENT_RISK
 from stockresearch.core.output_style import get_reading_mode
@@ -40,7 +41,7 @@ def _dedupe(items: list[str]) -> list[str]:
 def build_follow_up_questions(
     *,
     intent: str,
-    cards: list[dict[str, object]],
+    cards: list[dict[str, Any]],
     reading_mode: str | None = None,
 ) -> list[str]:
     """Return 2–4 contextual follow-up prompts based on intent and cards."""

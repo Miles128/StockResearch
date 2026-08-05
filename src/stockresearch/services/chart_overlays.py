@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from stockresearch.core.schemas import ChartOverlay, ChartOverlayPoint, ChartOverlaySet
 
@@ -113,8 +113,9 @@ def _fit_lines(
                 continue
             slope = (p2.price - p1.price) / span
 
-            def value_at(idx: int) -> float:
-                return p1.price + slope * (idx - p1.index)
+            def value_at(idx: int, _p1: Pivot = p1, _slope: float = slope) -> float:
+                # 绑定默认参数：避免闭包延迟捕获循环变量（B023）
+                return _p1.price + _slope * (idx - _p1.index)
 
             valid = True
             for t in range(p1.index, last + 1):
@@ -238,7 +239,7 @@ def detect_levels(
             level_price = sum(prices) / len(prices)
             if abs(level_price - last_close) / last_close > opts.relevance_pct:
                 continue
-            out.append((round(level_price, 4), side, touches))
+            out.append((round(level_price, 4), cast(TrendLineKind, side), touches))
 
     out.sort(key=lambda x: -x[2])
     return out[: opts.max_levels]

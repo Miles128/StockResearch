@@ -26,7 +26,7 @@ def is_available() -> bool:
     return _HAS_EFINANCE
 
 
-def fetch_efinance_quotes(symbols: list[str]) -> dict[str, dict[str, float | str]]:
+def fetch_efinance_quotes(symbols: list[str]) -> dict[str, dict[str, float | str | datetime]]:
     """通过 efinance 批量拉取实时行情。
 
     efinance.stock_data.get_quote_history() 默认拉取历史，最新一行即为当日行情。
@@ -39,7 +39,7 @@ def fetch_efinance_quotes(symbols: list[str]) -> dict[str, dict[str, float | str
     if not unique:
         return {}
 
-    results: dict[str, dict[str, float | str]] = {}
+    results: dict[str, dict[str, float | str | datetime]] = {}
     for symbol in unique:
         try:
             df: Any = ef.stock.get_quote_history(symbol, kctypes="1")  # 1=日K

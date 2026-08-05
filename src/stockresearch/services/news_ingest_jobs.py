@@ -6,13 +6,16 @@ import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Literal
-
-from sqlalchemy.orm import Session
+from typing import TYPE_CHECKING, Literal
 
 from stockresearch.data.pipeline.news import NewsPipeline
 from stockresearch.db.session import SessionLocal
 from stockresearch.services.news_interests import UserNewsInterests, purge_irrelevant_news
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +60,7 @@ async def run_ingest_job(
     user_id: int,
     interests: UserNewsInterests,
     limit: int,
-    db_factory=SessionLocal,
+    db_factory: Callable[[], Session] = SessionLocal,
 ) -> None:
     job = _jobs.get(job_id)
     if job is None:

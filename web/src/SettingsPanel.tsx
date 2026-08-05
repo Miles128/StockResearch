@@ -60,7 +60,7 @@ export function SettingsPanel({
   onModeSettingsChange,
   variant = "modal",
 }: SettingsPanelProps) {
-  const { t, locale, setLocale } = useI18n();
+  const { t, setLocale } = useI18n();
   const [activeTab, setActiveTab] = useState<SettingsTab>(required ? "llm" : "general");
   const [meta, setMeta] = useState<LlmSettingsMeta | null>(null);
   const [form, setForm] = useState<LlmUserSettings>(loadLlmSettings);
@@ -110,6 +110,8 @@ export function SettingsPanel({
 
   useEffect(() => {
     if (!open) return;
+    // 打开时加载本地设置：初始化模式，属预期级联
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setForm(loadLlmSettings());
     setDataForm(loadDataSourceSettings());
     setTheme(loadTheme());

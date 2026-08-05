@@ -57,6 +57,8 @@ export default function App() {
       { key: "risk" as CenterTab, label: t("center.risk") },
       { key: "news" as CenterTab, label: t("center.news") },
     ],
+    // t 为稳定引用，locale 变化需驱动标签重算：保留冗余依赖
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [t, locale],
   );
   const numLocale = locale === "zh" ? "zh-CN" : "en-US";
@@ -219,7 +221,6 @@ export default function App() {
     analyzeHolding,
     runBriefingInCopilot,
     confirmChatStock,
-    confirmChatRoute,
     openCopilotQuery,
   } = chat;
 
@@ -328,6 +329,8 @@ export default function App() {
 
   useEffect(() => {
     if (focusContext?.kind === "stock") {
+      // 将 focusContext/centerTab 同步到 copilot 上下文：派生状态重置，属预期级联
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPageContext({
         kind: "stock",
         label: `${focusContext.name} ${focusContext.symbol}`,
@@ -743,7 +746,6 @@ export default function App() {
                   onSend={sendChat}
                   onAnalyzeHolding={analyzeHolding}
                   onConfirmStock={confirmChatStock}
-                  onConfirmRoute={confirmChatRoute}
                 />
               </CopilotPanel>
             </aside>

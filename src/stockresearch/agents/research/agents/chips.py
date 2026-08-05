@@ -1,5 +1,7 @@
 """Chips dimension agent — isolated fund-flow/holder tools."""
 
+from typing import Any
+
 from stockresearch.agents.research.agents._scoring import as_confidence
 from stockresearch.agents.research.context import ResearchContext
 from stockresearch.agents.research.dimension_text import REPORT_DIM_VOICE, finalize_dimension
@@ -11,27 +13,27 @@ from stockresearch.data.providers.market import ChipsDataProvider
 _SYSTEM = f"你是 A 股筹码分析专家。{REPORT_DIM_VOICE}"
 
 
-async def _tool_dragon(ctx: ResearchContext) -> dict[str, object]:
+async def _tool_dragon(ctx: ResearchContext) -> dict[str, Any]:
     return await ChipsDataProvider().get_dragon_tiger(ctx.symbol)
 
 
-async def _tool_fund(ctx: ResearchContext) -> dict[str, object]:
+async def _tool_fund(ctx: ResearchContext) -> dict[str, Any]:
     return await ChipsDataProvider().get_fund_flow(ctx.symbol)
 
 
-async def _tool_northbound(ctx: ResearchContext) -> dict[str, object]:
+async def _tool_northbound(ctx: ResearchContext) -> dict[str, Any]:
     return await ChipsDataProvider().get_northbound_flow(ctx.symbol)
 
 
-async def _tool_margin(ctx: ResearchContext) -> dict[str, object]:
+async def _tool_margin(ctx: ResearchContext) -> dict[str, Any]:
     return await ChipsDataProvider().get_margin_trading(ctx.symbol)
 
 
-async def _tool_holders(ctx: ResearchContext) -> dict[str, object]:
+async def _tool_holders(ctx: ResearchContext) -> dict[str, Any]:
     return await ChipsDataProvider().get_holder_count(ctx.symbol)
 
 
-async def _tool_lockup(ctx: ResearchContext) -> dict[str, object]:
+async def _tool_lockup(ctx: ResearchContext) -> dict[str, Any]:
     return await ChipsDataProvider().get_lockup(ctx.symbol)
 
 

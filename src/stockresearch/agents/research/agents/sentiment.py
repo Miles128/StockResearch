@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any, cast
+
 from stockresearch.agents.research.agents._scoring import as_confidence
-from stockresearch.agents.research.context import ResearchContext
 from stockresearch.agents.research.dimension_text import REPORT_DIM_VOICE, finalize_dimension
 from stockresearch.agents.research.react import DimensionAgent, ResearchTool
 from stockresearch.core.constants import CONFIDENCE_LOW, CONFIDENCE_MEDIUM
@@ -11,17 +12,20 @@ from stockresearch.core.schemas import DimensionEvidence, DimensionResult
 from stockresearch.data.providers.market import SentimentDataProvider
 from stockresearch.utils.symbols import resolve_name
 
+if TYPE_CHECKING:
+    from stockresearch.agents.research.context import ResearchContext
+
 _SYSTEM = f"你是 A 股市场情绪分析师。{REPORT_DIM_VOICE}"
 
 
-async def _tool_hot(ctx: ResearchContext) -> dict[str, object]:
+async def _tool_hot(ctx: ResearchContext) -> dict[str, Any]:
     name = resolve_name(ctx.symbol)
     return await SentimentDataProvider().get_xueqiu_hot(ctx.symbol, name)
 
 
-def _cluster_news_titles(items: list[object]) -> list[dict[str, object]]:
+def _cluster_news_titles(items: list[object]) -> list[dict[str, Any]]:
     """Merge near-duplicate titles into simple event clusters."""
-    clusters: list[dict[str, object]] = []
+    clusters: list[dict[str, Any]] = []
     for item in items:
         if not isinstance(item, dict):
             continue
@@ -29,7 +33,7 @@ def _cluster_news_titles(items: list[object]) -> list[dict[str, object]]:
         if not title:
             continue
         key = title[:18]
-        matched: dict[str, object] | None = None
+        matched: dict[str, Any] | None = None
         for cluster in clusters:
             seed = str(cluster.get("title", ""))
             if key and (key in seed or seed[:18] in title):
@@ -53,16 +57,16 @@ def _cluster_news_titles(items: list[object]) -> list[dict[str, object]]:
     return clusters
 
 
-async def _tool_news(ctx: ResearchContext) -> dict[str, object]:
+async def _tool_news(ctx: ResearchContext) -> dict[str, Any]:
     name = resolve_name(ctx.symbol)
     news = await SentimentDataProvider().get_symbol_news(ctx.symbol, name)
     score = SentimentDataProvider().score_titles([item["title"] for item in news])
     budget = ctx.resolved_budget()
-    clusters: list[dict[str, object]] = []
+    clusters: list[dict[str, Any]] = []
     if budget.news_cluster:
         clusters = _cluster_news_titles(list(news))
 
-    cross_checks: list[dict[str, object]] = []
+    cross_checks: list[dict[str, Any]] = []
     if budget.news_deep_cross_check > 0:
         from stockresearch.data.providers.web_fetch import fetch_url_excerpt
 
@@ -104,7 +108,7 @@ async def _tool_news(ctx: ResearchContext) -> dict[str, object]:
     }
 
 
-def _build(data: dict[str, object], analysis: str) -> DimensionResult:
+def _build(data: dict[str, Any], analysis: str) -> DimensionResult:
     hot = data["xueqiu_hot"]
     news = data["akshare_news"]
     assert isinstance(hot, dict)
@@ -114,7 +118,10 @@ def _build(data: dict[str, object], analysis: str) -> DimensionResult:
     assert isinstance(items, list)
     news_score = float(news.get("news_score", 0))
     clusters = news.get("clusters") if isinstance(news.get("clusters"), list) else []
-    cross_checks = news.get("cross_checks") if isinstance(news.get("cross_checks"), list) else []
+    cross_checks_raw = news.get("cross_checks")
+    cross_checks = cast(
+        "list[dict[str, Any]]", cross_checks_raw if isinstance(cross_checks_raw, list) else []
+    )
 
     bull_ratio = float(hot.get("bull_ratio", 0.5))
     available = bool(hot.get("available", True))
