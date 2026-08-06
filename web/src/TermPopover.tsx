@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect, type ReactNode } from "re
 import { createPortal } from "react-dom";
 import { useI18n } from "./i18n";
 import { api, type GlossaryTerm } from "./api";
+import { EVENT_KEYS, recordEvent } from "./usageTracking";
 
 interface TermPopoverProps {
   term: GlossaryTerm;
@@ -54,7 +55,10 @@ export function TermPopover({ term, children }: TermPopoverProps) {
       <span
         ref={triggerRef}
         className="term-inline"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (!open) recordEvent(EVENT_KEYS.termPopover);
+          setOpen((v) => !v);
+        }}
         role="button"
         tabIndex={0}
         aria-expanded={open}

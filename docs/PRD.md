@@ -71,7 +71,7 @@
 | 研究信号验证 | 历史研报 bias / 因子阈值 → 前向收益统计；单报告事后核对；仅前复权日线（研究验证，非策略回测器）；深度档可露出入口，不静默自动跑 |
 | 研究复盘时间线 | 同标的多份研报时间线：结论/因子快照变化 + 可挂事后核对（Phase 7a） |
 | 桌面壳 | Tauri 2（macOS/Windows）：拉起本机 uvicorn + 可选 worker，窗口打开托管 UI（Phase 8） |
-| 数值因子 | 估值分位、动量、波动等可计算因子；证据覆盖清单与因子分离；报告附日线口径戳记；综合及以上默认展开因子条并附「与结论是否同向」一句 |
+| 数值因子 | 估值分位、动量、波动等可计算因子；证据覆盖清单与因子分离；报告附日线口径戳记；**因子条默认折叠**（V10.26 起，减少专业术语对普通用户的出现频率；点击展开后附「与结论是否同向」一句） |
 | 纸上持仓假设 | 风控定量压力情景 + 最大行业/个股相对现价冲击（非历史回放） |
 | 合规输出 | §六 语言政策 |
 | 意图路由上下文 | 规则 + LLM 兜底五类意图分类；按意图装配 ChatContextScope；新闻与工具按 scope 过滤；仅页面上下文不触发次要域 |
@@ -84,7 +84,7 @@
 | 档位 | key | 含义 |
 |------|-----|------|
 | 标准 | `standard` | 现况四维基线 |
-| 综合 | `comprehensive` | 标准 + 新闻/财报证据加厚 + 因子条默认展开 |
+| 综合 | `comprehensive` | 标准 + 新闻/财报证据加厚 + 因子条默认折叠（点击展开） |
 | 深度 | `deep` | 综合 + 更高证据预算；research 辩论默认开；可挂信号验证入口 |
 
 **UI 契约**：
@@ -170,6 +170,10 @@
 
 推送阶段：P1 浏览器 Notification → P2 邮件（外挂 CLI）→ P3 短信 → 远期飞书。
 
+**V10.26 决定：P2 邮件 / P3 短信 / 远期飞书一律不做**。推送收敛为「浏览器 Notification + 应用内通知中心（告警历史）」，通知中心是唯一可信的告警落点（窗口关闭不丢告警）。
+
+**本地使用统计（埋点）**：localStorage 事件计数（功能名→次数），仅用于「砍/留功能」决策；不联网上报、不上传任何数据。两周一个统计周期。
+
 Phase 2：`stockresearch worker` 独立 Cron + 可选 launchd 示例。
 
 **调度器跨进程互斥**：API（`RUN_SCHEDULERS_IN_API=true`）与 worker 不会同时运行同一调度器。启动时通过文件锁（`scheduler.lock`，置于 SQLite 数据库同目录）实现跨进程互斥；后启动的一方检测到锁被占用即跳过调度器启动（API 仅跳过调度器但仍正常服务请求，worker 直接退出码 1）。内存数据库（`sqlite://`）跳过锁。
@@ -206,7 +210,7 @@ Phase 2：`stockresearch worker` 独立 Cron + 可选 launchd 示例。
 3. **P2 新闻加厚**：comprehensive 情绪维事件聚类；deep 1～2 条关键新闻交叉核对回注情绪维（新闻 Tab 旁路不变）
 4. **P3 因子与验证**：质量/成长因子；因子条默认展开与同向句；deep 信号验证入口（非静默）
 
-**产品验收**：设置选综合且无覆盖 → 报告 `analysis_depth=comprehensive` 且因子条展开；「深度分析{标的}」本轮为 deep、设置不变；deep 证据密于 standard，缺数 `partial`；轻问报价不升档。
+**产品验收**：设置选综合且无覆盖 → 报告 `analysis_depth=comprehensive` 且因子条可展开（默认折叠）；「深度分析{标的}」本轮为 deep、设置不变；deep 证据密于 standard，缺数 `partial`；轻问报价不升档。
 
 ### Phase 6（可带走的研究验证）✅ 完成（导出/PIT/compare/event-study/hypothesis/批量四维与前端批量入口均已落地）
 
@@ -236,7 +240,7 @@ Phase 2：`stockresearch worker` 独立 Cron + 可选 launchd 示例。
 #### 7c · 外缘（感知与外带）
 
 6. **专家模式资产配置偏差**：用户自设目标权重 vs 当前持仓偏差展示（挂主流程）；**不做**优化器与再平衡建议引擎。
-7. **CLI / MCP 外带**：`stockresearch research {timeline,hypothesis,compare,export}` 输出 JSON（便于 Jupyter/管道）；与 HTTP 研究验证 API 同源。完整 MCP server 可后续薄包同一套函数，不另开产品面。
+7. **CLI / MCP 外带**：`stockresearch research {timeline,hypothesis,compare,export}` 输出 JSON（便于 Jupyter/管道）；与 HTTP 研究验证 API 同源。**V10.26 决定：完整 MCP server 不做**（薄包同一套函数的收益低于维护成本，CLI 已覆盖外带场景）；7c 验收相应收窄为 CLI 覆盖 export + timeline + hypothesis。
 
 **产品验收（分波）**：7a 同标的 ≥2 份报告可见时间线且可挂事后收益；假设预设 > 动量四条；因子缺数不填默认分位。7b 缺口可追问补跑；自选雷达有 ≥1 条规则进 Action Center。7c research 模式可见配置偏差；CLI/MCP 至少覆盖 export + timeline + hypothesis。
 
@@ -474,6 +478,7 @@ cd desktop && npm install && npm run tauri dev
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **V10.26** | 2026-08-07 | 产品收敛决策：①**因子条默认折叠**——减少专业术语对普通用户的出现频率，点击展开才见数值因子与同向句（§四/§4.1 验收同步改）；②**通知中心替代邮件**——推送收敛为浏览器 Notification + 应用内告警历史（§七），P2 邮件/P3 短信/飞书一律不做；③**MCP server 不做**——CLI 已覆盖外带（Phase 7c），验收收窄；④新增**本地使用统计埋点**（localStorage 计数，不上传），两周周期驱动砍/留决策；⑤P0 计划：告警历史/通知中心 + 数据一键导出备份 |
 | **V10.25** | 2026-08-07 | 质量加固波次：①修复 plan_execute 提示词 JSON 大括号未转义导致的必现 KeyError（补端到端测试）；②修复财务 indicator 回退源把最早一期当最新读取（按报告期排序 + 序列统一 new→old）；③修复沪市融资融券 `total_balance` 元/股单位混加（改用 `融券余量金额`）；④调度器墙钟逻辑统一 `Asia/Shanghai`（价格告警/简报/日线仓），修复非中国时区主机盘中不触发；⑤研究/行业/风控流统一 `api/sse.py` 心跳封装 + 客户端断开 finally 取消 pump 任务；⑥接线审计——`execution_preference=auto/preset` 复活 `resolve_execution_mode` 路由、research 模式辩论默认开（§二契约）、市场/行业流接入 `analysis_depth` 预算、研报缓存命中走用户输出样式设置；⑦前端 SSE 错误透传服务端 detail + `MarkdownContent` memo 化；⑧quote 后台任务引用保留防 GC；⑨清死代码（8 个未用 api 方法/copilotHeight 死路径/`/api/v1` 索引改动态）；⑩新增 `tests/contracts/` 契约测试层 + `scripts/find_dead_css.py` 死代码扫描 |
 | **V10.24** | 2026-08-04 | 界面简化（对标 Google Finance）：①顶部栏压缩——移除 token 用量/数据源图标，指数条单行紧凑化（去掉北向/涨跌家数 meta）；②左侧栏——行业分布默认折叠，窄列表为默认（宽 360 < 480 阈值）；③新手首页——板块涨跌/行动中心默认折叠，主焦点（驾驶舱/引导横幅）优先；④chrome 紧凑化（间距/高度收窄，清理 `ticker-inline-meta` 死 CSS） |
 | **V10.23** | 2026-08-04 | 普通用户化收口 + 驾驶舱补强 + Phase 9a 落地：①持仓白话解读——驾驶舱今日关注白话（方向 + 主要贡献标的 top2）；②持仓归因——`portfolio_performance` 归因（区间涨幅 × 平均持仓权重），驾驶舱归因表格；③风险追踪——`GET /risk/checkups/history` 按日聚合告警数与严重级分布（red/critical→高、warning→中、yellow→低），RiskPanel 体检历史列表（含与上次告警数 delta）+ 告警「下一步：问 AI 怎么办」跳 Copilot；④事件日历倒计时（今天/3 天内/N 天后）；⑤决策日志事后核对——驾驶舱研报时间线事后核对（horizons 天数/收益率 + 「查看复盘」跳转）；⑥Phase 9a 水平参考线——后端 `detect_levels`（fractal pivots 分档触碰计数）+ 前端 `detectLevels` 同参对齐 + StockChart 支撑/压力实线渲染 + OverlaysCard level 展示（修复 resistance 误显）+ `ChartOverlaySet` 共用 schema（kind=level）+ 可视区间重算防抖 |

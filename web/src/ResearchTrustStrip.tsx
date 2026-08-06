@@ -58,8 +58,10 @@ export function ResearchTrustStrip({
     .filter((g, i, arr) => arr.indexOf(g) === i)
     .slice(0, 4);
   const evidence = collectEvidence(report, compact ? 2 : 3);
-  const expanded = Boolean(report.factors_expanded) || report.analysis_depth !== "standard";
-  const factorLimit = compact ? (expanded ? 5 : 3) : expanded ? 8 : 4;
+  // V10.26：因子默认折叠——无论深度档，信任条只显示最少数量因子 chips，
+  // 完整数值因子在研报详情「数值因子」折叠块中查看。
+  const expanded = false;
+  const factorLimit = compact ? 3 : 4;
   const factors = (report.factors ?? []).slice(0, factorLimit);
   const provenance = report.bars_provenance;
   const depth = report.analysis_depth ?? "standard";

@@ -4,6 +4,8 @@ import type { AppTheme } from "../themeSettings";
 import type { ModeSettings, ReadingMode } from "../modeSettings";
 import { useI18n } from "../i18n";
 import { UsageStatsBlock } from "./UsageStatsBlock";
+import { UsageEventsBlock } from "./UsageEventsBlock";
+import { BackupBlock } from "./BackupBlock";
 
 interface GeneralSettingsTabProps {
   modeSettings: ModeSettings;
@@ -154,6 +156,8 @@ export function GeneralSettingsTab({
       </div>
 
       <UsageStatsBlock />
+      <UsageEventsBlock />
+      <BackupBlock />
     </>
   );
 }

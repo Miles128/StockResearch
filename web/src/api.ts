@@ -460,6 +460,7 @@ export const api = {
       method: "DELETE",
     }),
   demoStatus: () => request<{ demo: boolean }>("/portfolio/demo/status"),
+  exportUserData: () => request<Record<string, unknown>>("/portfolio/export"),
   dailyActions: () => request<DailyActionCenter>("/action-center/daily"),
   watchlist: () => request<WatchlistItem[]>("/portfolio/watchlist"),
   addWatchlist: (payload: { symbol: string; name: string }) =>

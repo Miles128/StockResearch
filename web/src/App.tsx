@@ -9,6 +9,7 @@ import { buildKnownSymbols } from "./copilotFocusSync";
 import { ListsSidebar } from "./ListsSidebar";
 import { StockFocusView } from "./StockFocusView";
 import { CopilotColumn } from "./app/CopilotColumn";
+import { EVENT_KEYS, recordEvent } from "./usageTracking";
 import { GlossaryProvider } from "./GlossaryContext";
 import { useAppBootstrap } from "./hooks/useAppBootstrap";
 import { useChatExecution } from "./hooks/useChatExecution";
@@ -564,7 +565,10 @@ export default function App() {
               onSelectWatchlist={selectWatchlistItem}
               onAddWatchlist={addWatchlistItem}
               onRemoveWatchlist={(id) => void removeWatchlistItem(id)}
-              onBatchResearch={() => setBatchResearchOpen(true)}
+              onBatchResearch={() => {
+                recordEvent(EVENT_KEYS.batchResearch);
+                setBatchResearchOpen(true);
+              }}
               onListsResizeStart={startListsResize}
               listsWidth={layoutSettings.listsWidth}
             />

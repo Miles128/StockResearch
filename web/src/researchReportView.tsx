@@ -10,6 +10,7 @@ import { DeepAnalysisBlock } from "./DeepAnalysisBlock";
 import { DimensionCards, dimensionItemsFromResults } from "./DimensionCards";
 import { ResearchTrustStrip } from "./ResearchTrustStrip";
 import { useI18n } from "./i18n";
+import { EVENT_KEYS, recordEvent } from "./usageTracking";
 import { loadModeSettings } from "./modeSettings";
 import { localizeAgentDisplay } from "./uiLabels";
 
@@ -365,16 +366,17 @@ export function ResearchReportDetails({
           displayReport.deep_analysis?.pricing ||
           displayReport.deep_analysis?.thesis) && <DeepAnalysisBlock report={displayReport} />}
       {showDebate && displayReport.debate && (
-        <details className="research-debate-details">
+        <details
+          className="research-debate-details"
+          onToggle={() => recordEvent(EVENT_KEYS.debateExpand)}
+        >
           <summary>{t("card.debateSection")}</summary>
           <ResearchDebateBlock debate={displayReport.debate} labels={debateLabels} />
         </details>
       )}
       <ResearchNumericFactorsBlock
         factors={displayReport.factors}
-        expanded={
-          Boolean(displayReport.factors_expanded) || displayReport.analysis_depth !== "standard"
-        }
+        expanded={false}
         alignmentNote={displayReport.factor_alignment_note}
         t={t}
       />

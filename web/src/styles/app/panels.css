@@ -4329,3 +4329,30 @@
   margin: 0;
   display: inline;
 }
+
+/* Feature usage stats (settings) */
+.usage-events-list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.usage-event-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.usage-event-row:nth-child(odd) {
+  background: var(--hover);
+}
+.usage-event-label {
+  color: var(--text-primary);
+}
+.usage-event-count {
+  font-weight: 600;
+  color: var(--text-secondary);
+}

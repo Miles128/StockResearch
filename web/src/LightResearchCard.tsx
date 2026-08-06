@@ -3,6 +3,7 @@ import { api, type ResearchReport } from "./api";
 import { DeepAnalysisBlock } from "./DeepAnalysisBlock";
 import { DimensionCards, dimensionItemsFromResults } from "./DimensionCards";
 import { HypothesisVerifyButton } from "./HypothesisVerifyButton";
+import { EVENT_KEYS, recordEvent } from "./usageTracking";
 import { useI18n } from "./i18n";
 import type { AppMode } from "./modeSettings";
 import { MarkdownContent } from "./MarkdownContent";
@@ -53,6 +54,7 @@ export function LightResearchCard({
   async function handleDownload(kind: "md" | "pdf" | "json" | "csv") {
     setDownloadError(null);
     setDownloading(kind);
+    recordEvent(EVENT_KEYS.exportReport);
     try {
       if (kind === "json") {
         await api.exportReportJson(report);
