@@ -216,7 +216,9 @@ class SkillRunner:
         if not self._holdings:
             return SkillRunResult(summary="暂无持仓，无法做风控体检。", partial=True)
         payload: dict[str, object] | None = None
-        async for event in run_risk_checkup_stream(self._holdings, llm=self._llm):
+        async for event in run_risk_checkup_stream(
+            self._holdings, llm=self._llm, mode_settings=self._settings
+        ):
             if event.get("type") == "done":
                 raw = event.get("result")
                 if isinstance(raw, dict):
@@ -296,11 +298,19 @@ class SkillRunner:
     async def _run_market_research(self, run_id: str, args: dict[str, Any]) -> SkillRunResult:
         query = str(args.get("query") or args.get("context") or "A股市场").strip()
         with_debate = bool(args.get("with_debate", self._debate_default))
+        from stockresearch.agents.research.budget import resolve_analysis_depth
+
+        depth = resolve_analysis_depth(
+            explicit=args.get("analysis_depth"),
+            settings_depth=self._settings.analysis_depth,
+        )
         payload: dict[str, object] | None = None
         async for event in run_market_research_stream(
             query,
             llm=self._llm,
             with_debate=with_debate,
+            mode_settings=self._settings,
+            analysis_depth=depth,
         ):
             if event.get("type") == "done":
                 raw = event.get("result")
@@ -324,6 +334,12 @@ class SkillRunner:
             sector = extract_industry_sector(str(args.get("query", "")), sectors) or "行业"
         query = str(args.get("query") or f"{sector}行业研究").strip()
         with_debate = bool(args.get("with_debate", self._debate_default))
+        from stockresearch.agents.research.budget import resolve_analysis_depth
+
+        depth = resolve_analysis_depth(
+            explicit=args.get("analysis_depth"),
+            settings_depth=self._settings.analysis_depth,
+        )
         payload: dict[str, object] | None = None
         async for event in run_industry_research_stream(
             self._db,
@@ -332,6 +348,8 @@ class SkillRunner:
             query,
             self._llm,
             with_debate=with_debate,
+            mode_settings=self._settings,
+            analysis_depth=depth,
         ):
             if event.get("type") == "done":
                 raw = event.get("result")

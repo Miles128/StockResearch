@@ -81,7 +81,11 @@ describe("api 重试策略", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(
-      api.addHolding({ symbol: "600519", name: "贵州茅台", cost_price: 1800, lots: 1 }),
+      api.applyHoldingTransactions({
+        transactions: [
+          { side: "buy", symbol: "600519", name: "贵州茅台", cost_price: 1800, lots: 1 },
+        ],
+      }),
     ).rejects.toThrow("server error");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -109,11 +113,10 @@ describe("api 超时中止", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const promise = api.addHolding({
-      symbol: "600519",
-      name: "贵州茅台",
-      cost_price: 1800,
-      lots: 1,
+    const promise = api.applyHoldingTransactions({
+      transactions: [
+        { side: "buy", symbol: "600519", name: "贵州茅台", cost_price: 1800, lots: 1 },
+      ],
     });
     // 提前附加处理器，避免 fake timers 推进期间被上报为 unhandled rejection
     promise.catch(() => {});
@@ -199,15 +202,15 @@ describe("api 请求组装", () => {
     const fetchMock = vi.fn().mockResolvedValue(mockResp(200, { id: 1 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await api.addHolding({ symbol: "600519", name: "贵州茅台", cost_price: 1800, lots: 1 });
+    await api.applyHoldingTransactions({
+      transactions: [
+        { side: "buy", symbol: "600519", name: "贵州茅台", cost_price: 1800, lots: 1 },
+      ],
+    });
 
     const init = fetchMock.mock.calls[0][1] as RequestInit;
     expect(init.method).toBe("POST");
-    expect(JSON.parse(String(init.body))).toEqual({
-      symbol: "600519",
-      name: "贵州茅台",
-      cost_price: 1800,
-      lots: 1,
-    });
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(body.transactions).toHaveLength(1);
   });
 });

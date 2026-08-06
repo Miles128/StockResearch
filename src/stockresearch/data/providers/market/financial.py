@@ -75,8 +75,17 @@ class FinancialDataProvider:
     def _from_indicator_df(self, df: Any) -> dict[str, object] | None:
         if df is None or getattr(df, "empty", True):
             return None
+        # AkShare indicator order is not guaranteed (oldest-first vs newest-first);
+        # sort by period so "latest" is always the most recent row regardless of source order.
+        frame = df.copy()
+        period_col = next((c for c in ("日期", "报告期", "年份") if c in frame.columns), None)
+        if period_col is not None:
+            try:
+                frame = frame.sort_values(period_col, ascending=True)
+            except (TypeError, ValueError):
+                pass
         series: list[dict[str, object]] = []
-        for _, row in df.head(8).iterrows():
+        for _, row in frame.tail(8).iterrows():
             period = str(row.get("日期", row.get("报告期", row.get("年份", ""))))[:10]
             series.append(
                 {
@@ -88,7 +97,7 @@ class FinancialDataProvider:
                     "debt_ratio": self._optional_pct(row.get("资产负债率")),
                 }
             )
-        row = df.iloc[0]
+        row = frame.iloc[-1]
         gaps: list[str] = []
         if len(series) < 2:
             gaps.append("财务序列不足 2 期")
@@ -107,7 +116,7 @@ class FinancialDataProvider:
         return {
             **core,
             "goodwill_ratio": None,
-            "series": series,
+            "series": list(reversed(series)),  # newest-first to match THS path
             "partial": bool(gaps) or len(series) < 2,
             "gaps": gaps + ["商誉占比不可用"],
             "source": "akshare_indicator",

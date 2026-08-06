@@ -17,13 +17,14 @@ from stockresearch.agents.market.dimensions import (
     prepare_technical,
 )
 from stockresearch.agents.research.battle import iter_battle_events
+from stockresearch.agents.research.budget import resolve_analysis_depth
 from stockresearch.agents.research.debate import summarize_situation
 from stockresearch.agents.research.report_builder import build_research_report
 from stockresearch.agents.stream_typewriter import (
     iter_queue_merged_events,
     pump_dimension_llm_stream,
 )
-from stockresearch.agents.voice import DEBATE_VOICE
+from stockresearch.agents.voice import bear_system, bull_system
 from stockresearch.core.schemas import (
     DebateResult,
     DimensionResult,
@@ -39,8 +40,8 @@ from stockresearch.services.macro_snapshot import format_macro_snapshot
 from stockresearch.services.text_factor import build_news_text_factor, fetch_market_news_snippets
 from stockresearch.utils.llm import LLMClient, get_llm_client
 
-_BULL_SYSTEM = f"你是 A 股大盘看多分析师（Bull Agent）。{DEBATE_VOICE} 基于宏观/行业/技术/情绪四维，阐述看多逻辑。"
-_BEAR_SYSTEM = f"你是 A 股大盘看空分析师（Bear Agent）。{DEBATE_VOICE} 指出下行风险与逻辑漏洞。"
+_BULL_SYSTEM = bull_system("A 股大盘", "基于宏观/行业/技术/情绪四维，阐述看多逻辑。")
+_BEAR_SYSTEM = bear_system("A 股大盘", "指出下行风险与逻辑漏洞。")
 
 _AGENT_LABELS: dict[str, str] = {
     "macro": "宏观面",
@@ -63,9 +64,14 @@ async def run_market_research_stream(
     *,
     with_debate: bool = True,
     mode_settings: ModeSettingsOut | None = None,
+    analysis_depth: str | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     """Market deep research with the same bull/bear + judge flow as stock research."""
     client = llm or get_llm_client()
+    depth = resolve_analysis_depth(
+        explicit=analysis_depth,
+        settings_depth=mode_settings.analysis_depth if mode_settings else None,
+    )
     provider = MarketOverviewProvider()
     global_provider = GlobalMarketsProvider()
     overview, global_rows = await asyncio.gather(
@@ -120,6 +126,7 @@ async def run_market_research_stream(
             None,
             news_text_factor=news_text_factor,
             dimension_labels=_AGENT_LABELS,
+            analysis_depth=depth,
         )
         yield status_event("status.market.research.report_done")
         yield {"type": "done", "result": report.model_dump(mode="json")}
@@ -156,6 +163,7 @@ async def run_market_research_stream(
         debate,
         news_text_factor=news_text_factor,
         dimension_labels=_AGENT_LABELS,
+        analysis_depth=depth,
     )
 
     yield status_event("status.market.research.report_done")

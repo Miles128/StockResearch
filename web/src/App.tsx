@@ -8,8 +8,7 @@ import { activeFocusContext, removeFocusTab, upsertFocusTab, type FocusTab } fro
 import { buildKnownSymbols } from "./copilotFocusSync";
 import { ListsSidebar } from "./ListsSidebar";
 import { StockFocusView } from "./StockFocusView";
-import { ChatPanel } from "./ChatPanel";
-import { CopilotPanel } from "./CopilotPanel";
+import { CopilotColumn } from "./app/CopilotColumn";
 import { GlossaryProvider } from "./GlossaryContext";
 import { useAppBootstrap } from "./hooks/useAppBootstrap";
 import { useChatExecution } from "./hooks/useChatExecution";
@@ -223,6 +222,17 @@ export default function App() {
     confirmChatStock,
     openCopilotQuery,
   } = chat;
+
+  const dismissPractice = useCallback(() => {
+    localStorage.setItem("advisor_practice_done", "1");
+    setPracticeDismissed(true);
+  }, []);
+  const onPracticeStart = useCallback(() => {
+    localStorage.setItem("advisor_practice_done", "1");
+    setPracticeDismissed(true);
+    startChatQuery("帮我分析一下贵州茅台（600519），用大白话讲清楚结论、原因和风险");
+  }, [startChatQuery]);
+  const collapseCopilot = useCallback(() => setCopilotOpen(false), []);
 
   const chatExamples = useChatExamples(t, locale, centerTab);
   const portfolioSummary = useMemo(() => computePortfolioSummary(holdings), [holdings]);
@@ -702,54 +712,35 @@ export default function App() {
               <IconMessages />
             </button>
           )}
-          {copilotOpen && (
-            <aside className="copilot-column">
-              <CopilotPanel
-                open
-                threads={copilotThreads}
-                activeThreadId={activeThreadId}
-                userContext={pageContext}
-                onCollapsePanel={() => setCopilotOpen(false)}
-                onNewThread={newCopilotThread}
-                onSelectThread={switchThread}
-                onDeleteThread={deleteThread}
-                onResizeStart={startCopilotResize}
-              >
-                {modeSettings.mode === "advisor" &&
-                  modeSettings.onboarded &&
-                  !practiceDismissed && (
-                    <PracticeBanner
-                      onStart={() => {
-                        localStorage.setItem("advisor_practice_done", "1");
-                        setPracticeDismissed(true);
-                        startChatQuery(
-                          "帮我分析一下贵州茅台（600519），用大白话讲清楚结论、原因和风险",
-                        );
-                      }}
-                      onDismiss={() => {
-                        localStorage.setItem("advisor_practice_done", "1");
-                        setPracticeDismissed(true);
-                      }}
-                    />
-                  )}
-                <ChatPanel
-                  messages={messages}
-                  loading={chatLoading}
-                  statusMsg={statusMsg}
-                  chatStream={chatStream}
-                  input={input}
-                  onInputChange={setInput}
-                  chatExamples={chatExamples}
-                  holdings={holdings}
-                  appMode={modeSettings.mode}
-                  onStartQuery={(query) => startChatQuery(query)}
-                  onSend={sendChat}
-                  onAnalyzeHolding={analyzeHolding}
-                  onConfirmStock={confirmChatStock}
-                />
-              </CopilotPanel>
-            </aside>
-          )}
+          <CopilotColumn
+            open={copilotOpen}
+            threads={copilotThreads}
+            activeThreadId={activeThreadId}
+            messages={messages}
+            chatStream={chatStream}
+            input={input}
+            chatLoading={chatLoading}
+            statusMsg={statusMsg}
+            chatExamples={chatExamples}
+            holdings={holdings}
+            appMode={modeSettings.mode}
+            pageContext={pageContext}
+            banner={
+              modeSettings.mode === "advisor" && modeSettings.onboarded && !practiceDismissed ? (
+                <PracticeBanner onStart={onPracticeStart} onDismiss={dismissPractice} />
+              ) : undefined
+            }
+            onCollapsePanel={collapseCopilot}
+            onNewThread={newCopilotThread}
+            onSelectThread={switchThread}
+            onDeleteThread={deleteThread}
+            onResizeStart={startCopilotResize}
+            onInputChange={setInput}
+            onStartQuery={startChatQuery}
+            onSend={sendChat}
+            onAnalyzeHolding={analyzeHolding}
+            onConfirmStock={confirmChatStock}
+          />
         </div>
       </div>
     </GlossaryProvider>

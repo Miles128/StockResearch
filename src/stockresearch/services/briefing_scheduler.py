@@ -1,7 +1,8 @@
 """Scheduled premarket/intraday/postmarket briefing generation."""
 
 import logging
-from datetime import date, datetime, time
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -26,6 +27,9 @@ _INTRADAY_HOUR = 11
 _INTRADAY_MINUTE = 35
 _POSTMARKET_HOUR = 15
 _POSTMARKET_MINUTE = 35
+# Cron triggers run in Asia/Shanghai; trading-day and "today" bounds must use
+# the same zone or they drift on non-CN hosts.
+_TZ = ZoneInfo("Asia/Shanghai")
 
 
 class BriefingScheduler:
@@ -109,7 +113,8 @@ class BriefingScheduler:
         if not self.enabled:
             logger.debug("Briefing scheduler disabled; skipping %s", kind)
             return
-        today = date.today()
+        now = datetime.now(_TZ)
+        today = now.date()
         try:
             if not is_a_share_trading_day(today):
                 logger.info("Skipping %s briefing: %s is not an A-share trading day", kind, today)
@@ -142,7 +147,8 @@ class BriefingScheduler:
             logger.debug("Briefing auto disabled for user %s; skipping %s", user_id, kind)
             return
         normalized = normalize_briefing_kind(kind)
-        today = date.today()
+        now = datetime.now(_TZ)
+        today = now.date()
         start = datetime.combine(today, time.min)
         end = datetime.combine(today, time.max)
         aliases = briefing_kind_aliases(normalized)

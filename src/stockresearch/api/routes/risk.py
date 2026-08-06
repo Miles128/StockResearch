@@ -1,6 +1,5 @@
 """Risk routes."""
 
-import json
 from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Body, Depends, Query
@@ -12,6 +11,7 @@ from stockresearch.agents.risk.engine import run_risk_checkup
 from stockresearch.agents.risk.stream import run_risk_checkup_stream
 from stockresearch.api.deps import get_current_user
 from stockresearch.api.llm_deps import llm_from_headers
+from stockresearch.api.sse import sse_response
 from stockresearch.core.output_style import (
     get_custom_glossary,
     get_enable_glossary,
@@ -149,7 +149,7 @@ async def risk_checkup_stream(
     holdings = db.query(Holding).filter(Holding.user_id == user.id).all()
     settings = get_mode_settings(db, user.id)
 
-    async def event_generator() -> AsyncIterator[str]:
+    async def event_generator() -> AsyncIterator[dict[str, object]]:
         final: RiskCheckupOut | None = None
         with output_style_scope(
             reading_mode=payload.reading_mode,
@@ -165,8 +165,8 @@ async def risk_checkup_stream(
                     payload_data = event.get("result")
                     if isinstance(payload_data, dict):
                         final = RiskCheckupOut.model_validate(payload_data)
-                yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
+                yield event
         if final is not None:
             _persist_alerts(db, user.id, final)
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return sse_response(event_generator(), keep_alive_seconds=15.0)

@@ -38,19 +38,6 @@
   font-weight: 400;
 }
 
-.chrome-nav {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin-left: 10px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.chrome-nav::-webkit-scrollbar {
-  display: none;
-}
-
 .chrome-nav-btn,
 .canvas-tool-btn {
   min-height: 28px;
@@ -164,12 +151,6 @@
   align-items: baseline;
   gap: 10px;
   min-width: 0;
-}
-
-.bbg-logo {
-  font-size: 16.25px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
 }
 
 .bbg-tag {

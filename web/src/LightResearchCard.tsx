@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api, type ResearchReport } from "./api";
 import { DeepAnalysisBlock } from "./DeepAnalysisBlock";
 import { DimensionCards, dimensionItemsFromResults } from "./DimensionCards";
+import { HypothesisVerifyButton } from "./HypothesisVerifyButton";
 import { useI18n } from "./i18n";
 import type { AppMode } from "./modeSettings";
 import { MarkdownContent } from "./MarkdownContent";
@@ -212,6 +213,11 @@ export function LightResearchCard({
           >
             {refilling ? t("card.refilling") : t("card.gapCloseRerun")}
           </button>
+        </div>
+      )}
+      {!brief && (
+        <div className="light-research-verify-row">
+          <HypothesisVerifyButton symbol={report.symbol} name={report.name} />
         </div>
       )}
       {refillError && <p className="error light-research-gaps">{refillError}</p>}

@@ -35,6 +35,10 @@ class Orchestrator:
         execution_preference: str | None = None,
     ) -> ChatResponse:
         sid = session_id or str(uuid.uuid4())
+        # Reset BEFORE prepare_chat_turn / prepare_chat_history: both may call the
+        # LLM (intent classification / history compression) and must be counted —
+        # mirrors the stream path so sync/stream usage accounting agrees.
+        reset_usage(model=str(getattr(self._llm, "_model", "") or ""))
         holdings = await asyncio.to_thread(
             lambda: self._db.query(Holding).filter(Holding.user_id == user_id).all()
         )
@@ -52,7 +56,6 @@ class Orchestrator:
 
         debate_on = settings.enable_debate if enable_debate is None else bool(enable_debate)
 
-        reset_usage(model=str(getattr(self._llm, "_model", "") or ""))
         result = await execute_chat_turn(
             db=self._db,
             user_id=user_id,

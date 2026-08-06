@@ -15,6 +15,7 @@ import {
 import { normalizeStreamEvent } from "../streamI18n";
 import type { FocusTab } from "../focusTabs";
 import { formatBriefingMarkdown, localizeBriefing } from "../uiLabels";
+import { recordLlmUsage } from "../llmUsageStats";
 
 function formatChatRequestError(err: unknown, t: (key: string) => string): string {
   const message = String(err);
@@ -146,6 +147,7 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
         }
         {
           setSessionId(resp.session_id, threadId);
+          recordLlmUsage(resp.llm_usage);
           processSnapshot = finalizeStreamState(
             { ...processSnapshot, streamStatus: t("chat.analysisDone") },
             t("chat.analysisDone"),
@@ -189,6 +191,7 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
           setStatusMsg(t("chat.streamFailed"));
           const resp = await api.chat(query, activeSessionId, resolvedOptions);
           setSessionId(resp.session_id, threadId);
+          recordLlmUsage(resp.llm_usage);
           appendMessages(
             (m) => [
               ...m,

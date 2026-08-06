@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
@@ -208,7 +208,7 @@ async def get_bars_for_symbol(symbol: str, days: int = 90) -> list[dict[str, flo
 
 def recent_research_symbols(db: Session, *, days: int = 14, limit: int = 30) -> set[str]:
     """Symbols from recent research reports (warm-universe expansion)."""
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now(UTC) - timedelta(days=days)
     rows = (
         db.query(ResearchReport.symbol)
         .filter(ResearchReport.created_at >= cutoff)

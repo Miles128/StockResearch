@@ -13,6 +13,7 @@ import {
 import { useI18n } from "./i18n";
 import type { ListsLayoutMode } from "./layoutTypes";
 import { LISTS_DETAIL_WIDTH } from "./layoutSettings";
+import { BriefingHistoryPanel } from "./BriefingHistoryPanel";
 import type { PortfolioSummary, SectorWeight } from "./portfolioHelpers";
 import { loadTheme } from "./themeSettings";
 import { CollapsibleSection } from "./CollapsibleSection";
@@ -557,6 +558,8 @@ export function ListsSidebar({
           />
         )}
       </section>
+
+      <BriefingHistoryPanel />
     </aside>
   );
 }

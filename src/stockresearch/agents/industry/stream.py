@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncIterator
+from typing import Literal
 
 from sqlalchemy.orm import Session
 
@@ -20,13 +21,14 @@ from stockresearch.agents.industry.dimensions import (
 )
 from stockresearch.agents.industry.leaders import iter_leader_analysis_events
 from stockresearch.agents.research.battle import iter_battle_events
+from stockresearch.agents.research.budget import resolve_analysis_depth
 from stockresearch.agents.research.debate import summarize_situation
 from stockresearch.agents.research.report_builder import build_research_report
 from stockresearch.agents.stream_typewriter import (
     iter_queue_merged_events,
     pump_dimension_llm_stream,
 )
-from stockresearch.agents.voice import DEBATE_VOICE, JUDGE_VOICE
+from stockresearch.agents.voice import bear_system, bull_system
 from stockresearch.core.schemas import (
     DebateResult,
     DimensionResult,
@@ -40,10 +42,8 @@ from stockresearch.i18n.status_events import status_event
 from stockresearch.services.text_factor import build_news_text_factor, news_from_title
 from stockresearch.utils.llm import LLMClient, get_llm_client
 
-_BULL_SYSTEM = f"你是 A 股板块看多分析师。{DEBATE_VOICE}"
-_BEAR_SYSTEM = f"你是 A 股板块看空分析师。{DEBATE_VOICE}"
-_JUDGE_SYSTEM = f"""你是板块投研裁判。{JUDGE_VOICE} 只输出 JSON，禁止 markdown。
-{{"bias":"偏多|偏空|中性","summary":"结论，2句内","reason":"为何如此判，2句内","divergence":"分歧大|分歧中等|分歧小","divergence_point":"分歧焦点，1句"}}"""
+_BULL_SYSTEM = bull_system("A 股板块")
+_BEAR_SYSTEM = bear_system("A 股板块")
 
 _AGENT_LABELS: dict[str, str] = {
     "policy": "政策舆情",
@@ -106,6 +106,7 @@ def _build_report(
     leaders: list[SectorLeaderBrief],
     *,
     news_text_factor: str | None = None,
+    analysis_depth: Literal["standard", "comprehensive", "deep"] = "standard",
 ) -> ResearchReportOut:
     board_code = "000000"
     if leaders:
@@ -125,6 +126,7 @@ def _build_report(
         sector=sector,
         leaders=leaders,
         summary_prefix=summary_prefix,
+        analysis_depth=analysis_depth,
     )
 
 
@@ -137,8 +139,13 @@ async def run_industry_research_stream(
     *,
     with_debate: bool = False,
     mode_settings: ModeSettingsOut | None = None,
+    analysis_depth: str | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     client = llm or get_llm_client()
+    depth = resolve_analysis_depth(
+        explicit=analysis_depth,
+        settings_depth=mode_settings.analysis_depth if mode_settings else None,
+    )
     ctx = await _load_context(db, user_id, sector, query, client)
 
     yield status_event("status.industry.start", sector=sector)
@@ -159,9 +166,17 @@ async def run_industry_research_stream(
         )
         for agent_id, agent_name, prepare, build in _DIMENSION_JOBS
     ]
-    async for event in iter_queue_merged_events(queue, len(pumps)):
-        yield event  # type: ignore[misc]
-    await asyncio.gather(*pumps)
+    try:
+        async for event in iter_queue_merged_events(queue, len(pumps)):
+            yield event  # type: ignore[misc]
+        await asyncio.gather(*pumps)
+    finally:
+        # Client disconnect: cancel pump tasks so LLM streams stop running on.
+        for task in pumps:
+            if not task.done():
+                task.cancel()
+        if pumps:
+            await asyncio.gather(*pumps, return_exceptions=True)
 
     yield status_event("status.industry.leaders")
     leader_briefs: list[SectorLeaderBrief] = []
@@ -187,7 +202,6 @@ async def run_industry_research_stream(
             situation=situation,
             dimensions=dimensions,
             agent_labels=_AGENT_LABELS,
-            judge_system=_JUDGE_SYSTEM,
             judge_stream_id="sector_judge",
         ):
             if event.get("type") == "battle_result":
@@ -198,7 +212,12 @@ async def run_industry_research_stream(
     news_snippets = [news_from_title(title) for title in ctx.news_snippets]
     news_text_factor = build_news_text_factor(news_snippets, subject=f"「{sector}」板块")
     report = _build_report(
-        sector, dimensions, debate, leader_briefs, news_text_factor=news_text_factor
+        sector,
+        dimensions,
+        debate,
+        leader_briefs,
+        news_text_factor=news_text_factor,
+        analysis_depth=depth,
     )
 
     yield status_event("status.industry.report_done")

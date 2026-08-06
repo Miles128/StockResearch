@@ -1,6 +1,5 @@
 """Chat routes."""
 
-import json
 from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends, Header, Request
@@ -17,6 +16,7 @@ from stockresearch.api.routes.research import (
     extract_reports_from_cards,
     persist_report,
 )
+from stockresearch.api.sse import sse_response
 from stockresearch.core.exceptions import NotFoundError
 from stockresearch.core.output_style import output_style_scope
 from stockresearch.core.schemas import ChatRequest, ChatResponse, StreamCheckpointOut
@@ -103,55 +103,42 @@ async def chat_stream(
         else mode_settings.enable_glossary
     )
 
-    async def event_generator() -> AsyncIterator[str]:
-        import asyncio
-
-        async def _stream_with_keepalive():
-            with output_style_scope(
-                reading_mode=payload.reading_mode,
-                locale=payload.output_locale,
-                enable_glossary=glossary_on,
-                custom_glossary=mode_settings.custom_glossary,
+    async def event_generator() -> AsyncIterator[dict[str, object]]:
+        with output_style_scope(
+            reading_mode=payload.reading_mode,
+            locale=payload.output_locale,
+            enable_glossary=glossary_on,
+            custom_glossary=mode_settings.custom_glossary,
+        ):
+            async for event in run_chat_stream(
+                db,
+                user.id,
+                payload.message,
+                payload.session_id,
+                llm=llm,
+                enable_debate=payload.enable_debate,
+                user_context=payload.user_context,
+                mode_settings=mode_settings,
+                confirmed_symbol=payload.confirmed_symbol,
+                confirmed_name=payload.confirmed_name,
+                execution_preference=payload.execution_preference,
             ):
-                async for event in run_chat_stream(
-                    db,
-                    user.id,
-                    payload.message,
-                    payload.session_id,
-                    llm=llm,
-                    enable_debate=payload.enable_debate,
-                    user_context=payload.user_context,
-                    mode_settings=mode_settings,
-                    confirmed_symbol=payload.confirmed_symbol,
-                    confirmed_name=payload.confirmed_name,
-                    execution_preference=payload.execution_preference,
-                ):
-                    yield event
+                if event.get("type") == "done":
+                    response = event.get("response")
+                    if isinstance(response, dict):
+                        cards = response.get("cards", [])
+                        if isinstance(cards, list):
+                            id_by_symbol: dict[str, int] = {}
+                            for report in extract_reports_from_cards(cards):
+                                row = persist_report(db, user.id, report)
+                                id_by_symbol[report.symbol] = row.id
+                            if id_by_symbol:
+                                stamped = attach_report_ids_to_cards(cards, id_by_symbol)
+                                response = {**response, "cards": stamped}
+                                event = {**event, "response": response}
+                yield event
 
-        stream = _stream_with_keepalive()
-        next_deadline = asyncio.get_running_loop().time() + 15
-
-        async for event in stream:
-            if event.get("type") == "done":
-                response = event.get("response")
-                if isinstance(response, dict):
-                    cards = response.get("cards", [])
-                    if isinstance(cards, list):
-                        id_by_symbol: dict[str, int] = {}
-                        for report in extract_reports_from_cards(cards):
-                            row = persist_report(db, user.id, report)
-                            id_by_symbol[report.symbol] = row.id
-                        if id_by_symbol:
-                            stamped = attach_report_ids_to_cards(cards, id_by_symbol)
-                            response = {**response, "cards": stamped}
-                            event = {**event, "response": response}
-            yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
-            now = asyncio.get_running_loop().time()
-            if now >= next_deadline:
-                yield ": keep-alive\n\n"
-                next_deadline = now + 15
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return sse_response(event_generator(), keep_alive_seconds=15.0)
 
 
 @router.get("/checkpoint/{session_id}", response_model=StreamCheckpointOut)

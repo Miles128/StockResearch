@@ -50,6 +50,9 @@ if _db_url.startswith("sqlite") and _db_url != "sqlite://":
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA busy_timeout=30000")
+        # Enforce FK constraints (trades.report_id, user_preferences.user_id,
+        # report_plain_versions.report_id). SQLite default is OFF per connection.
+        cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
 
 

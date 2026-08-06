@@ -85,6 +85,20 @@ async def generate_portfolio_briefing(
         enable_glossary=settings.enable_glossary,
     ):
         briefing = await generate_briefing(db, user.id, normalized, llm=llm)
+        # 与 worker 调度路径一致落库，手动生成的简报同样进入历史（简报历史 UI 依赖）。
+        generated_at = briefing.generated_at
+        if generated_at.tzinfo:
+            generated_at = generated_at.replace(tzinfo=None)
+        record = BriefingRecord(
+            user_id=user.id,
+            kind=normalized,
+            title=briefing.title,
+            summary=briefing.summary,
+            sections=[{"title": s.title, "content": s.content} for s in briefing.sections],
+            generated_at=generated_at,
+        )
+        db.add(record)
+        db.commit()
         # 返回层词库标注（不污染 DB 原文）
         briefing.title = _mark_text(briefing.title)
         briefing.summary = _mark_text(briefing.summary)

@@ -191,9 +191,18 @@ async def run_research_stream(
         )
         for agent_id, agent_name, prepare, build in _DIMENSION_STREAM_JOBS
     ]
-    async for event in iter_queue_merged_events(queue, len(pumps)):
-        yield event  # type: ignore[misc]
-    await asyncio.gather(*pumps)
+    try:
+        async for event in iter_queue_merged_events(queue, len(pumps)):
+            yield event  # type: ignore[misc]
+        await asyncio.gather(*pumps)
+    finally:
+        # Client disconnect closes the generator mid-loop (GeneratorExit); cancel
+        # pump tasks so LLM streams and provider calls stop instead of running on.
+        for task in pumps:
+            if not task.done():
+                task.cancel()
+        if pumps:
+            await asyncio.gather(*pumps, return_exceptions=True)
 
     yield status_event("status.research.news_factor")
     news_snippets = await fetch_symbol_news_snippets(symbol, name)

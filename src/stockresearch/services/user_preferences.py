@@ -23,6 +23,11 @@ def _coerce_mode_settings(raw: object) -> ModeSettingsOut:
         from stockresearch.agents.research.budget import default_depth_for_mode
 
         data["analysis_depth"] = default_depth_for_mode(str(data.get("mode") or "advisor"))
+    # PRD §二：research 模式多空辩论默认开（未显式设置时），术语弹窗默认关
+    if str(data.get("mode") or "advisor") == "research":
+        data["enable_glossary"] = False
+        if "enable_debate" not in data:
+            data["enable_debate"] = True
     try:
         return ModeSettingsOut.model_validate(data)
     except Exception:

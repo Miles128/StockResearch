@@ -310,8 +310,10 @@ class ChipsDataProvider:
             row = stock_df.iloc[0]
             if symbol.startswith("6"):
                 financing = _as_float(row.get("融资余额"))
-                securities = _as_float(row.get("融券余量"))
-                total = financing + securities
+                # SSE detail reports 融券余量 in shares; use the yuan-valued column
+                # (融券余量金额) so the total keeps a single unit.
+                securities = _as_float(row.get("融券余量金额")) or _as_float(row.get("融券余额"))
+                total = _as_float(row.get("融资融券余额")) or financing + securities
             else:
                 financing = _as_float(row.get("融资余额"))
                 securities = _as_float(row.get("融券余额"))
@@ -377,7 +379,15 @@ class ChipsDataProvider:
                 "source": "akshare_lockup",
             }
         today = datetime.now(UTC).date()
-        upcoming = df[df["解禁时间"] >= today] if "解禁时间" in df.columns else df.iloc[0:0]
+        try:
+            upcoming = df[df["解禁时间"] >= today] if "解禁时间" in df.columns else df.iloc[0:0]
+        except TypeError:
+            # Column stored as strings ("YYYY-MM-DD") — compare as strings.
+            upcoming = (
+                df[df["解禁时间"].astype(str) >= today.isoformat()]
+                if "解禁时间" in df.columns
+                else df.iloc[0:0]
+            )
         if upcoming.empty:
             return {
                 "upcoming_count": 0,
@@ -385,11 +395,14 @@ class ChipsDataProvider:
                 "ratio_pct": 0.0,
                 "source": "akshare_lockup",
             }
-        row = upcoming.iloc[-1]
+        # "Next unlock" = the NEAREST future date; source row order is not
+        # guaranteed, so sort ascending before taking the first row.
+        upcoming = upcoming.sort_values("解禁时间", ascending=True)
+        row = upcoming.iloc[0]
         ratio_pct = float(row.get("占总市值比例", 0) or 0)
         return {
             "upcoming_count": len(upcoming),
-            "next_date": str(row.get("解禁时间", "")),
+            "next_date": str(row.get("解禁时间", ""))[:10],
             "ratio_pct": ratio_pct,
             "source": "akshare_lockup",
         }
