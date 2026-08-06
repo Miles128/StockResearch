@@ -6,6 +6,7 @@ import { useI18n } from "../i18n";
 import { UsageStatsBlock } from "./UsageStatsBlock";
 import { UsageEventsBlock } from "./UsageEventsBlock";
 import { BackupBlock } from "./BackupBlock";
+import { PredictionStatsBlock } from "./PredictionStatsBlock";
 
 interface GeneralSettingsTabProps {
   modeSettings: ModeSettings;
@@ -157,6 +158,7 @@ export function GeneralSettingsTab({
 
       <UsageStatsBlock />
       <UsageEventsBlock />
+      <PredictionStatsBlock />
       <BackupBlock />
     </>
   );

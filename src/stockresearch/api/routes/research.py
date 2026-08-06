@@ -118,6 +118,13 @@ def persist_report(db: Session, user_id: int, report: ResearchReportOut) -> Rese
     db.add(row)
     db.commit()
     db.refresh(row)
+    # Phase 12a 预测日记：研报事实层自动留存预测记录（幂等）。
+    try:
+        from stockresearch.services.prediction_journal import record_prediction_for_report
+
+        record_prediction_for_report(db, user_id, report, report_id=row.id)
+    except Exception:
+        logger.warning("prediction record failed for %s", report.symbol, exc_info=True)
     return row
 
 

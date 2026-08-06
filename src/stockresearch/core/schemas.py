@@ -1341,3 +1341,41 @@ class SentimentOut(BaseModel):
     label: str
     drivers: list[SentimentDriverOut]
     source: str
+
+
+# ── Phase 12a 预测日记 ────────────────────────────────────
+
+
+class PredictionOut(BaseModel):
+    id: int
+    symbol: str
+    name: str
+    direction: Literal["bullish", "bearish", "neutral"]
+    confidence: Literal["high", "medium", "low"]
+    horizon_days: int
+    claim: str
+    report_id: int | None = None
+    created_at: datetime
+    due_at: date
+    status: Literal["pending", "scored", "skipped"]
+    outcome: Literal["correct", "incorrect", "neutral"] | None = None
+    actual_return_pct: float | None = None
+    scored_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class PredictionCounts(BaseModel):
+    correct: int = 0
+    incorrect: int = 0
+    neutral: int = 0
+
+
+class PredictionStatsOut(BaseModel):
+    scored: int
+    correct: int
+    incorrect: int
+    neutral: int
+    hit_rate: float | None = None
+    by_confidence: dict[str, PredictionCounts] = Field(default_factory=dict)
+    by_direction: dict[str, PredictionCounts] = Field(default_factory=dict)

@@ -134,12 +134,42 @@ def _migration_005_report_plain_versions(conn: Connection) -> None:
         )
 
 
+def _migration_006_predictions(conn: Connection) -> None:
+    if not _table_exists(conn, "predictions"):
+        conn.execute(
+            text(
+                """CREATE TABLE predictions (
+                    id INTEGER PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id),
+                    symbol VARCHAR(6) NOT NULL,
+                    name VARCHAR(50) NOT NULL,
+                    direction VARCHAR(10) NOT NULL,
+                    confidence VARCHAR(10) NOT NULL,
+                    horizon_days INTEGER NOT NULL DEFAULT 20,
+                    claim TEXT NOT NULL DEFAULT '',
+                    report_id INTEGER REFERENCES research_reports(id),
+                    factor_snapshot JSON,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    due_at DATE NOT NULL,
+                    status VARCHAR(10) NOT NULL DEFAULT 'pending',
+                    outcome VARCHAR(10),
+                    actual_return_pct NUMERIC(10,4),
+                    scored_at DATETIME
+                )"""
+            )
+        )
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_predictions_due ON predictions (status, due_at)")
+        )
+
+
 _SQLITE_MIGRATIONS: list[tuple[int, str, Callable[[Connection], None]]] = [
     (1, "conversation_checkpoint", _migration_001_conversation_checkpoint),
     (2, "user_preferences", _migration_002_user_preferences),
     (3, "provider_cache", _migration_003_provider_cache),
     (4, "trades_report_link", _migration_004_trades_report_link),
     (5, "report_plain_versions", _migration_005_report_plain_versions),
+    (6, "predictions", _migration_006_predictions),
 ]
 
 

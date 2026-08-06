@@ -272,3 +272,34 @@ class DailyBar(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
+
+
+class Prediction(Base):
+    """预测日记（Phase 12a）：研报结论留存 → 到期评分 → 准确率统计。
+
+    direction/confidence 直接取自研报事实层（bias / composite_confidence），
+    不做二次推断；评分由 worker 按 due_at 到期后用 qfq 日线验证。
+    """
+
+    __tablename__ = "predictions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    symbol: Mapped[str] = mapped_column(String(6), index=True)
+    name: Mapped[str] = mapped_column(String(50))
+    direction: Mapped[str] = mapped_column(String(10))  # bullish | bearish | neutral
+    confidence: Mapped[str] = mapped_column(String(10))  # high | medium | low
+    horizon_days: Mapped[int] = mapped_column(Integer, default=20)
+    claim: Mapped[str] = mapped_column(Text, default="")
+    report_id: Mapped[int | None] = mapped_column(
+        ForeignKey("research_reports.id"), nullable=True, index=True
+    )
+    factor_snapshot: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+    due_at: Mapped[date] = mapped_column(Date, index=True)
+    status: Mapped[str] = mapped_column(String(10), default="pending")  # pending | scored | skipped
+    outcome: Mapped[str | None] = mapped_column(
+        String(10), nullable=True
+    )  # correct | incorrect | neutral
+    actual_return_pct: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
+    scored_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

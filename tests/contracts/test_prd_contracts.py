@@ -167,3 +167,24 @@ def test_chat_execute_wires_market_research_route() -> None:
     src = inspect.getsource(chat_execute._run_react_sync)
     assert "wants_market_research" in src
     assert "_run_market_research_sync" in src
+
+
+def test_predictions_persist_on_report_save() -> None:
+    """Phase 12a：研报持久化必须自动留存预测记录（幂等）。"""
+    import inspect
+
+    from stockresearch.api.routes import research
+
+    src = inspect.getsource(research.persist_report)
+    assert "record_prediction_for_report" in src
+
+
+def test_prediction_scoring_is_pit_disciplined() -> None:
+    """Phase 12a：评分只用预测之后的 qfq 日线（PIT）。"""
+    import inspect
+
+    from stockresearch.services import prediction_journal
+
+    src = inspect.getsource(prediction_journal._score_one)
+    assert "created_at" in src
+    assert "due_at > date.today()" in src

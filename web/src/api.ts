@@ -460,6 +460,14 @@ export const api = {
       method: "DELETE",
     }),
   demoStatus: () => request<{ demo: boolean }>("/portfolio/demo/status"),
+  predictionStats: () => request<PredictionStats>("/predictions/stats"),
+  predictions: (opts?: { status?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    if (opts?.limit) params.set("limit", String(opts.limit));
+    const qs = params.toString();
+    return request<Prediction[]>(`/predictions${qs ? `?${qs}` : ""}`);
+  },
   exportUserData: () => request<Record<string, unknown>>("/portfolio/export"),
   dailyActions: () => request<DailyActionCenter>("/action-center/daily"),
   watchlist: () => request<WatchlistItem[]>("/portfolio/watchlist"),
@@ -1383,6 +1391,39 @@ export interface IndexIntraday {
 export interface PriceAlertSettings {
   enabled: boolean;
   threshold_pct: number;
+}
+
+export interface Prediction {
+  id: number;
+  symbol: string;
+  name: string;
+  direction: "bullish" | "bearish" | "neutral";
+  confidence: "high" | "medium" | "low";
+  horizon_days: number;
+  claim: string;
+  report_id: number | null;
+  created_at: string;
+  due_at: string;
+  status: "pending" | "scored" | "skipped";
+  outcome: "correct" | "incorrect" | "neutral" | null;
+  actual_return_pct: number | null;
+  scored_at: string | null;
+}
+
+export interface PredictionCounts {
+  correct: number;
+  incorrect: number;
+  neutral: number;
+}
+
+export interface PredictionStats {
+  scored: number;
+  correct: number;
+  incorrect: number;
+  neutral: number;
+  hit_rate: number | null;
+  by_confidence: Record<string, PredictionCounts>;
+  by_direction: Record<string, PredictionCounts>;
 }
 
 export interface PriceAlertNotification {

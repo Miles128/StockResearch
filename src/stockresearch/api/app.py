@@ -27,6 +27,7 @@ from stockresearch.api.routes import (
     market,
     news,
     portfolio,
+    predictions,
     research,
     research_reports,
     risk,
@@ -202,6 +203,7 @@ def create_app() -> FastAPI:
     app.include_router(glossary.router, prefix="/api/v1")
     app.include_router(announcements.router, prefix="/api/v1")
     app.include_router(research_reports.router, prefix="/api/v1")
+    app.include_router(predictions.router, prefix="/api/v1")
 
     if _WEB_DIST.is_dir():
         # 拦截 /api 下的未匹配路径，返回 JSON 404 而非前端 index.html。
