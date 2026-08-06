@@ -11,12 +11,11 @@ from stockresearch.agents.research.debate import (
 )
 from stockresearch.agents.risk import messages as risk_msg
 from stockresearch.agents.risk.engine import (
-    _attach_daily_returns,
     _llm_correlation_analysis,
     _llm_market_assessment,
     _llm_scenario_analysis,
-    _metrics_to_out,
     _parse_rule_alerts,
+    compute_quant_metrics,
     run_risk_checkup,
 )
 from stockresearch.agents.risk.judge import (
@@ -24,12 +23,6 @@ from stockresearch.agents.risk.judge import (
     format_judge_display,
     parse_judge,
     portfolio_summary_text,
-)
-from stockresearch.agents.risk.metrics import (
-    HoldingQuote,
-    calculate_portfolio_metrics,
-    calculate_var,
-    run_stress_presets,
 )
 from stockresearch.agents.stream_typewriter import (
     AgentStreamItem,
@@ -41,11 +34,8 @@ from stockresearch.agents.voice import JUDGE_VOICE
 from stockresearch.core.schemas import (
     LLMRiskAnalysis,
     ModeSettingsOut,
-    PortfolioMetricsOut,
     RiskAlertOut,
     RiskCheckupOut,
-    StressResultOut,
-    VaRResultOut,
 )
 from stockresearch.data.providers.market import QuoteProvider
 from stockresearch.data.providers.market.common import Quote
@@ -122,48 +112,6 @@ def _context_block(
     return f"持仓明细（共 {len(holdings)} 只）：\n{detail}"
 
 
-async def _compute_quant_metrics(
-    holdings: list[Holding],
-    quotes: list,
-) -> tuple[PortfolioMetricsOut | None, VaRResultOut | None, list[StressResultOut]]:
-    if not holdings:
-        return None, None, []
-    try:
-        holding_quotes = [
-            HoldingQuote(
-                symbol=h.symbol,
-                name=h.name,
-                cost_price=h.float_cost_price,
-                current_price=q.price,
-                quantity=h.quantity,
-                sector=h.sector,
-                buy_date=str(h.buy_date) if h.buy_date else None,
-            )
-            for h, q in zip(holdings, quotes, strict=True)
-        ]
-        await _attach_daily_returns(holding_quotes)
-        pm = calculate_portfolio_metrics(holding_quotes)
-        metrics_out = _metrics_to_out(pm)
-        vr = calculate_var(holding_quotes)
-        var_out = VaRResultOut(
-            confidence_level=vr.confidence_level,
-            time_horizon_days=vr.time_horizon_days,
-            var_value=round(vr.var_value, 2),
-            var_pct=round(vr.var_pct, 4),
-            method=vr.method,
-            holdings_var=vr.holdings_var,
-            cvar_value=round(vr.cvar_value, 2),
-            cvar_pct=round(vr.cvar_pct, 4),
-        )
-        stress_out = [
-            StressResultOut.model_validate(item) for item in run_stress_presets(holding_quotes)
-        ]
-        return metrics_out, var_out, stress_out
-    except Exception:
-        logger.warning("Quantitative metrics calculation failed", exc_info=True)
-        return None, None, []
-
-
 async def run_risk_checkup_stream(
     holdings: list[Holding],
     llm: LLMClient | None = None,
@@ -226,7 +174,7 @@ async def run_risk_checkup_stream(
     ):
         yield event
 
-    metrics_out, var_out, stress_out = await _compute_quant_metrics(holdings, quotes)
+    metrics_out, var_out, stress_out = await compute_quant_metrics(holdings, quotes)
     if holdings and (metrics_out or var_out or alerts or stress_out):
         yield {
             "type": "risk_snapshot",
@@ -427,7 +375,7 @@ async def run_risk_checkup_stream(
 
     # Metrics already computed for risk_snapshot; reuse if still valid.
     if metrics_out is None and var_out is None:
-        metrics_out, var_out, stress_out = await _compute_quant_metrics(holdings, quotes)
+        metrics_out, var_out, stress_out = await compute_quant_metrics(holdings, quotes)
 
     result = RiskCheckupOut(
         alerts=alerts,

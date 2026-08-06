@@ -24,7 +24,7 @@ from stockresearch.agents.stream_typewriter import (
     iter_queue_merged_events,
     pump_dimension_llm_stream,
 )
-from stockresearch.agents.voice import DEBATE_VOICE
+from stockresearch.agents.voice import bear_system, bull_system
 from stockresearch.core.schemas import (
     DebateResult,
     DimensionResult,
@@ -40,8 +40,8 @@ from stockresearch.services.macro_snapshot import format_macro_snapshot
 from stockresearch.services.text_factor import build_news_text_factor, fetch_market_news_snippets
 from stockresearch.utils.llm import LLMClient, get_llm_client
 
-_BULL_SYSTEM = f"你是 A 股大盘看多分析师（Bull Agent）。{DEBATE_VOICE} 基于宏观/行业/技术/情绪四维，阐述看多逻辑。"
-_BEAR_SYSTEM = f"你是 A 股大盘看空分析师（Bear Agent）。{DEBATE_VOICE} 指出下行风险与逻辑漏洞。"
+_BULL_SYSTEM = bull_system("A 股大盘", "基于宏观/行业/技术/情绪四维，阐述看多逻辑。")
+_BEAR_SYSTEM = bear_system("A 股大盘", "指出下行风险与逻辑漏洞。")
 
 _AGENT_LABELS: dict[str, str] = {
     "macro": "宏观面",

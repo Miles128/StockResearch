@@ -10,28 +10,23 @@ from stockresearch.agents.stream_typewriter import (
     iter_queue_merged_events,
     pump_llm_stream_events_to_queue,
 )
-from stockresearch.agents.structured_output import VoteLabelOut
-from stockresearch.agents.voice import DEBATE_ROUNDS, DEBATE_VOICE, JUDGE_VOICE
+from stockresearch.agents.structured_output import ResearchJudgeOut, VoteLabelOut
+from stockresearch.agents.voice import (
+    DEBATE_ROUNDS,
+    DEBATE_VOICE,
+    JUDGE_VOICE,
+    bear_system,
+    bull_system,
+    research_judge_system,
+)
 from stockresearch.core.schemas import DebateResult, DebateRound, DimensionResult
 from stockresearch.i18n.status_events import status_event
 from stockresearch.utils.disclaimer import strip_disclaimer
 from stockresearch.utils.llm import LLMClient
 
-_BULL_SYSTEM = f"""你是 A 股看多分析师（Bull Agent）。
-{DEBATE_VOICE} 基于四维研究，说明最强看多逻辑。
-不要给出买入建议。"""
+_BULL_SYSTEM = bull_system("A 股", "基于四维研究，说明最强看多逻辑。")
 
-_BEAR_SYSTEM = f"""你是 A 股看空分析师（Bear Agent）。
-{DEBATE_VOICE} 指出主要下行风险与逻辑漏洞。
-不要给出卖出建议。"""
-
-_JUDGE_SYSTEM = f"""你是 impartial 裁判 Agent。
-{JUDGE_VOICE} 输出：
-1. 共识结论（2句内）
-2. 为何得出此结论（2句内）
-3. 核心分歧及分歧大小（大/中等/小，1～2句）
-4. 综合倾向（偏多/偏空/中性）与置信度（高/中/低）
-不要给出买卖建议。"""
+_BEAR_SYSTEM = bear_system("A 股", "指出主要下行风险与逻辑漏洞。")
 
 
 def _dimension_summary(dimensions: dict[str, DimensionResult]) -> str:
@@ -494,42 +489,22 @@ async def run_debate(
         bear_side_label="看空",
     )
     judge_user = f"{user_base}\n\n{transcript_from_rounds(rounds)}"
-    judge_text = await llm.complete(_JUDGE_SYSTEM, judge_user)
+    # 与流式路径同一 JSON 裁判格式（voice.research_judge_system），
+    # 同一解析器（ResearchJudgeOut.from_llm）——sync/stream 不再双格式漂移。
+    judge_text = await llm.complete(research_judge_system(), judge_user)
+    parsed = ResearchJudgeOut.from_llm(judge_text)
 
-    bias = _infer_bias(judge_text, dimensions)
+    bias = parsed.final_bias
     confidence = _infer_confidence(dimensions)
 
     return DebateResult(
         rounds=rounds,
         judge_verdict=judge_text.strip(),
-        consensus=_extract_section(judge_text, "共识") or judge_text.strip(),
-        core_divergence=_extract_section(judge_text, "分歧") or "多空对估值与短期趋势存在分歧",
+        consensus=parsed.summary,
+        core_divergence=f"{parsed.divergence}：{parsed.divergence_point}",
         final_bias=bias,
         confidence=confidence,
     )
-
-
-def _infer_bias(
-    judge_text: str,
-    dimensions: dict[str, DimensionResult],
-) -> Literal["bullish", "bearish", "neutral"]:
-    text = judge_text.lower()
-    has_bull = "偏多" in judge_text or "bullish" in text or "看多" in judge_text
-    has_bear = "偏空" in judge_text or "bearish" in text or "看空" in judge_text
-    # When both directions appear (common in balanced verdicts such as
-    # "空方强调估值压力，但…") keyword presence is ambiguous — defer to scores
-    # instead of defaulting to bullish.
-    if has_bull and not has_bear:
-        return "bullish"
-    if has_bear and not has_bull:
-        return "bearish"
-    scores = [d.score for d in dimensions.values()]
-    avg = sum(scores) / len(scores) if scores else 5.0
-    if avg >= 6.5:
-        return "bullish"
-    if avg <= 4.5:
-        return "bearish"
-    return "neutral"
 
 
 def _infer_confidence(dimensions: dict[str, DimensionResult]) -> Literal["high", "medium", "low"]:
@@ -539,10 +514,3 @@ def _infer_confidence(dimensions: dict[str, DimensionResult]) -> Literal["high",
     if "low" in levels:
         return "low"
     return "medium"
-
-
-def _extract_section(text: str, keyword: str) -> str:
-    for line in text.split("\n"):
-        if keyword in line:
-            return line.split("：", 1)[-1].split(":", 1)[-1].strip()
-    return ""

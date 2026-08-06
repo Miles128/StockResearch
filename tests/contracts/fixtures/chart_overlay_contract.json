@@ -1,0 +1,406 @@
+{
+ "description": "shared chart-overlay contract fixture: ascending channel, 61 bars",
+ "bars": [
+  {
+   "date": "D000",
+   "high": 112.0,
+   "low": 100.0,
+   "close": 106.0
+  },
+  {
+   "date": "D001",
+   "high": 110.5,
+   "low": 100.5,
+   "close": 105.5
+  },
+  {
+   "date": "D002",
+   "high": 111.0,
+   "low": 101.0,
+   "close": 106.0
+  },
+  {
+   "date": "D003",
+   "high": 111.5,
+   "low": 101.5,
+   "close": 106.5
+  },
+  {
+   "date": "D004",
+   "high": 112.0,
+   "low": 102.0,
+   "close": 107.0
+  },
+  {
+   "date": "D005",
+   "high": 112.5,
+   "low": 100.5,
+   "close": 106.5
+  },
+  {
+   "date": "D006",
+   "high": 113.0,
+   "low": 103.0,
+   "close": 108.0
+  },
+  {
+   "date": "D007",
+   "high": 113.5,
+   "low": 103.5,
+   "close": 108.5
+  },
+  {
+   "date": "D008",
+   "high": 114.0,
+   "low": 104.0,
+   "close": 109.0
+  },
+  {
+   "date": "D009",
+   "high": 114.5,
+   "low": 104.5,
+   "close": 109.5
+  },
+  {
+   "date": "D010",
+   "high": 117.0,
+   "low": 105.0,
+   "close": 111.0
+  },
+  {
+   "date": "D011",
+   "high": 115.5,
+   "low": 105.5,
+   "close": 110.5
+  },
+  {
+   "date": "D012",
+   "high": 116.0,
+   "low": 106.0,
+   "close": 111.0
+  },
+  {
+   "date": "D013",
+   "high": 116.5,
+   "low": 106.5,
+   "close": 111.5
+  },
+  {
+   "date": "D014",
+   "high": 117.0,
+   "low": 107.0,
+   "close": 112.0
+  },
+  {
+   "date": "D015",
+   "high": 117.5,
+   "low": 105.5,
+   "close": 111.5
+  },
+  {
+   "date": "D016",
+   "high": 118.0,
+   "low": 108.0,
+   "close": 113.0
+  },
+  {
+   "date": "D017",
+   "high": 118.5,
+   "low": 108.5,
+   "close": 113.5
+  },
+  {
+   "date": "D018",
+   "high": 119.0,
+   "low": 109.0,
+   "close": 114.0
+  },
+  {
+   "date": "D019",
+   "high": 119.5,
+   "low": 109.5,
+   "close": 114.5
+  },
+  {
+   "date": "D020",
+   "high": 122.0,
+   "low": 110.0,
+   "close": 116.0
+  },
+  {
+   "date": "D021",
+   "high": 120.5,
+   "low": 110.5,
+   "close": 115.5
+  },
+  {
+   "date": "D022",
+   "high": 121.0,
+   "low": 111.0,
+   "close": 116.0
+  },
+  {
+   "date": "D023",
+   "high": 121.5,
+   "low": 111.5,
+   "close": 116.5
+  },
+  {
+   "date": "D024",
+   "high": 122.0,
+   "low": 112.0,
+   "close": 117.0
+  },
+  {
+   "date": "D025",
+   "high": 122.5,
+   "low": 110.5,
+   "close": 116.5
+  },
+  {
+   "date": "D026",
+   "high": 123.0,
+   "low": 113.0,
+   "close": 118.0
+  },
+  {
+   "date": "D027",
+   "high": 123.5,
+   "low": 113.5,
+   "close": 118.5
+  },
+  {
+   "date": "D028",
+   "high": 124.0,
+   "low": 114.0,
+   "close": 119.0
+  },
+  {
+   "date": "D029",
+   "high": 124.5,
+   "low": 114.5,
+   "close": 119.5
+  },
+  {
+   "date": "D030",
+   "high": 127.0,
+   "low": 115.0,
+   "close": 121.0
+  },
+  {
+   "date": "D031",
+   "high": 125.5,
+   "low": 115.5,
+   "close": 120.5
+  },
+  {
+   "date": "D032",
+   "high": 126.0,
+   "low": 116.0,
+   "close": 121.0
+  },
+  {
+   "date": "D033",
+   "high": 126.5,
+   "low": 116.5,
+   "close": 121.5
+  },
+  {
+   "date": "D034",
+   "high": 127.0,
+   "low": 117.0,
+   "close": 122.0
+  },
+  {
+   "date": "D035",
+   "high": 127.5,
+   "low": 115.5,
+   "close": 121.5
+  },
+  {
+   "date": "D036",
+   "high": 128.0,
+   "low": 118.0,
+   "close": 123.0
+  },
+  {
+   "date": "D037",
+   "high": 128.5,
+   "low": 118.5,
+   "close": 123.5
+  },
+  {
+   "date": "D038",
+   "high": 129.0,
+   "low": 119.0,
+   "close": 124.0
+  },
+  {
+   "date": "D039",
+   "high": 129.5,
+   "low": 119.5,
+   "close": 124.5
+  },
+  {
+   "date": "D040",
+   "high": 132.0,
+   "low": 120.0,
+   "close": 126.0
+  },
+  {
+   "date": "D041",
+   "high": 130.5,
+   "low": 120.5,
+   "close": 125.5
+  },
+  {
+   "date": "D042",
+   "high": 131.0,
+   "low": 121.0,
+   "close": 126.0
+  },
+  {
+   "date": "D043",
+   "high": 131.5,
+   "low": 121.5,
+   "close": 126.5
+  },
+  {
+   "date": "D044",
+   "high": 132.0,
+   "low": 122.0,
+   "close": 127.0
+  },
+  {
+   "date": "D045",
+   "high": 132.5,
+   "low": 120.5,
+   "close": 126.5
+  },
+  {
+   "date": "D046",
+   "high": 133.0,
+   "low": 123.0,
+   "close": 128.0
+  },
+  {
+   "date": "D047",
+   "high": 133.5,
+   "low": 123.5,
+   "close": 128.5
+  },
+  {
+   "date": "D048",
+   "high": 134.0,
+   "low": 124.0,
+   "close": 129.0
+  },
+  {
+   "date": "D049",
+   "high": 134.5,
+   "low": 124.5,
+   "close": 129.5
+  },
+  {
+   "date": "D050",
+   "high": 137.0,
+   "low": 125.0,
+   "close": 131.0
+  },
+  {
+   "date": "D051",
+   "high": 135.5,
+   "low": 125.5,
+   "close": 130.5
+  },
+  {
+   "date": "D052",
+   "high": 136.0,
+   "low": 126.0,
+   "close": 131.0
+  },
+  {
+   "date": "D053",
+   "high": 136.5,
+   "low": 126.5,
+   "close": 131.5
+  },
+  {
+   "date": "D054",
+   "high": 137.0,
+   "low": 127.0,
+   "close": 132.0
+  },
+  {
+   "date": "D055",
+   "high": 137.5,
+   "low": 125.5,
+   "close": 131.5
+  },
+  {
+   "date": "D056",
+   "high": 138.0,
+   "low": 128.0,
+   "close": 133.0
+  },
+  {
+   "date": "D057",
+   "high": 138.5,
+   "low": 128.5,
+   "close": 133.5
+  },
+  {
+   "date": "D058",
+   "high": 139.0,
+   "low": 129.0,
+   "close": 134.0
+  },
+  {
+   "date": "D059",
+   "high": 139.5,
+   "low": 129.5,
+   "close": 134.5
+  },
+  {
+   "date": "D060",
+   "high": 142.0,
+   "low": 130.0,
+   "close": 136.0
+  }
+ ],
+ "trend_lines": [
+  {
+   "kind": "support",
+   "start_index": 5,
+   "end_index": 60,
+   "slope_per_bar": 0.5,
+   "end_price": 128.0,
+   "touches": 6
+  },
+  {
+   "kind": "support",
+   "start_index": 15,
+   "end_index": 60,
+   "slope_per_bar": 0.5,
+   "end_price": 128.0,
+   "touches": 5
+  },
+  {
+   "kind": "resistance",
+   "start_index": 10,
+   "end_index": 60,
+   "slope_per_bar": 0.5,
+   "end_price": 142.0,
+   "touches": 5
+  },
+  {
+   "kind": "resistance",
+   "start_index": 20,
+   "end_index": 60,
+   "slope_per_bar": 0.5,
+   "end_price": 142.0,
+   "touches": 4
+  }
+ ],
+ "levels": []
+}

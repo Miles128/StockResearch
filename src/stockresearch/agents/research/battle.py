@@ -15,12 +15,9 @@ from stockresearch.agents.research.debate import (
 )
 from stockresearch.agents.stream_typewriter import iter_llm_stream_events
 from stockresearch.agents.structured_output import ResearchJudgeOut
-from stockresearch.agents.voice import DEBATE_ROUNDS, JUDGE_VOICE
+from stockresearch.agents.voice import DEBATE_ROUNDS, research_judge_system
 from stockresearch.core.schemas import DebateResult, DebateRound, DimensionResult
 from stockresearch.utils.llm import LLMClient
-
-JUDGE_RESEARCH_SYSTEM = f"""你是投研裁判。{JUDGE_VOICE} 只输出 JSON，禁止 markdown。
-{{"bias":"偏多|偏空|中性","summary":"结论，2句内","reason":"为何如此判，2句内","divergence":"分歧大|分歧中等|分歧小","divergence_point":"分歧焦点，1句"}}"""
 
 
 async def iter_battle_events(
@@ -32,13 +29,14 @@ async def iter_battle_events(
     situation: str,
     dimensions: dict[str, DimensionResult],
     agent_labels: dict[str, str],
-    judge_system: str = JUDGE_RESEARCH_SYSTEM,
+    judge_system: str | None = None,
     judge_stream_id: str = "judge",
     rounds: int = DEBATE_ROUNDS,
     bull_name: str = "看多派",
     bear_name: str = "看空派",
 ) -> AsyncIterator[dict[str, object]]:
     """Run the full battle flow, yielding all display events in order.
+    judge_system=None → 使用 voice.research_judge_system() 唯一事实源。
 
     Ends with a ``battle_result`` sentinel event carrying the assembled
     ``DebateResult`` and parsed judge output; callers intercept it instead
@@ -101,7 +99,7 @@ async def iter_battle_events(
         agent_name="裁判",
         role="judge",
         llm=llm,
-        system=judge_system,
+        system=judge_system or research_judge_system(),
         user=judge_user,
     ):
         yield event

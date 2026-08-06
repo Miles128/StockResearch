@@ -3,6 +3,7 @@ import type { AppLocale } from "../localeSettings";
 import type { AppTheme } from "../themeSettings";
 import type { ModeSettings, ReadingMode } from "../modeSettings";
 import { useI18n } from "../i18n";
+import { UsageStatsBlock } from "./UsageStatsBlock";
 
 interface GeneralSettingsTabProps {
   modeSettings: ModeSettings;
@@ -151,6 +152,8 @@ export function GeneralSettingsTab({
           </button>
         ))}
       </div>
+
+      <UsageStatsBlock />
     </>
   );
 }

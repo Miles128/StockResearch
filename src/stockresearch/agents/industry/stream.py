@@ -28,7 +28,7 @@ from stockresearch.agents.stream_typewriter import (
     iter_queue_merged_events,
     pump_dimension_llm_stream,
 )
-from stockresearch.agents.voice import DEBATE_VOICE, JUDGE_VOICE
+from stockresearch.agents.voice import bear_system, bull_system
 from stockresearch.core.schemas import (
     DebateResult,
     DimensionResult,
@@ -42,10 +42,8 @@ from stockresearch.i18n.status_events import status_event
 from stockresearch.services.text_factor import build_news_text_factor, news_from_title
 from stockresearch.utils.llm import LLMClient, get_llm_client
 
-_BULL_SYSTEM = f"你是 A 股板块看多分析师。{DEBATE_VOICE}"
-_BEAR_SYSTEM = f"你是 A 股板块看空分析师。{DEBATE_VOICE}"
-_JUDGE_SYSTEM = f"""你是板块投研裁判。{JUDGE_VOICE} 只输出 JSON，禁止 markdown。
-{{"bias":"偏多|偏空|中性","summary":"结论，2句内","reason":"为何如此判，2句内","divergence":"分歧大|分歧中等|分歧小","divergence_point":"分歧焦点，1句"}}"""
+_BULL_SYSTEM = bull_system("A 股板块")
+_BEAR_SYSTEM = bear_system("A 股板块")
 
 _AGENT_LABELS: dict[str, str] = {
     "policy": "政策舆情",
@@ -204,7 +202,6 @@ async def run_industry_research_stream(
             situation=situation,
             dimensions=dimensions,
             agent_labels=_AGENT_LABELS,
-            judge_system=_JUDGE_SYSTEM,
             judge_stream_id="sector_judge",
         ):
             if event.get("type") == "battle_result":

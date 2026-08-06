@@ -112,3 +112,33 @@ def test_plan_execute_prompt_braces_escaped() -> None:
     assert "{tools_block}" in src
     # 示例 JSON 的花括号必须转义为 {{ }}，不能裸 { 当替换字段
     assert '{{"id": 1' in src
+
+
+def test_debate_prompts_converged_on_voice_factories() -> None:
+    """辩论 prompt 必须收敛到 voice.py 工厂，禁止各域复制文本（防漂移）。"""
+    import inspect
+
+    from stockresearch.agents import industry, market
+    from stockresearch.agents.research import battle, debate
+
+    for mod in (debate, market.research_stream, industry.stream):
+        src = inspect.getsource(mod)
+        assert 'bull_system("' in src, f"{mod.__name__} 未使用 bull_system 工厂"
+        assert 'bear_system("' in src, f"{mod.__name__} 未使用 bear_system 工厂"
+
+    # judge 唯一事实源在 voice.py；battle 层不允许再内联裁判文本
+    battle_src = inspect.getsource(battle)
+    assert "research_judge_system" in battle_src
+    assert '"bias"' not in battle_src.split("iter_battle_events")[0]
+
+
+def test_debate_sync_and_stream_share_judge_format() -> None:
+    """sync/stream 裁判必须共用同一 JSON 格式与解析器（PRD §二 同一管线）。"""
+    import inspect
+
+    from stockresearch.agents.research import debate
+
+    src = inspect.getsource(debate)
+    assert "research_judge_system()" in src
+    assert "ResearchJudgeOut.from_llm" in src
+    assert "_JUDGE_SYSTEM" not in src

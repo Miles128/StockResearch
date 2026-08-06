@@ -447,6 +447,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify(chatBodyField()),
     }),
+  briefingHistory: (kind: "premarket" | "intraday" | "postmarket" | "all" = "all", limit = 12) =>
+    request<Briefing[]>(`/briefing/history?kind=${kind}&limit=${limit}`),
+  latestBriefing: (kind: "premarket" | "intraday" | "postmarket") =>
+    request<Briefing | null>(`/briefing/latest?kind=${kind}`),
   loadDemo: () =>
     request<{ status: string; count: number; demo: boolean }>("/portfolio/demo", {
       method: "POST",
@@ -1442,6 +1446,7 @@ export interface BriefingSection {
 }
 
 export interface Briefing {
+  id: number;
   kind: "premarket" | "intraday" | "postmarket";
   title: string;
   sections: BriefingSection[];

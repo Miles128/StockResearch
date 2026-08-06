@@ -30,7 +30,7 @@ from stockresearch.core.schemas import (
     StressResultOut,
     VaRResultOut,
 )
-from stockresearch.data.providers.market import QuoteProvider, TechnicalDataProvider
+from stockresearch.data.providers.market import Quote, QuoteProvider, TechnicalDataProvider
 from stockresearch.db.models import Holding
 from stockresearch.utils.llm import LLMClient, get_llm_client
 
@@ -257,6 +257,53 @@ async def _attach_daily_returns(holding_quotes: list[HoldingQuote]) -> None:
     await asyncio.gather(*[_one(hq) for hq in holding_quotes])
 
 
+async def compute_quant_metrics(
+    holdings: list[Holding],
+    quotes: list[Quote],
+) -> tuple[PortfolioMetricsOut | None, VaRResultOut | None, list[StressResultOut]]:
+    """量化风险指标（metrics / VaR / stress）唯一实现。
+
+    同步（run_risk_checkup）与流式（run_risk_checkup_stream）共用；
+    失败时返回空元组并记录日志，不抛异常（PRD §四 规则引擎兜底）。
+    """
+    if not holdings:
+        return None, None, []
+    try:
+        holding_quotes = [
+            HoldingQuote(
+                symbol=h.symbol,
+                name=h.name,
+                cost_price=h.float_cost_price,
+                current_price=q.price,
+                quantity=h.quantity,
+                sector=h.sector,
+                buy_date=str(h.buy_date) if h.buy_date else None,
+            )
+            for h, q in zip(holdings, quotes, strict=True)
+        ]
+        await _attach_daily_returns(holding_quotes)
+        pm = calculate_portfolio_metrics(holding_quotes)
+        metrics_out = _metrics_to_out(pm)
+        vr = calculate_var(holding_quotes)
+        var_out = VaRResultOut(
+            confidence_level=vr.confidence_level,
+            time_horizon_days=vr.time_horizon_days,
+            var_value=round(vr.var_value, 2),
+            var_pct=round(vr.var_pct, 4),
+            method=vr.method,
+            holdings_var=vr.holdings_var,
+            cvar_value=round(vr.cvar_value, 2),
+            cvar_pct=round(vr.cvar_pct, 4),
+        )
+        stress_out = [
+            StressResultOut.model_validate(item) for item in run_stress_presets(holding_quotes)
+        ]
+        return metrics_out, var_out, stress_out
+    except Exception:
+        logger.warning("Quantitative metrics calculation failed", exc_info=True)
+        return None, None, []
+
+
 async def run_risk_checkup(
     holdings: list[Holding],
     llm: LLMClient | None = None,
@@ -340,42 +387,7 @@ async def run_risk_checkup(
         summary = risk_msg.portfolio_summary_with_alerts(len(alerts))
 
     # ── 量化风险指标 ──
-    metrics_out: PortfolioMetricsOut | None = None
-    var_out: VaRResultOut | None = None
-    stress_out: list[StressResultOut] = []
-    if holdings:
-        try:
-            holding_quotes = [
-                HoldingQuote(
-                    symbol=h.symbol,
-                    name=h.name,
-                    cost_price=h.float_cost_price,
-                    current_price=q.price,
-                    quantity=h.quantity,
-                    sector=h.sector,
-                    buy_date=str(h.buy_date) if h.buy_date else None,
-                )
-                for h, q in zip(holdings, quotes, strict=True)
-            ]
-            await _attach_daily_returns(holding_quotes)
-            pm = calculate_portfolio_metrics(holding_quotes)
-            metrics_out = _metrics_to_out(pm)
-            vr = calculate_var(holding_quotes)
-            var_out = VaRResultOut(
-                confidence_level=vr.confidence_level,
-                time_horizon_days=vr.time_horizon_days,
-                var_value=round(vr.var_value, 2),
-                var_pct=round(vr.var_pct, 4),
-                method=vr.method,
-                holdings_var=vr.holdings_var,
-                cvar_value=round(vr.cvar_value, 2),
-                cvar_pct=round(vr.cvar_pct, 4),
-            )
-            stress_out = [
-                StressResultOut.model_validate(item) for item in run_stress_presets(holding_quotes)
-            ]
-        except Exception:
-            logger.warning("Quantitative metrics calculation failed", exc_info=True)
+    metrics_out, var_out, stress_out = await compute_quant_metrics(holdings, quotes)
 
     checkup = RiskCheckupOut(
         alerts=alerts,

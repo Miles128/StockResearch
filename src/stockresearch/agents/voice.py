@@ -28,3 +28,34 @@ DEBATE_UTTERANCE_MAX = 220
 JUDGE_FIELD_MAX = 180
 
 DEBATE_ROUNDS = 3
+
+
+# ── 辩论 prompt 工厂：所有域（个股/大盘/行业）共用同一结构，仅角色名与
+# 域内要点不同。此前 debate/market/industry 各复制一份 bull/bear/judge
+# 文本并已漂移；此处为唯一事实源。 ──
+def bull_system(domain: str, extra: str = "") -> str:
+    """A 股看多分析师 system prompt（domain: 如「A 股」「A 股大盘」「A 股板块」）。"""
+    extra_block = f"\n{extra}" if extra else ""
+    return (
+        f"你是{domain}看多分析师（Bull Agent）。\n{DEBATE_VOICE} {extra_block}\n不要给出买入建议。"
+    )
+
+
+def bear_system(domain: str, extra: str = "") -> str:
+    """A 股看空分析师 system prompt。"""
+    extra_block = f"\n{extra}" if extra else ""
+    return (
+        f"你是{domain}看空分析师（Bear Agent）。\n{DEBATE_VOICE} {extra_block}\n不要给出卖出建议。"
+    )
+
+
+def research_judge_system() -> str:
+    """投研裁判 system prompt（JSON 输出，配合 ResearchJudgeOut.from_llm 解析）。
+
+    个股/大盘/行业辩论共用；不要再复制该文本。
+    """
+    return (
+        f"你是投研裁判。{JUDGE_VOICE} 只输出 JSON，禁止 markdown。\n"
+        '{{"bias":"偏多|偏空|中性","summary":"结论，2句内","reason":"为何如此判，2句内",'
+        '"divergence":"分歧大|分歧中等|分歧小","divergence_point":"分歧焦点，1句"}}'
+    )
