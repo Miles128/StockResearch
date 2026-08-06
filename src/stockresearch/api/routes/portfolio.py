@@ -1,6 +1,6 @@
 """Holdings and watchlist routes."""
 
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -633,3 +633,59 @@ def demo_status(
     from stockresearch.services.demo_holdings import is_demo_mode
 
     return {"demo": is_demo_mode(db, user.id)}
+
+
+# ── Data backup / migration ──────────────────────────────
+
+
+@router.get("/export")
+def export_user_data(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    """全量用户数据备份（持仓/自选/交易/设置/研报索引）——换机或迁移用。"""
+    from stockresearch.db.models import ResearchReport, Trade, WatchlistItem
+    from stockresearch.services.user_preferences import get_mode_settings
+
+    holdings = db.query(Holding).filter(Holding.user_id == user.id).order_by(Holding.symbol).all()
+    watchlist = db.query(WatchlistItem).filter(WatchlistItem.user_id == user.id).all()
+    trades = db.query(Trade).filter(Trade.user_id == user.id).order_by(Trade.trade_date).all()
+    reports = (
+        db.query(ResearchReport)
+        .filter(ResearchReport.user_id == user.id)
+        .order_by(ResearchReport.created_at.desc())
+        .all()
+    )
+    return {
+        "schema": "stockresearch.backup.v1",
+        "exported_at": datetime.now(UTC).isoformat(),
+        "holdings": [
+            {
+                "symbol": h.symbol,
+                "name": h.name,
+                "cost_price": float(h.float_cost_price),
+                "quantity": h.quantity,
+                "sector": h.sector,
+                "buy_date": str(h.buy_date) if h.buy_date else None,
+            }
+            for h in holdings
+        ],
+        "watchlist": [{"symbol": w.symbol, "name": w.name} for w in watchlist],
+        "trades": [
+            {
+                "symbol": tr.symbol,
+                "name": tr.name,
+                "side": tr.side,
+                "quantity": tr.quantity,
+                "price": float(tr.price) if tr.price else None,
+                "trade_date": str(tr.trade_date) if tr.trade_date else None,
+                "note": tr.note,
+            }
+            for tr in trades
+        ],
+        "mode_settings": get_mode_settings(db, user.id).model_dump(mode="json"),
+        "research_reports": [
+            {"id": r.id, "symbol": r.symbol, "name": r.name, "created_at": str(r.created_at)}
+            for r in reports
+        ],
+    }

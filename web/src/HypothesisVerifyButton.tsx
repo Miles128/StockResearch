@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { api, type HypothesisVerify } from "./api";
+import { EVENT_KEYS, recordEvent } from "./usageTracking";
 import { useI18n } from "./i18n";
 
 interface HypothesisVerifyButtonProps {
@@ -45,6 +46,7 @@ export function HypothesisVerifyButton({ symbol, name, defaultRule }: Hypothesis
     try {
       const res = await api.hypothesisVerify(symbol, rule);
       setResult(res);
+      recordEvent(EVENT_KEYS.verifyRun);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("card.verifyFailed"));
     } finally {

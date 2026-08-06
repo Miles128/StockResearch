@@ -3,6 +3,7 @@ import { api, type Briefing } from "./api";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { useI18n } from "./i18n";
 import { MarkdownContent } from "./MarkdownContent";
+import { recordEvent, EVENT_KEYS } from "./usageTracking";
 
 const BRIEFING_KINDS: Array<{ kind: Briefing["kind"]; labelKey: string }> = [
   { kind: "premarket", labelKey: "lists.briefingKindPremarket" },
@@ -48,6 +49,7 @@ export function BriefingHistoryPanel() {
       setError("");
       try {
         await api.generateBriefing(kind);
+        recordEvent(EVENT_KEYS.briefingGenerate);
         setGeneratedAt(new Date().toLocaleTimeString());
         await load();
       } catch {
@@ -101,7 +103,10 @@ export function BriefingHistoryPanel() {
               <button
                 type="button"
                 className={`briefing-item${b.id === openId ? " open" : ""}`}
-                onClick={() => setOpenId(b.id === openId ? null : b.id)}
+                onClick={() => {
+                  if (b.id !== openId) recordEvent(EVENT_KEYS.briefingView);
+                  setOpenId(b.id === openId ? null : b.id);
+                }}
               >
                 <span className={`briefing-kind briefing-kind-${b.kind}`}>
                   {t(

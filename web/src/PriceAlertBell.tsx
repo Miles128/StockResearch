@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, type PriceAlertNotification, type PriceAlertSettings } from "./api";
 import { useI18n } from "./i18n";
 import { IconBell } from "./ui/Icons";
+import { EVENT_KEYS, recordEvent } from "./usageTracking";
 
 interface PriceAlertBellProps {
   onSelectSymbol: (symbol: string, name: string) => void;
@@ -60,7 +61,10 @@ export function PriceAlertBell({
       <button
         type="button"
         className={`icon-btn alert-bell-btn${unread ? " has-unread" : ""}`}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (!open) recordEvent(EVENT_KEYS.alertsView);
+          setOpen((v) => !v);
+        }}
         title={t("alerts.title")}
         aria-label={t("alerts.title")}
       >
