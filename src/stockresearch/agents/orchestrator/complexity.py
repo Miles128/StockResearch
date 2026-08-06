@@ -419,6 +419,32 @@ def is_market_analysis_intent(message: str) -> bool:
     return False
 
 
+# 大盘"分析性问法"关键词：命中即路由到市场四维投研（skill_market_research）。
+_MARKET_ANALYSIS_KW_RE = re.compile(
+    r"(怎么样|如何|怎么看|走势|趋势|分析|研判|展望|前景|后市|方向|机会|风险|影响|"
+    r"涨跌|会涨|会跌|反弹|回调|为什么|为何|原因|点评|解读)"
+)
+# 纯报价问法：只问点位/价格，不需要四维投研。
+_MARKET_QUOTE_RE = re.compile(
+    r"(多少点|点位|报价|现价|指数多少|多少了|多少|价格|涨了多少|跌了多少)"
+)
+
+
+def wants_market_research(message: str) -> bool:
+    """True when the user asks an analytical question about the broad market —
+    route to the 4-dimension market research stream instead of the light
+    quote+news path (which is reserved for spot/quote questions).
+    """
+    msg = message.strip()
+    if not msg or is_news_intent(msg):
+        return False
+    if not is_market_scope(msg):
+        return False
+    if _MARKET_QUOTE_RE.search(msg):
+        return False
+    return bool(_MARKET_ANALYSIS_KW_RE.search(msg))
+
+
 def is_industry_research(message: str) -> bool:
     msg = message.strip()
     if has_stock_reference(msg):

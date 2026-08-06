@@ -13,6 +13,7 @@ from stockresearch.agents.orchestrator.complexity import (
     is_market_scope,
     is_simple_news_explanation,
     is_trend_explanation_intent,
+    wants_market_research,
 )
 from stockresearch.agents.orchestrator.plan_execute import PlanExecuteAgent
 from stockresearch.agents.orchestrator.react_agent import OrchestratorAgent
@@ -252,6 +253,46 @@ async def _run_plan_execute_sync(ctx: ChatRunContext) -> ChatExecuteResult:
     return ChatExecuteResult(reply=reply, cards=merged, intent=_intent_from_cards(merged))
 
 
+async def _run_market_research_sync(ctx: ChatRunContext) -> ChatExecuteResult:
+    """大盘四维投研：与 Market Tab 大盘深研同一流式实现，事件转发给进度回调。"""
+    from stockresearch.agents.market.research_stream import run_market_research_stream
+    from stockresearch.core.schemas import ResearchReportOut
+
+    payload: dict[str, object] | None = None
+    try:
+        async for event in run_market_research_stream(
+            ctx.message,
+            llm=ctx.llm,  # type: ignore[arg-type]
+            with_debate=ctx.debate_on,
+            mode_settings=ctx.mode_settings,
+        ):
+            if event.get("type") == "done":
+                raw = event.get("result")
+                if isinstance(raw, dict):
+                    payload = raw
+            elif ctx.on_progress:
+                await ctx.on_progress(event)
+    except Exception as exc:
+        logger.warning("[sid=%s] market research failed: %s", ctx.trace_id or "-", exc)
+        return ChatExecuteResult(
+            reply="大盘投研暂时无法完成，请稍后重试。",
+            partial=True,
+            intent="research",
+        )
+    if payload is None:
+        return ChatExecuteResult(
+            reply="大盘投研暂时无法完成，请稍后重试。",
+            partial=True,
+            intent="research",
+        )
+    report = ResearchReportOut.model_validate(payload)
+    return ChatExecuteResult(
+        reply=report.summary,
+        cards=[{"type": "research", "data": payload}],
+        intent="research",
+    )
+
+
 async def _run_react_sync(ctx: ChatRunContext) -> ChatExecuteResult:
     if ctx.on_progress:
         from stockresearch.i18n.status_events import status_event
@@ -270,6 +311,10 @@ async def _run_react_sync(ctx: ChatRunContext) -> ChatExecuteResult:
                 scope=ctx.scope,
                 on_progress=ctx.on_progress,
             )
+        elif wants_market_research(ctx.message):
+            # 大盘"分析性问法"（怎么样/走势/展望/为什么…）→ 直接市场四维投研，
+            # 与 Market Tab 大盘深研同一实现；纯报价问法仍走轻量路径。
+            return await _run_market_research_sync(ctx)
         elif is_trend_explanation_intent(ctx.message):
             run_message = await _augment_trend_message(
                 agent,

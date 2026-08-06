@@ -142,3 +142,28 @@ def test_debate_sync_and_stream_share_judge_format() -> None:
     assert "research_judge_system()" in src
     assert "ResearchJudgeOut.from_llm" in src
     assert "_JUDGE_SYSTEM" not in src
+
+
+def test_market_analysis_queries_route_to_4d_research() -> None:
+    """大盘分析性问法 → 市场四维投研；纯报价问法 → 轻量路径。"""
+    from stockresearch.agents.orchestrator.complexity import wants_market_research as w
+
+    assert w("今天大盘怎么样") is True
+    assert w("A股市场走势如何") is True
+    assert w("大盘为什么涨") is True
+    assert w("上证指数展望") is True
+    assert w("今天大盘多少点") is False
+    assert w("上证指数现在多少") is False
+    assert w("有什么财经新闻") is False
+    assert w("帮我分析一下600519") is False
+
+
+def test_chat_execute_wires_market_research_route() -> None:
+    """chat_execute 必须优先于 trend 轻量路径路由市场四维投研。"""
+    import inspect
+
+    from stockresearch.agents.orchestrator import chat_execute
+
+    src = inspect.getsource(chat_execute._run_react_sync)
+    assert "wants_market_research" in src
+    assert "_run_market_research_sync" in src

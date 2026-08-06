@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type Briefing } from "./api";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { useI18n } from "./i18n";
+import { MarkdownContent } from "./MarkdownContent";
 
 const BRIEFING_KINDS: Array<{ kind: Briefing["kind"]; labelKey: string }> = [
   { kind: "premarket", labelKey: "lists.briefingKindPremarket" },
@@ -107,7 +108,9 @@ export function BriefingHistoryPanel() {
                     `lists.briefingKind${b.kind === "premarket" ? "Premarket" : b.kind === "intraday" ? "Intraday" : "Postmarket"}`,
                   )}
                 </span>
-                <span className="briefing-item-title">{b.title || b.summary}</span>
+                <span className="briefing-item-title">
+                  <MarkdownContent text={b.title || b.summary} className="briefing-item-title-md" />
+                </span>
                 <span className="briefing-item-date">{dateKey(b.generated_at)}</span>
               </button>
             </li>
@@ -115,20 +118,31 @@ export function BriefingHistoryPanel() {
         </ul>
         {selected && (
           <div className="briefing-detail">
-            <h4>{selected.title}</h4>
-            {selected.summary && <p className="briefing-summary">{selected.summary}</p>}
+            <h4>
+              <MarkdownContent text={selected.title} className="briefing-title-md" />
+            </h4>
+            {selected.summary && (
+              <MarkdownContent text={selected.summary} className="briefing-summary-md" />
+            )}
             {selected.sections.map((s, i) => (
               <div key={i} className="briefing-section">
-                <strong>{s.title}</strong>
-                <p>{s.content}</p>
+                <strong>
+                  <MarkdownContent text={s.title} className="briefing-section-title-md" />
+                </strong>
+                <MarkdownContent text={s.content} />
               </div>
             ))}
             {morningMatch && (
               <details className="briefing-contrast">
                 <summary>{t("lists.briefingContrast")}</summary>
                 <div className="briefing-section">
-                  <strong>{morningMatch.title}</strong>
-                  <p>{morningMatch.summary}</p>
+                  <strong>
+                    <MarkdownContent
+                      text={morningMatch.title}
+                      className="briefing-section-title-md"
+                    />
+                  </strong>
+                  <MarkdownContent text={morningMatch.summary} />
                 </div>
               </details>
             )}
