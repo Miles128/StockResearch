@@ -128,39 +128,61 @@ class OpenAICompatibleClient(LLMClient):
         prompt_text = f"{system}\n{user}"
         completion_parts: list[str] = []
         usage_from_api: dict[str, int] | None = None
-        async with httpx.AsyncClient(**_httpx_client_kwargs()) as client:
-            async with client.stream(
-                "POST",
-                self._base_url,
-                headers=headers,
-                json=payload,
-            ) as resp:
-                resp.raise_for_status()
-                async for line in resp.aiter_lines():
-                    if not line.startswith("data: "):
-                        continue
-                    data = line[6:].strip()
-                    if data == "[DONE]":
-                        break
-                    try:
-                        chunk = json.loads(data)
-                    except json.JSONDecodeError:
-                        continue
-                    raw_usage = chunk.get("usage")
-                    if isinstance(raw_usage, dict) and raw_usage.get("total_tokens"):
-                        usage_from_api = {
-                            "prompt_tokens": int(raw_usage.get("prompt_tokens") or 0),
-                            "completion_tokens": int(raw_usage.get("completion_tokens") or 0),
-                        }
-                    choices = chunk.get("choices", [])
-                    if not choices:
-                        continue
-                    delta = choices[0].get("delta", {})
-                    content = delta.get("content")
-                    if content:
-                        piece = str(content)
-                        completion_parts.append(piece)
-                        yield piece
+        for attempt in range(_MAX_LLM_RETRIES + 1):
+            yielded_any = False
+            try:
+                async with httpx.AsyncClient(**_httpx_client_kwargs()) as client:
+                    async with client.stream(
+                        "POST",
+                        self._base_url,
+                        headers=headers,
+                        json=payload,
+                    ) as resp:
+                        resp.raise_for_status()
+                        async for line in resp.aiter_lines():
+                            if not line.startswith("data: "):
+                                continue
+                            data = line[6:].strip()
+                            if data == "[DONE]":
+                                break
+                            try:
+                                chunk = json.loads(data)
+                            except json.JSONDecodeError:
+                                continue
+                            raw_usage = chunk.get("usage")
+                            if isinstance(raw_usage, dict) and raw_usage.get("total_tokens"):
+                                usage_from_api = {
+                                    "prompt_tokens": int(raw_usage.get("prompt_tokens") or 0),
+                                    "completion_tokens": int(
+                                        raw_usage.get("completion_tokens") or 0
+                                    ),
+                                }
+                            choices = chunk.get("choices", [])
+                            if not choices:
+                                continue
+                            delta = choices[0].get("delta", {})
+                            content = delta.get("content")
+                            if content:
+                                piece = str(content)
+                                completion_parts.append(piece)
+                                yielded_any = True
+                                yield piece
+                break
+            except Exception as exc:
+                # Only retry BEFORE any content was yielded — a mid-stream failure
+                # already delivered partial text to the client; re-running would
+                # duplicate content.
+                if yielded_any or not _is_retryable_llm_error(exc) or attempt >= _MAX_LLM_RETRIES:
+                    raise
+                backoff = 0.5 * (2**attempt)
+                logger.warning(
+                    "LLM stream request failed (attempt %d/%d), retrying in %.1fs: %s",
+                    attempt + 1,
+                    _MAX_LLM_RETRIES + 1,
+                    backoff,
+                    exc,
+                )
+                await asyncio.sleep(backoff)
         if usage_from_api:
             record_usage(
                 prompt_tokens=usage_from_api["prompt_tokens"],

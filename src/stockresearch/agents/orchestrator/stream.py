@@ -224,6 +224,16 @@ async def _run_chat_stream_body(
 
     turn_task = asyncio.create_task(_run_turn())
 
+    in_skill = False
+    last_checkpoint: dict[str, object] | None = None
+
+    def _update_checkpoint(payload: dict[str, object]) -> None:
+        nonlocal last_checkpoint
+        if payload == last_checkpoint:
+            return
+        last_checkpoint = dict(payload)
+        save_checkpoint(db, user_id, sid, payload)
+
     try:
         while True:
             hint = await progress_queue.get()
@@ -231,26 +241,25 @@ async def _run_chat_stream_body(
                 break
             yield hint
             if hint.get("type") == "skill_start":
-                save_checkpoint(
-                    db,
-                    user_id,
-                    sid,
+                in_skill = True
+                _update_checkpoint(
                     {
                         "mode": "skill",
                         "skill_id": hint.get("skill_id"),
                         "skill_run_id": hint.get("skill_run_id"),
-                    },
+                    }
                 )
-            elif hint.get("message_key"):
-                save_checkpoint(
-                    db,
-                    user_id,
-                    sid,
+            elif hint.get("type") in ("skill_done", "skill_failed"):
+                in_skill = False
+            elif hint.get("message_key") and not in_skill:
+                # Status events inside a skill must not overwrite the mode=skill
+                # checkpoint; resume should still point at the running skill.
+                _update_checkpoint(
                     {
                         "mode": "react",
                         "message_key": hint.get("message_key"),
                         "message_params": hint.get("message_params"),
-                    },
+                    }
                 )
 
         await turn_task

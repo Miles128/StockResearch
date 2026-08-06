@@ -31,8 +31,9 @@ def get_sqlite_cached(key: str) -> dict[str, Any] | None:
             if expires.tzinfo is None:
                 expires = expires.replace(tzinfo=UTC)
             if datetime.now(UTC) > expires:
-                db.execute(text("DELETE FROM provider_cache WHERE cache_key = :key"), {"key": key})
-                db.commit()
+                # Expired: treat as miss WITHOUT writing (reads must stay pure —
+                # the write path sweeps stale rows). The next upsert on this key
+                # overwrites the row anyway.
                 return None
         parsed = json.loads(str(payload_raw))
         return parsed if isinstance(parsed, dict) else None
@@ -42,6 +43,7 @@ def set_sqlite_cached(key: str, value: dict[str, object], ttl_seconds: int) -> N
     expires_at = datetime.now(UTC) + timedelta(seconds=ttl_seconds)
     payload = json.dumps(value, ensure_ascii=False)
     with SessionLocal() as db:
+        _sweep_expired(db)
         _upsert_cache(db, key, payload, expires_at)
         db.commit()
 
@@ -66,6 +68,14 @@ def evict_sqlite_prefixes(
         result = db.execute(text(sql), params)
         db.commit()
         return cast(CursorResult, result).rowcount or 0
+
+
+def _sweep_expired(db: Session) -> None:
+    """Bounded cleanup of stale rows on the WRITE path (reads stay pure)."""
+    db.execute(
+        text("DELETE FROM provider_cache WHERE expires_at IS NOT NULL AND expires_at < :now"),
+        {"now": datetime.now(UTC).isoformat()},
+    )
 
 
 def _upsert_cache(db: Session, key: str, payload: str, expires_at: datetime) -> None:

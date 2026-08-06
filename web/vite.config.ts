@@ -18,6 +18,9 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
+    // 已知偶发 flaky（磁盘压力/并发调度下 BackendHealthBanner/Onboarding/
+    // SentimentGauge 偶现失败，单测隔离均通过）：重试一次提升 CI 稳定性。
+    retry: 1,
   },
   server: {
     port: 5174,

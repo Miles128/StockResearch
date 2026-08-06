@@ -51,3 +51,64 @@ def test_market_research_stream_honors_depth_signature() -> None:
     from stockresearch.agents.market.research_stream import resolve_analysis_depth
 
     assert resolve_analysis_depth(explicit="deep", settings_depth="standard") == "deep"
+
+
+def test_industry_research_stream_honors_depth_signature() -> None:
+    """PRD §4.1：行业研究流同契约。"""
+    import inspect
+
+    from stockresearch.agents.industry.stream import run_industry_research_stream
+
+    sig = inspect.signature(run_industry_research_stream)
+    assert "analysis_depth" in sig.parameters
+
+
+def test_price_alert_scheduler_uses_asia_shanghai_wall_clock() -> None:
+    """PRD §七：调度器墙钟逻辑必须与 cron 同一时区（Asia/Shanghai）。"""
+    from stockresearch.services.price_alert_scheduler import _TZ
+
+    assert str(_TZ) == "Asia/Shanghai"
+
+
+def test_margin_total_keeps_single_unit() -> None:
+    """PRD §5.3：融资融券 total_balance 必须同单位（元），禁止混加股数。"""
+    from stockresearch.data.providers.market import chips
+
+    source = open(chips.__file__, encoding="utf-8").read()
+    # SSE 分支必须优先取元计价列（融券余量金额/融券余额），不得直接加 融券余量
+    assert "融券余量金额" in source or "融券余额" in source
+    assert "融资余额" in source
+
+
+def test_scheduler_zoneinfo_shanghai_everywhere() -> None:
+    """PRD §七：briefing/daily-bar 调度器与告警一致使用 Asia/Shanghai。"""
+    import inspect
+
+    from stockresearch.services import briefing_scheduler, daily_bar_scheduler
+
+    for mod in (briefing_scheduler, daily_bar_scheduler):
+        src = inspect.getsource(mod)
+        assert "Asia/Shanghai" in src
+
+
+def test_cache_hit_marks_terms_inside_output_style_scope() -> None:
+    """PRD §11.1/§四：缓存命中路径必须走 output_style_scope（尊重 glossary 设置）。"""
+    import inspect
+
+    from stockresearch.api.routes import research
+
+    src = inspect.getsource(research.analyze_stock)
+    assert "output_style_scope(" in src
+    assert "custom_glossary" in src
+
+
+def test_plan_execute_prompt_braces_escaped() -> None:
+    """PRD §八 Phase 2：plan_execute 提示词 JSON 大括号必须转义（防 KeyError）。"""
+    import inspect
+
+    from stockresearch.agents.orchestrator import plan_execute
+
+    src = inspect.getsource(plan_execute)
+    assert "{tools_block}" in src
+    # 示例 JSON 的花括号必须转义为 {{ }}，不能裸 { 当替换字段
+    assert '{{"id": 1' in src

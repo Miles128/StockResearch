@@ -7,6 +7,7 @@ research / market / industry 三条研究流水线共享同一条"辩论作战"�
 from collections.abc import AsyncIterator
 
 from stockresearch.agents.research.debate import (
+    _infer_confidence,
     iter_battle_vote_events,
     iter_multi_round_debate_events,
     iter_research_manager_events,
@@ -113,7 +114,9 @@ async def iter_battle_events(
         consensus=parsed.summary,
         core_divergence=f"{parsed.divergence}：{parsed.divergence_point}",
         final_bias=parsed.final_bias,
-        confidence="medium",
+        # Same confidence inference as the sync debate path (PRD: sync/stream
+        # must produce identical verdicts for the same inputs).
+        confidence=_infer_confidence(dimensions),
         vote_tally=vote_tally,
         manager_thesis=manager_thesis or None,
     )

@@ -212,10 +212,6 @@ select {
   background: var(--nav-hover-bg);
 }
 
-.holding-card:hover {
-  border-color: var(--bbg-border-bright);
-}
-
 @keyframes skeleton-pulse {
   0%,
   100% {

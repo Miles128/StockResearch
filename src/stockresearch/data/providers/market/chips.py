@@ -379,7 +379,15 @@ class ChipsDataProvider:
                 "source": "akshare_lockup",
             }
         today = datetime.now(UTC).date()
-        upcoming = df[df["解禁时间"] >= today] if "解禁时间" in df.columns else df.iloc[0:0]
+        try:
+            upcoming = df[df["解禁时间"] >= today] if "解禁时间" in df.columns else df.iloc[0:0]
+        except TypeError:
+            # Column stored as strings ("YYYY-MM-DD") — compare as strings.
+            upcoming = (
+                df[df["解禁时间"].astype(str) >= today.isoformat()]
+                if "解禁时间" in df.columns
+                else df.iloc[0:0]
+            )
         if upcoming.empty:
             return {
                 "upcoming_count": 0,
@@ -387,11 +395,14 @@ class ChipsDataProvider:
                 "ratio_pct": 0.0,
                 "source": "akshare_lockup",
             }
-        row = upcoming.iloc[-1]
+        # "Next unlock" = the NEAREST future date; source row order is not
+        # guaranteed, so sort ascending before taking the first row.
+        upcoming = upcoming.sort_values("解禁时间", ascending=True)
+        row = upcoming.iloc[0]
         ratio_pct = float(row.get("占总市值比例", 0) or 0)
         return {
             "upcoming_count": len(upcoming),
-            "next_date": str(row.get("解禁时间", "")),
+            "next_date": str(row.get("解禁时间", ""))[:10],
             "ratio_pct": ratio_pct,
             "source": "akshare_lockup",
         }
