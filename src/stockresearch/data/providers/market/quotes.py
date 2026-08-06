@@ -30,6 +30,18 @@ from stockresearch.services.sqlite_cache import get_sqlite_cached, set_sqlite_ca
 
 logger = logging.getLogger(__name__)
 
+# Keep references to fire-and-forget background tasks so CPython never garbage-
+# collects a pending task mid-flight ("Task was destroyed but it is pending").
+# Entries are dropped via done-callback; shutdown races are benign (task no-ops).
+_BACKGROUND_TASKS: set[asyncio.Task[object]] = set()
+
+
+def _spawn_background(coro: object) -> asyncio.Task[object]:
+    task: asyncio.Task[object] = asyncio.create_task(coro)  # type: ignore[arg-type]
+    _BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_BACKGROUND_TASKS.discard)
+    return task
+
 
 class QuoteProvider:
     async def get_quote(
@@ -209,7 +221,7 @@ class QuoteProvider:
         else:
             for sym, row in sina_rows.items():
                 raw[sym] = {**row, "_source": "sina"}
-            asyncio.create_task(self._verify_cross_source_quotes(symbols, sina_rows))
+            _spawn_background(self._verify_cross_source_quotes(symbols, sina_rows))
 
         missing = [sym for sym in symbols if sym not in raw]
 
@@ -227,7 +239,7 @@ class QuoteProvider:
             )
             missing = [sym for sym in symbols if sym not in raw]
             if missing:
-                asyncio.create_task(self._background_fill_missing_quotes(missing, background_ttl))
+                _spawn_background(self._background_fill_missing_quotes(missing, background_ttl))
             sina_count = sum(
                 1 for sym in symbols if sym in raw and raw[sym].get("_source") == "sina"
             )
@@ -255,7 +267,7 @@ class QuoteProvider:
             )
             missing = [sym for sym in symbols if sym not in raw]
             if missing:
-                asyncio.create_task(self._background_fill_missing_quotes(missing, background_ttl))
+                _spawn_background(self._background_fill_missing_quotes(missing, background_ttl))
 
         if not raw:
             raise DataProviderError(sina_error or "行情数据不可用（sina/akshare/efinance 均失败）")

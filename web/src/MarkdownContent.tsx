@@ -2,7 +2,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
-import { useMemo, type ReactNode } from "react";
+import { memo, useMemo, type ReactNode } from "react";
 import { useGlossaryContext } from "./GlossaryContext";
 import { TermPopover, useGlossary } from "./TermPopover";
 
@@ -31,7 +31,10 @@ function resolveTermId(props: Record<string, unknown>): string {
   );
 }
 
-export function MarkdownContent({ text, className = "markdown-body" }: MarkdownContentProps) {
+export const MarkdownContent = memo(function MarkdownContent({
+  text,
+  className = "markdown-body",
+}: MarkdownContentProps) {
   const { enabled, terms: contextTerms } = useGlossaryContext();
   const fetchedTerms = useGlossary();
   const glossary = useMemo(() => {
@@ -78,4 +81,4 @@ export function MarkdownContent({ text, className = "markdown-body" }: MarkdownC
       </ReactMarkdown>
     </div>
   );
-}
+});

@@ -168,15 +168,17 @@ async def run_risk_checkup_stream(
     holdings: list[Holding],
     llm: LLMClient | None = None,
     *,
-    enable_llm_analysis: bool = True,
+    enable_llm_analysis: bool | None = None,
     mode_settings: ModeSettingsOut | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     """Stream risk checkup.
 
     PRD §四: 规则引擎 + 可选 LLM 解读。`enable_llm_analysis=False` 时跳过
     parallel LLM agents / 三角辩论 / Research Manager / Judge,直接返回
-    规则告警 + 量化指标。
+    规则告警 + 量化指标。None 保持默认 True（PRD 默认开）。
     """
+    if enable_llm_analysis is None:
+        enable_llm_analysis = True
     client = llm or get_llm_client()
 
     yield status_event("status.risk.analysis")
@@ -303,10 +305,17 @@ async def run_risk_checkup_stream(
         for agent_id, agent_name, fn in parallel_agents
     ]
     analysis: dict[str, str] = {}
-    async for event in iter_merged_agent_streams_from_tasks(tasks):
-        if event.get("type") == "agent_done" and event.get("agent_id"):
-            analysis[str(event["agent_id"])] = str(event.get("content", ""))
-        yield event
+    try:
+        async for event in iter_merged_agent_streams_from_tasks(tasks):
+            if event.get("type") == "agent_done" and event.get("agent_id"):
+                analysis[str(event["agent_id"])] = str(event.get("content", ""))
+            yield event
+    finally:
+        # Client disconnect: cancel agent tasks so LLM streams stop running on.
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     debate_context = (
         f"{context} | 市场：{analysis['market']} | "

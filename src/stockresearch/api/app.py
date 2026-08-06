@@ -9,6 +9,7 @@ from typing import cast
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -174,19 +175,16 @@ def create_app() -> FastAPI:
 
     @app.get("/api/v1")
     def api_index() -> dict[str, object]:
+        endpoints = sorted(
+            {
+                str(route.path)
+                for route in app.routes
+                if isinstance(route, APIRoute) and route.path.startswith("/api/v1")
+            }
+        )
         return {
             "version": "v1",
-            "endpoints": [
-                "/api/v1/chat",
-                "/api/v1/market/overview",
-                "/api/v1/market/quotes",
-                "/api/v1/portfolio/holdings",
-                "/api/v1/news/feed",
-                "/api/v1/research/analyze",
-                "/api/v1/risk/checkup",
-                "/api/v1/settings/llm",
-                "/api/v1/settings/llm/test",
-            ],
+            "endpoints": endpoints,
             "docs": "/docs",
         }
 

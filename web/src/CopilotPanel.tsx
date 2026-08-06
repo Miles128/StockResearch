@@ -15,7 +15,7 @@ interface CopilotPanelProps {
   onNewThread: () => void;
   onSelectThread: (id: string) => void;
   onDeleteThread: (id: string) => void;
-  onResizeStart: (axis: "x" | "y") => void;
+  onResizeStart: () => void;
 }
 
 export function CopilotPanel({
@@ -41,7 +41,7 @@ export function CopilotPanel({
           className="copilot-resize-handle col-axis"
           onMouseDown={(e) => {
             e.preventDefault();
-            onResizeStart("x");
+            onResizeStart();
           }}
           role="separator"
           aria-orientation="vertical"

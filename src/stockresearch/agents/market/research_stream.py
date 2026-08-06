@@ -17,6 +17,7 @@ from stockresearch.agents.market.dimensions import (
     prepare_technical,
 )
 from stockresearch.agents.research.battle import iter_battle_events
+from stockresearch.agents.research.budget import resolve_analysis_depth
 from stockresearch.agents.research.debate import summarize_situation
 from stockresearch.agents.research.report_builder import build_research_report
 from stockresearch.agents.stream_typewriter import (
@@ -63,9 +64,14 @@ async def run_market_research_stream(
     *,
     with_debate: bool = True,
     mode_settings: ModeSettingsOut | None = None,
+    analysis_depth: str | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     """Market deep research with the same bull/bear + judge flow as stock research."""
     client = llm or get_llm_client()
+    depth = resolve_analysis_depth(
+        explicit=analysis_depth,
+        settings_depth=mode_settings.analysis_depth if mode_settings else None,
+    )
     provider = MarketOverviewProvider()
     global_provider = GlobalMarketsProvider()
     overview, global_rows = await asyncio.gather(
@@ -120,6 +126,7 @@ async def run_market_research_stream(
             None,
             news_text_factor=news_text_factor,
             dimension_labels=_AGENT_LABELS,
+            analysis_depth=depth,
         )
         yield status_event("status.market.research.report_done")
         yield {"type": "done", "result": report.model_dump(mode="json")}
@@ -156,6 +163,7 @@ async def run_market_research_stream(
         debate,
         news_text_factor=news_text_factor,
         dimension_labels=_AGENT_LABELS,
+        analysis_depth=depth,
     )
 
     yield status_event("status.market.research.report_done")

@@ -35,13 +35,13 @@ _PLAN_SYSTEM = """你是「StockResearch」的研究规划 Agent。用户提出�
 
 输出格式（JSON）：
 ```json
-{
+{{
   "reasoning": "为什么选择这个计划",
   "steps": [
-    {"id": 1, "description": "步骤描述", "tool": "工具名", "args": {"参数": "值"}},
-    {"id": 2, "description": "步骤描述", "tool": "工具名", "args": {"参数": "值"}}
+    {{"id": 1, "description": "步骤描述", "tool": "工具名", "args": {{"参数": "值"}}}},
+    {{"id": 2, "description": "步骤描述", "tool": "工具名", "args": {{"参数": "值"}}}}
   ]
-}
+}}
 ```
 
 可用工具：

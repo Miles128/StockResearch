@@ -261,7 +261,7 @@ async def run_risk_checkup(
     holdings: list[Holding],
     llm: LLMClient | None = None,
     *,
-    enable_llm_analysis: bool = True,
+    enable_llm_analysis: bool | None = None,
     mode_settings: ModeSettingsOut | None = None,
 ) -> RiskCheckupOut:
     """Run risk checkup.
@@ -269,8 +269,11 @@ async def run_risk_checkup(
     PRD §四: 规则引擎 + 可选 LLM 解读。`enable_llm_analysis=False` 时跳过
     所有 LLM 调用（humanize / market / correlation / narrative / scenario），
     只返回规则告警 + 量化指标（metrics / VaR / stress）,`llm_analysis=None`。
-    默认 True 保持向后兼容；调用方（API payload / 设置）可显式关闭。
+    开关在 `RiskCheckupRequest.enable_llm_analysis`（默认开）;None 表示未
+    显式指定,保持默认 True（向后兼容,也即 PRD 的默认开）。
     """
+    if enable_llm_analysis is None:
+        enable_llm_analysis = True
     client = llm or get_llm_client()
     quote_provider = QuoteProvider()
 

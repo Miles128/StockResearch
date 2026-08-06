@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncIterator
+from typing import Literal
 
 from sqlalchemy.orm import Session
 
@@ -20,6 +21,7 @@ from stockresearch.agents.industry.dimensions import (
 )
 from stockresearch.agents.industry.leaders import iter_leader_analysis_events
 from stockresearch.agents.research.battle import iter_battle_events
+from stockresearch.agents.research.budget import resolve_analysis_depth
 from stockresearch.agents.research.debate import summarize_situation
 from stockresearch.agents.research.report_builder import build_research_report
 from stockresearch.agents.stream_typewriter import (
@@ -106,6 +108,7 @@ def _build_report(
     leaders: list[SectorLeaderBrief],
     *,
     news_text_factor: str | None = None,
+    analysis_depth: Literal["standard", "comprehensive", "deep"] = "standard",
 ) -> ResearchReportOut:
     board_code = "000000"
     if leaders:
@@ -125,6 +128,7 @@ def _build_report(
         sector=sector,
         leaders=leaders,
         summary_prefix=summary_prefix,
+        analysis_depth=analysis_depth,
     )
 
 
@@ -137,8 +141,13 @@ async def run_industry_research_stream(
     *,
     with_debate: bool = False,
     mode_settings: ModeSettingsOut | None = None,
+    analysis_depth: str | None = None,
 ) -> AsyncIterator[dict[str, object]]:
     client = llm or get_llm_client()
+    depth = resolve_analysis_depth(
+        explicit=analysis_depth,
+        settings_depth=mode_settings.analysis_depth if mode_settings else None,
+    )
     ctx = await _load_context(db, user_id, sector, query, client)
 
     yield status_event("status.industry.start", sector=sector)
@@ -159,9 +168,17 @@ async def run_industry_research_stream(
         )
         for agent_id, agent_name, prepare, build in _DIMENSION_JOBS
     ]
-    async for event in iter_queue_merged_events(queue, len(pumps)):
-        yield event  # type: ignore[misc]
-    await asyncio.gather(*pumps)
+    try:
+        async for event in iter_queue_merged_events(queue, len(pumps)):
+            yield event  # type: ignore[misc]
+        await asyncio.gather(*pumps)
+    finally:
+        # Client disconnect: cancel pump tasks so LLM streams stop running on.
+        for task in pumps:
+            if not task.done():
+                task.cancel()
+        if pumps:
+            await asyncio.gather(*pumps, return_exceptions=True)
 
     yield status_event("status.industry.leaders")
     leader_briefs: list[SectorLeaderBrief] = []
@@ -198,7 +215,12 @@ async def run_industry_research_stream(
     news_snippets = [news_from_title(title) for title in ctx.news_snippets]
     news_text_factor = build_news_text_factor(news_snippets, subject=f"「{sector}」板块")
     report = _build_report(
-        sector, dimensions, debate, leader_briefs, news_text_factor=news_text_factor
+        sector,
+        dimensions,
+        debate,
+        leader_briefs,
+        news_text_factor=news_text_factor,
+        analysis_depth=depth,
     )
 
     yield status_event("status.industry.report_done")

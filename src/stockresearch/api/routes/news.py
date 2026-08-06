@@ -1,7 +1,7 @@
 """News routes."""
 
-import json
 import logging
+from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -11,6 +11,7 @@ from stockresearch.agents.news.agent import get_news_for_user
 from stockresearch.agents.news.deep_analyzer import run_news_deep_analysis_stream
 from stockresearch.api.deps import get_current_user
 from stockresearch.api.llm_deps import llm_from_headers
+from stockresearch.api.sse import sse_response
 from stockresearch.core.constants import AVAILABLE_SECTORS
 from stockresearch.core.schemas import (
     NewsIngestAcceptedOut,
@@ -118,7 +119,7 @@ async def analyze_news_stream(
     if item is None:
         raise HTTPException(status_code=404, detail="News item not found")
 
-    async def event_generator():
+    async def event_generator() -> AsyncIterator[dict[str, object]]:
         try:
             async for event in run_news_deep_analysis_stream(
                 title=item.title,
@@ -130,14 +131,13 @@ async def analyze_news_stream(
                 news_id=item.id,
                 llm=llm,
             ):
-                yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
+                yield event
         except Exception as exc:
             logger.warning("news deep analysis stream failed: %s", exc, exc_info=True)
-            payload = {
+            yield {
                 "type": "error",
                 "code": "news_stream_failed",
                 "message": str(exc) or "新闻分析流中断",
             }
-            yield f"data: {json.dumps(payload, ensure_ascii=False, default=str)}\n\n"
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return sse_response(event_generator(), keep_alive_seconds=15.0)

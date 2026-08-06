@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, time
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -16,6 +17,9 @@ logger = logging.getLogger(__name__)
 
 _MARKET_OPEN = time(9, 25)
 _MARKET_CLOSE = time(15, 10)
+# Cron triggers run in Asia/Shanghai; wall-clock window checks must use the
+# same zone or alerts evaluate at the wrong absolute time on non-CN hosts.
+_TZ = ZoneInfo("Asia/Shanghai")
 
 
 class PriceAlertScheduler:
@@ -45,8 +49,8 @@ class PriceAlertScheduler:
     async def _run_check(self) -> None:
         if not self.enabled:
             return
-        now = datetime.now()
-        today = date.today()
+        now = datetime.now(_TZ)
+        today = now.date()
         try:
             if not is_a_share_trading_day(today):
                 return

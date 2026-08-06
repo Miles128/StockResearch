@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { loadLayoutSettings, saveLayoutSettings, type LayoutSettings } from "../layoutSettings";
 
-export type LayoutResizeAxis = "copilot-x" | "lists" | "y";
+export type LayoutResizeAxis = "copilot-x" | "lists";
 
 export interface LayoutResizeState {
   layoutSettings: LayoutSettings;
   setLayoutSettings: Dispatch<SetStateAction<LayoutSettings>>;
-  startCopilotResize: (axis: "x" | "y") => void;
+  startCopilotResize: () => void;
   startListsResize: () => void;
 }
 
@@ -19,15 +19,6 @@ export function useLayoutResize(): LayoutResizeState {
     function onMove(e: MouseEvent) {
       if (!resizingRef.current) return;
       setLayoutSettings((prev) => {
-        if (resizingAxisRef.current === "y") {
-          const minH = 200;
-          const maxH = window.innerHeight - 120;
-          const next = window.innerHeight - e.clientY;
-          return {
-            ...prev,
-            copilotHeight: Math.max(minH, Math.min(maxH, next)),
-          };
-        }
         if (resizingAxisRef.current === "lists") {
           const minW = 280;
           const maxW = Math.min(880, window.innerWidth - 480);
@@ -61,10 +52,10 @@ export function useLayoutResize(): LayoutResizeState {
     };
   }, []);
 
-  function startCopilotResize(axis: "x" | "y") {
+  function startCopilotResize() {
     resizingRef.current = true;
-    resizingAxisRef.current = axis === "y" ? "y" : "copilot-x";
-    document.body.style.cursor = axis === "y" ? "row-resize" : "col-resize";
+    resizingAxisRef.current = "copilot-x";
+    document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
   }
 

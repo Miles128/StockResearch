@@ -27,7 +27,6 @@ export function loadLayoutSettings(): LayoutSettings {
   const raw = store.load() as LayoutSettings & {
     shellLayout?: string;
     copilotLayout?: string;
-    copilotHeight?: number;
   };
   const listsWidth = raw.listsWidth ?? LISTS_WIDTH_DEFAULT;
   return {

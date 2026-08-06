@@ -136,7 +136,7 @@ export async function createJsonSseStream<T, E extends SseEvent = SseEvent>(
 
   const resp = await fetchWithTimeout(url, init, SSE_OPEN_TIMEOUT_MS);
   if (!resp.ok) {
-    throw new Error("流式请求失败");
+    throw new Error(await formatSseError(resp));
   }
 
   let result: T | null = null;
@@ -153,4 +153,25 @@ export async function createJsonSseStream<T, E extends SseEvent = SseEvent>(
     timeoutMs,
   );
   return result;
+}
+
+async function formatSseError(resp: Response): Promise<string> {
+  try {
+    const body = await resp.text();
+    if (body) {
+      try {
+        const parsed = JSON.parse(body) as { detail?: unknown; error?: unknown };
+        if (parsed.detail) {
+          return typeof parsed.detail === "string" ? parsed.detail : JSON.stringify(parsed.detail);
+        }
+        if (typeof parsed.error === "string" && parsed.error) return parsed.error;
+      } catch {
+        /* non-JSON body — fall through to status text */
+      }
+      if (body.trim().length > 0 && body.trim().length <= 500) return body.trim();
+    }
+  } catch {
+    /* body read failed — fall through */
+  }
+  return `流式请求失败（HTTP ${resp.status} ${resp.statusText}）`;
 }

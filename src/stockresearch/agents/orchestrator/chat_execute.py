@@ -128,6 +128,15 @@ async def execute_chat_turn(
     )
     if execution_preference == "plan_execute":
         return await _run_plan_execute_sync(ctx)
+    if execution_preference in ("auto", "preset"):
+        from stockresearch.agents.orchestrator.complexity import (
+            ComplexityResult,
+            resolve_execution_mode,
+        )
+
+        routed = resolve_execution_mode(msg, enable_debate=debate_on)
+        if routed == ComplexityResult.PLAN_EXECUTE:
+            return await _run_plan_execute_sync(ctx)
     return await _run_react_sync(ctx)
 
 

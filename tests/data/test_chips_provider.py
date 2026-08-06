@@ -35,3 +35,34 @@ async def test_chips_provider_returns_defaults_when_offline(
     assert holders["holder_count"] == 0.0
     assert lockup["source"] == "akshare_lockup"
     assert lockup["upcoming_count"] == 0
+
+
+def test_margin_sse_uses_yuan_column_not_share_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: SSE total must not mix 融资余额 (yuan) with 融券余量 (shares).
+
+    Total should use 融资融券余额 when present, else 融资余额 + 融券余量金额."""
+    import pandas as pd
+
+    df = pd.DataFrame(
+        [
+            {
+                "标的证券代码": "600519",
+                "融资余额": "1000000.0",
+                "融券余量": "500.0",
+                "融券余量金额": "200000.0",
+                "融资融券余额": "1200000.0",
+            }
+        ]
+    )
+    monkeypatch.setattr(
+        "stockresearch.data.providers.market.chips.ak.stock_margin_detail_sse",
+        lambda date: df,
+    )
+    provider = ChipsDataProvider()
+    result = provider._fetch_margin_sync("600519")
+    assert result["total_balance"] == 1_200_000.0
+    assert result["securities_balance"] == 200_000.0
+    # 500 shares must never be added to a yuan balance.
+    assert result["total_balance"] != 1_000_000.0 + 500.0

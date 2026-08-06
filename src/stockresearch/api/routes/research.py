@@ -1,7 +1,6 @@
 """Research routes."""
 
 import asyncio
-import json
 import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
@@ -16,6 +15,8 @@ from stockresearch.agents.research.runner import run_research
 from stockresearch.agents.research.stream import run_research_stream
 from stockresearch.api.deps import get_current_user
 from stockresearch.api.llm_deps import llm_from_headers
+from stockresearch.api.sse import sse_response
+from stockresearch.core.config import get_settings
 from stockresearch.core.exceptions import NotFoundError
 from stockresearch.core.output_style import (
     get_custom_glossary,
@@ -97,6 +98,10 @@ def _research_cache_key(symbol: str, depth: str, reading_mode: str) -> str:
     return f"research:{symbol}:{depth}:{reading_mode}"
 
 
+# PRD §五 分层降级：研报缓存 TTL 由配置项控制（默认 24h），禁止散落 magic number。
+research_cache_ttl = get_settings().research_cache_ttl_seconds
+
+
 def persist_report(db: Session, user_id: int, report: ResearchReportOut) -> ResearchReport:
     payload = report.model_dump(mode="json")
     row = ResearchReport(
@@ -173,12 +178,17 @@ async def analyze_stock(
     cached = cache.get_json(cache_key)
     if cached:
         report = ResearchReportOut.model_validate({**cached, "cached": True})
-        return _mark_report_terms(report)
+        with output_style_scope(
+            reading_mode=settings.reading_mode,
+            enable_glossary=settings.enable_glossary,
+            custom_glossary=settings.custom_glossary,
+        ):
+            return _mark_report_terms(report)
     with output_style_scope(
         reading_mode=settings.reading_mode, enable_glossary=settings.enable_glossary
     ):
         report = await run_research(symbol, llm=llm, mode_settings=settings, analysis_depth=depth)
-    cache.set_json(cache_key, report.model_dump(mode="json"), ttl_seconds=86400)
+    cache.set_json(cache_key, report.model_dump(mode="json"), ttl_seconds=research_cache_ttl)
 
     row = persist_report(db, user.id, report)
     return _mark_report_terms(stamp_report_id(report, row.id))
@@ -200,13 +210,18 @@ async def analyze_stock_stream(
     cache = CacheService()
     cache_key = _research_cache_key(symbol, depth, settings.reading_mode)
 
-    async def event_generator() -> AsyncIterator[str]:
+    async def event_generator() -> AsyncIterator[dict[str, object]]:
         cached = cache.get_json(cache_key)
         if cached:
             report = ResearchReportOut.model_validate({**cached, "cached": True})
-            yield f"data: {json.dumps({'type': 'status', 'message': '命中缓存， 直接返回报告'}, ensure_ascii=False)}\n\n"
-            payload = {"type": "done", "result": _mark_report_terms(report).model_dump(mode="json")}
-            yield f"data: {json.dumps(payload, ensure_ascii=False, default=str)}\n\n"
+            with output_style_scope(
+                reading_mode=settings.reading_mode,
+                enable_glossary=settings.enable_glossary,
+                custom_glossary=settings.custom_glossary,
+            ):
+                marked = _mark_report_terms(report)
+            yield {"type": "status", "message": "命中缓存， 直接返回报告"}
+            yield {"type": "done", "result": marked.model_dump(mode="json")}
             return
 
         final: ResearchReportOut | None = None
@@ -223,14 +238,16 @@ async def analyze_stock_stream(
                     raw = event.get("result")
                     if isinstance(raw, dict):
                         final = ResearchReportOut.model_validate(raw)
-                        cache.set_json(cache_key, final.model_dump(mode="json"), ttl_seconds=86400)
+                        cache.set_json(
+                            cache_key, final.model_dump(mode="json"), ttl_seconds=research_cache_ttl
+                        )
                         row = persist_report(db, user.id, final)
                         stamped = _mark_report_terms(stamp_report_id(final, row.id))
                         event = {**event, "result": stamped.model_dump(mode="json")}
                         final = stamped
-                yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
+                yield event
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return sse_response(event_generator(), keep_alive_seconds=15.0)
 
 
 @router.get("/reports", response_model=list[ResearchReportListItem])
@@ -545,7 +562,7 @@ async def industry_research_stream(
 ) -> StreamingResponse:
     from stockresearch.agents.industry.stream import run_industry_research_stream
 
-    async def event_generator() -> AsyncIterator[str]:
+    async def event_generator() -> AsyncIterator[dict[str, object]]:
         final: ResearchReportOut | None = None
         async for event in run_industry_research_stream(
             db,
@@ -561,9 +578,9 @@ async def industry_research_stream(
                     row = persist_report(db, user.id, final)
                     stamped = stamp_report_id(final, row.id)
                     event = {**event, "result": stamped.model_dump(mode="json")}
-            yield f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
+            yield event
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return sse_response(event_generator(), keep_alive_seconds=15.0)
 
 
 @router.get("/signal-backtest", response_model=SignalBacktestOut)
@@ -792,7 +809,7 @@ async def refill_gaps(
     cache.set_json(
         _research_cache_key(symbol, depth, settings.reading_mode),
         report.model_dump(mode="json"),
-        ttl_seconds=86400,
+        ttl_seconds=research_cache_ttl,
     )
     row = persist_report(db, user.id, report)
     return _mark_report_terms(stamp_report_id(report, row.id))

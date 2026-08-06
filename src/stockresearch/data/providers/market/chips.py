@@ -310,8 +310,10 @@ class ChipsDataProvider:
             row = stock_df.iloc[0]
             if symbol.startswith("6"):
                 financing = _as_float(row.get("融资余额"))
-                securities = _as_float(row.get("融券余量"))
-                total = financing + securities
+                # SSE detail reports 融券余量 in shares; use the yuan-valued column
+                # (融券余量金额) so the total keeps a single unit.
+                securities = _as_float(row.get("融券余量金额")) or _as_float(row.get("融券余额"))
+                total = _as_float(row.get("融资融券余额")) or financing + securities
             else:
                 financing = _as_float(row.get("融资余额"))
                 securities = _as_float(row.get("融券余额"))

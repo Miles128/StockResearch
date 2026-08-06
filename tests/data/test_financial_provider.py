@@ -113,6 +113,78 @@ def test_optional_pct_returns_none_on_missing() -> None:
     assert FinancialDataProvider._optional_pct(12) == pytest.approx(0.12)
 
 
+def test_from_indicator_df_uses_latest_period() -> None:
+    """Regression: indicator df is chronological (oldest first); latest metrics
+    must come from the LAST row, and series must be newest-first like THS."""
+    df = pd.DataFrame(
+        [
+            {
+                "日期": "2023-03-31",
+                "营业收入同比增长率": "5%",
+                "净利润同比增长率": "6%",
+                "销售净利率": "18%",
+                "净资产收益率": "12%",
+                "资产负债率": "45%",
+            },
+            {
+                "日期": "2023-06-30",
+                "营业收入同比增长率": "7%",
+                "净利润同比增长率": "9%",
+                "销售净利率": "20%",
+                "净资产收益率": "14%",
+                "资产负债率": "43%",
+            },
+            {
+                "日期": "2023-09-30",
+                "营业收入同比增长率": "10%",
+                "净利润同比增长率": "13%",
+                "销售净利率": "22%",
+                "净资产收益率": "16%",
+                "资产负债率": "41%",
+            },
+        ]
+    )
+    provider = FinancialDataProvider()
+    result = provider._from_indicator_df(df)
+    assert result is not None
+    assert result["revenue_yoy"] == pytest.approx(0.10)
+    assert result["net_profit_yoy"] == pytest.approx(0.13)
+    assert result["roe"] == pytest.approx(0.16)
+    assert result["source"] == "akshare_indicator"
+    periods = [s["period"] for s in result["series"]]  # type: ignore[union-attr]
+    assert periods[0] >= periods[-1], "series must be newest-first"
+
+
+def test_from_indicator_df_handles_newest_first_input() -> None:
+    """Same convention regardless of the source row order."""
+    df = pd.DataFrame(
+        [
+            {
+                "日期": "2023-09-30",
+                "营业收入同比增长率": "10%",
+                "净利润同比增长率": "13%",
+                "销售净利率": "22%",
+                "净资产收益率": "16%",
+                "资产负债率": "41%",
+            },
+            {
+                "日期": "2023-03-31",
+                "营业收入同比增长率": "5%",
+                "净利润同比增长率": "6%",
+                "销售净利率": "18%",
+                "净资产收益率": "12%",
+                "资产负债率": "45%",
+            },
+        ]
+    )
+    provider = FinancialDataProvider()
+    result = provider._from_indicator_df(df)
+    assert result is not None
+    assert result["revenue_yoy"] == pytest.approx(0.10)
+    periods = [s["period"] for s in result["series"]]  # type: ignore[union-attr]
+    assert periods[0] >= periods[-1]
+
+
 @pytest.mark.asyncio
 async def test_get_valuation_no_default_pe(
     monkeypatch: pytest.MonkeyPatch,

@@ -276,8 +276,6 @@ export const api = {
     const qs = opts?.forceRefresh ? "?force_refresh=true" : "";
     return request<HoldingEnriched[]>(`/portfolio/holdings/enriched${qs}`);
   },
-  addHolding: (h: HoldingCreatePayload) =>
-    request("/portfolio/holdings", { method: "POST", body: JSON.stringify(h) }),
   deleteHolding: (id: number) => request(`/portfolio/holdings/${id}`, { method: "DELETE" }),
   applyHoldingTransactions: (payload: HoldingTransactionBatchPayload) =>
     request<HoldingTransactionResult>("/portfolio/holdings/transactions", {
@@ -309,29 +307,10 @@ export const api = {
     const accepted = await request<NewsIngestAccepted>("/news/ingest?limit=10", { method: "POST" });
     return waitForNewsIngestJob(accepted.job_id);
   },
-  newsIngestJob: (jobId: string) =>
-    request<NewsIngestJob>(`/news/ingest/${encodeURIComponent(jobId)}`),
   research: (symbol: string, analysisDepth?: AnalysisDepth) => {
     const depth = analysisDepth ?? loadModeSettings().analysisDepth;
     const params = new URLSearchParams({ symbol, analysis_depth: depth });
     return request<ResearchReport>(`/research/analyze?${params.toString()}`);
-  },
-  researchStream: (
-    symbol: string,
-    onEvent?: (event: AgentStreamEvent) => void,
-    analysisDepth?: AnalysisDepth,
-  ) => {
-    const depth = analysisDepth ?? loadModeSettings().analysisDepth;
-    const params = new URLSearchParams({ symbol, analysis_depth: depth });
-    return createJsonSseStream<ResearchReport, AgentStreamEvent>({
-      url: apiUrl(`/research/analyze/stream?${params.toString()}`),
-      headers: llmRequestHeaders(),
-      onEvent,
-      extractResult: (event) =>
-        event.type === "done" && event.result
-          ? (event.result as unknown as ResearchReport)
-          : undefined,
-    });
   },
   riskCheckup: () =>
     requestWithLlm<RiskCheckup>(
@@ -386,8 +365,6 @@ export const api = {
     if (before) params.set("before", before);
     return request<KlineChart>(`/market/kline?${params.toString()}`);
   },
-  chartOverlays: (symbol: string) =>
-    request<ChartOverlaySet>(`/market/overlays?symbol=${encodeURIComponent(symbol)}`),
   listReports: () => request<ResearchReportListItem[]>("/research/reports"),
   downloadReportMarkdown: (id: number) => {
     window.open(apiUrl(`/research/reports/${id}/markdown`), "_blank", "noopener,noreferrer");
@@ -469,15 +446,6 @@ export const api = {
     requestWithLlm<Briefing>(`/briefing/generate?kind=${kind}`, {
       method: "POST",
       body: JSON.stringify(chatBodyField()),
-    }),
-  latestBriefing: (kind: "premarket" | "intraday" | "postmarket") =>
-    request<Briefing | null>(`/briefing/latest?kind=${kind}`),
-  briefingHistory: (kind: "premarket" | "intraday" | "postmarket" | "all" = "all", limit = 10) =>
-    request<Briefing[]>(`/briefing/history?kind=${kind}&limit=${limit}`),
-  briefingSchedule: () => request<BriefingSchedule>("/briefing/schedule"),
-  setBriefingSchedule: (enabled: boolean) =>
-    request<BriefingSchedule>(`/briefing/schedule?enabled=${enabled}`, {
-      method: "PUT",
     }),
   loadDemo: () =>
     request<{ status: string; count: number; demo: boolean }>("/portfolio/demo", {

@@ -9,7 +9,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    database_url: str = "sqlite:///./stockresearch.db"
+    # 默认与 .env 的 DATABASE_URL（sqlite:///./main.db）保持一致，避免误建第二个库。
+    database_url: str = "sqlite:///./main.db"
     llm_api_key: str = ""
     llm_base_url: str = ""
     llm_model: str = ""
@@ -22,7 +23,8 @@ class Settings(BaseSettings):
     agent_timeout_seconds: int = 45
     # LLM 单次请求超时。必须 < agent_timeout_seconds，否则 agent 已超时但 LLM 仍在跑。
     llm_timeout_seconds: int = 30
-    cors_allowed_origins: str = ""  # comma-separated, empty = allow all
+    # comma-separated；空 = 回退到本机开发常用源（见 api/app.py），非通配允许全部。
+    cors_allowed_origins: str = ""
     # 提示词目录。留空使用项目根目录 prompts/；不存在时回退到内置 prompts。
     prompts_dir: str = ""
     # 是否在 API 进程内启动定时调度（简报/价格告警）。P1 默认 false，应独立运行 worker。
