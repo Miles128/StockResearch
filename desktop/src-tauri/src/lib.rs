@@ -81,13 +81,20 @@ fn health_ok() -> bool {
         return false;
     }
     let url = format!("{}{HEALTH_PATH}", api_base());
-    Command::new(if cfg!(windows) { "curl.exe" } else { "curl" })
+    // 必须校验响应体是本项目 API（status=ok），而不是任意 HTTP 200——
+    // 否则其他服务占用同一端口（如 Docker 端口转发）会被误判为"已有服务"，
+    // 窗口会加载到无关页面。
+    let out = Command::new(if cfg!(windows) { "curl.exe" } else { "curl" })
         .args(["-fsS", "--max-time", "2", &url])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+        .stdin(Stdio::null())
+        .output();
+    match out {
+        Ok(output) if output.status.success() => {
+            let body = String::from_utf8_lossy(&output.stdout);
+            body.contains("\"status\":\"ok\"") || body.contains("StockResearch")
+        }
+        _ => false,
+    }
 }
 
 fn which(bin: &str) -> Option<PathBuf> {
