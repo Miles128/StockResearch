@@ -487,7 +487,7 @@ cd desktop && npm install && npm run tauri dev
 | **12b 准确率仪表盘** ✅ | 按方向/标的/置信度统计命中率 + 校准条 + 错误预测诚实展示（设置页「预测准确率」块） | 12a 数据 | 任一维度可看命中率与校准；错误预测可见 |
 | **12c 白话复盘** ✅ | 到期评分后一键生成 2~3 句白话复盘（判断对错 + 当时维度得分解释 + 认知教训），`review_text` 缓存；接口 `POST /predictions/{id}/review` | 12a + 词库 | 到期复盘可一键生成白话解释 |
 | **12d 归因学习** 🚧 观察性已落地 | 预测快照存四维得分；`GET /predictions/attribution` 按维度分档统计命中率（高分档 vs 低分档）——**观察性展示，暂不自动改权重**（可解释性优先） | 12a 数据 + scoring | 维度高分档与低分档命中率可见 |
-| **12e 假设自动验证** | Thesis.invalidate_if 自动生成验证计划并到期执行，结果回写研报卡 | Thesis schema + hypothesis_verify | deep 档主张到期自动验证，无需手动点按 |
+| **12e 假设自动验证** ✅ | `thesis_verifications` 表（迁移 008）+ deep 档研报自动创建验证计划；worker 到期用 qfq 日线判「主张受挑战/未被证伪」；研报卡 ThesisBlock 回写验证状态；`GET /predictions/thesis` | Thesis schema + hypothesis_verify | deep 档主张到期自动验证，无需手动点按 |
 | **12f Market Regime** | 市场状态标签（趋势/震荡/风险偏好），结论附"同 regime 历史样本命中率" | Impact/四维 | 研报结论带 regime 标注与同 regime 统计 |
 
 ### Phase 13 · 金融教育（北极星二：非专业人士可理解）🚧 规划中
