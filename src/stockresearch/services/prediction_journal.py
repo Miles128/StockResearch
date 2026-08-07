@@ -9,7 +9,6 @@ import logging
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from stockresearch.core.schemas import ResearchReportOut
@@ -70,7 +69,10 @@ def record_prediction_for_report(
     *,
     report_id: int | None = None,
 ) -> Prediction | None:
-    """研报持久化时自动留存预测记录（幂等：同一报告不重复记录）。"""
+    """研报持久化时自动留存预测记录（幂等：同一报告不重复记录）。
+
+    regime 回填由 enrich_prediction_regime（async）单独执行，失败不阻塞记录。
+    """
     if not report or not report.symbol:
         return None
     if report_id is not None:
@@ -172,17 +174,9 @@ def prediction_stats(db: Session, user_id: int) -> dict[str, object]:
     命中率 = correct / (correct + incorrect)；neutral 不计入分母。
     """
     rows = (
-        db.query(
-            Prediction.direction,
-            Prediction.confidence,
-            Prediction.outcome,
-            Prediction.symbol,
-            func.count(Prediction.id),
-        )
+        db.query(Prediction)
         .filter(Prediction.user_id == user_id, Prediction.status == "scored")
-        .group_by(
-            Prediction.direction, Prediction.confidence, Prediction.outcome, Prediction.symbol
-        )
+        .limit(1000)
         .all()
     )
     total_correct = 0
@@ -191,27 +185,38 @@ def prediction_stats(db: Session, user_id: int) -> dict[str, object]:
     by_confidence: dict[str, dict[str, int]] = {}
     by_direction: dict[str, dict[str, int]] = {}
     by_symbol: dict[str, dict[str, int]] = {}
+    by_regime: dict[str, dict[str, int]] = {}
     symbol_names: dict[str, str] = {}
-    for direction, confidence, outcome, symbol, count in rows:
+    for p in rows:
+        direction, confidence, outcome, symbol = p.direction, p.confidence, p.outcome, p.symbol
+        count = 1
         bucket = by_confidence.setdefault(confidence, {"correct": 0, "incorrect": 0, "neutral": 0})
         d_bucket = by_direction.setdefault(direction, {"correct": 0, "incorrect": 0, "neutral": 0})
         s_bucket = by_symbol.setdefault(symbol, {"correct": 0, "incorrect": 0, "neutral": 0})
         symbol_names.setdefault(symbol, symbol)
+        r_bucket: dict[str, int] | None = None
+        regime: object = None
+        if isinstance(p.factor_snapshot, dict):
+            regime = p.factor_snapshot.get("regime")
+        if isinstance(regime, str) and regime:
+            if regime not in by_regime:
+                by_regime[regime] = {"correct": 0, "incorrect": 0, "neutral": 0}
+            r_bucket = by_regime[regime]
+        for b in (bucket, d_bucket, s_bucket, r_bucket):
+            if b is None:
+                continue
+            if outcome == "correct":
+                b["correct"] += count
+            elif outcome == "incorrect":
+                b["incorrect"] += count
+            elif outcome == "neutral":
+                b["neutral"] += count
         if outcome == "correct":
             total_correct += count
-            bucket["correct"] += count
-            d_bucket["correct"] += count
-            s_bucket["correct"] += count
         elif outcome == "incorrect":
             total_incorrect += count
-            bucket["incorrect"] += count
-            d_bucket["incorrect"] += count
-            s_bucket["incorrect"] += count
         elif outcome == "neutral":
             total_neutral += count
-            bucket["neutral"] += count
-            d_bucket["neutral"] += count
-            s_bucket["neutral"] += count
     denominator = total_correct + total_incorrect
     by_symbol_out: dict[str, dict[str, object]] = {}
     for symbol, s_bucket in by_symbol.items():
@@ -223,6 +228,15 @@ def prediction_stats(db: Session, user_id: int) -> dict[str, object]:
             "neutral": s_bucket["neutral"],
             "hit_rate": round(s_bucket["correct"] / denom, 4) if denom else None,
         }
+    by_regime_out: dict[str, dict[str, object]] = {}
+    for regime, bucket in by_regime.items():
+        denom = bucket["correct"] + bucket["incorrect"]
+        by_regime_out[regime] = {
+            "correct": bucket["correct"],
+            "incorrect": bucket["incorrect"],
+            "neutral": bucket["neutral"],
+            "hit_rate": round(bucket["correct"] / denom, 4) if denom else None,
+        }
     return {
         "scored": total_correct + total_incorrect + total_neutral,
         "correct": total_correct,
@@ -232,6 +246,7 @@ def prediction_stats(db: Session, user_id: int) -> dict[str, object]:
         "by_confidence": by_confidence,
         "by_direction": by_direction,
         "by_symbol": by_symbol_out,
+        "by_regime": by_regime_out,
     }
 
 
@@ -291,6 +306,38 @@ def dimension_attribution(db: Session, user_id: int) -> dict[str, object]:
             }
         out[dim] = rows_out
     return {"dimensions": out, "sample": sample}
+
+
+async def enrich_prediction_regime_for_report(db: Session, report_id: int) -> None:
+    """按研报回填其预测记录的 regime（report_id 维度入口）。"""
+    p = db.query(Prediction).filter(Prediction.report_id == report_id).first()
+    if p is None:
+        return
+    try:
+        from stockresearch.services.market_regime import current_regime
+
+        snapshot = dict(p.factor_snapshot or {})
+        snapshot["regime"] = await current_regime()
+        p.factor_snapshot = snapshot
+        db.commit()
+    except Exception:
+        logger.debug("regime enrichment failed for report %s", report_id, exc_info=True)
+
+
+async def enrich_prediction_regime(db: Session, prediction_id: int) -> None:
+    """Phase 12f：预测快照回填当时市场 regime（拉取失败仅丢 regime，不抛错）。"""
+    try:
+        from stockresearch.services.market_regime import current_regime
+
+        p = db.query(Prediction).filter(Prediction.id == prediction_id).first()
+        if p is None:
+            return
+        snapshot = dict(p.factor_snapshot or {})
+        snapshot["regime"] = await current_regime()
+        p.factor_snapshot = snapshot
+        db.commit()
+    except Exception:
+        logger.debug("regime enrichment failed for prediction %s", prediction_id, exc_info=True)
 
 
 async def generate_prediction_review(

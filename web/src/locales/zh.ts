@@ -477,6 +477,9 @@ export const zh: Dict = {
       conclusion: "综合结论",
     },
   },
+  knowledge: {
+    whyImportant: "为什么重要",
+  },
   portfolio: {
     symbol: "代码/名称",
     symbolPh: "如 600519 或 贵州茅台",
@@ -836,6 +839,8 @@ export const zh: Dict = {
     thesisTitle: "研究论点（Thesis）",
     thesisHorizon: "观察窗口：{horizon}",
     thesisMonitors: "持续监控",
+    thesisVerified: "自动验证已完成",
+    thesisPending: "自动验证计划中（到期 {due}）",
     thesisInvalidateIf: "证伪条件",
     thesisEvidence: "证据",
     impactEventKind: {

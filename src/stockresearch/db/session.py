@@ -141,6 +141,36 @@ def _migration_007_prediction_review(conn: Connection) -> None:
         conn.execute(text("ALTER TABLE predictions ADD COLUMN review_text TEXT"))
 
 
+def _migration_008_thesis_verifications(conn: Connection) -> None:
+    if not _table_exists(conn, "thesis_verifications"):
+        conn.execute(
+            text(
+                """CREATE TABLE thesis_verifications (
+                    id INTEGER PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id),
+                    report_id INTEGER REFERENCES research_reports(id),
+                    symbol VARCHAR(6) NOT NULL,
+                    name VARCHAR(50) NOT NULL,
+                    claim TEXT NOT NULL DEFAULT '',
+                    direction VARCHAR(10) NOT NULL DEFAULT 'neutral',
+                    monitors JSON,
+                    invalidate_if JSON,
+                    horizon_days INTEGER NOT NULL DEFAULT 60,
+                    status VARCHAR(10) NOT NULL DEFAULT 'pending',
+                    result_text TEXT,
+                    due_at DATE NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    checked_at DATETIME
+                )"""
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_thesis_verifications_due ON thesis_verifications (status, due_at)"
+            )
+        )
+
+
 def _migration_006_predictions(conn: Connection) -> None:
     if not _table_exists(conn, "predictions"):
         conn.execute(
@@ -178,6 +208,7 @@ _SQLITE_MIGRATIONS: list[tuple[int, str, Callable[[Connection], None]]] = [
     (5, "report_plain_versions", _migration_005_report_plain_versions),
     (6, "predictions", _migration_006_predictions),
     (7, "prediction_review", _migration_007_prediction_review),
+    (8, "thesis_verifications", _migration_008_thesis_verifications),
 ]
 
 

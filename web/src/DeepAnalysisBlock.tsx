@@ -1,10 +1,13 @@
+import { useEffect, useState } from "react";
 import type {
   ImpactOut,
   ImpactPeakDayOut,
   PricingBridgeOut,
   ResearchReport,
   ThesisOut,
+  ThesisVerification,
 } from "./api";
+import { api } from "./api";
 import { useI18n } from "./i18n";
 
 function fmtPct(value: number | null | undefined): string {
@@ -153,11 +156,27 @@ function PricingBlock({
 
 function ThesisBlock({
   thesis,
+  reportId,
   t,
 }: {
   thesis: ThesisOut;
+  reportId?: number | null;
   t: (key: string, params?: Record<string, string | number>) => string;
 }) {
+  const [verification, setVerification] = useState<ThesisVerification | null>(null);
+
+  useEffect(() => {
+    if (typeof reportId !== "number" || reportId <= 0) return;
+    api
+      .thesisVerifications(reportId)
+      .then((rows) => {
+        if (rows.length > 0) setVerification(rows[0]);
+      })
+      .catch(() => {
+        /* verification status is best-effort */
+      });
+  }, [reportId]);
+
   return (
     <div className="thesis-block">
       <p className="thesis-title">{t("card.thesisTitle")}</p>
@@ -167,6 +186,16 @@ function ThesisBlock({
           {t("card.thesisHorizon", { horizon: thesis.horizon })}
         </p>
       ) : null}
+      {verification && (
+        <div className={`thesis-verification ${verification.status}`}>
+          <strong>
+            {verification.status === "verified"
+              ? t("card.thesisVerified")
+              : t("card.thesisPending", { due: verification.due_at })}
+          </strong>
+          {verification.result_text ? <p className="muted">{verification.result_text}</p> : null}
+        </div>
+      )}
       {thesis.monitors && thesis.monitors.length > 0 && (
         <div className="thesis-list-block">
           <strong>{t("card.thesisMonitors")}</strong>
@@ -215,7 +244,7 @@ export function DeepAnalysisBlock({
       <summary>{t("card.deepAnalysisTitle")}</summary>
       {impact ? <ImpactBlock impact={impact} t={t} /> : null}
       {pricing ? <PricingBlock pricing={pricing} t={t} /> : null}
-      {thesis ? <ThesisBlock thesis={thesis} t={t} /> : null}
+      {thesis ? <ThesisBlock thesis={thesis} reportId={report.id} t={t} /> : null}
     </details>
   );
 }

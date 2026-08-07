@@ -48,6 +48,14 @@ class PredictionScoringScheduler:
                 logger.info("Prediction scoring done: %s scored", scored)
         except Exception as exc:
             logger.warning("Prediction scoring failed: %s", exc)
+        try:
+            from stockresearch.services.thesis_verification import check_due_theses
+
+            checked = await check_due_theses(SessionLocal)
+            if checked:
+                logger.info("Thesis verification done: %s checked", checked)
+        except Exception as exc:
+            logger.warning("Thesis verification failed: %s", exc)
 
 
 _scheduler: PredictionScoringScheduler | None = None

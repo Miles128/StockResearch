@@ -464,6 +464,10 @@ export const api = {
   predictionAttribution: () => request<DimensionAttribution>("/predictions/attribution"),
   predictionReview: (id: number) =>
     request<PredictionReview>(`/predictions/${id}/review`, { method: "POST" }),
+  thesisVerifications: (reportId?: number) => {
+    const qs = reportId ? `?report_id=${reportId}` : "";
+    return request<ThesisVerification[]>(`/predictions/thesis${qs}`);
+  },
   predictions: (opts?: { status?: string; limit?: number }) => {
     const params = new URLSearchParams();
     if (opts?.status) params.set("status", opts.status);
@@ -1453,6 +1457,24 @@ export interface PredictionStats {
   by_confidence: Record<string, PredictionCounts>;
   by_direction: Record<string, PredictionCounts>;
   by_symbol: Record<string, PredictionSymbolStats>;
+  by_regime: Record<string, PredictionCounts>;
+}
+
+export interface ThesisVerification {
+  id: number;
+  report_id: number | null;
+  symbol: string;
+  name: string;
+  claim: string;
+  direction: "bullish" | "bearish" | "neutral";
+  monitors: string[];
+  invalidate_if: string[];
+  horizon_days: number;
+  status: "pending" | "verified";
+  result_text: string | null;
+  due_at: string;
+  created_at: string;
+  checked_at: string | null;
 }
 
 export interface PriceAlertNotification {
