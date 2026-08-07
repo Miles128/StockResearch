@@ -1361,6 +1361,7 @@ class PredictionOut(BaseModel):
     outcome: Literal["correct", "incorrect", "neutral"] | None = None
     actual_return_pct: float | None = None
     scored_at: datetime | None = None
+    review_text: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -1371,6 +1372,14 @@ class PredictionCounts(BaseModel):
     neutral: int = 0
 
 
+class PredictionSymbolStats(BaseModel):
+    name: str
+    correct: int = 0
+    incorrect: int = 0
+    neutral: int = 0
+    hit_rate: float | None = None
+
+
 class PredictionStatsOut(BaseModel):
     scored: int
     correct: int
@@ -1379,3 +1388,20 @@ class PredictionStatsOut(BaseModel):
     hit_rate: float | None = None
     by_confidence: dict[str, PredictionCounts] = Field(default_factory=dict)
     by_direction: dict[str, PredictionCounts] = Field(default_factory=dict)
+    by_symbol: dict[str, PredictionSymbolStats] = Field(default_factory=dict)
+
+
+class AttributionBandOut(BaseModel):
+    correct: int = 0
+    incorrect: int = 0
+    hit_rate: float | None = None
+
+
+class DimensionAttributionOut(BaseModel):
+    dimensions: dict[str, dict[str, AttributionBandOut]] = Field(default_factory=dict)
+    sample: int = 0
+
+
+class PredictionReviewOut(BaseModel):
+    id: int
+    review_text: str

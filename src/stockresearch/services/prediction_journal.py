@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from stockresearch.core.schemas import ResearchReportOut
 from stockresearch.db.models import Prediction
+from stockresearch.utils.llm import LLMClient
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ def extract_prediction(
     """从研报事实层提取预测记录（direction/confidence 不二次推断）。
 
     due_at 用自然日近似 horizon 交易日（20 交易日 ≈ 28 自然日）。
+    factor_snapshot 存四维得分（Phase 12d 归因学习的数据源；旧记录无则归因跳过）。
     """
     created = as_of or date.today()
     return Prediction(
@@ -50,6 +52,10 @@ def extract_prediction(
         factor_snapshot={
             "composite_score": report.composite_score,
             "analysis_depth": report.analysis_depth,
+            "dimensions": {
+                key: {"score": dim.score, "confidence": dim.confidence}
+                for key, dim in report.dimensions.items()
+            },
         },
         created_at=datetime.now(UTC),
         due_at=created + timedelta(days=max(horizon_days, 1) * 7 // 5),
@@ -170,10 +176,13 @@ def prediction_stats(db: Session, user_id: int) -> dict[str, object]:
             Prediction.direction,
             Prediction.confidence,
             Prediction.outcome,
+            Prediction.symbol,
             func.count(Prediction.id),
         )
         .filter(Prediction.user_id == user_id, Prediction.status == "scored")
-        .group_by(Prediction.direction, Prediction.confidence, Prediction.outcome)
+        .group_by(
+            Prediction.direction, Prediction.confidence, Prediction.outcome, Prediction.symbol
+        )
         .all()
     )
     total_correct = 0
@@ -181,22 +190,39 @@ def prediction_stats(db: Session, user_id: int) -> dict[str, object]:
     total_neutral = 0
     by_confidence: dict[str, dict[str, int]] = {}
     by_direction: dict[str, dict[str, int]] = {}
-    for direction, confidence, outcome, count in rows:
+    by_symbol: dict[str, dict[str, int]] = {}
+    symbol_names: dict[str, str] = {}
+    for direction, confidence, outcome, symbol, count in rows:
         bucket = by_confidence.setdefault(confidence, {"correct": 0, "incorrect": 0, "neutral": 0})
         d_bucket = by_direction.setdefault(direction, {"correct": 0, "incorrect": 0, "neutral": 0})
+        s_bucket = by_symbol.setdefault(symbol, {"correct": 0, "incorrect": 0, "neutral": 0})
+        symbol_names.setdefault(symbol, symbol)
         if outcome == "correct":
             total_correct += count
             bucket["correct"] += count
             d_bucket["correct"] += count
+            s_bucket["correct"] += count
         elif outcome == "incorrect":
             total_incorrect += count
             bucket["incorrect"] += count
             d_bucket["incorrect"] += count
+            s_bucket["incorrect"] += count
         elif outcome == "neutral":
             total_neutral += count
             bucket["neutral"] += count
             d_bucket["neutral"] += count
+            s_bucket["neutral"] += count
     denominator = total_correct + total_incorrect
+    by_symbol_out: dict[str, dict[str, object]] = {}
+    for symbol, s_bucket in by_symbol.items():
+        denom = s_bucket["correct"] + s_bucket["incorrect"]
+        by_symbol_out[symbol] = {
+            "name": symbol_names[symbol],
+            "correct": s_bucket["correct"],
+            "incorrect": s_bucket["incorrect"],
+            "neutral": s_bucket["neutral"],
+            "hit_rate": round(s_bucket["correct"] / denom, 4) if denom else None,
+        }
     return {
         "scored": total_correct + total_incorrect + total_neutral,
         "correct": total_correct,
@@ -205,4 +231,122 @@ def prediction_stats(db: Session, user_id: int) -> dict[str, object]:
         "hit_rate": round(total_correct / denominator, 4) if denominator else None,
         "by_confidence": by_confidence,
         "by_direction": by_direction,
+        "by_symbol": by_symbol_out,
     }
+
+
+def dimension_attribution(db: Session, user_id: int) -> dict[str, object]:
+    """维度归因（Phase 12d，观察性）：对已评分且有维度快照的预测，
+    按各维度得分分档统计命中率——"该维度高分时的预测是否更准"。
+
+    只做相关性展示，不自动改评分权重（合规与可解释性优先）。
+    """
+    rows = (
+        db.query(Prediction)
+        .filter(
+            Prediction.user_id == user_id,
+            Prediction.status == "scored",
+            Prediction.outcome.in_(("correct", "incorrect")),
+            Prediction.factor_snapshot.isnot(None),
+        )
+        .limit(500)
+        .all()
+    )
+    # {dimension: {band: {"correct": n, "incorrect": n}}}
+    bands: dict[str, dict[str, dict[str, int]]] = {}
+    sample = 0
+    for p in rows:
+        dims = (p.factor_snapshot or {}).get("dimensions")
+        if not isinstance(dims, dict) or not dims:
+            continue
+        sample += 1
+        for key, value in dims.items():
+            if not isinstance(value, dict):
+                continue
+            score = value.get("score")
+            if not isinstance(score, (int, float)):
+                continue
+            band = "high" if score >= 6.5 else "low" if score <= 4.5 else "mid"
+            bucket = bands.setdefault(
+                key,
+                {
+                    "high": {"correct": 0, "incorrect": 0},
+                    "mid": {"correct": 0, "incorrect": 0},
+                    "low": {"correct": 0, "incorrect": 0},
+                },
+            )[band]
+            if p.outcome == "correct":
+                bucket["correct"] += 1
+            else:
+                bucket["incorrect"] += 1
+    out: dict[str, object] = {}
+    for dim, band_map in bands.items():
+        rows_out: dict[str, object] = {}
+        for band, counts in band_map.items():
+            denom = counts["correct"] + counts["incorrect"]
+            rows_out[band] = {
+                "correct": counts["correct"],
+                "incorrect": counts["incorrect"],
+                "hit_rate": round(counts["correct"] / denom, 4) if denom else None,
+            }
+        out[dim] = rows_out
+    return {"dimensions": out, "sample": sample}
+
+
+async def generate_prediction_review(
+    db: Session,
+    user_id: int,
+    prediction_id: int,
+    llm: LLMClient | None = None,
+) -> Prediction | None:
+    """白话复盘（Phase 12c）：到期评分后用 LLM 生成 2-3 句复盘，结果缓存。
+
+    输入只用已存的预测快照 + 评分结果（PIT 纪律，不重拉事后数据）。
+    """
+    from stockresearch.core.output_style import output_style_scope
+    from stockresearch.utils.llm import get_llm_client
+
+    p = (
+        db.query(Prediction)
+        .filter(Prediction.id == prediction_id, Prediction.user_id == user_id)
+        .first()
+    )
+    if p is None or p.status != "scored":
+        return p
+    if p.review_text:
+        return p
+    client = llm or get_llm_client()
+    dims = (
+        (p.factor_snapshot or {}).get("dimensions") if isinstance(p.factor_snapshot, dict) else None
+    )
+    dim_text = ""
+    if isinstance(dims, dict):
+        dim_text = "；".join(
+            f"{k}={v.get('score', '?')}" if isinstance(v, dict) else f"{k}=?"
+            for k, v in list(dims.items())[:4]
+        )
+    direction_cn = {"bullish": "看多", "bearish": "看空", "neutral": "中性"}.get(
+        p.direction, p.direction
+    )
+    outcome_cn = {"correct": "判断正确", "incorrect": "判断错误", "neutral": "方向不明"}.get(
+        p.outcome or "", p.outcome or ""
+    )
+    ret = f"{p.actual_return_pct:+.2f}%" if p.actual_return_pct is not None else "无收益数据"
+    system = (
+        "你是投资复盘讲解员。基于以下预测快照与评分结果，用 2~3 句白话复盘："
+        "①当时判断是什么、置信度如何；②实际结果（收益）如何、对错；"
+        "③结合当时的维度得分，给出一个可能的解释和一条可执行的认知教训。"
+        "禁止给出买卖建议；语气平实克制；如果数据不足，如实说明。"
+    )
+    user = (
+        f"预测：{p.name}({p.symbol}) {direction_cn}（{p.confidence} 置信），"
+        f"horizon {p.horizon_days} 交易日。\n"
+        f"当时的四维得分：{dim_text or '未记录'}。\n"
+        f"当时结论摘要：{p.claim[:200]}\n"
+        f"实际结果：{ret}，{outcome_cn}。"
+    )
+    with output_style_scope(reading_mode="friendly"):
+        text = await client.complete(system, user)
+    p.review_text = text.strip()[:800]
+    db.commit()
+    return p

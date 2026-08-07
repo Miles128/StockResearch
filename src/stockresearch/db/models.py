@@ -303,3 +303,5 @@ class Prediction(Base):
     )  # correct | incorrect | neutral
     actual_return_pct: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
     scored_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Phase 12c：白话复盘（LLM 生成，缓存）
+    review_text: Mapped[str | None] = mapped_column(Text, nullable=True)

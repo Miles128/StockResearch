@@ -134,6 +134,13 @@ def _migration_005_report_plain_versions(conn: Connection) -> None:
         )
 
 
+def _migration_007_prediction_review(conn: Connection) -> None:
+    if _table_exists(conn, "predictions") and not _column_exists(
+        conn, "predictions", "review_text"
+    ):
+        conn.execute(text("ALTER TABLE predictions ADD COLUMN review_text TEXT"))
+
+
 def _migration_006_predictions(conn: Connection) -> None:
     if not _table_exists(conn, "predictions"):
         conn.execute(
@@ -170,6 +177,7 @@ _SQLITE_MIGRATIONS: list[tuple[int, str, Callable[[Connection], None]]] = [
     (4, "trades_report_link", _migration_004_trades_report_link),
     (5, "report_plain_versions", _migration_005_report_plain_versions),
     (6, "predictions", _migration_006_predictions),
+    (7, "prediction_review", _migration_007_prediction_review),
 ]
 
 

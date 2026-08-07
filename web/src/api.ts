@@ -461,6 +461,9 @@ export const api = {
     }),
   demoStatus: () => request<{ demo: boolean }>("/portfolio/demo/status"),
   predictionStats: () => request<PredictionStats>("/predictions/stats"),
+  predictionAttribution: () => request<DimensionAttribution>("/predictions/attribution"),
+  predictionReview: (id: number) =>
+    request<PredictionReview>(`/predictions/${id}/review`, { method: "POST" }),
   predictions: (opts?: { status?: string; limit?: number }) => {
     const params = new URLSearchParams();
     if (opts?.status) params.set("status", opts.status);
@@ -1408,12 +1411,37 @@ export interface Prediction {
   outcome: "correct" | "incorrect" | "neutral" | null;
   actual_return_pct: number | null;
   scored_at: string | null;
+  review_text: string | null;
 }
 
 export interface PredictionCounts {
   correct: number;
   incorrect: number;
   neutral: number;
+}
+
+export interface PredictionSymbolStats {
+  name: string;
+  correct: number;
+  incorrect: number;
+  neutral: number;
+  hit_rate: number | null;
+}
+
+export interface AttributionBand {
+  correct: number;
+  incorrect: number;
+  hit_rate: number | null;
+}
+
+export interface DimensionAttribution {
+  dimensions: Record<string, Record<string, AttributionBand>>;
+  sample: number;
+}
+
+export interface PredictionReview {
+  id: number;
+  review_text: string;
 }
 
 export interface PredictionStats {
@@ -1424,6 +1452,7 @@ export interface PredictionStats {
   hit_rate: number | null;
   by_confidence: Record<string, PredictionCounts>;
   by_direction: Record<string, PredictionCounts>;
+  by_symbol: Record<string, PredictionSymbolStats>;
 }
 
 export interface PriceAlertNotification {

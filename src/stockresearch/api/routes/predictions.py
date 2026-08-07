@@ -4,10 +4,21 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from stockresearch.api.deps import get_current_user
-from stockresearch.core.schemas import PredictionOut, PredictionStatsOut
+from stockresearch.api.llm_deps import llm_from_headers
+from stockresearch.core.schemas import (
+    DimensionAttributionOut,
+    PredictionOut,
+    PredictionReviewOut,
+    PredictionStatsOut,
+)
 from stockresearch.db.models import Prediction, User
 from stockresearch.db.session import get_db
-from stockresearch.services.prediction_journal import prediction_stats
+from stockresearch.services.prediction_journal import (
+    dimension_attribution,
+    generate_prediction_review,
+    prediction_stats,
+)
+from stockresearch.utils.llm import LLMClient
 
 router = APIRouter(prefix="/predictions", tags=["predictions"])
 
@@ -54,6 +65,31 @@ def get_prediction_stats(
     db: Session = Depends(get_db),
 ) -> PredictionStatsOut:
     return PredictionStatsOut.model_validate(prediction_stats(db, user.id))
+
+
+@router.get("/attribution", response_model=DimensionAttributionOut)
+def get_attribution(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DimensionAttributionOut:
+    return DimensionAttributionOut.model_validate(dimension_attribution(db, user.id))
+
+
+@router.post("/{prediction_id}/review", response_model=PredictionReviewOut)
+async def review_prediction(
+    prediction_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    llm: LLMClient = Depends(llm_from_headers),
+) -> PredictionReviewOut:
+    p = await generate_prediction_review(db, user.id, prediction_id, llm)
+    if p is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="Prediction not found")
+    if p.status != "scored":
+        raise HTTPException(status_code=409, detail="Prediction not scored yet")
+    return PredictionReviewOut(id=p.id, review_text=p.review_text or "")
 
 
 @router.get("/{prediction_id}", response_model=PredictionOut)
