@@ -921,6 +921,14 @@ export const en: Dict = {
     predictionDirBearish: "Bearish",
     predictionDirNeutral: "Neutral",
     predictionDue: "Due",
+    predictionBySymbol: "By symbol",
+    predictionAttribution: "Dimension signal effectiveness (attribution)",
+    predictionBandHigh: "High",
+    predictionBandMid: "Mid",
+    predictionBandLow: "Low",
+    predictionReview: "Plain review",
+    predictionReviewTip:
+      "Generate a plain-language review of this prediction (correctness + likely causes + takeaway)",
     backupTitle: "Data backup",
     backupHint:
       "Download all holdings / watchlist / trades / settings / report index as JSON (excludes quote caches).",

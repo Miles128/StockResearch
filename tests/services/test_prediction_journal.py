@@ -8,6 +8,7 @@ from stockresearch.core.schemas import ResearchReportOut
 from stockresearch.db.models import Prediction
 from stockresearch.services.prediction_journal import (
     _score_one,
+    dimension_attribution,
     extract_prediction,
     prediction_stats,
 )
@@ -159,7 +160,7 @@ def test_score_skips_when_not_due_or_no_bars() -> None:
     assert no_bars.status == "skipped"
 
 
-def test_prediction_stats_honest_denominator(db_session) -> None:
+def test_prediction_stats_honest_denominator(db_session) -> None:  # noqa: ANN001
     for outcome in ("correct", "correct", "incorrect", "neutral"):
         db_session.add(
             Prediction(
@@ -186,3 +187,88 @@ def test_prediction_stats_honest_denominator(db_session) -> None:
     # neutral 不计入分母：命中率 = 2/3
     assert stats["hit_rate"] == pytest.approx(round(2 / 3, 4))
     assert stats["by_confidence"]["medium"]["correct"] == 2
+    assert stats["by_symbol"]["600519"]["hit_rate"] == pytest.approx(round(2 / 3, 4))
+
+
+def test_extract_prediction_snapshots_dimension_scores() -> None:
+    from stockresearch.core.schemas import DimensionResult
+
+    report = _report(bias="bullish", confidence="high")
+    report.dimensions = {
+        "fundamental": DimensionResult(
+            agent="fundamental",
+            score=7.5,
+            confidence="high",
+            highlights=[],
+            risks=[],
+            data_sources=[],
+        ),
+        "technical": DimensionResult(
+            agent="technical",
+            score=4.0,
+            confidence="low",
+            highlights=[],
+            risks=[],
+            data_sources=[],
+        ),
+    }
+    p = extract_prediction(report, user_id=1, as_of=date(2026, 8, 7))
+    dims = (p.factor_snapshot or {}).get("dimensions")
+    assert dims is not None
+    assert dims["fundamental"]["score"] == 7.5  # type: ignore[index]
+    assert dims["technical"]["confidence"] == "low"  # type: ignore[index]
+
+
+def test_dimension_attribution_buckets_by_score(db_session) -> None:  # noqa: ANN001
+
+    snapshots = [
+        # 基本面高分 + 方向正确
+        {
+            "dimensions": {
+                "fundamental": {"score": 8.0, "confidence": "high"},
+                "technical": {"score": 5.0, "confidence": "medium"},
+            }
+        },
+        # 基本面高分 + 方向错误
+        {
+            "dimensions": {
+                "fundamental": {"score": 7.0, "confidence": "high"},
+                "technical": {"score": 5.0, "confidence": "medium"},
+            }
+        },
+        # 技术面低分 + 方向正确
+        {
+            "dimensions": {
+                "fundamental": {"score": 4.0, "confidence": "low"},
+                "technical": {"score": 3.5, "confidence": "low"},
+            }
+        },
+    ]
+    for i, snap in enumerate(snapshots):
+        db_session.add(
+            Prediction(
+                user_id=1,
+                symbol=f"60051{i}",
+                name=f"标的{i}",
+                direction="bullish",
+                confidence="medium",
+                horizon_days=20,
+                claim="",
+                created_at=datetime(2026, 1, 1, tzinfo=UTC),
+                due_at=date(2026, 1, 29),
+                status="scored",
+                outcome="correct" if i != 1 else "incorrect",  # type: ignore[arg-type]
+                actual_return_pct=5.0 if i != 1 else -5.0,
+                factor_snapshot=snap,
+                scored_at=datetime(2026, 2, 1, tzinfo=UTC),
+            )
+        )
+    db_session.commit()
+    attr = dimension_attribution(db_session, user_id=1)
+    assert attr["sample"] == 3
+    fund = attr["dimensions"]["fundamental"]
+    # 高分档：2 条（1 对 1 错）→ 50%；低分档：1 条 → 100%
+    assert fund["high"]["hit_rate"] == pytest.approx(0.5)
+    assert fund["low"]["hit_rate"] == pytest.approx(1.0)
+    # 无维度快照的记录不进入归因
+    assert attr["dimensions"].get("nonexistent") is None
