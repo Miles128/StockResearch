@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from "react";
 import { api, type PortfolioEvents, type ScreenCondition, type ScreenResult } from "./api";
+import { KnowledgeCard } from "./KnowledgeCard";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { signedClass } from "./holdingDisplay";
 import { useI18n } from "./i18n";
@@ -117,6 +118,18 @@ export function PortfolioEventsSection({ trigger = "" }: { trigger?: string }) {
   );
 }
 
+/** 每个预设对应的概念词（驱动 KnowledgeCard 零点击教学）。 */
+const CONCEPT_TEXT: Record<PresetKey, string> = {
+  lowVal: "估值分位 市盈率 市净率",
+  momentum: "动量",
+  lowVol: "波动 年化波动 风险",
+  combo: "估值分位 市盈率 动量 波动",
+};
+
+function conceptTextForPreset(key: PresetKey | null): string {
+  return key ? CONCEPT_TEXT[key] : "";
+}
+
 /** 因子筛选：预设条件扫描全市场（持仓/自选高亮），用于“市场”Tab。 */
 export function FactorScreenerSection() {
   const { t } = useI18n();
@@ -152,6 +165,7 @@ export function FactorScreenerSection() {
       {screening && <p className="muted flat-empty">…</p>}
       {!screening && screen && (
         <>
+          <KnowledgeCard text={conceptTextForPreset(preset)} />
           {screen.hits.length > 0 ? (
             <ul className="ledger-screen-hits">
               {screen.hits.map((hit) => (

@@ -1389,6 +1389,7 @@ class PredictionStatsOut(BaseModel):
     by_confidence: dict[str, PredictionCounts] = Field(default_factory=dict)
     by_direction: dict[str, PredictionCounts] = Field(default_factory=dict)
     by_symbol: dict[str, PredictionSymbolStats] = Field(default_factory=dict)
+    by_regime: dict[str, PredictionCounts] = Field(default_factory=dict)
 
 
 class AttributionBandOut(BaseModel):
@@ -1405,3 +1406,22 @@ class DimensionAttributionOut(BaseModel):
 class PredictionReviewOut(BaseModel):
     id: int
     review_text: str
+
+
+class ThesisVerificationOut(BaseModel):
+    id: int
+    report_id: int | None = None
+    symbol: str
+    name: str
+    claim: str
+    direction: Literal["bullish", "bearish", "neutral"]
+    monitors: list[str] = Field(default_factory=list)
+    invalidate_if: list[str] = Field(default_factory=list)
+    horizon_days: int
+    status: Literal["pending", "verified"]
+    result_text: str | None = None
+    due_at: date
+    created_at: datetime
+    checked_at: datetime | None = None
+
+    model_config = {"from_attributes": True}

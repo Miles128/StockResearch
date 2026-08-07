@@ -305,3 +305,31 @@ class Prediction(Base):
     scored_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # Phase 12c：白话复盘（LLM 生成，缓存）
     review_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ThesisVerification(Base):
+    """Phase 12e 假设自动验证：deep 档 Thesis 到期自动执行，结果回写研报卡。
+
+    monitors/invalidate_if 取自 ThesisOut；到期后用 qfq 日线判"主张受挑战 /
+    未被证伪"，与预测日记（predictions）独立但同属验证闭环。
+    """
+
+    __tablename__ = "thesis_verifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    report_id: Mapped[int | None] = mapped_column(
+        ForeignKey("research_reports.id"), nullable=True, index=True
+    )
+    symbol: Mapped[str] = mapped_column(String(6), index=True)
+    name: Mapped[str] = mapped_column(String(50))
+    claim: Mapped[str] = mapped_column(Text, default="")
+    direction: Mapped[str] = mapped_column(String(10), default="neutral")
+    monitors: Mapped[list[str]] = mapped_column(JSON, default=list)
+    invalidate_if: Mapped[list[str]] = mapped_column(JSON, default=list)
+    horizon_days: Mapped[int] = mapped_column(Integer, default=60)
+    status: Mapped[str] = mapped_column(String(10), default="pending")  # pending | verified
+    result_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    due_at: Mapped[date] = mapped_column(Date, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

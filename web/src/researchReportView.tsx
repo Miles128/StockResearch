@@ -11,6 +11,7 @@ import { DimensionCards, dimensionItemsFromResults } from "./DimensionCards";
 import { ResearchTrustStrip } from "./ResearchTrustStrip";
 import { useI18n } from "./i18n";
 import { EVENT_KEYS, recordEvent } from "./usageTracking";
+import { KnowledgeCard } from "./KnowledgeCard";
 import { loadModeSettings } from "./modeSettings";
 import { localizeAgentDisplay } from "./uiLabels";
 
@@ -365,6 +366,7 @@ export function ResearchReportDetails({
         (displayReport.deep_analysis?.impact ||
           displayReport.deep_analysis?.pricing ||
           displayReport.deep_analysis?.thesis) && <DeepAnalysisBlock report={displayReport} />}
+      {showDeepAnalysis && <KnowledgeCard text={displayReport.summary} />}
       {showDebate && displayReport.debate && (
         <details
           className="research-debate-details"

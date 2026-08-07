@@ -72,6 +72,7 @@ export function PredictionStatsBlock() {
   const confidenceBuckets = stats ? Object.entries(stats.by_confidence) : [];
   const directionBuckets = stats ? Object.entries(stats.by_direction) : [];
   const symbolBuckets = stats ? Object.entries(stats.by_symbol) : [];
+  const regimeBuckets = stats ? Object.entries(stats.by_regime ?? {}) : [];
   const attributionDims = attribution ? Object.entries(attribution.dimensions) : [];
 
   return (
@@ -175,6 +176,38 @@ export function PredictionStatsBlock() {
                     <div key={symbol} className="prediction-calibration-row">
                       <span className="prediction-calibration-label">
                         {counts.name} · {symbol}
+                      </span>
+                      <span className="prediction-calibration-bar">
+                        <span
+                          className="prediction-calibration-fill"
+                          style={{
+                            width: `${denom ? (counts.correct / denom) * 100 : 0}%`,
+                          }}
+                        />
+                      </span>
+                      <span className="prediction-calibration-value">
+                        {denom ? `${Math.round((counts.correct / denom) * 100)}%` : "—"}
+                        <span className="muted">
+                          {" "}
+                          ({counts.correct}/{denom})
+                        </span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </details>
+            )}
+            {regimeBuckets.length > 0 && (
+              <details className="prediction-calibration-block">
+                <summary>{t("settings.predictionByRegime")}</summary>
+                {regimeBuckets.map(([regime, counts]) => {
+                  const denom = counts.correct + counts.incorrect;
+                  return (
+                    <div key={regime} className="prediction-calibration-row">
+                      <span className="prediction-calibration-label">
+                        {t(
+                          `settings.predictionRegime${regime === "trend_up" ? "TrendUp" : regime === "trend_down" ? "TrendDown" : "Choppy"}`,
+                        )}
                       </span>
                       <span className="prediction-calibration-bar">
                         <span

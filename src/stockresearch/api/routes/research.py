@@ -102,6 +102,20 @@ def _research_cache_key(symbol: str, depth: str, reading_mode: str) -> str:
 research_cache_ttl = get_settings().research_cache_ttl_seconds
 
 
+async def _enrich_regime(db: Session, report_id: int | None) -> None:
+    """Phase 12f：异步回填预测快照的市场 regime（失败静默）。"""
+    if not report_id:
+        return
+    try:
+        from stockresearch.services.prediction_journal import (
+            enrich_prediction_regime_for_report,
+        )
+
+        await enrich_prediction_regime_for_report(db, report_id)
+    except Exception:
+        logger.debug("regime enrichment skipped", exc_info=True)
+
+
 def persist_report(db: Session, user_id: int, report: ResearchReportOut) -> ResearchReport:
     payload = report.model_dump(mode="json")
     row = ResearchReport(
@@ -125,6 +139,13 @@ def persist_report(db: Session, user_id: int, report: ResearchReportOut) -> Rese
         record_prediction_for_report(db, user_id, report, report_id=row.id)
     except Exception:
         logger.warning("prediction record failed for %s", report.symbol, exc_info=True)
+    # Phase 12e 假设自动验证：deep 档 Thesis 自动创建验证计划（幂等）。
+    try:
+        from stockresearch.services.thesis_verification import record_thesis_for_report
+
+        record_thesis_for_report(db, user_id, report, report_id=row.id)
+    except Exception:
+        logger.warning("thesis verification record failed for %s", report.symbol, exc_info=True)
     return row
 
 
@@ -198,6 +219,7 @@ async def analyze_stock(
     cache.set_json(cache_key, report.model_dump(mode="json"), ttl_seconds=research_cache_ttl)
 
     row = persist_report(db, user.id, report)
+    await _enrich_regime(db, row.id)
     return _mark_report_terms(stamp_report_id(report, row.id))
 
 
@@ -249,6 +271,7 @@ async def analyze_stock_stream(
                             cache_key, final.model_dump(mode="json"), ttl_seconds=research_cache_ttl
                         )
                         row = persist_report(db, user.id, final)
+                        await _enrich_regime(db, row.id)
                         stamped = _mark_report_terms(stamp_report_id(final, row.id))
                         event = {**event, "result": stamped.model_dump(mode="json")}
                         final = stamped
@@ -819,6 +842,7 @@ async def refill_gaps(
         ttl_seconds=research_cache_ttl,
     )
     row = persist_report(db, user.id, report)
+    await _enrich_regime(db, row.id)
     return _mark_report_terms(stamp_report_id(report, row.id))
 
 

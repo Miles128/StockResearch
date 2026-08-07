@@ -10,8 +10,9 @@ from stockresearch.core.schemas import (
     PredictionOut,
     PredictionReviewOut,
     PredictionStatsOut,
+    ThesisVerificationOut,
 )
-from stockresearch.db.models import Prediction, User
+from stockresearch.db.models import Prediction, ThesisVerification, User
 from stockresearch.db.session import get_db
 from stockresearch.services.prediction_journal import (
     dimension_attribution,
@@ -65,6 +66,23 @@ def get_prediction_stats(
     db: Session = Depends(get_db),
 ) -> PredictionStatsOut:
     return PredictionStatsOut.model_validate(prediction_stats(db, user.id))
+
+
+@router.get("/thesis", response_model=list[ThesisVerificationOut])
+def list_thesis_verifications(
+    report_id: int | None = Query(default=None),
+    status: str | None = Query(default=None, pattern="^(pending|verified)$"),
+    limit: int = Query(default=20, ge=1, le=100),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[ThesisVerificationOut]:
+    query = db.query(ThesisVerification).filter(ThesisVerification.user_id == user.id)
+    if report_id is not None:
+        query = query.filter(ThesisVerification.report_id == report_id)
+    if status:
+        query = query.filter(ThesisVerification.status == status)
+    rows = query.order_by(ThesisVerification.created_at.desc()).limit(limit).all()
+    return [ThesisVerificationOut.model_validate(r) for r in rows]
 
 
 @router.get("/attribution", response_model=DimensionAttributionOut)

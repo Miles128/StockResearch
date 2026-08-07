@@ -4472,3 +4472,63 @@
   border-radius: 4px;
   padding: 4px 6px;
 }
+
+/* Thesis auto-verification (Phase 12e) */
+.thesis-verification {
+  margin: 6px 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.thesis-verification.verified {
+  border: 1px solid rgba(5, 150, 105, 0.4);
+  background: rgba(5, 150, 105, 0.06);
+}
+.thesis-verification.pending {
+  border: 1px dashed var(--border);
+  background: transparent;
+}
+.thesis-verification p {
+  margin: 2px 0 0;
+}
+
+/* Phase 13a knowledge cards (zero-click concept teaching) */
+.knowledge-card-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px 0;
+}
+.knowledge-card {
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.knowledge-card summary {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+}
+.knowledge-card summary::-webkit-details-marker {
+  display: none;
+}
+.knowledge-card-term {
+  font-weight: 600;
+  color: var(--accent, #2563eb);
+}
+.knowledge-card-why {
+  color: var(--text-tertiary);
+}
+.knowledge-card-body {
+  margin-top: 4px;
+  color: var(--text-secondary);
+}
+.knowledge-card-body p {
+  margin: 0 0 2px;
+}
+.knowledge-card-analogy {
+  font-size: 11px;
+}

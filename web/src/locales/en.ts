@@ -479,6 +479,9 @@ export const en: Dict = {
       conclusion: "Conclusion",
     },
   },
+  knowledge: {
+    whyImportant: "Why it matters",
+  },
   portfolio: {
     symbol: "Symbol / name",
     symbolPh: "e.g. 600519 or Moutai",
@@ -841,6 +844,8 @@ export const en: Dict = {
     thesisTitle: "Thesis",
     thesisHorizon: "Horizon: {horizon}",
     thesisMonitors: "Monitors",
+    thesisVerified: "Auto-verified",
+    thesisPending: "Auto-verification scheduled (due {due})",
     thesisInvalidateIf: "Invalidate if",
     thesisEvidence: "Evidence",
     impactEventKind: {
