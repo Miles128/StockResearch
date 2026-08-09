@@ -606,6 +606,13 @@ export const en: Dict = {
     screenFactorMom: "Mom",
     screenFactorVol: "Vol",
     screenFactorPe: "PE pct",
+    counterfactualTitle: "What if… (scenario teaching)",
+    counterfactualSummary: "Teaching drawdown/volatility/valuation with your own numbers",
+    counterfactualEmpty: "No holdings yet — add one to see scenario teaching",
+    counterfactualError: "Scenario teaching unavailable, try again later",
+    counterfactualPosition: "Demo amount",
+    counterfactualWan: "¥{amount}k",
+    partial: "partial data",
   },
   risk: {
     run: "Run checkup",

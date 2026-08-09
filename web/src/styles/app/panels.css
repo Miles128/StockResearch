@@ -4532,3 +4532,66 @@
 .knowledge-card-analogy {
   font-size: 11px;
 }
+
+/* Phase 13b counterfactual teaching (scenario teaching block) */
+.counterfactual-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 6px 0;
+}
+.counterfactual-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.counterfactual-symbol {
+  font-weight: 600;
+}
+.counterfactual-name {
+  color: var(--text-secondary);
+}
+.counterfactual-amount {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.counterfactual-segment {
+  border-top: 1px dashed var(--border);
+  padding: 4px 0;
+  font-size: 12px;
+}
+.counterfactual-segment summary {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+}
+.counterfactual-segment summary::-webkit-details-marker {
+  display: none;
+}
+.counterfactual-concept {
+  font-weight: 600;
+  color: var(--accent, #2563eb);
+}
+.counterfactual-partial {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.counterfactual-story {
+  margin-top: 4px;
+  color: var(--text-secondary);
+}
+.counterfactual-story p {
+  margin: 0 0 2px;
+}
+.counterfactual-note {
+  font-size: 11px;
+  margin-top: 2px;
+}
+.counterfactual-disclaimer {
+  font-size: 11px;
+  margin-top: 6px;
+}

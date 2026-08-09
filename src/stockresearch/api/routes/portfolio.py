@@ -11,6 +11,9 @@ from stockresearch.core.exceptions import ValidationError
 from stockresearch.core.schemas import (
     AllocationDeviationOut,
     AllocationDeviationRequest,
+    CounterfactualBatchOut,
+    CounterfactualBatchRequest,
+    CounterfactualTeachingOut,
     HoldingConfirmCreate,
     HoldingCreate,
     HoldingEnrichedOut,
@@ -598,6 +601,46 @@ def delete_watchlist(
     db.delete(item)
     db.commit()
     return {"status": "deleted"}
+
+
+# ── Counterfactual teaching (Phase 13b) ──────────────────
+
+
+@router.post("/counterfactual", response_model=CounterfactualBatchOut)
+async def counterfactual_teaching(
+    payload: CounterfactualBatchRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CounterfactualBatchOut:
+    """历史情景教学：对用户持仓标的生成回撤/波动/估值三段白话教学。
+
+    「假设你当时……」——把持仓金额绑定到真实历史价格情景，教机制不给结论。
+    仅对用户真实持仓计算 position_value，非持仓标的用 1 万元演示。
+    """
+    from stockresearch.core.output_style import get_enable_glossary
+    from stockresearch.services.counterfactual_teaching import compute_counterfactual_teaching
+    from stockresearch.services.glossary import mark_terms, merge_glossary
+
+    holdings = {h.symbol: h for h in db.query(Holding).filter(Holding.user_id == user.id).all()}
+    glossary = merge_glossary()
+    mark = get_enable_glossary()
+    items: list[CounterfactualTeachingOut] = []
+    for symbol in payload.symbols[:4]:
+        sym = symbol.strip()
+        if len(sym) != 6 or not sym.isdigit():
+            continue
+        holding = holdings.get(sym)
+        position_value = None
+        if holding is not None:
+            position_value = holding.float_cost_price * holding.quantity
+        teaching = await compute_counterfactual_teaching(sym, position_value=position_value)
+        if mark:
+            teaching.segments = [
+                seg.model_copy(update={"story": mark_terms(seg.story, glossary=glossary)})
+                for seg in teaching.segments
+            ]
+        items.append(teaching)
+    return CounterfactualBatchOut(items=items)
 
 
 # ── Demo holdings ────────────────────────────────────────
