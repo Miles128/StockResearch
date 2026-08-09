@@ -14,6 +14,7 @@ import {
   type TradeRecord,
 } from "./api";
 import { CollapsibleSection } from "./CollapsibleSection";
+import { CounterfactualTeachingBlock } from "./CounterfactualTeachingBlock";
 import { PortfolioEventsSection } from "./PortfolioEventsScreener";
 import { formatSignedMoney, formatSignedPct, signedClass } from "./holdingDisplay";
 import { useI18n } from "./i18n";
@@ -453,6 +454,8 @@ export function PortfolioCockpit({
       )}
 
       <PortfolioEventsSection trigger={trigger} />
+
+      <CounterfactualTeachingBlock holdings={holdings} trigger={trigger} />
     </>
   );
 }

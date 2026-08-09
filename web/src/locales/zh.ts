@@ -602,6 +602,13 @@ export const zh: Dict = {
     screenFactorMom: "动量",
     screenFactorVol: "波动",
     screenFactorPe: "PE分位",
+    counterfactualTitle: "假设你当时……（情景教学）",
+    counterfactualSummary: "用你的持仓金额演示回撤/波动/估值",
+    counterfactualEmpty: "暂无持仓，先添加持仓即可看到情景教学",
+    counterfactualError: "情景教学暂时不可用，稍后再试",
+    counterfactualPosition: "演示金额",
+    counterfactualWan: "{amount} 万元",
+    partial: "数据不全",
   },
   risk: {
     run: "持仓体检",

@@ -1067,6 +1067,36 @@ class EventStudyBatchRequest(BaseModel):
 
 class EventStudyBatchOut(BaseModel):
     items: list[EventStudyOut] = Field(default_factory=list)
+
+
+class CounterfactualSegmentOut(BaseModel):
+    """Phase 13b 单段历史情景教学（规则生成，绑定用户持仓数字）。"""
+
+    concept: Literal["drawdown", "volatility", "valuation"]
+    title: str
+    story: str
+    partial: bool = False
+    note: str | None = None
+
+
+class CounterfactualTeachingOut(BaseModel):
+    symbol: str
+    name: str
+    position_value: float | None = None
+    segments: list[CounterfactualSegmentOut] = Field(default_factory=list)
+    bars_adjust: str = "none"
+    bars_source: str = ""
+    notes: list[str] = Field(default_factory=list)
+    disclaimer: str = DISCLAIMER
+    as_of: str | None = None
+
+
+class CounterfactualBatchRequest(BaseModel):
+    symbols: list[str] = Field(default_factory=list, max_length=4)
+
+
+class CounterfactualBatchOut(BaseModel):
+    items: list[CounterfactualTeachingOut] = Field(default_factory=list)
     event_filter: str = "earnings"
     as_of: str | None = None
     notes: list[str] = Field(default_factory=list)

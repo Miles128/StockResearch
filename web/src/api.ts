@@ -291,6 +291,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  portfolioCounterfactual: (symbols: string[]) =>
+    request<CounterfactualBatch>("/portfolio/counterfactual", {
+      method: "POST",
+      body: JSON.stringify({ symbols }),
+    }),
   lookupStock: (query: string) =>
     request<StockLookupOut>("/portfolio/holdings/lookup", {
       method: "POST",
@@ -611,6 +616,32 @@ export interface HoldingEnriched extends Holding {
   profit_pct?: number | null;
   annualized_pct?: number | null;
   quote_available: boolean;
+}
+
+export type CounterfactualConcept = "drawdown" | "volatility" | "valuation";
+
+export interface CounterfactualSegment {
+  concept: CounterfactualConcept;
+  title: string;
+  story: string;
+  partial: boolean;
+  note?: string | null;
+}
+
+export interface CounterfactualTeaching {
+  symbol: string;
+  name: string;
+  position_value?: number | null;
+  segments: CounterfactualSegment[];
+  bars_adjust: string;
+  bars_source: string;
+  notes: string[];
+  disclaimer: string;
+  as_of?: string | null;
+}
+
+export interface CounterfactualBatch {
+  items: CounterfactualTeaching[];
 }
 
 export interface Holding {

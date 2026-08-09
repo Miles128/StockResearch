@@ -265,6 +265,7 @@ class FinancialDataProvider:
             gaps.append("PE 历史分位不可算")
         if pb is not None and pb_pct is None:
             gaps.append("PB 历史分位不可算")
+        pe_vals = [float(v) for v in pe_series if v is not None]
         return {
             "pe_ttm": pe_ttm,
             "pb": pb,
@@ -272,6 +273,8 @@ class FinancialDataProvider:
             "pb_percentile": pb_pct,
             "pe_history_count": len(pe_series),
             "pb_history_count": len(pb_hist),
+            "pe_min": min(pe_vals) if pe_vals else None,
+            "pe_max": max(pe_vals) if pe_vals else None,
             "source": source,
             "partial": bool(gaps),
             "gaps": gaps,
@@ -347,6 +350,9 @@ class FinancialDataProvider:
                 "pe_percentile": 0.42,
                 "pb": 8.0,
                 "pb_percentile": 0.55,
+                "pe_history_count": 250,
+                "pe_min": 16.0,
+                "pe_max": 46.0,
                 "source": "mock",
                 "partial": False,
                 "gaps": [],
