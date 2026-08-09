@@ -1067,6 +1067,10 @@ class EventStudyBatchRequest(BaseModel):
 
 class EventStudyBatchOut(BaseModel):
     items: list[EventStudyOut] = Field(default_factory=list)
+    event_filter: str = "earnings"
+    as_of: str | None = None
+    notes: list[str] = Field(default_factory=list)
+    disclaimer: str = DISCLAIMER
 
 
 class CounterfactualSegmentOut(BaseModel):
@@ -1097,10 +1101,6 @@ class CounterfactualBatchRequest(BaseModel):
 
 class CounterfactualBatchOut(BaseModel):
     items: list[CounterfactualTeachingOut] = Field(default_factory=list)
-    event_filter: str = "earnings"
-    as_of: str | None = None
-    notes: list[str] = Field(default_factory=list)
-    disclaimer: str = DISCLAIMER
 
 
 class HypothesisWindowOut(BaseModel):
