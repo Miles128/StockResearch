@@ -173,11 +173,11 @@ def test_predictions_persist_on_report_save() -> None:
     """Phase 12a：研报持久化必须自动留存预测记录（幂等）。"""
     import inspect
 
-    from stockresearch.api.routes import research
+    from stockresearch.services import research_persistence
 
-    src = inspect.getsource(research.persist_report)
+    src = inspect.getsource(research_persistence.persist_report)
     assert "register_report_verifications" in src
-    src2 = inspect.getsource(research.register_report_verifications)
+    src2 = inspect.getsource(research_persistence.register_report_verifications)
     assert "record_prediction_for_report" in src2
 
 

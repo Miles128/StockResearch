@@ -11,17 +11,17 @@ from stockresearch.agents.orchestrator.stream import run_chat_stream
 from stockresearch.api.deps import get_current_user
 from stockresearch.api.llm_deps import resolve_llm_client
 from stockresearch.api.rate_limit import limiter
-from stockresearch.api.routes.research import (
-    attach_report_ids_to_cards,
-    extract_reports_from_cards,
-    persist_report,
-)
 from stockresearch.api.sse import sse_response
 from stockresearch.core.exceptions import NotFoundError
 from stockresearch.core.output_style import output_style_scope
 from stockresearch.core.schemas import ChatRequest, ChatResponse, StreamCheckpointOut
 from stockresearch.db.models import User
 from stockresearch.db.session import get_db
+from stockresearch.services.research_persistence import (
+    attach_report_ids_to_cards,
+    extract_reports_from_cards,
+    persist_report,
+)
 from stockresearch.services.stream_checkpoint import load_checkpoint
 from stockresearch.services.user_preferences import get_mode_settings
 

@@ -26,24 +26,11 @@ from stockresearch.core.schemas import (
 from stockresearch.db.models import Holding, RiskAlertRecord, User
 from stockresearch.db.session import get_db
 from stockresearch.services.glossary import mark_terms, merge_glossary
+from stockresearch.services.risk_persistence import persist_alerts
 from stockresearch.services.user_preferences import get_mode_settings
 from stockresearch.utils.llm import LLMClient
 
 router = APIRouter(prefix="/risk", tags=["risk"])
-
-
-def _persist_alerts(db: Session, user_id: int, result: RiskCheckupOut) -> None:
-    for alert in result.alerts:
-        db.add(
-            RiskAlertRecord(
-                user_id=user_id,
-                rule_id=alert.rule_id,
-                severity=alert.severity,
-                symbol=alert.symbol,
-                message=alert.message,
-            )
-        )
-    db.commit()
 
 
 def _mark_text(text: str) -> str:
@@ -133,7 +120,7 @@ async def risk_checkup(
             enable_llm_analysis=_llm_analysis_on(payload),
             mode_settings=settings,
         )
-        _persist_alerts(db, user.id, result)
+        persist_alerts(db, user.id, result)
         # 返回层词库标注（不污染 DB 原文）
         result = _mark_risk_result(result)
     return result
@@ -165,7 +152,7 @@ async def risk_checkup_stream(
                     if isinstance(payload_data, dict):
                         # 在 yield done 之前落库：客户端收到 done 即断连时告警不丢
                         final = RiskCheckupOut.model_validate(payload_data)
-                        _persist_alerts(db, user.id, final)
+                        persist_alerts(db, user.id, final)
                 yield event
 
     return sse_response(event_generator(), keep_alive_seconds=15.0)

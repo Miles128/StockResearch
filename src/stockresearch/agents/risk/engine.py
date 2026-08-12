@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from datetime import UTC, datetime
 
 from stockresearch.agents.risk import messages as risk_msg
 from stockresearch.agents.risk.metrics import (
@@ -304,6 +305,49 @@ async def compute_quant_metrics(
         return None, None, []
 
 
+async def _load_quotes_with_placeholders(holdings: list[Holding]) -> tuple[list, list[str]]:
+    """批量拉行情；缺失标的使用成本价占位（保证与持仓对齐，zip 不崩）。
+
+    返回 (quotes, missing_symbols)。engine 与 stream 共用。
+    """
+    if not holdings:
+        return [], []
+    quote_provider = QuoteProvider()
+    quote_map = await quote_provider.get_quotes([h.symbol for h in holdings])
+    quotes: list[Quote] = []
+    missing: list[str] = []
+    for h in holdings:
+        q = quote_map.get(h.symbol)
+        if q is None:
+            missing.append(h.symbol)
+            # Placeholder keeps holdings/quotes aligned so downstream zip never
+            # crashes when a quote provider is temporarily unavailable.
+            q = Quote(
+                symbol=h.symbol,
+                name=h.name or h.symbol,
+                price=float(h.float_cost_price or 0.0),
+                change_pct=0.0,
+                open=0.0,
+                high=0.0,
+                low=0.0,
+                volume=0.0,
+                updated_at=datetime.now(UTC),
+            )
+        quotes.append(q)
+    if missing:
+        logger.warning("Risk checkup missing quotes for: %s", ",".join(missing))
+    return quotes, missing
+
+
+def portfolio_summary_from_alerts(holdings: list[Holding], alerts: list) -> str:
+    """无持仓/无告警/有告警三态组合摘要文案（engine 与 stream 共用）。"""
+    if not holdings:
+        return risk_msg.portfolio_summary_no_holdings()
+    if not alerts:
+        return risk_msg.portfolio_summary_all_clear(len(holdings))
+    return risk_msg.portfolio_summary_with_alerts(len(alerts))
+
+
 async def run_risk_checkup(
     holdings: list[Holding],
     llm: LLMClient | None = None,
@@ -322,11 +366,8 @@ async def run_risk_checkup(
     if enable_llm_analysis is None:
         enable_llm_analysis = True
     client = llm or get_llm_client()
-    quote_provider = QuoteProvider()
 
-    quotes = await asyncio.gather(
-        *[quote_provider.get_quote(holding.symbol) for holding in holdings]
-    )
+    quotes, _missing = await _load_quotes_with_placeholders(holdings)
 
     alerts = _parse_rule_alerts(holdings, quotes)
 
@@ -379,13 +420,7 @@ async def run_risk_checkup(
             alert.human_message = alert.message
         llm_analysis = None
 
-    if not holdings:
-        summary = risk_msg.portfolio_summary_no_holdings()
-    elif not alerts:
-        summary = risk_msg.portfolio_summary_all_clear(len(holdings))
-    else:
-        summary = risk_msg.portfolio_summary_with_alerts(len(alerts))
-
+    summary = portfolio_summary_from_alerts(holdings, alerts)
     # ── 量化风险指标 ──
     metrics_out, var_out, stress_out = await compute_quant_metrics(holdings, quotes)
 
