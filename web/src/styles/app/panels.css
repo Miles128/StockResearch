@@ -4595,3 +4595,41 @@
   font-size: 11px;
   margin-top: 6px;
 }
+
+/* V10.29 simple portfolio optimizer */
+.optimize-method-switch {
+  display: flex;
+  gap: 2px;
+}
+.optimize-method-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 4px;
+  padding: 1px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.optimize-method-btn.active {
+  border-color: var(--accent, #2563eb);
+  color: var(--accent, #2563eb);
+}
+.optimize-body {
+  font-size: 12px;
+}
+.optimize-table td,
+.optimize-table th {
+  padding: 2px 8px;
+}
+.optimize-metrics {
+  display: flex;
+  gap: 12px;
+  margin: 4px 0;
+}
+.optimize-explanation {
+  margin: 2px 0;
+}
+.optimize-disclaimer {
+  font-size: 11px;
+  margin-top: 4px;
+}

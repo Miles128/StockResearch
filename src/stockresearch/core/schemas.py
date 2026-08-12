@@ -1103,6 +1103,35 @@ class CounterfactualBatchOut(BaseModel):
     items: list[CounterfactualTeachingOut] = Field(default_factory=list)
 
 
+class PortfolioOptimizeRequest(BaseModel):
+    method: Literal["min_vol", "risk_parity", "balanced"] = "min_vol"
+
+
+class PortfolioOptimizeRow(BaseModel):
+    symbol: str
+    name: str
+    current_weight: float
+    optimal_weight: float
+
+
+class PortfolioOptimizeOut(BaseModel):
+    """Phase 4.2 简单组合优化结果（教育参考，不构成投资建议）。"""
+
+    method: str
+    method_label: str = ""
+    rows: list[PortfolioOptimizeRow] = Field(default_factory=list)
+    cash_weight: float = 0.0
+    current_vol: float | None = None
+    current_return: float | None = None
+    optimal_vol: float | None = None
+    optimal_return: float | None = None
+    explanation: str = ""
+    partial: bool = False
+    notes: list[str] = Field(default_factory=list)
+    disclaimer: str = DISCLAIMER
+    as_of: str | None = None
+
+
 class HypothesisWindowOut(BaseModel):
     days: int
     sample_count: int

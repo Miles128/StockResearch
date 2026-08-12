@@ -296,6 +296,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ symbols }),
     }),
+  portfolioOptimize: (method: PortfolioOptimizeMethod) =>
+    request<PortfolioOptimizeResult>("/portfolio/optimize", {
+      method: "POST",
+      body: JSON.stringify({ method }),
+    }),
   lookupStock: (query: string) =>
     request<StockLookupOut>("/portfolio/holdings/lookup", {
       method: "POST",
@@ -642,6 +647,31 @@ export interface CounterfactualTeaching {
 
 export interface CounterfactualBatch {
   items: CounterfactualTeaching[];
+}
+
+export type PortfolioOptimizeMethod = "min_vol" | "risk_parity" | "balanced";
+
+export interface PortfolioOptimizeRow {
+  symbol: string;
+  name: string;
+  current_weight: number;
+  optimal_weight: number;
+}
+
+export interface PortfolioOptimizeResult {
+  method: PortfolioOptimizeMethod;
+  method_label: string;
+  rows: PortfolioOptimizeRow[];
+  cash_weight: number;
+  current_vol?: number | null;
+  current_return?: number | null;
+  optimal_vol?: number | null;
+  optimal_return?: number | null;
+  explanation: string;
+  partial: boolean;
+  notes: string[];
+  disclaimer: string;
+  as_of?: string | null;
 }
 
 export interface Holding {

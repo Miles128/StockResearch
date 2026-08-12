@@ -16,6 +16,7 @@ import {
 import { CollapsibleSection } from "./CollapsibleSection";
 import { CounterfactualTeachingBlock } from "./CounterfactualTeachingBlock";
 import { PortfolioEventsSection } from "./PortfolioEventsScreener";
+import { PortfolioOptimizeBlock } from "./PortfolioOptimizeBlock";
 import { formatSignedMoney, formatSignedPct, signedClass } from "./holdingDisplay";
 import { useI18n } from "./i18n";
 import type { PortfolioSummary } from "./portfolioHelpers";
@@ -456,6 +457,8 @@ export function PortfolioCockpit({
       <PortfolioEventsSection trigger={trigger} />
 
       <CounterfactualTeachingBlock holdings={holdings} trigger={trigger} />
+
+      <PortfolioOptimizeBlock trigger={trigger} />
     </>
   );
 }
