@@ -1,12 +1,45 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Message } from "../appTypes";
 import {
   autoThreadTitle,
   createThread,
   messagesForStorage,
+  saveCopilotThreads,
   titleFromMessages,
   truncateThreadTitle,
 } from "../copilotThreads";
+
+// jsdom 29 默认不提供 localStorage；测试用内存实现替代。
+function installLocalStorageMock(): Map<string, string> {
+  const store = new Map<string, string>();
+  const mock: Storage = {
+    get length() {
+      return store.size;
+    },
+    clear: () => store.clear(),
+    getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+    key: (i: number) => [...store.keys()][i] ?? null,
+    removeItem: (k: string) => {
+      store.delete(k);
+    },
+    setItem: (k: string, v: string) => {
+      store.set(k, String(v));
+    },
+  };
+  Object.defineProperty(globalThis, "localStorage", {
+    value: mock,
+    configurable: true,
+    writable: true,
+  });
+  return store;
+}
+
+const store = installLocalStorageMock();
+
+afterEach(() => {
+  store.clear();
+  vi.restoreAllMocks();
+});
 
 describe("copilotThreads", () => {
   it("truncates long titles", () => {
@@ -54,5 +87,37 @@ describe("copilotThreads", () => {
     expect(thread.id).toMatch(/^t_/);
     expect(thread.title).toBe("新对话");
     expect(thread.messages).toEqual([]);
+  });
+
+  it("caps messages per thread at 200 (drops oldest)", () => {
+    const thread = createThread("长对话");
+    const msgs: Message[] = Array.from({ length: 250 }, (_, i) => ({
+      role: i % 2 ? "assistant" : "user",
+      content: `msg-${i}`,
+    }));
+    saveCopilotThreads([{ ...thread, messages: msgs }]);
+    const saved = JSON.parse(store.get("stockresearch.copilotThreads")!);
+    expect(saved[0].messages).toHaveLength(200);
+    expect(saved[0].messages[0].content).toBe("msg-50");
+    expect(saved[0].messages[199].content).toBe("msg-249");
+  });
+
+  it("does not throw when localStorage quota is exceeded", () => {
+    const thread = createThread("溢出");
+    const setItem = vi.spyOn(globalThis.localStorage, "setItem").mockImplementation(() => {
+      throw new Error("QuotaExceededError");
+    });
+    expect(() =>
+      saveCopilotThreads([{ ...thread, messages: [{ role: "user", content: "hi" }] }]),
+    ).not.toThrow();
+    setItem.mockRestore();
+  });
+
+  it("persists a normal thread to storage", () => {
+    const thread = createThread("正常");
+    saveCopilotThreads([{ ...thread, messages: [{ role: "user", content: "hi" }] }]);
+    const saved = JSON.parse(store.get("stockresearch.copilotThreads")!);
+    expect(saved).toHaveLength(1);
+    expect(saved[0].title).toBe("正常");
   });
 });

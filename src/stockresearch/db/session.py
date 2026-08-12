@@ -171,6 +171,12 @@ def _migration_008_thesis_verifications(conn: Connection) -> None:
         )
 
 
+def _migration_009_holding_buy_date(conn: Connection) -> None:
+    """holdings.buy_date 补列（决策日志买入日期，V10.19 引入时漏迁移）。"""
+    if _table_exists(conn, "holdings") and not _column_exists(conn, "holdings", "buy_date"):
+        conn.execute(text("ALTER TABLE holdings ADD COLUMN buy_date DATE"))
+
+
 def _migration_006_predictions(conn: Connection) -> None:
     if not _table_exists(conn, "predictions"):
         conn.execute(
@@ -209,6 +215,7 @@ _SQLITE_MIGRATIONS: list[tuple[int, str, Callable[[Connection], None]]] = [
     (6, "predictions", _migration_006_predictions),
     (7, "prediction_review", _migration_007_prediction_review),
     (8, "thesis_verifications", _migration_008_thesis_verifications),
+    (9, "holding_buy_date", _migration_009_holding_buy_date),
 ]
 
 
