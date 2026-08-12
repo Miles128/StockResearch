@@ -154,6 +154,10 @@ async def build_asset_allocation(
     except Exception:
         logger.warning("LLM rationale failed, using fallback")
         rationale = _fallback_rationale(risk_tolerance, allocation)
+    # 合规：LLM 输出统一过禁用模式清洗（PRD §9.1），兜底文本同样适用
+    from stockresearch.services.neutral_guard import apply_ban_filter
+
+    rationale = apply_ban_filter(rationale)
 
     return AssetAllocationOut(
         risk_tolerance=risk_tolerance,  # type: ignore[arg-type]

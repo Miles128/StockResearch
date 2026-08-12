@@ -706,6 +706,8 @@ class IntradayPointOut(BaseModel):
 class IndexIntradayOut(BaseModel):
     symbol: str
     points: list[IntradayPointOut]
+    partial: bool = False
+    note: str | None = None
 
 
 class StockQuoteOut(BaseModel):
@@ -1400,6 +1402,8 @@ class SentimentOut(BaseModel):
     label: str
     drivers: list[SentimentDriverOut]
     source: str
+    partial: bool = False
+    note: str | None = None
 
 
 # ── Phase 12a 预测日记 ────────────────────────────────────

@@ -25,12 +25,9 @@ _MIN_SAMPLE_FOR_CONFIDENCE = 8
 
 
 def _parse_date(value: str) -> datetime | None:
-    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y%m%d"):
-        try:
-            return datetime.strptime(value[:10], fmt)
-        except ValueError:
-            continue
-    return None
+    from stockresearch.utils.dates import parse_date_any
+
+    return parse_date_any(value)
 
 
 def _forward_return_pct(

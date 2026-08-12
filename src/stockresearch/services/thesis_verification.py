@@ -109,7 +109,7 @@ def _verify_one(row: ThesisVerification, bars: list[dict[str, float | str]]) -> 
 
 async def check_due_theses(db_factory: Callable[[], Session]) -> int:
     """到期 Thesis 验证（worker 每日调用）。返回验证条数。"""
-    from stockresearch.services.daily_bars import get_bars_for_symbol
+    from stockresearch.services.daily_bars import get_bars_meta_for_symbol
 
     db = db_factory()
     checked = 0
@@ -124,8 +124,16 @@ async def check_due_theses(db_factory: Callable[[], Session]) -> int:
         )
         for row in due:
             try:
-                bars = await get_bars_for_symbol(row.symbol, days=row.horizon_days + 60)
-                _verify_one(row, bars)
+                meta = await get_bars_meta_for_symbol(row.symbol, days=row.horizon_days + 60)
+                if meta.adjust != "qfq":
+                    # PIT 纪律：非 qfq 日线在除权窗口失真，跳过本轮验证
+                    logger.warning(
+                        "thesis verification skipped for %s: bars adjust=%s",
+                        row.symbol,
+                        meta.adjust,
+                    )
+                    continue
+                _verify_one(row, meta.bars)
                 checked += 1
             except Exception as exc:
                 logger.warning("thesis verification failed for %s: %s", row.symbol, exc)

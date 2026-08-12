@@ -334,7 +334,13 @@ async def run_risk_checkup_stream(
         if event.get("type") == "agent_done":
             judge_raw = str(event.get("content", ""))
     verdict = _parse_judge(judge_raw, alerts, holdings)
-    judge_display = scrub_forbidden_position_language(format_judge_display(verdict))
+    # 合规：禁用模式清洗用完整词表（含目标价/强烈推荐等），PRD §9.1
+    from stockresearch.services.neutral_guard import apply_ban_filter
+
+    def _clean(text: str) -> str:
+        return apply_ban_filter(scrub_forbidden_position_language(text))
+
+    judge_display = _clean(format_judge_display(verdict))
     holding_actions_payload = [
         item.model_copy(
             update={"action": normalize_position_action(item.action, portfolio=False)}
@@ -345,8 +351,8 @@ async def run_risk_checkup_stream(
         "type": "judge",
         "risk_level": verdict.risk_level,
         "position_action": normalize_position_action(verdict.position_action, portfolio=True),
-        "summary": scrub_forbidden_position_language(verdict.summary),
-        "reason": scrub_forbidden_position_language(verdict.reason),
+        "summary": _clean(verdict.summary),
+        "reason": _clean(verdict.reason),
         "divergence": verdict.divergence,
         "analysis_process": verdict.analysis_process,
         "holding_actions": holding_actions_payload,

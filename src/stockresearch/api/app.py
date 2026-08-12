@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from sqlalchemy import text
 
 from stockresearch.api.rate_limit import limiter
 from stockresearch.api.routes import (
@@ -74,6 +75,15 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     finally:
         db.close()
     settings = get_settings()
+    if getattr(settings, "use_mock_llm", False) and not getattr(settings, "llm_api_key", ""):
+        # Mock 模式下 LLM 输出为固定假内容，必须在启动日志显式警告，
+        # 避免用户误把假研报当真实分析。
+        logging.warning(
+            "USE_MOCK_LLM=true：LLM 输出为演示假内容，不是真实分析。"
+            "配置 LLM_API_KEY 并设 USE_MOCK_LLM=false 后才会执行真实研究。"
+        )
+    elif not getattr(settings, "use_mock_llm", True) and not getattr(settings, "llm_api_key", ""):
+        logging.warning("USE_MOCK_LLM=false 但未配置 LLM_API_KEY：LLM 调用将返回未配置错误。")
     if not settings.run_schedulers_in_api:
         # Schedulers belong to the separate worker process; do NOT grab the
         # cross-process scheduler lock here, otherwise the worker can never
@@ -171,8 +181,19 @@ def create_app() -> FastAPI:
         )
 
     @app.get("/health")
-    def health() -> dict[str, str]:
-        return {"status": "ok", "disclaimer": DISCLAIMER}
+    def health() -> dict[str, object]:
+        """进程存活 + 基础依赖探测（SQLite 连接/迁移状态）。"""
+        checks: dict[str, object] = {}
+        try:
+            from stockresearch.db.session import SessionLocal
+
+            with SessionLocal() as session:
+                session.execute(text("SELECT 1"))
+            checks["db"] = "ok"
+        except Exception as exc:  # noqa: BLE001 — health 探针必须吞掉任何失败
+            logging.warning("health db probe failed: %s", exc)
+            checks["db"] = "error"
+        return {"status": "ok", "db": checks["db"], "disclaimer": DISCLAIMER}
 
     @app.get("/api/v1")
     def api_index() -> dict[str, object]:

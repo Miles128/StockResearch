@@ -43,13 +43,9 @@ def _period_label(period: str) -> str:
 
 
 def _parse_date(raw: str) -> date | None:
-    raw = raw.strip()[:10]
-    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y%m%d"):
-        try:
-            return datetime.strptime(raw, fmt).date()
-        except ValueError:
-            continue
-    return None
+    from stockresearch.utils.dates import parse_date_str
+
+    return parse_date_str(raw)
 
 
 async def _fetch_earnings_schedule(period: str) -> dict[str, date]:

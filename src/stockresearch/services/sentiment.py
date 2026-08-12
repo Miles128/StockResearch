@@ -27,6 +27,8 @@ class SentimentResult:
     label: str  # 极度恐慌/恐慌/中性/乐观/极度乐观
     drivers: list[SentimentDriver] = field(default_factory=list)
     source: str = "composite"
+    partial: bool = False
+    note: str | None = None
 
 
 def _score_to_label(score: int) -> str:
@@ -50,12 +52,18 @@ class SentimentService:
 
     async def compute_market_sentiment(self) -> SentimentResult:
         """从指数涨跌幅、涨跌家数、北向资金、市场新闻情感 计算 0-100 情绪指数。"""
-        overview = await MarketOverviewProvider().get_overview()
+        failed_sources: list[str] = []
+        try:
+            overview = await MarketOverviewProvider().get_overview()
+        except Exception as exc:
+            logger.warning("Market overview failed: %s", exc)
+            overview = None
+            failed_sources.append("行情总览")
         drivers: list[SentimentDriver] = []
         score = 50.0  # 基准 50
 
         # 1. 指数综合涨跌幅 (30%)
-        if overview.indices:
+        if overview is not None and overview.indices:
             avg_change = sum(idx.change_pct for idx in overview.indices) / len(overview.indices)
             index_score = max(-20, min(20, avg_change * 4))  # -20 ~ +20
             score += index_score * 0.75  # weight 30% → *1.5 → *0.75 to get 0-30 range
@@ -73,8 +81,8 @@ class SentimentService:
             )
 
         # 2. 涨跌家数比 (30%)
-        adv = overview.advancers
-        dec = overview.decliners
+        adv = overview.advancers if overview is not None else None
+        dec = overview.decliners if overview is not None else None
         if adv is not None and dec is not None and (adv + dec) > 0:
             bull_ratio = adv / (adv + dec)
             breadth_score = (bull_ratio - 0.5) * 30  # -15 ~ +15
@@ -92,7 +100,7 @@ class SentimentService:
             )
 
         # 3. 北向资金 (15%)
-        north = overview.northbound_net_yi
+        north = overview.northbound_net_yi if overview is not None else None
         if north is not None:
             north_score = max(-10, min(10, north * 2))  # -10 ~ +10
             score += north_score
@@ -127,18 +135,23 @@ class SentimentService:
             )
         except Exception as exc:
             logger.warning("Market news sentiment failed: %s", exc)
+            failed_sources.append("新闻情感")
 
         final_score = _clamp_score(score)
+        partial = bool(failed_sources)
         return SentimentResult(
             score=final_score,
             label=_score_to_label(final_score),
             drivers=drivers,
             source="composite",
+            partial=partial,
+            note=("数据源暂不可用：" + "、".join(failed_sources)) if partial else None,
         )
 
     async def compute_sector_sentiment(self, sector_name: str) -> SentimentResult:
         """从板块涨跌幅 + 板块新闻情感 计算行业情绪。"""
         drivers: list[SentimentDriver] = []
+        failed_sources: list[str] = []
         score = 50.0
 
         # 1. 板块涨跌幅
@@ -164,6 +177,7 @@ class SentimentService:
                 )
         except Exception as exc:
             logger.warning("Sector data for sentiment failed: %s", exc)
+            failed_sources.append("板块涨跌")
 
         # 2. 板块新闻情感
         try:
@@ -186,19 +200,24 @@ class SentimentService:
             )
         except Exception as exc:
             logger.warning("Sector news sentiment failed: %s", exc)
+            failed_sources.append("板块新闻")
 
         final_score = _clamp_score(score)
+        partial = bool(failed_sources)
         return SentimentResult(
             score=final_score,
             label=_score_to_label(final_score),
             drivers=drivers,
             source="sector",
+            partial=partial,
+            note=("数据源暂不可用：" + "、".join(failed_sources)) if partial else None,
         )
 
     async def compute_stock_sentiment(self, symbol: str, name: str = "") -> SentimentResult:
         """从雪球热度 + 个股新闻情感 计算个股情绪。复用 SentimentDataProvider。"""
         provider = SentimentDataProvider()
         drivers: list[SentimentDriver] = []
+        failed_sources: list[str] = []
         score = 50.0
 
         # 1. 雪球热度 + 多空比
@@ -221,8 +240,11 @@ class SentimentService:
                         else "neutral",
                     )
                 )
+            else:
+                failed_sources.append("雪球热度")
         except Exception as exc:
             logger.warning("Xueqiu hot for %s failed: %s", symbol, exc)
+            failed_sources.append("雪球热度")
 
         # 2. 个股新闻情感
         try:
@@ -244,11 +266,15 @@ class SentimentService:
             )
         except Exception as exc:
             logger.warning("Stock news sentiment for %s failed: %s", symbol, exc)
+            failed_sources.append("个股新闻")
 
         final_score = _clamp_score(score)
+        partial = bool(failed_sources)
         return SentimentResult(
             score=final_score,
             label=_score_to_label(final_score),
             drivers=drivers,
             source="stock",
+            partial=partial,
+            note=("数据源暂不可用：" + "、".join(failed_sources)) if partial else None,
         )

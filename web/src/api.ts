@@ -317,20 +317,6 @@ export const api = {
     const accepted = await request<NewsIngestAccepted>("/news/ingest?limit=10", { method: "POST" });
     return waitForNewsIngestJob(accepted.job_id);
   },
-  research: (symbol: string, analysisDepth?: AnalysisDepth) => {
-    const depth = analysisDepth ?? loadModeSettings().analysisDepth;
-    const params = new URLSearchParams({ symbol, analysis_depth: depth });
-    return request<ResearchReport>(`/research/analyze?${params.toString()}`);
-  },
-  riskCheckup: () =>
-    requestWithLlm<RiskCheckup>(
-      "/risk/checkup",
-      {
-        method: "POST",
-        body: JSON.stringify({ ...chatBodyField() }),
-      },
-      120_000,
-    ),
   riskCheckupHistory: (limit = 8) =>
     request<RiskCheckupHistory>(`/risk/checkups/history?limit=${limit}`),
   riskCheckupStream: (onEvent?: (event: AgentStreamEvent) => void, signal?: AbortSignal) =>
@@ -459,8 +445,6 @@ export const api = {
     }),
   briefingHistory: (kind: "premarket" | "intraday" | "postmarket" | "all" = "all", limit = 12) =>
     request<Briefing[]>(`/briefing/history?kind=${kind}&limit=${limit}`),
-  latestBriefing: (kind: "premarket" | "intraday" | "postmarket") =>
-    request<Briefing | null>(`/briefing/latest?kind=${kind}`),
   loadDemo: () =>
     request<{ status: string; count: number; demo: boolean }>("/portfolio/demo", {
       method: "POST",

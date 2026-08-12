@@ -6,7 +6,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from stockresearch.api.deps import get_current_user, handle_stockresearch_error
+from stockresearch.api.deps import get_current_user
 from stockresearch.core.exceptions import ValidationError
 from stockresearch.core.schemas import (
     AllocationDeviationOut,
@@ -310,7 +310,8 @@ async def create_holding(
         else:
             symbol, name = _resolve_holding(payload)
     except ValidationError as exc:
-        raise handle_stockresearch_error(exc) from exc
+        # 直接上抛交给全局 handler（统一 code 字段契约）
+        raise exc
 
     if payload.quantity is None:
         raise HTTPException(status_code=422, detail="请提供持仓手数")
@@ -420,7 +421,8 @@ async def apply_holding_transactions(
         db.commit()
     except ValidationError as exc:
         db.rollback()
-        raise handle_stockresearch_error(exc) from exc
+        # 直接上抛交给全局 handler（统一 code 字段契约）
+        raise exc
 
     holdings = db.query(Holding).filter(Holding.user_id == user.id).all()
     return HoldingTransactionResult(
