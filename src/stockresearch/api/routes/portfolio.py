@@ -22,6 +22,8 @@ from stockresearch.core.schemas import (
     HoldingTransactionItem,
     HoldingTransactionResult,
     PortfolioEventsOut,
+    PortfolioOptimizeOut,
+    PortfolioOptimizeRequest,
     PortfolioPerformanceOut,
     ScreenOut,
     ScreenRequest,
@@ -641,6 +643,47 @@ async def counterfactual_teaching(
             ]
         items.append(teaching)
     return CounterfactualBatchOut(items=items)
+
+
+# ── 简单组合优化 (V10.29 · 教育参考) ──────────────────
+
+
+@router.post("/optimize", response_model=PortfolioOptimizeOut)
+async def optimize_portfolio(
+    payload: PortfolioOptimizeRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PortfolioOptimizeOut:
+    """简单组合优化：持仓 ∪ 自选（≤8），qfq 日线对齐估计协方差。
+
+    三种预设：min_vol（最小波动）/ risk_parity（风险平价）/ balanced（均衡）。
+    教育参考，不构成投资建议；仅 long-only，单票 ≤40%。
+    """
+    from stockresearch.services.portfolio_optimizer import (
+        optimize_portfolio as run_optimize,
+    )
+
+    holdings = db.query(Holding).filter(Holding.user_id == user.id).all()
+    watchlist = db.query(WatchlistItem).filter(WatchlistItem.user_id == user.id).all()
+    universe: dict[str, float] = {}
+    for h in holdings:
+        universe[h.symbol] = universe.get(h.symbol, 0.0) + h.float_cost_price * h.quantity
+    for w in watchlist:
+        universe.setdefault(w.symbol, 0.0)
+    if len(universe) < 2:
+        from datetime import UTC
+        from datetime import datetime as dt
+
+        from stockresearch.core.constants import DISCLAIMER
+
+        return PortfolioOptimizeOut(
+            method=payload.method,
+            explanation="优化至少需要 2 个标的：添加持仓或自选后再试。",
+            partial=True,
+            disclaimer=f"组合优化为教育参考，不构成投资建议。{DISCLAIMER}",
+            as_of=dt.now(UTC).date().isoformat(),
+        )
+    return await run_optimize(universe, method=payload.method)
 
 
 # ── Demo holdings ────────────────────────────────────────

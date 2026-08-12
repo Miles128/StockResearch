@@ -110,7 +110,31 @@
 
 实现上收敛为内部只读 `AnalysisBudget`（公告窗口/条数/摘录长度、财务期数、新闻聚类与交叉核对次数、因子 key 列表等）；各维工具与因子计算读 budget，禁止散落 magic number。报告元数据回传 `analysis_depth`。
 
-**明确非范围**：三表完整会计引擎 / DCF 产品化；vectorbt 级策略回测、滑点撮合、组合优化、模拟盘账户；实盘信号下单；为量化单独做第三套 UI Shell；独立「财报 Tab」或与四维平行的新闻/财报分析产品。验证与纸上冲击仅服务于「结论可核对 / 仓位假设可感知」。
+**明确非范围**：三表完整会计引擎 / DCF 产品化；vectorbt 级策略回测、滑点撮合、模拟盘账户；实盘信号下单；为量化单独做第三套 UI Shell；独立「财报 Tab」或与四维平行的新闻/财报分析产品。验证与纸上冲击仅服务于「结论可核对 / 仓位假设可感知」。简单组合优化（最小波动/风险平价/均衡三预设，long-only，教育参考）已落地，见 §4.2；衍生品/固收/因子模型优化不做。
+
+### 4.2 Agent 目录（desk 分类法）
+
+参考 Fincept 的 desk 组织（research / quant / macro / execution），按「桌」梳理本项目的 agent 全景。所有 agent 均服务于两个北极星（预测可验证性 / 非专业人士可理解）。
+
+| Desk | Agent / 模块 | 职责 | 触发入口 |
+|------|-------------|------|----------|
+| **研究** | `research.agents.fundamental` | 基本面维：财务/估值/同业/公告/研报 | `skill_stock_research` |
+| | `research.agents.technical` | 技术面维：K线/行情/画线 | 同上 |
+| | `research.agents.sentiment` | 情绪维：新闻/热点聚类 | 同上 |
+| | `research.agents.chips` | 筹码维：资金流/持股结构 | 同上 |
+| | `research.debate` + `research.battle` | 多空辩论：正方/反方/裁判（research·market·industry 共用作战层） | `skill_bull_bear_debate` |
+| | `industry.*` | 行业投研：政策/资金/估值/技术/结构五维 + 龙头扫描 | `skill_industry_research` |
+| | `market.*` | 大盘投研：宏观/行业/技术/情绪 | `skill_market_research` |
+| | `financial.agent` | 财务比率专项（PE/PB/ROE/毛利） | 基本面维内工具 |
+| **风控** | `risk.engine` + `risk.metrics` | 规则引擎 + 量化指标（VaR/夏普/回撤/集中度）+ 三角辩论裁判 | `skill_risk_checkup` / 风控 Tab |
+| **资讯** | `news.filter` + `news.agent` + `news.deep_analyzer` | 三层过滤（黑名单/权威度/相关度，零 LLM 3s SLA）+ 单篇深析 | 新闻 Tab / 情绪维 |
+| **对话编排** | `orchestrator.graph / plan_execute / react_agent / stream` | 同步/流式编排：复杂度分流（直答 vs Plan-Execute）、ReAct 工具循环、SSE 事件泵 | Copilot 全部入口 |
+| | `orchestrator.skills` + `tools_registry` | 6 个打包技能（风控/个股/大盘/行业/辩论/画线）+ 轻工具注册 | LLM 自选 |
+| | `chat.intent / scope / follow_up / memory` | 意图路由、上下文装配、追问识别、会话记忆 | Copilot |
+| **教育** | `services.glossary` + `KnowledgeCard`（13a）+ `services.counterfactual_teaching`（13b） | 词库标注/零点击知识卡/情景教学（回撤/波动/估值） | 全域返回层 + 驾驶舱 |
+| **组合** | `services.portfolio_optimizer`（V10.29） | 简单组合优化：最小波动/风险平价/均衡，long-only，教育参考 | 驾驶舱折叠块 |
+
+**纪律**（对齐北极星判据）：新增 agent 须回答"提升预测可验证性？或提升非专业人士可理解性？"；每个 desk 保持单一切入点，不新增平行产品；删除的 agent（如大师点评 V10.22）不留残余模块。
 
 ## 五、数据源
 
@@ -505,6 +529,7 @@ cd desktop && npm install && npm run tauri dev
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
+| **V10.29** | 2026-08-10 | Agent 目录 + 简单组合优化：①新增 §4.2 Agent 目录——desk 分类法（研究/风控/资讯/对话编排/教育/组合）梳理全部 agent/skill/服务及触发入口，对照 Fincept 的 desk 组织；新增纪律：agent 须回溯北极星、desk 单一切入点、删除不留残余（清理 `master_commentary` 空目录残留）；②§4.1 非范围修订——「组合优化」从非范围移出，改「简单组合优化已落地，衍生品/固收/因子模型不做」；③后端 `services/portfolio_optimizer.py`——纯 Python（无 numpy）三预设：最小波动（坐标下降）/风险平价（1/σ 反波动率）/均衡（夏普加权，负收益归零，超单票上限记现金权重），long-only、单票 ≤40%、qfq 日线按共同交易日对齐估计协方差；④API `POST /portfolio/optimize`（持仓∪自选 ≤8，当前权重=持仓市值占比）+ 白话解释 + 免责声明；⑤前端驾驶舱「组合优化参考」折叠块（三方法切换/权重对比表/波动与收益对照）；⑥test：服务 12 + API 4 + 前端 3 全绿（后端 716、前端 109） |
 | **V10.28** | 2026-08-10 | Phase 13b Counterfactual 教学：①后端 `services/counterfactual_teaching.py` 规则生成三段白话教学（回撤=峰值→谷值最大回撤 + 持仓金额换算、波动=年化波动 + 最惨单日 + 金额换算、估值=PE 历史极值 + 分位 → 中位反事实账面对账），全部绑定用户持仓金额（成本价×手数×100）；②估值源扩展——`_valuation_from_series` 暴露 `pe_min/pe_max`（复用既有 series，不新增请求）+ mock 同步；③API `POST /portfolio/counterfactual`（≤4 标的，持仓取真实金额、非持仓用 1 万演示、非法代码跳过）返回层接词库 `mark_terms`（受 `enable_glossary` 开关）；④前端驾驶舱「假设你当时……（情景教学）」折叠块——按持仓金额取 Top4 懒加载、逐段 `<details>` 展开、`partial` 降级文案；⑤教机制不给结论：全部为历史数据事实陈述 + 概念解释，无预测；⑥test：13 后端（服务 10 + API 3）+ 4 前端全绿 |
 | **V10.27** | 2026-08-07 | 北极星重塑：①§一定位改写——两个北极星指标（预测准确率 · 金融教育），证据链/验证引擎/词库降为实现手段；②新增 §九·五 北极星路线图——Phase 12 预测闭环（预测日记/准确率仪表盘/校准/归因学习/假设自动验证/regime）、Phase 13 金融教育（场景化卡片/counterfactual/新手日历/概念路径）；③新增"北极星判据"——新功能必须回溯到一个北极星 |
 | **V10.26** | 2026-08-07 | 产品收敛决策：①**因子条默认折叠**——减少专业术语对普通用户的出现频率，点击展开才见数值因子与同向句（§四/§4.1 验收同步改）；②**通知中心替代邮件**——推送收敛为浏览器 Notification + 应用内告警历史（§七），P2 邮件/P3 短信/飞书一律不做；③**MCP server 不做**——CLI 已覆盖外带（Phase 7c），验收收窄；④新增**本地使用统计埋点**（localStorage 计数，不上传），两周周期驱动砍/留决策；⑤P0 计划：告警历史/通知中心 + 数据一键导出备份 |
