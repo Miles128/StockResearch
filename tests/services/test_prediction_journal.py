@@ -78,6 +78,33 @@ def test_score_bullish_hit() -> None:
     assert p.actual_return_pct == pytest.approx(5.0)
 
 
+def test_score_start_bar_is_nearest_before_created_at() -> None:
+    """回归：bars 窗口含预测日前数据时，起始价须取「最近一根 ≤ created_at」，
+    而非窗口最早一根（否则收益区间混入预测前走势）。"""
+    p = Prediction(
+        user_id=1,
+        symbol="600519",
+        name="贵州茅台",
+        direction="bullish",
+        confidence="medium",
+        horizon_days=20,
+        claim="看多",
+        created_at=datetime(2026, 3, 2, tzinfo=UTC),  # 预测日
+        due_at=date(2026, 3, 30),
+        status="pending",
+    )
+    # 窗口从 2026-01-01 起：预测日前 50→100（上涨），预测日后 100→95（下跌）
+    bars = _bars(
+        [50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 95.0, 95.0, 95.0, 95.0],
+        start_date="2026-02-25",
+    )
+    _score_one(p, bars)
+    assert p.status == "scored"
+    # 起始价 = 预测日 03-02 附近的 100，而非窗口最早的 50
+    assert p.actual_return_pct == pytest.approx(-5.0)
+    assert p.outcome == "incorrect"
+
+
 def test_score_bullish_miss() -> None:
     p = Prediction(
         user_id=1,

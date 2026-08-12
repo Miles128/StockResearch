@@ -12,6 +12,12 @@ export interface CopilotThread {
 const STORAGE_KEY = "stockresearch.copilotThreads";
 const MAX_THREADS = 40;
 const TITLE_MAX = 32;
+/** 单线程消息上限：超限丢弃最旧的（保留最近的消息，标题只依赖最新用户消息）。 */
+const MAX_MESSAGES_PER_THREAD = 200;
+/** 序列化体积安全线（约 localStorage 5MB quota 的一半）：超线后激进裁剪。 */
+const MAX_SERIALIZED_BYTES = 2_500_000;
+/** 超体积时的保留条数（每线程最近 N 条）。 */
+const EMERGENCY_MESSAGES = 30;
 
 function newId(): string {
   return `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -70,11 +76,29 @@ export function loadCopilotThreads(defaultTitle: string): CopilotThread[] {
   }
 }
 
+function trimMessages(messages: Message[]): Message[] {
+  return messages.length > MAX_MESSAGES_PER_THREAD
+    ? messages.slice(-MAX_MESSAGES_PER_THREAD)
+    : messages;
+}
+
 export function saveCopilotThreads(threads: CopilotThread[]): void {
-  const trimmed = threads
+  let trimmed = threads
     .slice(0, MAX_THREADS)
-    .map((t) => ({ ...t, messages: messagesForStorage(t.messages) }));
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+    .map((t) => ({ ...t, messages: trimMessages(messagesForStorage(t.messages)) }));
+  const serialized = JSON.stringify(trimmed);
+  // 超体积时激进裁剪：每线程只保留最近 N 条，避免 localStorage quota 溢出白屏。
+  if (serialized.length > MAX_SERIALIZED_BYTES) {
+    trimmed = trimmed.map((t) => ({
+      ...t,
+      messages: trimMessages(t.messages.slice(-EMERGENCY_MESSAGES)),
+    }));
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+  } catch {
+    // quota 溢出/隐私模式：静默降级为不持久化（与 usageTracking 容错口径一致）
+  }
 }
 
 export function touchThread(thread: CopilotThread, patch: Partial<CopilotThread>): CopilotThread {

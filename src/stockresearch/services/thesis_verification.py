@@ -80,7 +80,9 @@ def _verify_one(row: ThesisVerification, bars: list[dict[str, float | str]]) -> 
         row.checked_at = datetime.now(UTC)
         return
     start_date = row.created_at.date()
-    start_bar = next((b for b in bars if str(b.get("date", ""))[:10] <= str(start_date)), None)
+    start_bar = next(
+        (b for b in reversed(bars) if str(b.get("date", ""))[:10] <= str(start_date)), None
+    )
     start_close = float(start_bar["close"]) if start_bar is not None else closes[0]
     end_close = closes[-1]
     if start_close <= 0:

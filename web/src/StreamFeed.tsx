@@ -390,7 +390,7 @@ export function StreamFeed({
       {showDebateSection &&
         (riskCompact ? (
           <details className="risk-stream-subfold" open={live}>
-            <summary className="risk-stream-subfold-summary">{t("stream.debateSection")}</summary>
+            <summary className="risk-stream-subfold-summary">{t("card.debateSection")}</summary>
             <div className="risk-stream-subfold-body">
               {sortedRounds.map((round) =>
                 debateSides(round).map((side) => (
@@ -423,7 +423,7 @@ export function StreamFeed({
             </div>
           </details>
         ) : (
-          <p className="stream-section-title">{t("stream.debateSection")}</p>
+          <p className="stream-section-title">{t("card.debateSection")}</p>
         ))}
 
       {!riskCompact &&

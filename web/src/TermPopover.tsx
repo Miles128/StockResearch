@@ -89,7 +89,7 @@ export function TermPopover({ term, children }: TermPopoverProps) {
             <span className="term-popover-def">{term.def}</span>
             {term.analogy && (
               <span className="term-popover-analogy">
-                💡 {t("termAnalogyLabel")}：{term.analogy}
+                💡 {t("settings.termAnalogyLabel")}：{term.analogy}
               </span>
             )}
           </span>,

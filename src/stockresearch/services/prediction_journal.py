@@ -106,9 +106,12 @@ def _score_one(prediction: Prediction, bars: list[dict[str, float | str]]) -> No
     if len(closes) < 2:
         prediction.status = "skipped"
         return
-    # 起始价 = 预测日当天的收盘（最近一根 <= created_at 的 bar）
+    # 起始价 = 预测日当天的收盘（最近一根 <= created_at 的 bar；
+    # bars 升序，从尾往前找第一根不晚于预测日的 bar）
     start_date = prediction.created_at.date()
-    start_bar = next((b for b in bars if str(b.get("date", ""))[:10] <= str(start_date)), None)
+    start_bar = next(
+        (b for b in reversed(bars) if str(b.get("date", ""))[:10] <= str(start_date)), None
+    )
     start_close = float(start_bar["close"]) if start_bar is not None else closes[0]
     end_close = closes[-1]
     if start_close <= 0:
