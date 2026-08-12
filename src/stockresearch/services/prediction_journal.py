@@ -143,7 +143,7 @@ def _score_one(prediction: Prediction, bars: list[dict[str, float | str]]) -> No
 
 async def score_due_predictions(db_factory: Callable[[], Session]) -> int:
     """到期预测评分（worker 每日调用；日线刷新后执行）。返回评分条数。"""
-    from stockresearch.services.daily_bars import get_bars_for_symbol
+    from stockresearch.services.daily_bars import get_bars_meta_for_symbol
 
     db = db_factory()
     scored = 0
@@ -156,10 +156,18 @@ async def score_due_predictions(db_factory: Callable[[], Session]) -> int:
         )
         for prediction in due:
             try:
-                bars = await get_bars_for_symbol(
+                meta = await get_bars_meta_for_symbol(
                     prediction.symbol, days=prediction.horizon_days + 60
                 )
-                _score_one(prediction, bars)
+                if meta.adjust != "qfq":
+                    # PIT 纪律：非 qfq 日线在分红/送转窗口会跳空失真，跳过本轮评分
+                    logger.warning(
+                        "prediction scoring skipped for %s: bars adjust=%s",
+                        prediction.symbol,
+                        meta.adjust,
+                    )
+                    continue
+                _score_one(prediction, meta.bars)
                 scored += 1
             except Exception as exc:
                 logger.warning("prediction scoring failed for %s: %s", prediction.symbol, exc)
@@ -397,6 +405,10 @@ async def generate_prediction_review(
     )
     with output_style_scope(reading_mode="friendly"):
         text = await client.complete(system, user)
+    # 合规：LLM 复盘输出过禁用模式清洗（PRD §9.1）
+    from stockresearch.services.neutral_guard import apply_ban_filter
+
+    text = apply_ban_filter(text)
     p.review_text = text.strip()[:800]
     db.commit()
     return p

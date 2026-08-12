@@ -112,13 +112,20 @@ async def index_intraday(
     symbol_list = list(dict.fromkeys(s.strip() for s in symbols.split(",") if s.strip()))
     results: list[IndexIntradayOut] = []
     for symbol in symbol_list:
+        points: list[IntradayPointOut] = []
+        partial = False
+        note = None
         try:
             raw = await asyncio.to_thread(fetch_sina_intraday, symbol)
             points = [IntradayPointOut(time=str(p["time"]), price=float(p["price"])) for p in raw]
+            if not points:
+                partial = True
+                note = "分时源暂无数据"
         except Exception:
             logger.warning("intraday fetch failed for %s", symbol, exc_info=True)
-            points = []
-        results.append(IndexIntradayOut(symbol=symbol, points=points))
+            partial = True
+            note = "分时源暂不可用"
+        results.append(IndexIntradayOut(symbol=symbol, points=points, partial=partial, note=note))
     return results
 
 
@@ -412,6 +419,8 @@ async def market_sentiment(
             for d in result.drivers
         ],
         source=result.source,
+        partial=result.partial,
+        note=result.note,
     )
 
 
@@ -429,6 +438,8 @@ async def sector_sentiment(
             for d in result.drivers
         ],
         source=result.source,
+        partial=result.partial,
+        note=result.note,
     )
 
 
@@ -447,4 +458,6 @@ async def stock_sentiment(
             for d in result.drivers
         ],
         source=result.source,
+        partial=result.partial,
+        note=result.note,
     )

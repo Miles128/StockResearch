@@ -23,8 +23,27 @@ STYLES_DIR = ROOT / "web" / "src" / "styles"
 SRC_DIR = ROOT / "web" / "src"
 
 _CSS_CLASS_RE = re.compile(r"\.([a-zA-Z][\w-]*)")
-# Class tokens used in TSX: className="a b", className={`a ${x}`} etc.
-_CLASS_USE_RE = re.compile(r'className\s*=\s*["\'`]([^"\'`]*)')
+# className 属性匹配：支持 "a b" / 'a' / `a ${x} b` / {"a"} / {cond ? "a" : "b"}
+_CLASS_ATTR_RE = re.compile(
+    r"className\s*=\s*\{?(?:\"(.*?)\"|'(.*?)'|`(.*?)`)",
+    re.DOTALL,
+)
+# 模板字面量前缀：`lists-${listsMode}` → lists-
+_TEMPLATE_PREFIX_RE = re.compile(r"([a-zA-Z][\w-]*)\s*\$\{")
+
+
+def _add_literal_tokens(names: set[str], body: str | None) -> None:
+    if not body:
+        return
+    for token in body.split():
+        token = token.strip()
+        if not token or not token[0].isalpha() or "${" in token or "{" in token:
+            continue
+        names.add(token)
+    for m in _TEMPLATE_PREFIX_RE.finditer(body):
+        prefix = m.group(1).rstrip("-")
+        if prefix:
+            names.add(prefix)
 
 
 def collect_tsx_class_names() -> set[str]:
@@ -33,17 +52,15 @@ def collect_tsx_class_names() -> set[str]:
         if "__tests__" in path.parts:
             continue
         text = path.read_text(encoding="utf-8")
-        for m in _CLASS_USE_RE.finditer(text):
-            for token in m.group(1).split():
-                token = token.strip()
-                if not token or not token[0].isalpha():
-                    continue
-                names.add(token)
-                for part in token.split("${"):
-                    # capture literal prefix before template interpolation
-                    clean = part.strip().rstrip("`").strip()
-                    if clean and clean[0].isalpha():
-                        names.add(clean.split()[0])
+        for m in _CLASS_ATTR_RE.finditer(text):
+            body = m.group(1) or m.group(2) or m.group(3)
+            _add_literal_tokens(names, body)
+        # 表达式内散落的字符串字面量：className={cond ? "a b" : "c"} 只被上面
+        # 抓到第一个引号对，这里对 { ... } 窗口内的引号字面量做兜底。
+        for m in re.finditer(r"className\s*=\s*\{([^{}]*)\}", text):
+            expr = m.group(1)
+            for lit in re.findall(r"[\"'`]([a-zA-Z][\w-]*)[\"'`]", expr):
+                names.add(lit)
     return names
 
 

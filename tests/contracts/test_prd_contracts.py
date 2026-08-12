@@ -176,7 +176,9 @@ def test_predictions_persist_on_report_save() -> None:
     from stockresearch.api.routes import research
 
     src = inspect.getsource(research.persist_report)
-    assert "record_prediction_for_report" in src
+    assert "register_report_verifications" in src
+    src2 = inspect.getsource(research.register_report_verifications)
+    assert "record_prediction_for_report" in src2
 
 
 def test_prediction_scoring_is_pit_disciplined() -> None:

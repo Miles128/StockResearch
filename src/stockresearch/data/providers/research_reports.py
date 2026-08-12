@@ -40,18 +40,10 @@ class ResearchReportFetchResult:
 
 
 def _parse_date(value: object) -> datetime:
-    if isinstance(value, datetime):
-        if value.tzinfo is None:
-            return value.replace(tzinfo=UTC)
-        return value
-    if isinstance(value, str):
-        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
-            try:
-                dt = datetime.strptime(value, fmt)
-                return dt.replace(tzinfo=UTC)
-            except ValueError:
-                continue
-    return datetime.now(UTC)
+    from stockresearch.utils.dates import parse_date_any
+
+    parsed = parse_date_any(value)
+    return parsed if parsed is not None else datetime.now(UTC)
 
 
 def _safe_float(value: object) -> float | None:

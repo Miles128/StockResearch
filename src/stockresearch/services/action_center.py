@@ -53,11 +53,13 @@ async def generate_daily_actions(
         )
 
     quote_provider = QuoteProvider()
+    quote_available = True
     try:
         quote_map = await quote_provider.get_quotes([h.symbol for h in holdings])
     except Exception:
         logger.warning("action center quotes failed for user_id=%s", user_id, exc_info=True)
         quote_map = {}
+        quote_available = False
     quotes = {sym: q for sym, q in quote_map.items()}
 
     news = await get_news_for_user(db, user_id, related_only=True, limit=10)
@@ -172,6 +174,8 @@ async def generate_daily_actions(
 
     if not ranked:
         summary = "暂无明显变化"
+        if not quote_available:
+            summary = "行情源暂不可用，价格类信号未能计算"
     else:
         risk_count = sum(1 for s in ranked if s.type == "risk")
         news_count = sum(1 for s in ranked if s.type == "news")
@@ -189,6 +193,8 @@ async def generate_daily_actions(
             parts.append(f"{market_count}条市场")
         if research_count:
             parts.append(f"{research_count}条研究雷达")
+        if not quote_available:
+            parts.append("行情源暂不可用")
         summary = "、".join(parts) if parts else "有待关注事项"
 
     return DailyActionCenterOut(

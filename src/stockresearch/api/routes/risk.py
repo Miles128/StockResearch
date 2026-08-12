@@ -150,7 +150,6 @@ async def risk_checkup_stream(
     settings = get_mode_settings(db, user.id)
 
     async def event_generator() -> AsyncIterator[dict[str, object]]:
-        final: RiskCheckupOut | None = None
         with output_style_scope(
             reading_mode=payload.reading_mode,
             locale=payload.output_locale,
@@ -164,9 +163,9 @@ async def risk_checkup_stream(
                 if event.get("type") == "done":
                     payload_data = event.get("result")
                     if isinstance(payload_data, dict):
+                        # 在 yield done 之前落库：客户端收到 done 即断连时告警不丢
                         final = RiskCheckupOut.model_validate(payload_data)
+                        _persist_alerts(db, user.id, final)
                 yield event
-        if final is not None:
-            _persist_alerts(db, user.id, final)
 
     return sse_response(event_generator(), keep_alive_seconds=15.0)

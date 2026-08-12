@@ -33,6 +33,7 @@ export interface SkillStreamSlice {
   judgeVerdict: JudgeVerdict | null;
   voteTally: VoteTally | null;
   activeStreamIds: string[];
+  streamError: string | null;
 }
 
 export interface SkillStep {
@@ -54,6 +55,8 @@ export interface StreamState {
   activeStreamIds: string[];
   skillSteps: SkillStep[];
   activeSkillRunId?: string;
+  /** 后端 error 事件（如 llm_not_configured）——UI 透传展示，不静默丢失。 */
+  streamError: string | null;
 }
 
 const DEBATE_AGENT_SIDES: Record<string, string> = {
@@ -181,6 +184,7 @@ export function emptySkillStreamSlice(): SkillStreamSlice {
     judgeVerdict: null,
     voteTally: null,
     activeStreamIds: [],
+    streamError: null,
   };
 }
 
@@ -194,6 +198,7 @@ export function emptyStreamState(): StreamState {
     voteTally: null,
     activeStreamIds: [],
     skillSteps: [],
+    streamError: null,
   };
 }
 
@@ -268,7 +273,17 @@ function applyCoreStreamEvent(
     judgeVerdict,
     voteTally,
     activeStreamIds,
+    streamError,
   } = slice;
+
+  if (event.type === "error") {
+    // 后端 LLM 配置/请求错误：透传到 UI，不在流式过程中静默丢失
+    const detail = event.message ?? event.message_key ?? "";
+    streamError = detail || null;
+    if (detail) {
+      streamStatus = detail;
+    }
+  }
 
   if (event.type === "status" && (event.message || event.message_key)) {
     const msg = event.message ?? "";
@@ -476,6 +491,7 @@ function applyCoreStreamEvent(
     judgeVerdict,
     voteTally,
     activeStreamIds,
+    streamError: null,
   };
 }
 
@@ -490,6 +506,7 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent, t?:
     activeStreamIds,
     skillSteps,
     activeSkillRunId,
+    streamError,
   } = prev;
 
   const skillRunId =
@@ -547,6 +564,7 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent, t?:
       judgeVerdict,
       voteTally,
       activeStreamIds,
+      streamError,
     };
     const next = applyCoreStreamEvent(topSlice, event, t);
     streamStatus = next.streamStatus;
@@ -556,6 +574,7 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent, t?:
     judgeVerdict = next.judgeVerdict;
     voteTally = next.voteTally;
     activeStreamIds = next.activeStreamIds;
+    streamError = next.streamError;
   }
 
   return {
@@ -568,5 +587,6 @@ export function applyStreamEvent(prev: StreamState, event: AgentStreamEvent, t?:
     activeStreamIds,
     skillSteps,
     activeSkillRunId,
+    streamError,
   };
 }

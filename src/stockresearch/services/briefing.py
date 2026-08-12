@@ -414,6 +414,15 @@ async def generate_briefing(
             except Exception:
                 logger.warning("LLM briefing polish failed", exc_info=True)
 
+    # 合规：LLM 生成的摘要与各段正文统一过禁用模式清洗（PRD §9.1）
+    from stockresearch.services.neutral_guard import apply_ban_filter
+
+    if summary:
+        summary = apply_ban_filter(summary)
+    sections = [
+        BriefingSection(title=s.title, content=apply_ban_filter(s.content)) for s in sections
+    ]
+
     return BriefingOut(
         kind=normalized,
         title=title,

@@ -15,7 +15,8 @@ class Settings(BaseSettings):
     llm_base_url: str = ""
     llm_model: str = ""
     llm_http_proxy: str = ""
-    use_mock_llm: bool = True
+    # 默认关闭 mock：漏配 .env 时显式报 LLM 未配置错误，而不是静默输出假研报。
+    use_mock_llm: bool = False
     use_mock_market_data: bool = False
     # 博查 AI 联网搜索 API Key（https://open.bochaai.com）。用于新闻兜底搜索。
     bocha_api_key: str = ""

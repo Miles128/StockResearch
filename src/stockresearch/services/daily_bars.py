@@ -201,7 +201,11 @@ async def get_bars_meta_for_symbol(symbol: str, days: int = 90) -> BarsMeta:
 
 
 async def get_bars_for_symbol(symbol: str, days: int = 90) -> list[dict[str, float | str]]:
-    """Prefer local warehouse; fetch + upsert on miss / short history (qfq only)."""
+    """Prefer local warehouse; fetch + upsert on miss / short history (qfq only).
+
+    注意：丢弃了复权口径与 partial 标记；需要口径保证的调用方请改用
+    ``get_bars_meta_for_symbol``。
+    """
     meta = await get_bars_meta_for_symbol(symbol, days=days)
     return meta.bars
 

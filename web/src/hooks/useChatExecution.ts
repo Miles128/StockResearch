@@ -124,7 +124,7 @@ export function useChatExecution(options: UseChatExecutionOptions): ChatExecutio
           query,
           activeSessionId,
           (event: AgentStreamEvent) => {
-            if (event.type === "analysis_choice" || event.type === "stock_choice") return;
+            if (event.type === "stock_choice") return;
             const normalized = normalizeStreamEvent(event, t);
             setChatStream((prev) => {
               const next = applyStreamEvent(prev, normalized, t);

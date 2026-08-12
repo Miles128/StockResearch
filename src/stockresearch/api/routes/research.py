@@ -132,21 +132,32 @@ def persist_report(db: Session, user_id: int, report: ResearchReportOut) -> Rese
     db.add(row)
     db.commit()
     db.refresh(row)
+    register_report_verifications(db, user_id, report, report_id=row.id)
+    return row
+
+
+def register_report_verifications(
+    db: Session,
+    user_id: int,
+    report: ResearchReportOut,
+    *,
+    report_id: int | None,
+) -> None:
+    """登记预测日记/Thesis 验证（幂等）。缓存命中路径也须调用，避免缺样本。"""
     # Phase 12a 预测日记：研报事实层自动留存预测记录（幂等）。
     try:
         from stockresearch.services.prediction_journal import record_prediction_for_report
 
-        record_prediction_for_report(db, user_id, report, report_id=row.id)
+        record_prediction_for_report(db, user_id, report, report_id=report_id)
     except Exception:
         logger.warning("prediction record failed for %s", report.symbol, exc_info=True)
     # Phase 12e 假设自动验证：deep 档 Thesis 自动创建验证计划（幂等）。
     try:
         from stockresearch.services.thesis_verification import record_thesis_for_report
 
-        record_thesis_for_report(db, user_id, report, report_id=row.id)
+        record_thesis_for_report(db, user_id, report, report_id=report_id)
     except Exception:
         logger.warning("thesis verification record failed for %s", report.symbol, exc_info=True)
-    return row
 
 
 def stamp_report_id(report: ResearchReportOut, report_id: int) -> ResearchReportOut:
@@ -188,6 +199,24 @@ def extract_reports_from_cards(cards: list[dict[str, object]]) -> list[ResearchR
     return reports
 
 
+def _register_cached_report(db: Session, user_id: int, report: ResearchReportOut) -> int | None:
+    """缓存命中时登记预测/Thesis：复用该用户该标的最近报告行（幂等）。
+
+    缓存 payload 不含 id（persist 时回写的是 DB 行），因此按 (user, symbol)
+    找最近一份报告登记；找不到则新建一行（保证预测日记不因缓存缺样本）。
+    """
+    row = (
+        db.query(ResearchReport)
+        .filter(ResearchReport.user_id == user_id, ResearchReport.symbol == report.symbol)
+        .order_by(ResearchReport.created_at.desc())
+        .first()
+    )
+    if row is not None:
+        register_report_verifications(db, user_id, report, report_id=row.id)
+        return row.id
+    return persist_report(db, user_id, report).id
+
+
 @router.get("/analyze", response_model=ResearchReportOut)
 async def analyze_stock(
     symbol: str = Query(min_length=6, max_length=6, pattern=r"^\d{6}$"),
@@ -206,12 +235,14 @@ async def analyze_stock(
     cached = cache.get_json(cache_key)
     if cached:
         report = ResearchReportOut.model_validate({**cached, "cached": True})
+        report_id = _register_cached_report(db, user.id, report)
         with output_style_scope(
             reading_mode=settings.reading_mode,
             enable_glossary=settings.enable_glossary,
             custom_glossary=settings.custom_glossary,
         ):
-            return _mark_report_terms(report)
+            marked = _mark_report_terms(report)
+        return stamp_report_id(marked, report_id) if report_id else marked
     with output_style_scope(
         reading_mode=settings.reading_mode, enable_glossary=settings.enable_glossary
     ):
@@ -243,6 +274,7 @@ async def analyze_stock_stream(
         cached = cache.get_json(cache_key)
         if cached:
             report = ResearchReportOut.model_validate({**cached, "cached": True})
+            report_id = _register_cached_report(db, user.id, report)
             with output_style_scope(
                 reading_mode=settings.reading_mode,
                 enable_glossary=settings.enable_glossary,
@@ -250,7 +282,8 @@ async def analyze_stock_stream(
             ):
                 marked = _mark_report_terms(report)
             yield {"type": "status", "message": "命中缓存， 直接返回报告"}
-            yield {"type": "done", "result": marked.model_dump(mode="json")}
+            result = stamp_report_id(marked, report_id) if report_id else marked
+            yield {"type": "done", "result": result.model_dump(mode="json")}
             return
 
         final: ResearchReportOut | None = None
