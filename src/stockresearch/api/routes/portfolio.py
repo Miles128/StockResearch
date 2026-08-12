@@ -1,7 +1,6 @@
 """Holdings and watchlist routes."""
 
-from datetime import UTC, date, datetime
-from decimal import Decimal
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -19,7 +18,6 @@ from stockresearch.core.schemas import (
     HoldingEnrichedOut,
     HoldingOut,
     HoldingTransactionBatch,
-    HoldingTransactionItem,
     HoldingTransactionResult,
     PortfolioEventsOut,
     PortfolioOptimizeOut,
@@ -56,166 +54,18 @@ from stockresearch.services.provider_cache_policy import quote_cache_ttl_seconds
 from stockresearch.services.screener import run_screen
 from stockresearch.services.stock_lookup import lookup_stock
 from stockresearch.services.stock_sector import backfill_holding_sectors, resolve_stock_sector
-from stockresearch.services.symbol_resolver import resolve_stock_query
+from stockresearch.services.trade_ledger import (
+    LOTS_SIZE,
+    record_trade,
+    resolve_holding,
+    resolve_transaction_symbol_name,
+    sell_holding,
+    upsert_holding,
+)
 from stockresearch.services.user_preferences import get_mode_settings
 from stockresearch.utils.llm import get_llm_client
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
-
-LOTS_SIZE = 100
-
-
-def _latest_report_id(db: Session, user_id: int, symbol: str) -> int | None:
-    """Attach the most recent research report for the symbol (decision journal)."""
-    report = (
-        db.query(ResearchReport)
-        .filter(
-            ResearchReport.symbol == symbol,
-            (ResearchReport.user_id == user_id) | (ResearchReport.user_id.is_(None)),
-        )
-        .order_by(ResearchReport.created_at.desc(), ResearchReport.id.desc())
-        .first()
-    )
-    return report.id if report else None
-
-
-def _record_trade(
-    db: Session,
-    *,
-    user_id: int,
-    symbol: str,
-    name: str,
-    side: str,
-    price: float,
-    quantity: int,
-    trade_date: date | None = None,
-    realized_pnl: float | None = None,
-    note: str | None = None,
-    commit: bool = False,
-) -> Trade:
-    trade = Trade(
-        user_id=user_id,
-        symbol=symbol,
-        name=name,
-        side=side,
-        price=price,
-        quantity=quantity,
-        trade_date=trade_date,
-        realized_pnl=None if realized_pnl is None else round(realized_pnl, 2),
-        note=(note.strip() or None) if note else None,
-        report_id=_latest_report_id(db, user_id, symbol),
-    )
-    db.add(trade)
-    if commit:
-        db.commit()
-    else:
-        db.flush()
-    return trade
-
-
-def _upsert_holding(
-    db: Session,
-    *,
-    user_id: int,
-    symbol: str,
-    name: str,
-    cost_price: float,
-    quantity: int,
-    sector: str | None = None,
-    buy_date: date | None = None,
-    commit: bool = True,
-) -> Holding:
-    existing = (
-        db.query(Holding).filter(Holding.user_id == user_id, Holding.symbol == symbol).first()
-    )
-    if existing is not None:
-        total_qty = existing.quantity + quantity
-        existing.cost_price = Decimal(
-            (float(existing.cost_price) * existing.quantity + cost_price * quantity) / total_qty
-        )
-        existing.quantity = total_qty
-        existing.name = name
-        if sector:
-            existing.sector = sector
-        if commit:
-            db.commit()
-            db.refresh(existing)
-        else:
-            db.flush()
-        return existing
-
-    holding = Holding(
-        user_id=user_id,
-        symbol=symbol,
-        name=name,
-        cost_price=cost_price,
-        quantity=quantity,
-        sector=sector or "未知",
-        buy_date=buy_date,
-    )
-    db.add(holding)
-    if commit:
-        db.commit()
-        db.refresh(holding)
-    else:
-        db.flush()
-    return holding
-
-
-def _sell_holding(
-    db: Session,
-    *,
-    user_id: int,
-    symbol: str,
-    quantity: int,
-    name: str | None = None,
-    commit: bool = True,
-) -> None:
-    holding = db.query(Holding).filter(Holding.user_id == user_id, Holding.symbol == symbol).first()
-    label = name or (holding.name if holding else symbol)
-    if holding is None or holding.quantity < quantity:
-        available = holding.quantity if holding else 0
-        raise ValidationError(f"{label} 卖出数量超出持仓（当前 {available} 股）")
-    holding.quantity -= quantity
-    if holding.quantity == 0:
-        db.delete(holding)
-    if commit:
-        db.commit()
-    else:
-        db.flush()
-
-
-async def _resolve_transaction_symbol_name(
-    item: HoldingTransactionItem,
-) -> tuple[str, str, str | None]:
-    if item.symbol and item.name:
-        sector = await resolve_stock_sector(item.symbol, item.name)
-        return item.symbol, item.name, sector
-    if item.symbol and not item.name:
-        _, name = resolve_stock_query(item.symbol)
-        sector = await resolve_stock_sector(item.symbol, name)
-        return item.symbol, name, sector
-    query = item.query or item.name
-    if not query:
-        raise ValidationError("请提供股票代码或名称")
-    lookup = await lookup_stock(query, llm=get_llm_client())
-    if lookup.status != "confirmed" or not lookup.symbol or not lookup.name:
-        raise ValidationError(lookup.message or f"无法识别股票：{query}")
-    sector = await resolve_stock_sector(lookup.symbol, lookup.name)
-    return lookup.symbol, lookup.name, sector
-
-
-def _resolve_holding(payload: HoldingCreate) -> tuple[str, str]:
-    if payload.symbol and payload.name:
-        return payload.symbol, payload.name
-    if payload.symbol and not payload.name:
-        _, name = resolve_stock_query(payload.symbol)
-        return payload.symbol, name
-    if payload.query:
-        return resolve_stock_query(payload.query)
-    if payload.name and not payload.symbol:
-        return resolve_stock_query(payload.name)
-    raise ValidationError("请提供股票代码或名称")
 
 
 @router.post("/holdings/lookup", response_model=StockLookupOut)
@@ -308,7 +158,7 @@ async def create_holding(
                 raise ValidationError(lookup.message)
             symbol, name = lookup.symbol, lookup.name
         else:
-            symbol, name = _resolve_holding(payload)
+            symbol, name = resolve_holding(payload)
     except ValidationError as exc:
         # 直接上抛交给全局 handler（统一 code 字段契约）
         raise exc
@@ -320,7 +170,7 @@ async def create_holding(
     if not sector or sector == "未知":
         sector = await resolve_stock_sector(symbol, name)
 
-    holding = _upsert_holding(
+    holding = upsert_holding(
         db,
         user_id=user.id,
         symbol=symbol,
@@ -331,7 +181,7 @@ async def create_holding(
         buy_date=payload.buy_date,
         commit=False,
     )
-    _record_trade(
+    record_trade(
         db,
         user_id=user.id,
         symbol=symbol,
@@ -356,14 +206,14 @@ async def apply_holding_transactions(
     try:
         resolved: list[tuple] = []
         for item in payload.transactions:
-            symbol, name, sector = await _resolve_transaction_symbol_name(item)
+            symbol, name, sector = await resolve_transaction_symbol_name(item)
             resolved.append((item, symbol, name, sector))
 
         for item, symbol, name, sector in resolved:
             quantity = item.lots * LOTS_SIZE
             if item.side == "buy":
                 assert item.cost_price is not None
-                _upsert_holding(
+                upsert_holding(
                     db,
                     user_id=user.id,
                     symbol=symbol,
@@ -374,7 +224,7 @@ async def apply_holding_transactions(
                     buy_date=item.trade_date,
                     commit=False,
                 )
-                _record_trade(
+                record_trade(
                     db,
                     user_id=user.id,
                     symbol=symbol,
@@ -392,7 +242,7 @@ async def apply_holding_transactions(
                     .first()
                 )
                 avg_cost = existing.float_cost_price if existing else None
-                _sell_holding(
+                sell_holding(
                     db,
                     user_id=user.id,
                     symbol=symbol,
@@ -406,7 +256,7 @@ async def apply_holding_transactions(
                         if avg_cost is not None
                         else None
                     )
-                    _record_trade(
+                    record_trade(
                         db,
                         user_id=user.id,
                         symbol=symbol,
@@ -440,7 +290,7 @@ async def confirm_holding(
     sector = payload.sector
     if not sector or sector == "未知":
         sector = await resolve_stock_sector(payload.symbol, payload.name)
-    holding = _upsert_holding(
+    holding = upsert_holding(
         db,
         user_id=user.id,
         symbol=payload.symbol,
@@ -451,7 +301,7 @@ async def confirm_holding(
         buy_date=payload.buy_date,
         commit=False,
     )
-    _record_trade(
+    record_trade(
         db,
         user_id=user.id,
         symbol=payload.symbol,

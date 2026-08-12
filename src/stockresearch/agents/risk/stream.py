@@ -3,7 +3,6 @@
 import asyncio
 import logging
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime
 
 from stockresearch.agents.research.debate import (
     iter_triangular_debate_events,
@@ -14,8 +13,10 @@ from stockresearch.agents.risk.engine import (
     _llm_correlation_analysis,
     _llm_market_assessment,
     _llm_scenario_analysis,
+    _load_quotes_with_placeholders,
     _parse_rule_alerts,
     compute_quant_metrics,
+    portfolio_summary_from_alerts,
     run_risk_checkup,
 )
 from stockresearch.agents.risk.judge import (
@@ -37,8 +38,6 @@ from stockresearch.core.schemas import (
     RiskAlertOut,
     RiskCheckupOut,
 )
-from stockresearch.data.providers.market import QuoteProvider
-from stockresearch.data.providers.market.common import Quote
 from stockresearch.db.models import Holding
 from stockresearch.i18n.status_events import status_event
 from stockresearch.services.compliance_language import (
@@ -137,30 +136,7 @@ async def run_risk_checkup_stream(
         "agent_name": "规则引擎",
         "role": "rules",
     }
-    quote_provider = QuoteProvider()
-    quote_map = await quote_provider.get_quotes([h.symbol for h in holdings]) if holdings else {}
-    quotes: list[Quote] = []
-    missing: list[str] = []
-    for h in holdings:
-        q = quote_map.get(h.symbol)
-        if q is None:
-            missing.append(h.symbol)
-            # Placeholder keeps holdings/quotes aligned so downstream zip never
-            # crashes when a quote provider is temporarily unavailable.
-            q = Quote(
-                symbol=h.symbol,
-                name=h.name or h.symbol,
-                price=float(h.float_cost_price or 0.0),
-                change_pct=0.0,
-                open=0.0,
-                high=0.0,
-                low=0.0,
-                volume=0.0,
-                updated_at=datetime.now(UTC),
-            )
-        quotes.append(q)
-    if missing:
-        logger.warning("Risk checkup missing quotes for: %s", ",".join(missing))
+    quotes, missing = await _load_quotes_with_placeholders(holdings)
 
     alerts = _parse_rule_alerts(holdings, quotes)
     for alert in alerts:
@@ -197,10 +173,7 @@ async def run_risk_checkup_stream(
 
     # PRD §四 可选 LLM：关闭时跳过 parallel agents / debate / manager / judge
     if not enable_llm_analysis:
-        if not alerts:
-            summary = risk_msg.portfolio_summary_all_clear(len(holdings))
-        else:
-            summary = risk_msg.portfolio_summary_with_alerts(len(alerts))
+        summary = portfolio_summary_from_alerts(holdings, alerts)
         result = RiskCheckupOut(
             alerts=alerts,
             portfolio_summary=summary,
