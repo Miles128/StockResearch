@@ -8,11 +8,24 @@ import json
 import logging
 from typing import Any
 
-from stockresearch.agents.orchestrator.tools_registry import FINANCE_TOOLS, format_tools_for_prompt
+from stockresearch.agents.orchestrator.tool_schema import (
+    LEGACY_SKILL_ALIASES,
+    ToolCallValidator,
+)
+from stockresearch.agents.orchestrator.tools_registry import (
+    FINANCE_TOOLS,
+    ORCHESTRATOR_TOOLS,
+    format_tools_for_prompt,
+)
 from stockresearch.i18n.status_events import status_event
 from stockresearch.utils.llm import LLMClient
 
 logger = logging.getLogger(__name__)
+
+_VALIDATOR = ToolCallValidator(
+    frozenset(tool.name for tool in ORCHESTRATOR_TOOLS),
+    LEGACY_SKILL_ALIASES,
+)
 
 _PLAN_GENERAL_SYSTEM = """你是「StockResearch」的研究规划 Agent。用户提出了一个与股票投资无直接关系的复杂问题，请制定分析计划。
 
@@ -434,8 +447,11 @@ class PlanExecuteAgent:
 
         # If tool_executor is available and tool is known, use it directly
         if self._tool_executor and tool_name != "auto":
+            normalized, error = _VALIDATOR.validate({"tool": tool_name, "args": tool_args})
+            if error is not None or normalized is None:
+                return f"[工具调用格式错误] {error}"
             try:
-                return await self._tool_executor(tool_name, tool_args)
+                return await self._tool_executor(normalized["tool"], normalized["args"])
             except Exception as exc:
                 logger.warning("Tool %s failed: %s", tool_name, exc)
                 return f"工具 {tool_name} 执行失败: {exc}"
@@ -457,17 +473,21 @@ class PlanExecuteAgent:
         tool_calls = _extract_tool_calls(response)
         if tool_calls and self._tool_executor:
             results = []
-            for tc in tool_calls:
-                tc_name = tc["tool"]
+            for raw_tc in tool_calls:
+                normalized, error = _VALIDATOR.validate(raw_tc)
+                if error is not None or normalized is None:
+                    results.append(f"[工具调用格式错误] {error}")
+                    continue
+                tc_name = normalized["tool"]
                 if not self._finance_tools and tc_name in FINANCE_TOOLS:
                     results.append(f"工具 {tc_name} 已禁用：当前问题与股票投资无关。")
                     continue
                 try:
-                    r = await self._tool_executor(tc_name, tc.get("args", {}))
+                    r = await self._tool_executor(tc_name, normalized.get("args", {}))
                     results.append(r)
                 except Exception as exc:
                     logger.warning("tool %s failed: %s", tc_name, exc, exc_info=True)
-                    results.append(f"工具 {tc['tool']} 失败: {exc}")
+                    results.append(f"工具 {tc_name} 失败: {exc}")
             return "\n".join(results)
 
         return response.strip()

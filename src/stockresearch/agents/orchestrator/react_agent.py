@@ -12,8 +12,13 @@ from sqlalchemy.orm import Session
 
 from stockresearch.agents.news.agent import get_news_for_user
 from stockresearch.agents.orchestrator.skills import SKILL_IDS, SkillRunner
+from stockresearch.agents.orchestrator.tool_schema import (
+    LEGACY_SKILL_ALIASES,
+    ToolCallValidator,
+)
 from stockresearch.agents.orchestrator.tools_registry import (
     FINANCE_TOOLS,
+    ORCHESTRATOR_TOOLS,
     format_tools_for_prompt,
     research_skills_prompt_note,
 )
@@ -101,10 +106,10 @@ _RESEARCH_SKILL_BLOCK = frozenset(
 _MAX_ITERATIONS = 8
 _MAX_TOOL_RESULT_CHARS = 2000
 
-_LEGACY_SKILL_ALIASES: dict[str, str] = {
-    "get_stock_research": "skill_stock_research",
-    "debate_stock": "skill_bull_bear_debate",
-}
+_VALIDATOR = ToolCallValidator(
+    frozenset(tool.name for tool in ORCHESTRATOR_TOOLS),
+    LEGACY_SKILL_ALIASES,
+)
 
 
 def _truncate_tool_result(result: str) -> str:
@@ -280,7 +285,21 @@ class OrchestratorAgent:
 
             messages.append({"role": "assistant", "content": response})
 
+            validated: list[dict[str, Any]] = []
             for tc in tool_calls:
+                normalized, error = _VALIDATOR.validate(tc)
+                if error is not None or normalized is None:
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": f"[工具调用格式错误]\n{error}\n请修正后重试。",
+                        }
+                    )
+                    logger.info(self._log_ctx("ReAct iter %d: rejected tool call: %s"), i, error)
+                    continue
+                validated.append(normalized)
+
+            for tc in validated:
                 tool_name = tc.get("tool", "")
                 tool_args = tc.get("args", {})
                 # Progress hint based on tool
@@ -293,7 +312,7 @@ class OrchestratorAgent:
                     "get_news": ("status.react.news", {}),
                     "reply": ("status.react.reply", {}),
                 }
-                if tool_name in SKILL_IDS or tool_name in _LEGACY_SKILL_ALIASES:
+                if tool_name in SKILL_IDS or tool_name in LEGACY_SKILL_ALIASES:
                     key, params = ("status.react.skill", {"tool": tool_name})
                 else:
                     key, params = tool_status_keys.get(
@@ -330,7 +349,7 @@ class OrchestratorAgent:
     async def _execute_tool(self, name: str, args: dict[str, Any]) -> str:
         if not self._finance_tools and name in FINANCE_TOOLS:
             return f"工具 {name} 已禁用：当前问题与股票投资无关，请直接基于知识回答。"
-        skill_name = _LEGACY_SKILL_ALIASES.get(name, name)
+        skill_name = LEGACY_SKILL_ALIASES.get(name, name)
         if skill_name in PORTFOLIO_TOOL_NAMES and not self._portfolio_context:
             return f"工具 {name} 不可用：当前问题未涉及持仓组合，请勿调用持仓相关工具。"
         if self._news_explain_only and skill_name in _RESEARCH_SKILL_BLOCK:
